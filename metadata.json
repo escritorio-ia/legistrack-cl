@@ -1,0 +1,6 @@
+{
+  "name": "Legislacion++",
+  "description": "Plataforma de seguimiento legislativo y transparencia del Congreso Nacional de Chile, con información de la Cámara de Diputados, Senado de la República y Datos Abiertos.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_ANTHROPIC_API"]
+}
