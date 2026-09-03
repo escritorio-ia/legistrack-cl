@@ -342,7 +342,7 @@ export default function StaticDataAnalyticsView({ setView: _setView, setSelected
       transition={{ duration: 0.3 }}
       className="w-full bg-slate-50 min-h-screen pb-16"
     >
-      <div className="max-w-[1440px] mx-auto w-full px-4 sm:px-6 py-6 space-y-6">
+      <div className="max-w-[1440px] mx-auto w-full px-3 sm:px-6 lg:px-8 py-5 sm:py-8 space-y-6">
         
         {/* ========================================================================= */}
         {/* 1. HERO SEARCH & DISCOVERY BAR */}

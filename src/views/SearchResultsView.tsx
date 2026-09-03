@@ -88,7 +88,7 @@ export default function SearchResultsView({
     (results.comparada ? results.comparada.length : 0);
 
   return (
-    <div className="max-w-[1440px] mx-auto w-full px-6 py-8 flex flex-col gap-8 animate-fade-in" id="search-results-page">
+    <div className="max-w-[1440px] mx-auto w-full px-3 sm:px-6 lg:px-8 py-5 sm:py-8 flex flex-col gap-8 animate-fade-in" id="search-results-page">
       {/* Header section with search box */}
       <div className="bg-white border border-slate-200/85 p-6 rounded-2xl shadow-xs flex flex-col gap-6" id="search-results-header">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">

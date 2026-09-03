@@ -216,7 +216,7 @@ export default function SalaLiveView({ setView, setSelectedProyectoId }: SalaLiv
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.98 }}
       transition={{ duration: 0.3 }}
-      className="max-w-[1440px] mx-auto w-full px-6 py-8 flex flex-col gap-6"
+      className="max-w-[1440px] mx-auto w-full px-3 sm:px-6 lg:px-8 py-5 sm:py-8 flex flex-col gap-6"
     >
       {/* Intro section */}
       <div className="text-center max-w-2xl mx-auto flex flex-col justify-center items-center gap-2 mb-2" id="live-floor-intro">

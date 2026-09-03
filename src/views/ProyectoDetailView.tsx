@@ -624,7 +624,7 @@ export default function ProyectoDetailView({
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.98 }}
       transition={{ duration: 0.3 }}
-      className="max-w-[1440px] mx-auto w-full px-6 py-6 flex flex-col gap-5"
+      className="max-w-[1440px] mx-auto w-full px-3 sm:px-6 lg:px-8 py-5 sm:py-8 flex flex-col gap-5"
     >
       {/* Breadcrumbs */}
       <div className="flex items-center gap-1.5 text-xs text-slate-400 font-semibold" id="project-detail-breadcrumbs">

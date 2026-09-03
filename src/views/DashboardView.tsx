@@ -408,7 +408,7 @@ export default function DashboardView({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -15 }}
       transition={{ duration: 0.3 }}
-      className="max-w-[1440px] mx-auto w-full px-6 py-8 flex flex-col gap-6"
+      className="max-w-[1440px] mx-auto w-full px-3 sm:px-6 lg:px-8 py-5 sm:py-8 flex flex-col gap-6"
     >
       {/* Welcome Greeting */}
       <div>

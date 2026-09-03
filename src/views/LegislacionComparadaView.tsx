@@ -1388,7 +1388,7 @@ export default function LegislacionComparadaView() {
   };
 
   return (
-    <div className="max-w-[1440px] mx-auto w-full px-6 py-8 flex flex-col gap-8 font-sans text-slate-800" id="legislacion-comparada-root">
+    <div className="max-w-[1440px] mx-auto w-full px-3 sm:px-6 lg:px-8 py-5 sm:py-8 flex flex-col gap-8 font-sans text-slate-800" id="legislacion-comparada-root">
       
       {/* Notification Banner */}
       {successMessage && (

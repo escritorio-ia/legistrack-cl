@@ -341,7 +341,7 @@ export default function App() {
           const totalCount = DIPUTADOS_COMISIONES.length + SENADO_COMISIONES.length;
 
           return (
-            <div className="max-w-[1440px] mx-auto w-full px-4 sm:px-6 py-6 flex flex-col gap-5" id="commissions-view-root">
+            <div className="max-w-[1440px] mx-auto w-full px-3 sm:px-6 lg:px-8 py-5 sm:py-8 flex flex-col gap-5" id="commissions-view-root">
               {/* Header & Sub-Navigation Tabs */}
               <div className="flex flex-col gap-4 border-b border-slate-200/80 pb-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
