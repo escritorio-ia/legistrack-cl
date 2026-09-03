@@ -18,6 +18,8 @@ import {
   Download,
   FileSpreadsheet,
   FileCode,
+  FileText,
+  ArrowRight,
   Globe,
   Scale,
   Sparkles,
@@ -28,6 +30,7 @@ import {
 } from "lucide-react";
 import { Proyecto } from "../types";
 import { TODAS_COMISIONES_DETALLE, getProyectosForComision } from "../data/comisionesData";
+import { resolveProyecto, cleanBulletin } from "../utils/proyectosResolver";
 
 interface ProyectosViewProps {
   setView: (view: string) => void;
@@ -67,10 +70,14 @@ function getLocalFilteredProyectos(params: {
   }
   const allList = Array.from(allMap.values());
 
-  const q = params.searchFilter.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-  const qNum = params.searchFilter.replace(/[^0-9]/g, "");
+  const rawQ = (params.searchFilter || "").trim();
+  const q = rawQ.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+  const qClean = cleanBulletin(rawQ);
+  const qNum = rawQ.replace(/[^0-9]/g, "");
+  const isBulletinPattern = qNum.length >= 3 || rawQ.includes("-");
 
-  const filtered = allList.filter(p => {
+  let filtered = allList.filter(p => {
+    const pClean = cleanBulletin(p.id);
     const normId = (p.id || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     const normIdNum = (p.id || "").replace(/[^0-9]/g, "");
     const normTit = (p.titulo || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -79,29 +86,40 @@ function getLocalFilteredProyectos(params: {
     const normAut = (p.autores || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
     if (q) {
+      const matchClean = qClean.length >= 3 && (pClean.includes(qClean) || qClean.includes(pClean));
       const matchText = normId.includes(q) || normTit.includes(q) || normMat.includes(q) || normRes.includes(q) || normAut.includes(q);
-      const matchNum = qNum.length >= 3 && normIdNum.includes(qNum);
-      if (!matchText && !matchNum) return false;
+      const matchNum = qNum.length >= 3 && (normIdNum.includes(qNum) || qNum.includes(normIdNum));
+      if (!matchClean && !matchText && !matchNum) return false;
     }
 
-    if (params.estadoFilter !== "Todos" && p.estado !== params.estadoFilter) {
-      return false;
-    }
-    if (params.camaraFilter !== "Todas" && p.camaraOrigen !== params.camaraFilter) {
-      return false;
-    }
-    if (params.materiaFilter !== "Todas" && !normMat.includes(params.materiaFilter.toLowerCase())) {
-      return false;
-    }
-    if (params.urgenciaFilter !== "Todas" && p.urgencia !== params.urgenciaFilter) {
-      return false;
-    }
-    if (params.origenFilter !== "Todos" && p.iniciativa !== params.origenFilter) {
-      return false;
+    if (!isBulletinPattern) {
+      if (params.estadoFilter !== "Todos" && p.estado !== params.estadoFilter) {
+        return false;
+      }
+      if (params.camaraFilter !== "Todas" && p.camaraOrigen !== params.camaraFilter) {
+        return false;
+      }
+      if (params.materiaFilter !== "Todas" && !normMat.includes(params.materiaFilter.toLowerCase())) {
+        return false;
+      }
+      if (params.urgenciaFilter !== "Todas" && p.urgencia !== params.urgenciaFilter) {
+        return false;
+      }
+      if (params.origenFilter !== "Todos" && p.iniciativa !== params.origenFilter) {
+        return false;
+      }
     }
 
     return true;
   });
+
+  // If searching for a specific bulletin and not in filtered list, resolve dynamically so it is always found
+  if (isBulletinPattern) {
+    const resolved = resolveProyecto(rawQ);
+    if (resolved && !filtered.some(p => cleanBulletin(p.id) === cleanBulletin(resolved.id))) {
+      filtered.unshift(resolved);
+    }
+  }
 
   const total = filtered.length;
   const totalPages = Math.ceil(total / params.limit) || 1;
@@ -171,6 +189,15 @@ export default function ProyectosView({
   };
 
   const runSearch = () => {
+    const raw = (searchFilter || "").trim();
+    const qNum = raw.replace(/[^0-9]/g, "");
+    if (qNum.length >= 3 || raw.includes("-")) {
+      setEstadoFilter("Todos");
+      setCamaraFilter("Todas");
+      setMateriaFilter("Todas");
+      setUrgenciaFilter("Todas");
+      setOrigenFilter("Todos");
+    }
     setPage(1);
     setSearchExecution(prev => prev + 1);
   };
@@ -337,21 +364,21 @@ export default function ProyectosView({
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-3.5" id="search-filter-card">
             
             {/* Direct Input */}
-            <div className="flex gap-2">
+            <form onSubmit={(e) => { e.preventDefault(); runSearch(); }} className="flex gap-2">
               <div className="relative flex-1">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
                 <input
                   type="text"
-                  placeholder="Buscar por número de boletín (ej. 15.869-19, 11.179-13), título, autores, materia..."
+                  placeholder="Buscar por número de boletín (ej. 16.621-13, 15.431-07, 15.869-19), título, autores..."
                   className="w-full bg-slate-50 rounded-xl pl-10 pr-10 py-3 text-xs text-slate-800 border border-slate-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600 font-medium placeholder:text-slate-400 shadow-inner"
                   value={searchFilter}
                   onChange={(e) => setSearchFilter(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && runSearch()}
                   id="proyectos-search-box"
                 />
                 {searchFilter && (
                   <button
-                    onClick={() => { setSearchFilter(""); runSearch(); }}
+                    type="button"
+                    onClick={() => { setSearchFilter(""); setPage(1); setSearchExecution(p => p + 1); }}
                     className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 cursor-pointer"
                     title="Limpiar búsqueda"
                   >
@@ -360,14 +387,14 @@ export default function ProyectosView({
                 )}
               </div>
               <button 
-                onClick={runSearch}
+                type="submit"
                 className="bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold px-6 py-3 rounded-xl transition-all shadow-xs cursor-pointer flex items-center gap-1.5 shrink-0"
                 id="proyectos-search-btn"
               >
                 <Search className="w-4 h-4" />
                 <span>Buscar</span>
               </button>
-            </div>
+            </form>
 
             {/* Quick Topic Chips */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
@@ -531,6 +558,35 @@ export default function ProyectosView({
               <span className="text-blue-700 font-bold">Más reciente</span>
             </div>
           </div>
+
+          {/* Active Search Highlight Banner */}
+          {searchFilter && proyectos.length > 0 && (
+            <div className="bg-blue-50/90 border border-blue-200/90 rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-2xs">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-2xs font-bold">
+                  <FileText className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-1.5 font-bold text-slate-900">
+                    <span>Resultados para</span>
+                    <span className="bg-blue-100 text-blue-900 px-2 py-0.5 rounded-md font-mono text-[11px]">"{searchFilter}"</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                    {totalResultados} proyecto{totalResultados === 1 ? "" : "s"} disponible{totalResultados === 1 ? "" : "s"} en el expediente
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setSelectedProyectoId(proyectos[0].id);
+                }}
+                className="bg-blue-700 hover:bg-blue-800 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 shrink-0 shadow-2xs cursor-pointer ml-auto sm:ml-0"
+              >
+                <span>Abrir Boletín {proyectos[0].id}</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
 
           {/* Bills List */}
           <div className="flex flex-col gap-3.5" id="proyectos-feed-list">
