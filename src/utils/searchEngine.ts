@@ -225,6 +225,13 @@ export function performUnifiedSearch(rawQuery: string): UnifiedSearchResult {
   const encodedBoletin = encodeURIComponent(rawQuery.split('-')[0].trim());
   const qLower = normalizeSearchString(rawQuery);
 
+  let searchDisplayName = rawQuery;
+  if (isDirectBulletin && matchedProjects.length > 0) {
+    searchDisplayName = matchedProjects[0].titulo;
+  } else if (isDirectBulletin) {
+    searchDisplayName = `Boletín ${rawQuery}`;
+  }
+
   const fuentesDatos: FuenteDatoItem[] = [
     {
       id: "fuente-senado",
@@ -233,7 +240,7 @@ export function performUnifiedSearch(rawQuery: string): UnifiedSearchResult {
       categoria: "Congreso & Normativa",
       descripcion: "Sistema de Tramitación de Proyectos, boletines oficiales, actas de comisiones, transmisiones de Sala y Open Data parlamentario.",
       url: `https://tramitacion.senado.cl/wspublico/tramitacion.php?boletin=${encodedBoletin}`,
-      queBuscar: `Boletines, estados de tramitación, quórum de votación y proyectos de ley radicados en el Senado sobre "${rawQuery}".`,
+      queBuscar: `Boletines, estados de tramitación, quórum de votación y proyectos de ley radicados en el Senado sobre "${searchDisplayName}".`,
       cobertura: "Congreso Nacional (1990 - 2026)",
       relevancia: "Alta"
     },
@@ -244,7 +251,7 @@ export function performUnifiedSearch(rawQuery: string): UnifiedSearchResult {
       categoria: "Congreso & Normativa",
       descripcion: "Buscador de labor parlamentaria, registros de votaciones electrónicas en sala, asistencia, oficios fiscalizadores y mociones.",
       url: `https://www.camara.cl/legislacion/proyectos/busqueda.aspx?prmTexto=${encodedQ}`,
-      queBuscar: `Mociones, acuerdos, votaciones y trabajo de comisiones de la Cámara de Diputados sobre "${rawQuery}".`,
+      queBuscar: `Mociones, acuerdos, votaciones y trabajo de comisiones de la Cámara de Diputadas y Diputados sobre "${searchDisplayName}".`,
       cobertura: "Cámara Baja (Histórico & Vigente)",
       relevancia: "Alta"
     },
@@ -253,32 +260,32 @@ export function performUnifiedSearch(rawQuery: string): UnifiedSearchResult {
       nombre: "LeyChile — Biblioteca del Congreso Nacional",
       institucion: "Biblioteca del Congreso Nacional (BCN)",
       categoria: "Congreso & Normativa",
-      descripcion: "Base oficial de normas vigentes, leyes promulgadas, decretos supremos, textos refundidos e historia de la ley.",
-      url: `https://www.bcn.cl/leychile/consulta/buscador_resultado?texto=${encodedQ}`,
-      queBuscar: `Textos oficiales de leyes publicadas, modificaciones a códigos y vigencia normativa de "${rawQuery}".`,
+      descripcion: "Repositorio oficial de leyes promulgadas y normativa legal chilena. Texto completo, historia de la ley y jurisprudencia.",
+      url: `https://www.bcn.cl/leychile/consulta/busqueda_rapida?texto=${encodedQ}`,
+      queBuscar: `Textos oficiales de leyes publicadas, modificaciones a códigos y vigencia normativa de "${searchDisplayName}".`,
       cobertura: "Toda la legislación de la República (1810 - 2026)",
       relevancia: "Alta"
     },
     {
-      id: "fuente-bcn-siit",
+      id: "fuente-bcn-asesoria",
       nombre: "BCN Asesoría Técnica & SIIT Territorial",
       institucion: "Biblioteca del Congreso Nacional (BCN)",
       categoria: "Estadística & Cifras",
-      descripcion: "Estudios comparados internacionales, minutas constitucionales y Sistema Integrado de Información Territorial (SIIT) por región y comuna.",
-      url: `https://www.bcn.cl/obtienearchivo?id=recursoslegales/10221.3/${encodedQ}`,
-      queBuscar: `Informes técnicos parlamentarios, comparativas de derecho internacional y estadísticas sectoriales sobre "${rawQuery}".`,
+      descripcion: "Informes técnicos, dosieres y visualización de datos estadísticos territoriales para asesoría al legislador.",
+      url: `https://www.bcn.cl/observatorio/busqueda?q=${encodedQ}`,
+      queBuscar: `Informes técnicos parlamentarios, comparativas de derecho internacional y estadísticas sectoriales sobre "${searchDisplayName}".`,
       cobertura: "16 regiones y asesoría parlamentaria transversal",
-      relevancia: "Alta"
+      relevancia: "Media"
     },
     {
       id: "fuente-dipres",
-      nombre: "DIPRES — Informes Financieros y Presupuesto",
-      institucion: "Ministerio de Hacienda / Dirección de Presupuestos",
+      nombre: "Dirección de Presupuestos (DIPRES)",
+      institucion: "Ministerio de Hacienda",
       categoria: "Presupuesto & Finanzas",
-      descripcion: "Informes financieros oficiales que cuantifican el costo fiscal de proyectos de ley, ley de presupuestos del sector público y estadísticas fiscales.",
-      url: `https://www.dipres.gob.cl/598/w3-propertyvalue-15343.html`,
-      queBuscar: `Costos fiscales, gasto público y evaluaciones de impacto presupuestario de iniciativas relacionadas con "${rawQuery}".`,
-      cobertura: "Sector Público consolidado e Informes Financieros",
+      descripcion: "Informes financieros, evaluación de programas públicos y documentos del presupuesto nacional de la República.",
+      url: `https://www.dipres.gob.cl/598/w3-propertyvalue-15439.html?_q=${encodedQ}`,
+      queBuscar: `Informes financieros que acompañan a proyectos de ley y evaluación de gasto público relacionados a "${searchDisplayName}".`,
+      cobertura: "Finanzas Públicas (Vigente & Archivo)",
       relevancia: qLower.includes("presupuesto") || qLower.includes("gasto") || qLower.includes("hacienda") || qLower.includes("financier") || qLower.includes("tribut") ? "Alta" : "Media"
     },
     {
