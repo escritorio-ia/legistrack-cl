@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from "react";
 import { 
   Search, FileText, Landmark, User, FileSpreadsheet, Calendar, 
-  ArrowRight, Sparkles, Filter, Bookmark, AlertCircle, FileCheck, Globe, ExternalLink 
+  ArrowRight, Sparkles, Filter, Bookmark, AlertCircle, FileCheck, Globe, ExternalLink, Database 
 } from "lucide-react";
 import { performUnifiedSearch, UnifiedSearchResult } from "../utils/searchEngine";
 
@@ -28,11 +28,12 @@ export default function SearchResultsView({
   const [query, setQuery] = useState(initialQuery);
   const [loading, setLoading] = useState(false);
   const [searchingWeb, setSearchingWeb] = useState(false);
-  const [activeTab, setActiveTab] = useState<"all" | "proyectos" | "comisiones" | "informes" | "autores" | "comparada">("all");
+  const [activeTab, setActiveTab] = useState<"all" | "proyectos" | "comisiones" | "fuentes" | "informes" | "autores" | "comparada">("all");
   const [results, setResults] = useState<UnifiedSearchResult>({ 
     proyectos: [], 
     comisiones: [], 
     autores: [], 
+    fuentesDatos: [],
     documentos: [], 
     comparada: [],
     webLinks: []
@@ -59,6 +60,7 @@ export default function SearchResultsView({
           proyectos: data.proyectos && data.proyectos.length > 0 ? data.proyectos : localRes.proyectos,
           comisiones: data.comisiones && data.comisiones.length > 0 ? data.comisiones : localRes.comisiones,
           autores: data.autores && data.autores.length > 0 ? data.autores : localRes.autores,
+          fuentesDatos: data.fuentesDatos && data.fuentesDatos.length > 0 ? data.fuentesDatos : localRes.fuentesDatos,
           documentos: localRes.documentos,
           comparada: localRes.comparada,
           webLinks: localRes.webLinks
@@ -92,6 +94,7 @@ export default function SearchResultsView({
   const totalCount = 
     results.proyectos.length + 
     results.comisiones.length + 
+    (results.fuentesDatos ? results.fuentesDatos.length : 0) +
     results.documentos.length + 
     results.autores.length +
     (results.comparada ? results.comparada.length : 0);
@@ -214,10 +217,14 @@ export default function SearchResultsView({
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 mt-2 border-t border-slate-800 pt-3 text-[10px] font-semibold text-slate-400 font-mono">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2 border-t border-slate-800 pt-3 text-[10px] font-semibold text-slate-400 font-mono">
               <div className="flex flex-col">
                 <span className="text-slate-500">Proyectos:</span>
                 <span className="text-white font-bold">{results.proyectos.length}</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-slate-500">Fuentes Oficiales:</span>
+                <span className="text-blue-400 font-bold">{results.fuentesDatos ? results.fuentesDatos.length : 0}</span>
               </div>
               <div className="flex flex-col">
                 <span className="text-slate-500">Comisiones:</span>
@@ -258,6 +265,16 @@ export default function SearchResultsView({
                 <FileText className="w-3.5 h-3.5" /> Proyectos de Ley
               </span>
               <span className="font-mono text-[10px] tracking-tight">{results.proyectos.length}</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("fuentes")}
+              className={`flex items-center justify-between w-full p-2.5 rounded-lg text-xs font-bold transition text-left ${activeTab === "fuentes" ? "bg-blue-700 text-white" : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"}`}
+            >
+              <span className="flex items-center gap-2">
+                <Database className="w-3.5 h-3.5" /> Fuentes de Datos
+              </span>
+              <span className="font-mono text-[10px] tracking-tight">{results.fuentesDatos ? results.fuentesDatos.length : 0}</span>
             </button>
 
             <button
@@ -339,6 +356,68 @@ export default function SearchResultsView({
           ) : (
             <div className="flex flex-col gap-8">
               
+              {/* Category Segment: FUENTES DE DATOS & REPOSITORIOS OFICIALES */}
+              {(activeTab === "all" || activeTab === "fuentes") && results.fuentesDatos && results.fuentesDatos.length > 0 && (
+                <div className="flex flex-col gap-4" id="section-fuentes-datos">
+                  <div className="flex items-center justify-between px-1">
+                    <div className="flex items-center gap-2">
+                      <Database className="w-4 h-4 text-blue-600" />
+                      <h2 className="text-xs font-black uppercase tracking-wider text-slate-400">
+                        Fuentes de Datos Oficiales & Dónde está la Información ({results.fuentesDatos.length})
+                      </h2>
+                    </div>
+                    <span className="text-[10px] bg-blue-50 text-blue-700 font-extrabold px-2.5 py-0.5 rounded-full border border-blue-100 font-mono">
+                      Portales del Estado & Organismos Públicos
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {results.fuentesDatos.map((f) => (
+                      <div
+                        key={f.id}
+                        className="bg-white border border-slate-200/90 hover:border-blue-400 rounded-2xl p-5 flex flex-col justify-between gap-4 transition hover:shadow-sm group"
+                      >
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-black text-blue-700 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-md">
+                              {f.institucion}
+                            </span>
+                            <span className="text-[9px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded">
+                              {f.categoria}
+                            </span>
+                          </div>
+                          <h3 className="text-sm font-extrabold text-slate-900 group-hover:text-blue-700 transition-colors">
+                            {f.nombre}
+                          </h3>
+                          <div className="bg-slate-50 border border-slate-100 rounded-xl p-2.5 text-xs text-slate-700 leading-relaxed">
+                            <strong className="text-slate-900 block font-bold mb-0.5">Qué información encontrar:</strong>
+                            {f.queBuscar}
+                          </div>
+                          <p className="text-[11px] text-slate-500 line-clamp-2">
+                            {f.descripcion}
+                          </p>
+                        </div>
+
+                        <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            Cobertura: {f.cobertura}
+                          </span>
+                          <a
+                            href={f.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-800 hover:underline"
+                          >
+                            <span>Consultar repositorio</span>
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Category Segment: PROYECTOS DE LEY */}
               {(activeTab === "all" || activeTab === "proyectos") && results.proyectos.length > 0 && (
                 <div className="flex flex-col gap-4" id="section-proyectos">

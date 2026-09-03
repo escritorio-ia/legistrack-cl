@@ -12,10 +12,23 @@ import {
 import { Proyecto, Integrante } from "../types";
 import { resolveProyecto, cleanBulletin, getAllMasterProyectos } from "./proyectosResolver";
 
+export interface FuenteDatoItem {
+  id: string;
+  nombre: string;
+  institucion: string;
+  categoria: "Congreso & Normativa" | "Estadística & Cifras" | "Presupuesto & Finanzas" | "Jurisprudencia & Transparencia" | "Internacional & OCDE";
+  descripcion: string;
+  url: string;
+  queBuscar: string;
+  cobertura: string;
+  relevancia: "Alta" | "Media" | "Complementaria";
+}
+
 export interface UnifiedSearchResult {
   proyectos: Proyecto[];
   comisiones: ComisionMeta[];
   autores: (Integrante & { comisionNombre?: string; comisionId?: string })[];
+  fuentesDatos: FuenteDatoItem[];
   documentos: {
     id: string;
     titulo: string;
@@ -72,6 +85,7 @@ export function performUnifiedSearch(rawQuery: string): UnifiedSearchResult {
       proyectos: [],
       comisiones: [],
       autores: [],
+      fuentesDatos: [],
       documentos: [],
       comparada: [],
       webLinks: []
@@ -206,8 +220,123 @@ export function performUnifiedSearch(rawQuery: string): UnifiedSearchResult {
     }
   ];
 
-  // 6. Direct Live Official Web Portals Links
+  // 6. Direct Live Official Web Portals Links & Intelligent Data Sources
   const encodedQ = encodeURIComponent(rawQuery.trim());
+  const qLower = normalizeSearchString(rawQuery);
+
+  const fuentesDatos: FuenteDatoItem[] = [
+    {
+      id: "fuente-senado",
+      nombre: "Senado de la República de Chile",
+      institucion: "Congreso Nacional de Chile",
+      categoria: "Congreso & Normativa",
+      descripcion: "Sistema de Tramitación de Proyectos, boletines oficiales, actas de comisiones, transmisiones de Sala y Open Data parlamentario.",
+      url: `https://tramitacion.senado.cl/appsenado/templates/tramitacion/index.php?boletin=${encodedQ}`,
+      queBuscar: `Boletines, estados de tramitación, quórum de votación y proyectos de ley radicados en el Senado sobre "${rawQuery}".`,
+      cobertura: "Congreso Nacional (1990 - 2026)",
+      relevancia: "Alta"
+    },
+    {
+      id: "fuente-camara",
+      nombre: "Cámara de Diputadas y Diputados",
+      institucion: "Congreso Nacional de Chile",
+      categoria: "Congreso & Normativa",
+      descripcion: "Buscador de labor parlamentaria, registros de votaciones electrónicas en sala, asistencia, oficios fiscalizadores y mociones.",
+      url: `https://www.camara.cl/legislacion/proyectos/busqueda.aspx?prmTexto=${encodedQ}`,
+      queBuscar: `Mociones, acuerdos, votaciones y trabajo de comisiones de la Cámara de Diputados sobre "${rawQuery}".`,
+      cobertura: "Cámara Baja (Histórico & Vigente)",
+      relevancia: "Alta"
+    },
+    {
+      id: "fuente-bcn-leychile",
+      nombre: "LeyChile — Biblioteca del Congreso Nacional",
+      institucion: "Biblioteca del Congreso Nacional (BCN)",
+      categoria: "Congreso & Normativa",
+      descripcion: "Base oficial de normas vigentes, leyes promulgadas, decretos supremos, textos refundidos e historia de la ley.",
+      url: `https://www.bcn.cl/leychile/consulta/buscador_resultado?texto=${encodedQ}`,
+      queBuscar: `Textos oficiales de leyes publicadas, modificaciones a códigos y vigencia normativa de "${rawQuery}".`,
+      cobertura: "Toda la legislación de la República (1810 - 2026)",
+      relevancia: "Alta"
+    },
+    {
+      id: "fuente-bcn-siit",
+      nombre: "BCN Asesoría Técnica & SIIT Territorial",
+      institucion: "Biblioteca del Congreso Nacional (BCN)",
+      categoria: "Estadística & Cifras",
+      descripcion: "Estudios comparados internacionales, minutas constitucionales y Sistema Integrado de Información Territorial (SIIT) por región y comuna.",
+      url: `https://www.bcn.cl/obtienearchivo?id=recursoslegales/10221.3/${encodedQ}`,
+      queBuscar: `Informes técnicos parlamentarios, comparativas de derecho internacional y estadísticas sectoriales sobre "${rawQuery}".`,
+      cobertura: "16 regiones y asesoría parlamentaria transversal",
+      relevancia: "Alta"
+    },
+    {
+      id: "fuente-dipres",
+      nombre: "DIPRES — Informes Financieros y Presupuesto",
+      institucion: "Ministerio de Hacienda / Dirección de Presupuestos",
+      categoria: "Presupuesto & Finanzas",
+      descripcion: "Informes financieros oficiales que cuantifican el costo fiscal de proyectos de ley, ley de presupuestos del sector público y estadísticas fiscales.",
+      url: `https://www.dipres.gob.cl/598/w3-propertyvalue-15343.html`,
+      queBuscar: `Costos fiscales, gasto público y evaluaciones de impacto presupuestario de iniciativas relacionadas con "${rawQuery}".`,
+      cobertura: "Sector Público consolidado e Informes Financieros",
+      relevancia: qLower.includes("presupuesto") || qLower.includes("gasto") || qLower.includes("hacienda") || qLower.includes("financier") || qLower.includes("tribut") ? "Alta" : "Media"
+    },
+    {
+      id: "fuente-datos-gob",
+      nombre: "Portal de Datos Abiertos del Estado",
+      institucion: "Gobierno Digital / Ministerio Secretaría General de la Presidencia",
+      categoria: "Jurisprudencia & Transparencia",
+      descripcion: "Catálogo centralizado de datos públicos interoperables del Estado chileno (formatos CSV, JSON y API) provistos por ministerios y servicios públicos.",
+      url: `https://datos.gob.cl/dataset?q=${encodedQ}`,
+      queBuscar: `Datasets oficiales, nóminas públicas, subsidios, contrataciones y registros sectoriales sobre "${rawQuery}".`,
+      cobertura: "Administración Central del Estado",
+      relevancia: "Alta"
+    },
+    {
+      id: "fuente-diario-oficial",
+      nombre: "Diario Oficial de la República de Chile",
+      institucion: "Ministerio del Interior y Seguridad Pública",
+      categoria: "Congreso & Normativa",
+      descripcion: "Publicación oficial indispensable para la entrada en vigencia de leyes, reglamentos, tratados internacionales y decretos de la República.",
+      url: `https://www.diariooficial.interior.gob.cl/`,
+      queBuscar: `Ediciones oficiales, fechas de promulgación y publicaciones de normas sobre "${rawQuery}".`,
+      cobertura: "Diario Oficial de Chile",
+      relevancia: "Media"
+    },
+    {
+      id: "fuente-ine",
+      nombre: "INE — Instituto Nacional de Estadísticas",
+      institucion: "Instituto Nacional de Estadísticas (Chile)",
+      categoria: "Estadística & Cifras",
+      descripcion: "Censos de población, Encuesta Nacional de Empleo (ENE), Índice de Precios al Consumidor (IPC) y estadísticas socioeconómicas oficiales.",
+      url: `https://www.ine.gob.cl/estadisticas`,
+      queBuscar: `Cifras demográficas, estadísticas laborales, índices de precios y series históricas vinculadas a "${rawQuery}".`,
+      cobertura: "Nacional, regional y comunal",
+      relevancia: qLower.includes("empleo") || qLower.includes("trabajo") || qLower.includes("ipc") || qLower.includes("censo") || qLower.includes("poblacion") || qLower.includes("estadistic") ? "Alta" : "Media"
+    },
+    {
+      id: "fuente-infolobby",
+      nombre: "Plataforma InfoLobby & CPLT",
+      institucion: "Consejo para la Transparencia (CPLT)",
+      categoria: "Jurisprudencia & Transparencia",
+      descripcion: "Registro público de audiencias de lobby, gestores de intereses, viajes oficiales y donativos de diputados, senadores y autoridades de gobierno.",
+      url: `https://www.infolobby.gob.cl/`,
+      queBuscar: `Audiencias registradas entre parlamentarios y organizaciones de la sociedad civil o gremios en torno a "${rawQuery}".`,
+      cobertura: "Autoridades y sujetos pasivos Ley 20.730",
+      relevancia: "Media"
+    },
+    {
+      id: "fuente-ocde",
+      nombre: "OCDE Legal Instruments & Policy Database",
+      institucion: "Organización para la Cooperación y el Desarrollo Económicos (OCDE)",
+      categoria: "Internacional & OCDE",
+      descripcion: "Recomendaciones vinculantes, marcos de gobernanza y revisiones de políticas regulatorias de los 38 países miembros de la OCDE.",
+      url: `https://legalinstruments.oecd.org/en/`,
+      queBuscar: `Estándares internacionales, buenas prácticas regulatorias y evaluación de impacto legislativo de la OCDE sobre "${rawQuery}".`,
+      cobertura: "38 Países Miembros de la OCDE (incluyendo Chile)",
+      relevancia: qLower.includes("comparad") || qLower.includes("internacional") || qLower.includes("ocde") || qLower.includes("europa") || qLower.includes("latam") ? "Alta" : "Complementaria"
+    }
+  ];
+
   const webLinks: UnifiedSearchResult["webLinks"] = [
     {
       name: "Cámara de Diputadas y Diputados",
@@ -239,6 +368,7 @@ export function performUnifiedSearch(rawQuery: string): UnifiedSearchResult {
     proyectos: matchedProjects,
     comisiones: matchedComisiones,
     autores: matchedAuthors,
+    fuentesDatos,
     documentos: sampleDocs,
     comparada: sampleComparada,
     webLinks

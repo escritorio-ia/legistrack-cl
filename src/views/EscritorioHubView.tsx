@@ -214,7 +214,6 @@ export default function EscritorioHubView({
               <div>
                 <h3 className="text-lg sm:text-xl font-black text-slate-900 group-hover:text-emerald-600 transition-colors flex items-center gap-1.5">
                   Statistics++
-                  <span className="text-2xs font-bold px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-md">PRO</span>
                 </h3>
                 <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
                   Explorador de datos públicos y políticas públicas con series históricas 1990–2026, estadísticas territoriales de las 16 regiones (BCN SIIT) y comparativas internacionales.

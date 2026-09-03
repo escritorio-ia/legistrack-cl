@@ -20,10 +20,12 @@ import {
   Home,
   Menu,
   SlidersHorizontal,
-  ChevronRight
+  ChevronRight,
+  Database,
+  ExternalLink
 } from "lucide-react";
 
-import { performUnifiedSearch } from "../utils/searchEngine";
+import { performUnifiedSearch, FuenteDatoItem } from "../utils/searchEngine";
 
 interface HeaderProps {
   currentView: string;
@@ -51,7 +53,8 @@ export default function Header({
     comisiones: any[];
     autores: any[];
     comparada?: any[];
-  }>({ proyectos: [], comisiones: [], autores: [], comparada: [] });
+    fuentesDatos?: FuenteDatoItem[];
+  }>({ proyectos: [], comisiones: [], autores: [], comparada: [], fuentesDatos: [] });
   const [loading, setLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -87,7 +90,8 @@ export default function Header({
       proyectos: localRes.proyectos.slice(0, 5),
       comisiones: localRes.comisiones.slice(0, 5),
       autores: localRes.autores.slice(0, 5),
-      comparada: localRes.comparada.slice(0, 3)
+      comparada: localRes.comparada.slice(0, 3),
+      fuentesDatos: localRes.fuentesDatos || []
     });
 
     // 2. Fetch live server search in parallel if available
@@ -97,7 +101,10 @@ export default function Header({
         if (res.ok) {
           const data = await res.json();
           if (data && (data.proyectos?.length || data.comisiones?.length || data.autores?.length)) {
-            setResults(data);
+            setResults({
+              ...data,
+              fuentesDatos: data.fuentesDatos && data.fuentesDatos.length > 0 ? data.fuentesDatos : localRes.fuentesDatos
+            });
           }
         }
       } catch (err) {
@@ -241,13 +248,61 @@ export default function Header({
                     <Loader2 className="w-4.5 h-4.5 animate-spin text-blue-600" />
                     <span>Buscando comisiones, proyectos y autores en tiempo real...</span>
                   </div>
-                ) : results.proyectos.length === 0 && results.comisiones.length === 0 && results.autores.length === 0 ? (
+                ) : results.proyectos.length === 0 && results.comisiones.length === 0 && results.autores.length === 0 && (!results.fuentesDatos || results.fuentesDatos.length === 0) ? (
                   <div className="text-center py-8 px-4 text-slate-500 text-xs" id="search-empty-state">
                     <p className="font-semibold text-slate-700">No se encontraron resultados para "{searchFilter}"</p>
                     <p className="text-[10px] text-slate-400 mt-1">Intente buscando por boletín (ej. 16621-13), comisiones (ej. trabajo, hacienda), o autores.</p>
                   </div>
                 ) : (
                   <div className="flex flex-col gap-3 p-2">
+                    {/* Fuentes de Datos & Dónde Encontrar la Información */}
+                    {results.fuentesDatos && results.fuentesDatos.length > 0 && (
+                      <div id="search-category-fuentes-datos" className="bg-blue-50/40 p-2.5 rounded-2xl border border-blue-100">
+                        <div className="flex items-center justify-between pb-2 mb-2 border-b border-blue-100">
+                          <div className="flex items-center gap-1.5">
+                            <Database className="w-3.5 h-3.5 text-blue-600" />
+                            <span className="text-[10px] font-black text-blue-900 uppercase tracking-wider font-mono">
+                              Fuentes Oficiales & Dónde está la Información ({results.fuentesDatos.length})
+                            </span>
+                          </div>
+                          <span className="text-[9px] text-blue-600 font-semibold bg-blue-100/70 px-1.5 py-0.5 rounded">
+                            Enlaces Directos
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 gap-1.5">
+                          {results.fuentesDatos.slice(0, 4).map((f) => (
+                            <a
+                              key={f.id}
+                              href={f.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-2 rounded-xl bg-white hover:bg-blue-50/80 border border-blue-100/80 shadow-2xs cursor-pointer flex flex-col gap-1 transition-all text-left group"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="text-[9px] font-extrabold text-blue-700 bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded">
+                                  {f.institucion}
+                                </span>
+                                <span className="text-[9px] font-bold text-slate-400 group-hover:text-blue-700 flex items-center gap-0.5 transition-colors">
+                                  <span>Consultar</span>
+                                  <ExternalLink className="w-2.5 h-2.5" />
+                                </span>
+                              </div>
+                              <h4 className="text-xs font-bold text-slate-800 group-hover:text-blue-700 leading-snug transition-colors">
+                                {f.nombre}
+                              </h4>
+                              <p className="text-[10px] text-slate-600 leading-tight">
+                                <strong className="text-slate-700">Qué encontrar:</strong> {f.queBuscar}
+                              </p>
+                              <div className="flex items-center justify-between text-[9px] text-slate-400 font-mono pt-0.5">
+                                <span>Cobertura: {f.cobertura}</span>
+                                <span className="text-emerald-700 font-semibold bg-emerald-50 px-1 rounded">{f.categoria}</span>
+                              </div>
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Proyectos de Ley */}
                     {results.proyectos.length > 0 && (
                       <div id="search-category-proyectos">
