@@ -10,6 +10,7 @@ import {
   findComisionMetaById 
 } from "../data/comisionesData";
 import { Proyecto, Integrante } from "../types";
+import { resolveProyecto, cleanBulletin } from "./proyectosResolver";
 
 export interface UnifiedSearchResult {
   proyectos: Proyecto[];
@@ -89,13 +90,21 @@ export function performUnifiedSearch(rawQuery: string): UnifiedSearchResult {
   }
   const allProjects = Array.from(allProjectsMap.values());
 
+  const qClean = cleanBulletin(rawQuery);
+  const isDirectBulletin = (boletinDigits && boletinDigits.length >= 3) || rawQuery.includes("-");
+
   // Filter projects
   const matchedProjects = allProjects.filter(p => {
+    const pClean = cleanBulletin(p.id);
     const normId = normalizeSearchString(p.id);
     const normTit = normalizeSearchString(p.titulo);
     const normMat = normalizeSearchString(p.materia);
     const normRes = normalizeSearchString(p.resumen);
     const normAut = normalizeSearchString(p.autores || "");
+
+    if (qClean && qClean.length >= 3 && (pClean.includes(qClean) || qClean.includes(pClean))) {
+      return true;
+    }
 
     if (boletinDigits && normId.replace(/[\.\-]/g, "").includes(boletinDigits)) {
       return true;
@@ -110,31 +119,12 @@ export function performUnifiedSearch(rawQuery: string): UnifiedSearchResult {
     );
   });
 
-  // If a specific bulletin number was typed but not found in preset list, dynamically construct a live entry
-  if (boletinDigits && matchedProjects.length === 0) {
-    const formattedId = boletinDigits.length > 3 
-      ? `${boletinDigits.slice(0, -2)}.${boletinDigits.slice(-2)}` 
-      : boletinDigits;
-    matchedProjects.push({
-      id: `${formattedId}-07`,
-      titulo: `Iniciativa de Ley asociada al Boletín N° ${rawQuery.trim()}`,
-      resumen: `Expediente oficial en tramitación legislativa ante el Congreso Nacional de Chile.`,
-      estado: "En tramitación",
-      etapa: "Primer Trámite Constitucional",
-      fechaIngreso: "2024-01-01",
-      materia: "Legislación General",
-      autores: "Congreso Nacional de Chile",
-      iniciativa: "Moción",
-      patrocinantes: 5,
-      urgencia: "Sin urgencia",
-      camaraOrigen: "Diputados",
-      comisionActual: "Comisión de Constitución",
-      timeline: [
-        { id: "act-live-01", fecha: "Reciente", titulo: "Ingreso a tramitación", descripcion: "Iniciativa radicada en el Congreso Nacional.", tipo: "ingreso" }
-      ],
-      documentos: [],
-      votaciones: []
-    });
+  // If a specific bulletin number was typed, resolve using the universal Chilean bulletin resolver
+  if (isDirectBulletin) {
+    const resolved = resolveProyecto(rawQuery);
+    if (resolved && !matchedProjects.some(p => cleanBulletin(p.id) === cleanBulletin(resolved.id))) {
+      matchedProjects.unshift(resolved);
+    }
   }
 
   // 2. Search Commissions
