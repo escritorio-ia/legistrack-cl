@@ -898,18 +898,7 @@ export default function ProyectoDetailView({
             >
               Comparado
             </button>
-            <button
-              onClick={() => setActiveTab("simulador-quorum")}
-              className={`pb-2.5 px-3 border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeTab === "simulador-quorum" 
-                  ? "border-blue-600 text-blue-600 font-bold" 
-                  : "border-transparent text-slate-500 hover:text-slate-800"
-              }`}
-              id="tab-btn-simulador-quorum"
-            >
-              <Scale className="w-3.5 h-3.5" />
-              <span>Simulador de Quórum</span>
-            </button>
+
             <button
               onClick={() => setActiveTab("informes-bcn")}
               className={`pb-2.5 px-3 border-b-2 transition-all cursor-pointer flex items-center gap-1 group/btn ${
@@ -1783,12 +1772,7 @@ export default function ProyectoDetailView({
               </div>
             )}
 
-            {/* 8. Simulador de Quórum Tab */}
-            {activeTab === "simulador-quorum" && (
-              <div id="tabpanel-simulador-quorum">
-                <SimuladorQuorum proyecto={proyecto} defaultCamara={proyecto.camaraOrigen} />
-              </div>
-            )}
+
 
           </div>
 
