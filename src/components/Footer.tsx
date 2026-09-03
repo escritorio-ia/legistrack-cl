@@ -17,17 +17,6 @@ export default function Footer() {
             Escritorio<span className="text-blue-600">++</span>
           </span>
         </div>
-        
-        <div className="hidden sm:block h-4 w-px bg-slate-200" />
-        
-        <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            Sistemas Operativos
-          </span>
-          <span className="hidden md:inline text-slate-400">&bull;</span>
-          <span className="hidden md:inline">Congreso Nacional de Chile (Cámara & Senado)</span>
-        </div>
       </div>
 
       <div className="flex flex-wrap justify-center items-center gap-x-6 gap-y-2 text-xs text-slate-500 font-medium">

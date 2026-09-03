@@ -97,7 +97,7 @@ export default function App() {
   const [commChamberFilter, setCommChamberFilter] = useState<"todas" | "CD" | "SR">("todas");
   const commSearchContainerRef = useRef<HTMLDivElement>(null);
 
-  // Deep Linking & Hash Routing Synchronization
+  // Deep Linking & Browser History / Hash Routing Synchronization
   useEffect(() => {
     const handleHashChange = () => {
       const rawHash = window.location.hash.replace(/^#\/?/, "");
@@ -119,6 +119,13 @@ export default function App() {
           setSelectedComisionId(id);
           setView("comision-detail");
         }
+      } else if (rawHash.startsWith("buscar") || rawHash.startsWith("search")) {
+        const queryParams = new URLSearchParams(rawHash.split("?")[1] || "");
+        const q = queryParams.get("q");
+        if (q) {
+          setSearchFilter(decodeURIComponent(q));
+        }
+        setView("search-results");
       } else if (rawHash === "proyectos") {
         setView("proyectos");
       } else if (rawHash.startsWith("comisiones")) {
@@ -139,24 +146,47 @@ export default function App() {
       }
     };
 
-    handleHashChange();
+    if (!window.location.hash || window.location.hash === "#" || window.location.hash === "#/") {
+      window.location.hash = "#/escritorio";
+    } else {
+      handleHashChange();
+    }
+
     window.addEventListener("hashchange", handleHashChange);
     return () => window.removeEventListener("hashchange", handleHashChange);
   }, []);
 
-  const navigateView = (newView: string) => {
+  const navigateView = (newView: string, optParam?: string) => {
     setView(newView);
-    if (newView === "escritorio") window.location.hash = "#/escritorio";
-    else if (newView === "dashboard") window.location.hash = "#/legislacion";
-    else if (newView === "static") window.location.hash = "#/statistics";
-    else if (newView === "proyectos") window.location.hash = "#/proyectos";
-    else if (newView === "proyecto-detail") window.location.hash = `#/proyecto/${selectedProyectoId}`;
-    else if (newView === "comisiones") window.location.hash = `#/comisiones?tab=${commActiveTab}`;
-    else if (newView === "comision-detail") window.location.hash = `#/comision/${selectedComisionId}`;
-    else if (newView === "sala") window.location.hash = "#/sala";
-    else if (newView === "alertas") window.location.hash = "#/alertas";
-    else if (newView === "legislacion-comparada") window.location.hash = "#/derecho-comparado";
-    else if (newView === "configuracion") window.location.hash = "#/configuracion";
+    if (newView === "escritorio") {
+      window.location.hash = "#/escritorio";
+    } else if (newView === "dashboard") {
+      window.location.hash = "#/legislacion";
+    } else if (newView === "static") {
+      window.location.hash = "#/statistics";
+    } else if (newView === "proyectos") {
+      window.location.hash = "#/proyectos";
+    } else if (newView === "proyecto-detail") {
+      const pId = optParam || selectedProyectoId;
+      if (optParam) setSelectedProyectoId(optParam);
+      window.location.hash = `#/proyecto/${pId}`;
+    } else if (newView === "comisiones") {
+      window.location.hash = `#/comisiones?tab=${commActiveTab}`;
+    } else if (newView === "comision-detail") {
+      const cId = optParam || selectedComisionId;
+      if (optParam) setSelectedComisionId(cId);
+      window.location.hash = `#/comision/${cId}`;
+    } else if (newView === "sala") {
+      window.location.hash = "#/sala";
+    } else if (newView === "alertas") {
+      window.location.hash = "#/alertas";
+    } else if (newView === "legislacion-comparada") {
+      window.location.hash = "#/derecho-comparado";
+    } else if (newView === "configuracion") {
+      window.location.hash = "#/configuracion";
+    } else if (newView === "search-results") {
+      window.location.hash = searchFilter ? `#/buscar?q=${encodeURIComponent(searchFilter)}` : `#/buscar`;
+    }
   };
 
   // Real per-commission stats fetched from the backend (which in turn derives them
@@ -229,7 +259,7 @@ export default function App() {
   }, []);
 
   const handleSearchSubmit = () => {
-    setView("search-results");
+    navigateView("search-results");
   };
 
   return (
@@ -237,53 +267,38 @@ export default function App() {
       {/* Global Header */}
       <Header 
         currentView={view}
-        setView={setView}
+        setView={navigateView}
         searchFilter={searchFilter}
         setSearchFilter={setSearchFilter}
         onSearchSubmit={handleSearchSubmit}
         activeAlertsCount={activeAlertsCount}
-        setSelectedProyectoId={setSelectedProyectoId}
-        setSelectedComisionId={setSelectedComisionId}
+        setSelectedProyectoId={(id) => navigateView("proyecto-detail", id)}
+        setSelectedComisionId={(id) => navigateView("comision-detail", id)}
       />
 
       {/* Main Content Area */}
       <main className="flex-1 pb-16">
         {view === "escritorio" && (
           <EscritorioHubView 
-            setView={setView}
-            setSelectedProyectoId={(id) => {
-              setSelectedProyectoId(id);
-              setView("proyecto-detail");
-            }}
-            setSelectedComisionId={(id) => {
-              setSelectedComisionId(id);
-              setView("comision-detail");
-            }}
+            setView={navigateView}
+            setSelectedProyectoId={(id) => navigateView("proyecto-detail", id)}
+            setSelectedComisionId={(id) => navigateView("comision-detail", id)}
             followedProys={followedProys}
           />
         )}
 
         {view === "static" && (
           <StaticDataAnalyticsView 
-            setView={setView}
-            setSelectedProyectoId={(id) => {
-              setSelectedProyectoId(id);
-              setView("proyecto-detail");
-            }}
+            setView={navigateView}
+            setSelectedProyectoId={(id) => navigateView("proyecto-detail", id)}
           />
         )}
 
         {view === "dashboard" && (
           <DashboardView 
-            setView={setView}
-            setSelectedProyectoId={(id) => {
-              setSelectedProyectoId(id);
-              setView("proyecto-detail");
-            }}
-            setSelectedComisionId={(id) => {
-              setSelectedComisionId(id);
-              setView("comision-detail");
-            }}
+            setView={navigateView}
+            setSelectedProyectoId={(id) => navigateView("proyecto-detail", id)}
+            setSelectedComisionId={(id) => navigateView("comision-detail", id)}
             followedComs={followedComs}
             toggleFollowCom={toggleFollowCom}
             followedProys={followedProys}
@@ -295,11 +310,8 @@ export default function App() {
 
         {view === "proyectos" && (
           <ProyectosView 
-            setView={setView}
-            setSelectedProyectoId={(id) => {
-              setSelectedProyectoId(id);
-              setView("proyecto-detail");
-            }}
+            setView={navigateView}
+            setSelectedProyectoId={(id) => navigateView("proyecto-detail", id)}
             searchFilter={searchFilter}
             setSearchFilter={setSearchFilter}
           />
@@ -308,11 +320,8 @@ export default function App() {
         {view === "proyecto-detail" && (
           <ProyectoDetailView 
             proyectoId={selectedProyectoId}
-            setView={setView}
-            setSelectedComisionId={(id) => {
-              setSelectedComisionId(id);
-              setView("comision-detail");
-            }}
+            setView={navigateView}
+            setSelectedComisionId={(id) => navigateView("comision-detail", id)}
             followedProys={followedProys}
             toggleFollowProy={toggleFollowProy}
           />
@@ -657,8 +666,7 @@ export default function App() {
                           <div 
                             key={`${c.prefix}${c.id}`}
                             onClick={() => {
-                              setSelectedComisionId(`${c.prefix}${c.id}`);
-                              setView("comision-detail");
+                              navigateView("comision-detail", `${c.prefix}${c.id}`);
                             }}
                             className="bg-slate-50 hover:bg-blue-50/50 p-4 rounded-2xl border border-slate-200 hover:border-blue-300 transition-all cursor-pointer flex flex-col justify-between gap-3 group"
                           >
@@ -719,11 +727,8 @@ export default function App() {
         {view === "comision-detail" && (
           <ComisionDetailView 
             comisionId={selectedComisionId}
-            setView={setView}
-            setSelectedProyectoId={(id) => {
-              setSelectedProyectoId(id);
-              setView("proyecto-detail");
-            }}
+            setView={navigateView}
+            setSelectedProyectoId={(id) => navigateView("proyecto-detail", id)}
             setSearchFilter={setSearchFilter}
             followedComs={followedComs}
             toggleFollowCom={toggleFollowCom}
@@ -732,8 +737,8 @@ export default function App() {
 
         {view === "sala" && (
           <SalaLiveView 
-            setView={setView}
-            setSelectedProyectoId={setSelectedProyectoId}
+            setView={navigateView}
+            setSelectedProyectoId={(id) => navigateView("proyecto-detail", id)}
           />
         )}
 
@@ -751,9 +756,9 @@ export default function App() {
             followedProys={followedProys}
             toggleFollowProy={toggleFollowProy}
             onAlertTriggered={refreshAlertsCount}
-            setView={setView}
-            setSelectedProyectoId={setSelectedProyectoId}
-            setSelectedComisionId={setSelectedComisionId}
+            setView={navigateView}
+            setSelectedProyectoId={(id) => navigateView("proyecto-detail", id)}
+            setSelectedComisionId={(id) => navigateView("comision-detail", id)}
           />
         )}
 
@@ -764,9 +769,9 @@ export default function App() {
         {view === "search-results" && (
           <SearchResultsView 
             initialQuery={searchFilter}
-            setView={setView}
-            setSelectedProyectoId={setSelectedProyectoId}
-            setSelectedComisionId={setSelectedComisionId}
+            setView={navigateView}
+            setSelectedProyectoId={(id) => navigateView("proyecto-detail", id)}
+            setSelectedComisionId={(id) => navigateView("comision-detail", id)}
             setSearchFilter={setSearchFilter}
           />
         )}
