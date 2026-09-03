@@ -23,6 +23,8 @@ import {
   ChevronRight
 } from "lucide-react";
 
+import { performUnifiedSearch } from "../utils/searchEngine";
+
 interface HeaderProps {
   currentView: string;
   setView: (view: string) => void;
@@ -93,21 +95,32 @@ export default function Header({
     }
 
     setIsOpen(true);
-    setLoading(true);
+    
+    // 1. Instant client-side multi-source search
+    const localRes = performUnifiedSearch(searchFilter);
+    setResults({
+      proyectos: localRes.proyectos.slice(0, 5),
+      comisiones: localRes.comisiones.slice(0, 5),
+      autores: localRes.autores.slice(0, 5),
+      comparada: localRes.comparada.slice(0, 3)
+    });
 
+    // 2. Fetch live server search in parallel if available
     const delayDebounce = setTimeout(async () => {
       try {
         const res = await fetch(`/api/global-search?q=${encodeURIComponent(searchFilter)}`);
         if (res.ok) {
           const data = await res.json();
-          setResults(data);
+          if (data && (data.proyectos?.length || data.comisiones?.length || data.autores?.length)) {
+            setResults(data);
+          }
         }
       } catch (err) {
-        console.error("Error performing global search:", err);
+        // Fallback already displayed
       } finally {
         setLoading(false);
       }
-    }, 300);
+    }, 200);
 
     return () => clearTimeout(delayDebounce);
   }, [searchFilter]);

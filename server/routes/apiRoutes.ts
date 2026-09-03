@@ -8,6 +8,7 @@ import {
   findComisionMetaById,
   generateFullComisionData
 } from "../../src/data/comisionesData";
+import { performUnifiedSearch } from "../../src/utils/searchEngine";
 import { 
   fetchProyectoFromSenado, 
   fetchProyectosListadoFromSenado, 
@@ -369,37 +370,38 @@ apiRouter.get("/sala", (req: Request, res: Response) => {
 apiRouter.get("/global-search", async (req: Request, res: Response) => {
   const rawQ = req.query.q ? String(req.query.q).trim() : "";
   if (!rawQ) {
-    return res.json({ proyectos: [], comisiones: [], autores: [] });
+    return res.json({ proyectos: [], comisiones: [], autores: [], documentos: [], comparada: [] });
   }
 
+  const unified = performUnifiedSearch(rawQ);
   const q = rawQ.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
-  const listadoSenado = await fetchProyectosListadoFromSenado();
-  const proyectosSenado = listadoSenado.map(listadoToProyecto);
-
-  const matchedProys = proyectosSenado
-    .filter(p => {
+  let liveProys: Proyecto[] = [];
+  try {
+    const listadoSenado = await fetchProyectosListadoFromSenado();
+    const proyectosSenado = listadoSenado.map(listadoToProyecto);
+    liveProys = proyectosSenado.filter(p => {
       const normId = (p.id || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
       const normTit = (p.titulo || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
       const normMat = (p.materia || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
       return normId.includes(q) || normTit.includes(q) || normMat.includes(q);
-    })
-    .slice(0, 5);
+    });
+  } catch (err) {
+    console.warn("Could not fetch live senado projects list for search:", err);
+  }
 
-  const matchedComs = TODAS_COMISIONES_DETALLE
-    .filter(c => {
-      const normNom = (c.nombre || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      const normDesc = (c.descripcion || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      return normNom.includes(q) || normDesc.includes(q);
-    })
-    .slice(0, 5);
-
-  const autoresResultados = searchComisionesAutocomplete(rawQ).integrantes.slice(0, 5);
+  // Merge projects without duplicates
+  const finalProjects = [...liveProys, ...unified.proyectos].filter((p, index, self) => 
+    index === self.findIndex(t => t.id === p.id)
+  );
 
   res.json({
-    proyectos: matchedProys,
-    comisiones: matchedComs,
-    autores: autoresResultados
+    proyectos: finalProjects.slice(0, 15),
+    comisiones: unified.comisiones.slice(0, 10),
+    autores: unified.autores.slice(0, 10),
+    documentos: unified.documentos,
+    comparada: unified.comparada,
+    webLinks: unified.webLinks
   });
 });
 

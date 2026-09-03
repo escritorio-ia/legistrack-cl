@@ -6,8 +6,9 @@
 import React, { useState, useEffect } from "react";
 import { 
   Search, FileText, Landmark, User, FileSpreadsheet, Calendar, 
-  ArrowRight, Sparkles, Filter, Bookmark, AlertCircle, FileCheck, Globe 
+  ArrowRight, Sparkles, Filter, Bookmark, AlertCircle, FileCheck, Globe, ExternalLink 
 } from "lucide-react";
+import { performUnifiedSearch, UnifiedSearchResult } from "../utils/searchEngine";
 
 interface SearchResultsViewProps {
   initialQuery: string;
@@ -28,13 +29,14 @@ export default function SearchResultsView({
   const [loading, setLoading] = useState(false);
   const [searchingWeb, setSearchingWeb] = useState(false);
   const [activeTab, setActiveTab] = useState<"all" | "proyectos" | "comisiones" | "informes" | "autores" | "comparada">("all");
-  const [results, setResults] = useState<{
-    proyectos: any[];
-    comisiones: any[];
-    autores: any[];
-    documentos: any[];
-    comparada: any[];
-  }>({ proyectos: [], comisiones: [], autores: [], documentos: [], comparada: [] });
+  const [results, setResults] = useState<UnifiedSearchResult>({ 
+    proyectos: [], 
+    comisiones: [], 
+    autores: [], 
+    documentos: [], 
+    comparada: [],
+    webLinks: []
+  });
 
   const fetchResults = async (searchStr: string, forceWeb: boolean = false) => {
     if (!searchStr.trim()) return;
@@ -42,21 +44,28 @@ export default function SearchResultsView({
     if (forceWeb) {
       setSearchingWeb(true);
     }
+
+    // 1. Instant robust local multi-dimensional search
+    const localRes = performUnifiedSearch(searchStr);
+    setResults(localRes);
+
+    // 2. Query live API in background if available
     try {
       const url = `/api/global-search?q=${encodeURIComponent(searchStr)}${forceWeb ? "&force_web=true" : ""}`;
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         setResults({
-          proyectos: data.proyectos || [],
-          comisiones: data.comisiones || [],
-          autores: data.autores || [],
-          documentos: data.documentos || [],
-          comparada: data.comparada || []
+          proyectos: data.proyectos && data.proyectos.length > 0 ? data.proyectos : localRes.proyectos,
+          comisiones: data.comisiones && data.comisiones.length > 0 ? data.comisiones : localRes.comisiones,
+          autores: data.autores && data.autores.length > 0 ? data.autores : localRes.autores,
+          documentos: localRes.documentos,
+          comparada: localRes.comparada,
+          webLinks: localRes.webLinks
         });
       }
     } catch (error) {
-      console.error("Error fetching special search results:", error);
+      console.warn("Live API global-search unavailable, using comprehensive client index:", error);
     } finally {
       setLoading(false);
       setSearchingWeb(false);
@@ -483,13 +492,11 @@ export default function SearchResultsView({
                         <div>
                           <div className="flex justify-between items-start">
                             <span className="text-[9px] font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 uppercase tracking-wide">
-                              Comisión Permanente
+                              {c.chamber === "SR" ? "Senado" : "Cámara de Diputadas y Diputados"}
                             </span>
-                            {c.periodo && (
-                              <span className="text-[10px] text-slate-400 font-semibold font-mono">
-                                {c.periodo}
-                              </span>
-                            )}
+                            <span className="text-[10px] text-slate-400 font-semibold font-mono">
+                              {(c as any).periodo || (c.chamber === "SR" ? "2022 - 2030" : "2022 - 2026")}
+                            </span>
                           </div>
 
                           <h3 className="text-sm font-bold text-slate-900 group-hover:text-emerald-700 transition-colors mt-2.5 leading-snug">
@@ -504,7 +511,7 @@ export default function SearchResultsView({
                         </div>
 
                         <div className="border-t border-slate-100 pt-3 flex justify-between items-center text-[10px] text-slate-400 font-bold font-mono">
-                          <span>{c.proyectosContados || 15} Proyectos en expediente</span>
+                          <span>{(c as any).proyectosContados || 12} Proyectos en expediente</span>
                           <span className="text-emerald-600 flex items-center gap-0.5 group-hover:underline">
                             Ver detalles &rsaquo;
                           </span>
@@ -604,10 +611,10 @@ export default function SearchResultsView({
                               {doc.titulo}
                             </h4>
                             <p className="text-[10px] text-slate-400 font-medium mt-1">
-                              Anclado al Boletín: <span className="font-semibold text-slate-600 hover:underline cursor-pointer" onClick={() => {
-                                setSelectedProyectoId(doc.proyectoId);
-                                setView("proyecto-detail");
-                              }}>{doc.proyectoId} - {doc.proyectoTitulo}</span>
+                              Anclado a la Comisión: <span className="font-semibold text-slate-600 hover:underline cursor-pointer" onClick={() => {
+                                setSelectedComisionId(doc.comisionId);
+                                setView("comision-detail");
+                              }}>{doc.comisionNombre}</span>
                             </p>
                           </div>
                         </div>
@@ -619,10 +626,10 @@ export default function SearchResultsView({
                             </span>
                           )}
                           <button
-                            onClick={() => alert(`Abriendo visor de informe legislativo PDF para: ${doc.titulo}`)}
+                            onClick={() => alert(`Abriendo visor de informe legislativo para: ${doc.titulo}`)}
                             className="bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 px-3 py-1.5 rounded-lg text-[10px] font-bold text-slate-600 hover:text-indigo-700 transition"
                           >
-                            Descargar Informe
+                            Ver Informe
                           </button>
                         </div>
                       </div>
@@ -660,17 +667,64 @@ export default function SearchResultsView({
                             {auth.nombre}
                           </h4>
                           <p className="text-[10px] text-slate-400 font-semibold uppercase mt-0.5">
-                            {auth.cargo || "Parlamentario/a"}
+                            {auth.rol || (auth.camara ? auth.camara : "Parlamentario/a")}
                           </p>
                           <div className="flex items-center gap-1.5 mt-1 text-[10px] text-slate-500 font-semibold font-mono">
                             <span className="bg-amber-50 text-amber-800 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase">{auth.partido}</span>
-                            {auth.distrito !== "N/A" && <span>Distrito {auth.distrito}</span>}
+                            {auth.comisionNombre && <span className="text-[9px] text-slate-400 truncate">({auth.comisionNombre})</span>}
                           </div>
                         </div>
                         <div className="text-slate-400 group-hover:text-blue-600 transition-colors">
                           <ArrowRight className="w-4 h-4" />
                         </div>
                       </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Category Segment: LIVE OFFICIAL WEB PORTALS */}
+              {results.webLinks && results.webLinks.length > 0 && (
+                <div className="flex flex-col gap-4 mt-2" id="section-web-portals">
+                  <div className="flex items-center justify-between px-1">
+                    <div className="flex items-center gap-2">
+                      <Globe className="w-4 h-4 text-emerald-600" />
+                      <h2 className="text-xs font-black uppercase tracking-wider text-slate-700">
+                        Consultas en Línea en Portales Oficiales del Congreso
+                      </h2>
+                    </div>
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                      Búsqueda en Vivo
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                    {results.webLinks.map((link, idx) => (
+                      <a
+                        key={idx}
+                        href={link.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-emerald-50/30 hover:border-emerald-300 transition-all flex items-start justify-between gap-3 group shadow-2xs"
+                      >
+                        <div className="space-y-1 min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-white text-slate-700 border border-slate-200">
+                              {link.source === "camara" ? "Cámara" : link.source === "senado" ? "Senado" : link.source === "bcn" ? "BCN" : "LeyChile"}
+                            </span>
+                            <span className="text-xs font-bold text-slate-900 group-hover:text-emerald-700 transition-colors">
+                              {link.name}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 leading-snug">
+                            {link.description}
+                          </p>
+                          <span className="text-[10px] text-blue-600 font-bold flex items-center gap-1 mt-1.5">
+                            <span>Consultar "{query}" en {link.name}</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </span>
+                        </div>
+                      </a>
                     ))}
                   </div>
                 </div>
