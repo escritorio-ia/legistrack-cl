@@ -222,7 +222,7 @@ export function performUnifiedSearch(rawQuery: string): UnifiedSearchResult {
 
   // 6. Direct Live Official Web Portals Links & Intelligent Data Sources
   const encodedQ = encodeURIComponent(rawQuery.trim());
-  const encodedBoletin = encodeURIComponent(rawQuery.replace(/-/g, "").trim());
+  const encodedBoletin = encodeURIComponent(rawQuery.split('-')[0].trim());
   const qLower = normalizeSearchString(rawQuery);
 
   const fuentesDatos: FuenteDatoItem[] = [
