@@ -9,7 +9,7 @@ import {
   generateFullComisionData
 } from "../../src/data/comisionesData";
 import { performUnifiedSearch } from "../../src/utils/searchEngine";
-import { resolveProyecto } from "../../src/utils/proyectosResolver";
+import { resolveProyecto, getAllMasterProyectos } from "../../src/utils/proyectosResolver";
 import { 
   fetchProyectoFromSenado, 
   fetchProyectosListadoFromSenado, 
@@ -118,10 +118,12 @@ apiRouter.get("/health", async (req: Request, res: Response) => {
 apiRouter.get("/proyectos", async (req: Request, res: Response) => {
   const { query, estado, camara, materia, urgencia, origen, solo_vigentes, page = 1, limit = 10 } = req.query;
 
+  const masterProyectos = getAllMasterProyectos();
   const listadoSenado = await fetchProyectosListadoFromSenado();
   const proyectosSenado = listadoSenado.map(listadoToProyecto);
 
   const byId = new Map<string, Proyecto>();
+  for (const p of masterProyectos) byId.set(cleanBulletinNumber(p.id), p);
   for (const p of proyectosSenado) byId.set(cleanBulletinNumber(p.id), p);
   for (const p of liveDiscoveredProyectos) byId.set(cleanBulletinNumber(p.id), p);
 

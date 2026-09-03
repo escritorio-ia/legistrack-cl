@@ -60,6 +60,8 @@ export interface Proyecto {
     objeto: string;
     mecanismos: string;
     fiscalizacion: string;
+    sanciones?: string;
+    leccionChile?: string;
   };
   quorum?: {
     tipo: "Ley Simple" | "Quórum Calificado" | "Ley Orgánica Constitucional" | "Reforma Constitucional";

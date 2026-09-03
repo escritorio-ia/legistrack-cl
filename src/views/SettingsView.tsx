@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { Comision, Proyecto, HealthStatus } from "../types";
 import { TODAS_COMISIONES_DETALLE, getProyectosForComision, generateFullComisionData } from "../data/comisionesData";
+import { getAllMasterProyectos } from "../utils/proyectosResolver";
 
 interface SettingsViewProps {
   followedComs: string[];
@@ -57,15 +58,7 @@ export default function SettingsView({
   const [comisiones, setComisiones] = useState<Comision[]>(() => 
     TODAS_COMISIONES_DETALLE.map(c => generateFullComisionData(c))
   );
-  const [proyectos, setProyectos] = useState<Proyecto[]>(() => {
-    const allMap = new Map<string, Proyecto>();
-    for (const c of TODAS_COMISIONES_DETALLE) {
-      for (const p of getProyectosForComision(c)) {
-        if (!allMap.has(p.id)) allMap.set(p.id, p);
-      }
-    }
-    return Array.from(allMap.values());
-  });
+  const [proyectos, setProyectos] = useState<Proyecto[]>(() => getAllMasterProyectos());
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"comisiones" | "proyectos" | "simulador" | "health">("comisiones");
   const [health, setHealth] = useState<HealthStatus | null>({
@@ -93,9 +86,10 @@ export default function SettingsView({
   });
   const [healthLoading, setHealthLoading] = useState(false);
   
-  // New sub-tabs and search features for Commissions
+  // New sub-tabs and search features for Commissions & Projects
   const [comisionSubTab, setComisionSubTab] = useState<"diputados" | "senado">("diputados");
   const [comisionSearch, setComisionSearch] = useState<string>("");
+  const [proyectoSearch, setProyectoSearch] = useState<string>("");
   
   // Simulation logs
   const [simLog, setSimLog] = useState<{ id: string; msg: string; type: "success" | "info" | "warning"; time: string }[]>([]);
@@ -631,9 +625,52 @@ export default function SettingsView({
                   </p>
                 </div>
 
+                {/* Proyectos Search & Filter Input */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-b border-slate-200 pb-3">
+                  <div className="relative w-full sm:w-96">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                    <input
+                      type="text"
+                      placeholder="Filtrar por boletín, título o materia..."
+                      value={proyectoSearch}
+                      onChange={(e) => setProyectoSearch(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-8 py-2 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white"
+                    />
+                    {proyectoSearch && (
+                      <button
+                        onClick={() => setProyectoSearch("")}
+                        className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  <span className="text-xs text-slate-500 font-semibold self-start sm:self-auto">
+                    {proyectos.filter(p => {
+                      if (!proyectoSearch.trim()) return true;
+                      const q = proyectoSearch.toLowerCase();
+                      return (p.id || "").toLowerCase().includes(q) || (p.titulo || "").toLowerCase().includes(q) || (p.materia || "").toLowerCase().includes(q);
+                    }).length} de {proyectos.length} proyectos disponibles
+                  </span>
+                </div>
+
                 <div className="flex flex-col gap-4">
-                  {proyectos.map((proy) => {
-                    const isFollowed = followedProys.includes(proy.id);
+                  {proyectos
+                    .filter(p => {
+                      if (!proyectoSearch.trim()) return true;
+                      const q = proyectoSearch.toLowerCase();
+                      return (p.id || "").toLowerCase().includes(q) || (p.titulo || "").toLowerCase().includes(q) || (p.materia || "").toLowerCase().includes(q);
+                    })
+                    .sort((a, b) => {
+                      const aF = followedProys.includes(a.id);
+                      const bF = followedProys.includes(b.id);
+                      if (aF && !bF) return -1;
+                      if (!aF && bF) return 1;
+                      return 0;
+                    })
+                    .slice(0, 50)
+                    .map((proy) => {
+                      const isFollowed = followedProys.includes(proy.id);
                     return (
                       <div 
                         key={proy.id}

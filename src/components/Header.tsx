@@ -54,24 +54,16 @@ export default function Header({
   }>({ proyectos: [], comisiones: [], autores: [], comparada: [] });
   const [loading, setLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
-  const [appSwitcherOpen, setAppSwitcherOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const mobileSearchRef = useRef<HTMLDivElement>(null);
-  const appSwitcherRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setIsOpen(false);
-      }
-      if (mobileSearchRef.current && !mobileSearchRef.current.contains(e.target as Node)) {
-        // Only close if not interacting with mobile search input
-      }
-      if (appSwitcherRef.current && !appSwitcherRef.current.contains(e.target as Node)) {
-        setAppSwitcherOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -79,13 +71,6 @@ export default function Header({
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
-
-  const getActiveModuleName = () => {
-    if (currentView === "escritorio") return "Hub Suite";
-    if (currentView === "legislacion-comparada") return "Derecho Comparado++";
-    if (currentView === "static") return "Statistics++";
-    return "Legislación++";
-  };
 
   useEffect(() => {
     if (!searchFilter.trim()) {
@@ -141,7 +126,6 @@ export default function Header({
   const handleNavigate = (targetView: string) => {
     setView(targetView);
     setMobileMenuOpen(false);
-    setAppSwitcherOpen(false);
     setIsOpen(false);
   };
 
@@ -160,116 +144,7 @@ export default function Header({
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
 
-          {/* Hub Logo & Suite Name */}
-          <button 
-            onClick={() => handleNavigate("escritorio")}
-            className="text-base sm:text-lg font-black tracking-tight text-slate-900 flex items-center gap-2 hover:opacity-90 transition-opacity cursor-pointer group"
-            id="logo-button"
-            title="Ir al Hub Central Escritorio++"
-          >
-            <div className="w-8 h-8 bg-gradient-to-tr from-slate-950 via-indigo-900 to-blue-700 rounded-xl flex items-center justify-center text-white font-black text-xs shadow-xs group-hover:scale-105 transition-transform">
-              E++
-            </div>
-            <span className="hidden xs:inline">Escritorio<span className="text-blue-600 font-extrabold">++</span></span>
-          </button>
 
-          {/* App Switcher Dropdown (Desktop & Tablet) */}
-          <div className="relative" ref={appSwitcherRef}>
-            <button
-              onClick={() => setAppSwitcherOpen(!appSwitcherOpen)}
-              className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 hover:bg-slate-200/80 text-slate-800 text-2xs font-bold rounded-xl border border-slate-200/90 transition-all cursor-pointer shadow-2xs"
-              id="suite-app-switcher-btn"
-            >
-              <span className={`w-2 h-2 rounded-full ${
-                currentView === "legislacion-comparada" ? "bg-indigo-600" :
-                currentView === "static" ? "bg-emerald-600" :
-                currentView === "escritorio" ? "bg-slate-900" : "bg-blue-600"
-              }`} />
-              <span className="max-w-[120px] sm:max-w-none truncate">{getActiveModuleName()}</span>
-              <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform ${appSwitcherOpen ? "rotate-180" : ""}`} />
-            </button>
-
-            {/* Switcher Menu */}
-            {appSwitcherOpen && (
-              <div className="absolute left-0 mt-2 w-72 bg-white rounded-2xl border border-slate-200 shadow-2xl z-[9999] p-2 font-sans animate-in fade-in slide-in-from-top-2 duration-150">
-                <div className="px-3 py-2 text-2xs font-bold uppercase tracking-wider text-slate-400 font-mono border-b border-slate-100">
-                  APLICACIONES DE LA SUITE
-                </div>
-                
-                <div className="space-y-1 mt-1">
-                  <button
-                    onClick={() => handleNavigate("escritorio")}
-                    className={`w-full p-2.5 rounded-xl text-left flex items-center gap-2.5 transition-colors cursor-pointer ${
-                      currentView === "escritorio" ? "bg-slate-100 font-bold text-slate-900" : "hover:bg-slate-50 text-slate-700"
-                    }`}
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center text-xs font-bold shrink-0">
-                      <Home className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-xs font-bold block">Hub Escritorio++</span>
-                      <span className="text-2xs text-slate-400 truncate block">Portal central y accesos directos</span>
-                    </div>
-                    {currentView === "escritorio" && <Check className="w-3.5 h-3.5 text-slate-900 shrink-0 ml-auto" />}
-                  </button>
-
-                  <button
-                    onClick={() => handleNavigate("dashboard")}
-                    className={`w-full p-2.5 rounded-xl text-left flex items-center gap-2.5 transition-colors cursor-pointer ${
-                      ["dashboard", "proyectos", "proyecto-detail", "comisiones", "comision-detail", "sala", "alertas"].includes(currentView) 
-                        ? "bg-blue-50 font-bold text-blue-900" : "hover:bg-slate-50 text-slate-700"
-                    }`}
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
-                      <FileText className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-xs font-bold block">Legislación++</span>
-                      <span className="text-2xs text-slate-400 truncate block">Proyectos de Ley &bull; Comisiones &bull; Sala</span>
-                    </div>
-                    {["dashboard", "proyectos", "proyecto-detail", "comisiones", "comision-detail", "sala", "alertas"].includes(currentView) && (
-                      <Check className="w-3.5 h-3.5 text-blue-600 shrink-0 ml-auto" />
-                    )}
-                  </button>
-
-                  <button
-                    onClick={() => handleNavigate("legislacion-comparada")}
-                    className={`w-full p-2.5 rounded-xl text-left flex items-center gap-2.5 transition-colors cursor-pointer ${
-                      currentView === "legislacion-comparada" ? "bg-indigo-50 font-bold text-indigo-900" : "hover:bg-slate-50 text-slate-700"
-                    }`}
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
-                      <Globe className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-xs font-bold block">Derecho Comparado++</span>
-                      <span className="text-2xs text-slate-400 truncate block">Marcos homólogos (27 países)</span>
-                    </div>
-                    {currentView === "legislacion-comparada" && <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0 ml-auto" />}
-                  </button>
-
-                  <button
-                    onClick={() => handleNavigate("static")}
-                    className={`w-full p-2.5 rounded-xl text-left flex items-center gap-2.5 transition-colors cursor-pointer ${
-                      currentView === "static" ? "bg-emerald-50 font-bold text-emerald-900" : "hover:bg-slate-50 text-slate-700"
-                    }`}
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
-                      <TrendingUp className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-xs font-bold block flex items-center gap-1">
-                        Statistics++
-                        <span className="text-2xs px-1.5 py-0.2 bg-emerald-100 text-emerald-800 rounded font-bold">PRO</span>
-                      </span>
-                      <span className="text-2xs text-slate-400 truncate block">Analítica & Minutas DIPRES</span>
-                    </div>
-                    {currentView === "static" && <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 ml-auto" />}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
 
           {/* Top Suite Navigation Bar (Desktop) */}
           <nav className="hidden lg:flex gap-5 items-center h-full pt-1 ml-2">

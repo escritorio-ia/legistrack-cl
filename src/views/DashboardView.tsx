@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { Alerta, Proyecto } from "../types";
 import { findComisionMetaById, generateFullComisionData } from "../data/comisionesData";
+import { getAllMasterProyectos } from "../utils/proyectosResolver";
 
 interface DashboardViewProps {
   setView: (view: string) => void;
@@ -63,7 +64,7 @@ export default function DashboardView({
   });
   const [alertas, setAlertas] = useState<Alerta[]>([]);
   const [loading, setLoading] = useState(true);
-  const [proyectosList, setProyectosList] = useState<Proyecto[]>([]);
+  const [proyectosList, setProyectosList] = useState<Proyecto[]>(() => getAllMasterProyectos());
 
   // OpenData XML query states
   const [legislatura, setLegislatura] = useState<{
@@ -81,16 +82,31 @@ export default function DashboardView({
     estado: string;
     iniciativa: string;
     autores: string[];
-  } | null>({
-    boletin: "17.402-05",
-    titulo: "Plan de Reconstrucción Nacional y Desarrollo Económico y Social post-incendios y reactivación de inversiones.",
-    fechaIngreso: "2026-06-10",
-    estado: "Publicado como Ley N° 21.810",
-    iniciativa: "Mensaje",
-    autores: ["Presidente de la República", "Ministro de Hacienda"]
+  } | null>(() => {
+    const list = getAllMasterProyectos();
+    const p = list[0];
+    if (p) {
+      const autoresArr = p.autores ? p.autores.split(",").map((s: string) => s.trim()) : ["Presidente de la República"];
+      return {
+        boletin: p.id,
+        titulo: p.titulo,
+        fechaIngreso: p.fechaIngreso,
+        estado: p.estado,
+        iniciativa: p.iniciativa || "Mensaje",
+        autores: autoresArr
+      };
+    }
+    return {
+      boletin: "18.624-36",
+      titulo: "Modifica el Código Civil, con el objeto de fortalecer la corresponsabilidad parental y regular el establecimiento del cuidado personal compartido en atención al interés superior del niño, niña o adolescente.",
+      fechaIngreso: "2026-09-02",
+      estado: "En tramitación",
+      iniciativa: "Moción",
+      autores: ["Diputadas y Diputados del Congreso Nacional"]
+    };
   });
 
-  const [apiLoading, setApiLoading] = useState(true);
+  const [apiLoading, setApiLoading] = useState(false);
 
   // States for session & work summaries dictation
   const [customSummaries, setCustomSummaries] = useState<Record<string, Record<string, string>>>({});
@@ -381,10 +397,10 @@ export default function DashboardView({
     fetch("/api/proyectos?solo_vigentes=false")
       .then(res => res.json())
       .then(data => {
-        if (Array.isArray(data) && data.length > 0) {
-          setProyectosList(data);
-          // Pick the first/latest project (e.g. 17.402-05)
-          const p = data[0];
+        const list = data.resultados || (Array.isArray(data) ? data : []);
+        if (list && list.length > 0) {
+          setProyectosList(list);
+          const p = list[0];
           const autoresArr = p.autores ? p.autores.split(",").map((s: string) => s.trim()) : ["Presidente de la República"];
           setRecentProyecto({
             boletin: p.id,

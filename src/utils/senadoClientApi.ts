@@ -257,3 +257,36 @@ export async function fetchLiveSenateProject(query: string): Promise<Proyecto | 
 
   return null;
 }
+
+/**
+ * Direct Live Senate project listing fetcher with multiple fallback gateways.
+ */
+export async function fetchLiveSenateProjectsList(): Promise<Proyecto[]> {
+  const cacheKey = "senado_live_list_cache";
+  const cached = localStorage.getItem(cacheKey);
+  const cacheTimestamp = localStorage.getItem(`${cacheKey}_ts`);
+  const isFresh = cacheTimestamp && (Date.now() - parseInt(cacheTimestamp, 10) < 10 * 60 * 1000);
+
+  if (cached && isFresh) {
+    try {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    } catch (e) {}
+  }
+
+  // 1. Try local Express backend API
+  try {
+    const res = await fetch("/api/proyectos?solo_vigentes=false&limit=100", { signal: AbortSignal.timeout(4000) });
+    if (res.ok) {
+      const data = await res.json();
+      const list = data.resultados || (Array.isArray(data) ? data : []);
+      if (list.length > 0) {
+        localStorage.setItem(cacheKey, JSON.stringify(list));
+        localStorage.setItem(`${cacheKey}_ts`, Date.now().toString());
+        return list;
+      }
+    }
+  } catch (e) {}
+
+  return [];
+}

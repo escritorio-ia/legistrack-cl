@@ -10,7 +10,7 @@ import {
   findComisionMetaById 
 } from "../data/comisionesData";
 import { Proyecto, Integrante } from "../types";
-import { resolveProyecto, cleanBulletin } from "./proyectosResolver";
+import { resolveProyecto, cleanBulletin, getAllMasterProyectos } from "./proyectosResolver";
 
 export interface UnifiedSearchResult {
   proyectos: Proyecto[];
@@ -78,17 +78,8 @@ export function performUnifiedSearch(rawQuery: string): UnifiedSearchResult {
     };
   }
 
-  // 1. Gather all projects across commissions
-  const allProjectsMap = new Map<string, Proyecto>();
-  for (const com of TODAS_COMISIONES_DETALLE) {
-    const proys = getProyectosForComision(com);
-    for (const p of proys) {
-      if (!allProjectsMap.has(p.id)) {
-        allProjectsMap.set(p.id, p);
-      }
-    }
-  }
-  const allProjects = Array.from(allProjectsMap.values());
+  // 1. Gather all master projects across official database and commissions
+  const allProjects = getAllMasterProyectos();
 
   const qClean = cleanBulletin(rawQuery);
   const isDirectBulletin = (boletinDigits && boletinDigits.length >= 3) || rawQuery.includes("-");

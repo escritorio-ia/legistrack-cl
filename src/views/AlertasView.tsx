@@ -21,6 +21,7 @@ import {
   Tag
 } from "lucide-react";
 import { Alerta, Proyecto } from "../types";
+import { getAllMasterProyectos } from "../utils/proyectosResolver";
 
 interface AlertasViewProps {
   followedProys?: string[];
@@ -77,7 +78,7 @@ export default function AlertasView({ followedProys = [], toggleFollowProy }: Al
     }
     return DEFAULT_ALERTAS;
   });
-  const [proyectos, setProyectos] = useState<Proyecto[]>([]);
+  const [proyectos, setProyectos] = useState<Proyecto[]>(() => getAllMasterProyectos());
   const [loading, setLoading] = useState(false);
   
   // Custom form state for simulated alert creation

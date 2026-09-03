@@ -5,6 +5,7 @@
 
 import { Proyecto } from "../types";
 import { TODAS_COMISIONES_DETALLE, getProyectosForComision } from "../data/comisionesData";
+import { PROYECTOS_REALES_CHILE } from "../data/proyectosRealData";
 
 /**
  * Standard mapping of Chilean bulletin suffixes (-XX) to thematic commissions and subject areas.
@@ -29,6 +30,7 @@ export const MATERIA_COMISION_MAP: Record<string, { comision: string; materia: s
   "17": { comision: "Comisión de Derechos Humanos y Pueblos Originarios", materia: "Derechos Humanos y Pueblos Originarios" },
   "18": { comision: "Comisión de Deportes y Recreación", materia: "Deportes y Actividad Física" },
   "20": { comision: "Comisión de Recursos Hídricos y Desertificación", materia: "Recursos Hídricos y Aguas" },
+  "21": { comision: "Comisión de Pesca, Acuicultura e Intereses Marítimos", materia: "Pesca y Acuicultura" },
   "24": { comision: "Comisión de Pesca, Acuicultura e Intereses Marítimos", materia: "Pesca, Acuicultura e Intereses Marítimos" },
   "34": { comision: "Comisión de Mujeres y Equidad de Género", materia: "Mujeres, Equidad de Género y Cuidados" },
   "35": { comision: "Comisión de Personas Mayores y Discapacidad", materia: "Personas Mayores, Dependencia e Inclusión" },
@@ -41,24 +43,51 @@ export function cleanBulletin(id: string): string {
 }
 
 /**
- * Searches across all indexed commission projects and returns the match.
+ * Returns the entire master consolidated list of all real Chilean legislative projects.
+ */
+export function getAllMasterProyectos(): Proyecto[] {
+  const allMap = new Map<string, Proyecto>();
+
+  // 1. Add real legislative projects from official Senate database
+  for (const p of PROYECTOS_REALES_CHILE) {
+    const cleanId = cleanBulletin(p.id);
+    if (!allMap.has(cleanId)) {
+      allMap.set(cleanId, p);
+    }
+  }
+
+  // 2. Add commission-indexed projects
+  for (const com of TODAS_COMISIONES_DETALLE) {
+    const list = getProyectosForComision(com);
+    for (const p of list) {
+      const cleanId = cleanBulletin(p.id);
+      if (!allMap.has(cleanId)) {
+        allMap.set(cleanId, p);
+      }
+    }
+  }
+
+  return Array.from(allMap.values());
+}
+
+/**
+ * Searches across all indexed master projects and returns the match.
  */
 export function findPreloadedProyecto(id: string): Proyecto | null {
   const cleanTarget = cleanBulletin(id);
   const targetNumbersOnly = id.replace(/[^0-9]/g, "");
 
-  for (const com of TODAS_COMISIONES_DETALLE) {
-    const list = getProyectosForComision(com);
-    for (const p of list) {
-      const cleanP = cleanBulletin(p.id);
-      const pNumbersOnly = p.id.replace(/[^0-9]/g, "");
+  const allProjects = getAllMasterProyectos();
 
-      if (cleanP === cleanTarget || pNumbersOnly === targetNumbersOnly) {
-        return p;
-      }
-      if (cleanP.includes(cleanTarget) || cleanTarget.includes(cleanP)) {
-        return p;
-      }
+  for (const p of allProjects) {
+    const cleanP = cleanBulletin(p.id);
+    const pNumbersOnly = p.id.replace(/[^0-9]/g, "");
+
+    if (cleanP === cleanTarget || pNumbersOnly === targetNumbersOnly) {
+      return p;
+    }
+    if (cleanTarget.length >= 4 && (cleanP.includes(cleanTarget) || cleanTarget.includes(cleanP))) {
+      return p;
     }
   }
   return null;
