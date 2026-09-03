@@ -10,7 +10,7 @@ import {
   findComisionMetaById 
 } from "../data/comisionesData";
 import { Proyecto, Integrante } from "../types";
-import { resolveProyecto, cleanBulletin, getAllMasterProyectos } from "./proyectosResolver";
+import { findPreloadedProyecto, cleanBulletin, getAllMasterProyectos } from "./proyectosResolver";
 
 export interface FuenteDatoItem {
   id: string;
@@ -124,9 +124,9 @@ export function performUnifiedSearch(rawQuery: string): UnifiedSearchResult {
     );
   });
 
-  // If a specific bulletin number was typed, resolve using the universal Chilean bulletin resolver
+  // If a specific bulletin number was typed, try to find an exact preloaded match
   if (isDirectBulletin) {
-    const resolved = resolveProyecto(rawQuery);
+    const resolved = findPreloadedProyecto(rawQuery);
     if (resolved && !matchedProjects.some(p => cleanBulletin(p.id) === cleanBulletin(resolved.id))) {
       matchedProjects.unshift(resolved);
     }
