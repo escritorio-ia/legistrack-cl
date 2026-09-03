@@ -133,6 +133,17 @@ apiRouter.get("/proyectos", async (req: Request, res: Response) => {
 
   if (query) {
     const q = String(query).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const digits = String(query).replace(/[^0-9]/g, "");
+    
+    if (digits.length >= 3) {
+      try {
+        const liveP = await fetchProyectoFromSenado(digits);
+        if (liveP && !filtered.some(p => cleanBulletinNumber(p.id) === cleanBulletinNumber(liveP.id))) {
+          filtered.unshift(liveP);
+        }
+      } catch (e) {}
+    }
+
     filtered = filtered.filter(p => {
       const normId = (p.id || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
       const normTit = (p.titulo || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");

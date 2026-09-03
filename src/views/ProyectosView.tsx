@@ -31,6 +31,7 @@ import {
 import { Proyecto } from "../types";
 import { TODAS_COMISIONES_DETALLE, getProyectosForComision } from "../data/comisionesData";
 import { resolveProyecto, cleanBulletin } from "../utils/proyectosResolver";
+import { fetchLiveSenateProject } from "../utils/senadoClientApi";
 
 interface ProyectosViewProps {
   setView: (view: string) => void;
@@ -224,7 +225,25 @@ export default function ProyectosView({
     }
     setLoading(false);
 
-    // 2. Fetch live data if server is running
+    // 2. If a specific bulletin is queried, fetch live official Senate data
+    const rawSearch = (searchFilter || "").trim();
+    const qNum = rawSearch.replace(/[^0-9]/g, "");
+    if (qNum.length >= 3 || rawSearch.includes("-")) {
+      fetchLiveSenateProject(rawSearch)
+        .then(liveProy => {
+          if (liveProy) {
+            setProyectos(prev => {
+              const cleanTarget = cleanBulletin(liveProy.id);
+              const rest = prev.filter(p => cleanBulletin(p.id) !== cleanTarget);
+              return [liveProy, ...rest];
+            });
+            setTotalResultados(prev => Math.max(prev, 1));
+          }
+        })
+        .catch(() => {});
+    }
+
+    // 3. Fetch live data if backend server is running
     let url = `/api/proyectos?page=${page}&limit=${limit}&solo_vigentes=${soloVigentes}`;
     if (searchFilter) url += `&query=${encodeURIComponent(searchFilter)}`;
     if (estadoFilter !== "Todos") url += `&estado=${encodeURIComponent(estadoFilter)}`;

@@ -38,8 +38,9 @@ import {
   Share2,
   ExternalLink
 } from "lucide-react";
-import { Proyecto, ActivityItem } from "../types";
+import { Proyecto, ActivityItem, VotacionItem } from "../types";
 import { resolveProyecto } from "../utils/proyectosResolver";
+import { fetchLiveSenateProject } from "../utils/senadoClientApi";
 import SimuladorQuorum from "../components/SimuladorQuorum";
 import DiffViewerModal from "../components/DiffViewerModal";
 import FichaEjecutivaPrint from "../components/FichaEjecutivaPrint";
@@ -245,6 +246,22 @@ export default function ProyectoDetailView({
   const [syncError, setSyncError] = useState("");
   const [syncSuccess, setSyncSuccess] = useState(false);
   const [selectedComisionComparador, setSelectedComisionComparador] = useState<string>("");
+
+  useEffect(() => {
+    const localProy = resolveProyecto(proyectoId);
+    setProyecto(localProy);
+    setSyncError("");
+    setSyncSuccess(false);
+
+    fetchLiveSenateProject(proyectoId)
+      .then(liveData => {
+        if (liveData) {
+          setProyecto(liveData);
+          setSyncSuccess(true);
+        }
+      })
+      .catch(() => {});
+  }, [proyectoId]);
 
   function handleSyncOnline() {
     setIsSyncing(true);
