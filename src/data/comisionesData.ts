@@ -1,4 +1,4 @@
-import { Integrante, Comision } from "../types";
+import { Integrante, Comision, Proyecto } from "../types";
 
 export interface ComisionMeta {
   id: string;
@@ -1412,6 +1412,373 @@ export function findComisionMetaById(rawId: string): ComisionMeta | undefined {
 }
 
 /**
+ * Generates tailored priority bills for any commission based on its thematic area and chamber.
+ */
+export function getProyectosForComision(meta: ComisionMeta): Proyecto[] {
+  const isSenado = meta.chamber === "SR" || meta.prefix === "senado-";
+  const camaraStr = isSenado ? "Senado" : "Diputados";
+  const idLower = meta.id.toLowerCase();
+  const nombreLower = meta.nombre.toLowerCase();
+
+  const baseProyectos: Proyecto[] = [];
+
+  // 1. Constitución
+  if (idLower.includes("constitucion") || nombreLower.includes("constitucion")) {
+    baseProyectos.push(
+      {
+        id: "16.621-07",
+        titulo: "Reforma Constitucional sobre probidad, transparencia y modernización de la función pública.",
+        resumen: "Modifica las bases de la institucionalidad consagrando el principio de transparencia algorítmica y régimen estricto de inhabilidades públicas.",
+        estado: "En discusión",
+        etapa: "Primer Trámite Constitucional",
+        fechaIngreso: "2024-03-12",
+        materia: "Derecho Constitucional",
+        autores: "Diputados y Senadores de la Comisión de Constitución",
+        iniciativa: "Moción",
+        patrocinantes: 10,
+        urgencia: "Suma",
+        camaraOrigen: camaraStr,
+        comisionActual: meta.nombre,
+        timeline: [
+          { id: "act-c1", fecha: "02 Sep 2026", titulo: "Aprobación en particular de indicaciones", descripcion: "Comisión aprueba por unanimidad el articulado sobre transparencia.", tipo: "acuerdo" },
+          { id: "act-c2", fecha: "26 Ago 2026", titulo: "Audiencia de expertos constitucionalistas", descripcion: "Exposición de profesores de derecho sobre límites competenciales.", tipo: "sesion" }
+        ],
+        documentos: [],
+        votaciones: []
+      },
+      {
+        id: "15.869-07",
+        titulo: "Modifica el Código Orgánico de Tribunales y Código Penal en materia de cibercrimen y prueba digital.",
+        resumen: "Establece reglas procesales claras para la preservación de evidencia digital y cooperación judicial internacional en delitos informáticos.",
+        estado: "En sala",
+        etapa: "Segundo Trámite Constitucional",
+        fechaIngreso: "2023-08-20",
+        materia: "Justicia y Código Penal",
+        autores: "Ministerio de Justicia y Derechos Humanos",
+        iniciativa: "Mensaje",
+        patrocinantes: 1,
+        urgencia: "Discusión Inmediata",
+        camaraOrigen: isSenado ? "Diputados" : "Senado",
+        comisionActual: meta.nombre,
+        timeline: [
+          { id: "act-c3", fecha: "28 Ago 2026", titulo: "Despacho de segundo informe a Sala", descripcion: "La Comisión concluye el debate y despacha el texto a votación plenaria.", tipo: "informe" }
+        ],
+        documentos: [],
+        votaciones: []
+      },
+      {
+        id: "16.442-07",
+        titulo: "Perfecciona el estatuto de fiscalización de la Contraloría General de la República.",
+        resumen: "Refuerza los mecanismos de auditoría previa y dictámenes vinculantes sobre compras públicas y contratos de concesiones.",
+        estado: "En discusión",
+        etapa: "Primer Trámite Constitucional",
+        fechaIngreso: "2024-01-15",
+        materia: "Derecho Administrativo",
+        autores: "Integrantes de la Comisión",
+        iniciativa: "Moción",
+        patrocinantes: 8,
+        urgencia: "Simple",
+        camaraOrigen: camaraStr,
+        comisionActual: meta.nombre,
+        timeline: [],
+        documentos: [],
+        votaciones: []
+      },
+      {
+        id: "15.431-07",
+        titulo: "Ley Orgánica que regula el Consejo de Nombramientos de la Magistratura y carrera judicial.",
+        resumen: "Crea un sistema transparente basado exclusivamente en mérito, carrera judicial y audiencias públicas de oposición.",
+        estado: "En estudio",
+        etapa: "Primer Trámite Constitucional",
+        fechaIngreso: "2023-05-18",
+        materia: "Poder Judicial",
+        autores: "Presidente de la República",
+        iniciativa: "Mensaje",
+        patrocinantes: 1,
+        urgencia: "Suma",
+        camaraOrigen: camaraStr,
+        comisionActual: meta.nombre,
+        timeline: [],
+        documentos: [],
+        votaciones: []
+      }
+    );
+  }
+  // 2. Trabajo
+  else if (idLower.includes("trabajo") || nombreLower.includes("trabajo")) {
+    baseProyectos.push(
+      {
+        id: "16.621-13",
+        titulo: "Modifica el Código del Trabajo regulando el teletrabajo para personas cuidadoras y conciliación familiar.",
+        resumen: "Garantiza el derecho preferente a jornadas remotas o híbridas para trabajadoras y trabajadores con personas en situación de dependencia a su cargo.",
+        estado: "En discusión",
+        etapa: "Primer Trámite Constitucional",
+        fechaIngreso: "2024-04-10",
+        materia: "Legislación Laboral",
+        autores: "Diputados y Senadores de Trabajo y Previsión",
+        iniciativa: "Moción",
+        patrocinantes: 10,
+        urgencia: "Suma",
+        camaraOrigen: camaraStr,
+        comisionActual: meta.nombre,
+        timeline: [
+          { id: "act-t1", fecha: "01 Sep 2026", titulo: "Votación de articulado en particular", descripcion: "Aprobadas indicaciones sobre compensación de gastos de conectividad.", tipo: "acuerdo" },
+          { id: "act-t2", fecha: "25 Ago 2026", titulo: "Audiencia de la Dirección del Trabajo", descripcion: "Dictamen sobre criterios de fiscalización remota.", tipo: "sesion" }
+        ],
+        documentos: [],
+        votaciones: []
+      },
+      {
+        id: "16.442-13",
+        titulo: "Regula las jornadas de excepción laboral frente a estados decretados bajo estado de catástrofe.",
+        resumen: "Mecanismo de salvaguarda de remuneraciones y suspensión contractual temporal ante emergencias climáticas y desastres naturales.",
+        estado: "En sala",
+        etapa: "Segundo Trámite Constitucional",
+        fechaIngreso: "2024-01-20",
+        materia: "Seguridad Social y Empleo",
+        autores: "Ministerio del Trabajo y Previsión Social",
+        iniciativa: "Mensaje",
+        patrocinantes: 1,
+        urgencia: "Discusión Inmediata",
+        camaraOrigen: isSenado ? "Diputados" : "Senado",
+        comisionActual: meta.nombre,
+        timeline: [
+          { id: "act-t3", fecha: "29 Ago 2026", titulo: "Informe favorable aprobado por unanimidad", descripcion: "Se despacha a Tabla de Sala para votación general.", tipo: "informe" }
+        ],
+        documentos: [],
+        votaciones: []
+      },
+      {
+        id: "15.869-13",
+        titulo: "Perfecciona la Ley Karin de prevención del acoso laboral y sexual en el sector privado y público.",
+        resumen: "Establece protocolos de acompañamiento psicológico y plazos perentorios de investigación en la Inspección del Trabajo.",
+        estado: "En discusión",
+        etapa: "Primer Trámite Constitucional",
+        fechaIngreso: "2023-09-05",
+        materia: "Derechos Fundamentales del Trabajo",
+        autores: "Moción de Parlamentarios de la Comisión",
+        iniciativa: "Moción",
+        patrocinantes: 9,
+        urgencia: "Suma",
+        camaraOrigen: camaraStr,
+        comisionActual: meta.nombre,
+        timeline: [],
+        documentos: [],
+        votaciones: []
+      },
+      {
+        id: "17.402-13",
+        titulo: "Reforma previsional integral: crea el Seguro Social Previsional y moderniza la cotización del empleador.",
+        resumen: "Aumento de pensiones actuales y futuras mediante componente solidario intergeneracional y licitación periódica de carteras.",
+        estado: "En estudio",
+        etapa: "Primer Trámite Constitucional",
+        fechaIngreso: "2024-06-01",
+        materia: "Pensiones y Previsión Social",
+        autores: "Presidente de la República y Ministra del Trabajo",
+        iniciativa: "Mensaje",
+        patrocinantes: 1,
+        urgencia: "Suma",
+        camaraOrigen: camaraStr,
+        comisionActual: meta.nombre,
+        timeline: [],
+        documentos: [],
+        votaciones: []
+      }
+    );
+  }
+  // 3. Hacienda
+  else if (idLower.includes("hacienda") || nombreLower.includes("hacienda")) {
+    baseProyectos.push(
+      {
+        id: "17.402-05",
+        titulo: "Plan de Reconstrucción Nacional y Reactivación de Inversiones post-incendios.",
+        resumen: "Beneficios de depreciación acelerada, fondos de garantía FOGAPE preferentes y exenciones arancelarias temporales para zonas afectadas.",
+        estado: "En discusión",
+        etapa: "Primer Trámite Constitucional",
+        fechaIngreso: "2024-06-10",
+        materia: "Finanzas Públicas y Tributación",
+        autores: "Presidente de la República y Ministro de Hacienda",
+        iniciativa: "Mensaje",
+        patrocinantes: 1,
+        urgencia: "Discusión Inmediata",
+        camaraOrigen: camaraStr,
+        comisionActual: meta.nombre,
+        timeline: [
+          { id: "act-h1", fecha: "02 Sep 2026", titulo: "Informe Financiero de DIPRES expuesto en sesión", descripcion: "Se analiza el impacto fiscal en el Presupuesto 2026.", tipo: "informe" }
+        ],
+        documentos: [],
+        votaciones: []
+      },
+      {
+        id: "16.621-05",
+        titulo: "Ley de Cumplimiento de las Obligaciones Tributarias y modernización del SII.",
+        resumen: "Herramientas de fiscalización contra la informalidad comercial, levantamiento de secreto bancario judicializado y delator compensado.",
+        estado: "En sala",
+        etapa: "Segundo Trámite Constitucional",
+        fechaIngreso: "2024-03-22",
+        materia: "Tributaria y Recaudación",
+        autores: "Ministerio de Hacienda",
+        iniciativa: "Mensaje",
+        patrocinantes: 1,
+        urgencia: "Suma",
+        camaraOrigen: isSenado ? "Diputados" : "Senado",
+        comisionActual: meta.nombre,
+        timeline: [],
+        documentos: [],
+        votaciones: []
+      },
+      {
+        id: "15.932-05",
+        titulo: "Moderniza la Ley de Compras Públicas y refuerza la probidad en transferencias del Estado.",
+        resumen: "Obligatoriedad de licitación estándar y registro nacional de beneficiarios finales para cualquier traspaso de fondos fiscales.",
+        estado: "En discusión",
+        etapa: "Primer Trámite Constitucional",
+        fechaIngreso: "2023-11-14",
+        materia: "Gasto Fiscal",
+        autores: "Diputados de la Comisión de Hacienda",
+        iniciativa: "Moción",
+        patrocinantes: 8,
+        urgencia: "Suma",
+        camaraOrigen: camaraStr,
+        comisionActual: meta.nombre,
+        timeline: [],
+        documentos: [],
+        votaciones: []
+      }
+    );
+  }
+  // 4. Seguridad
+  else if (idLower.includes("seguridad") || nombreLower.includes("seguridad")) {
+    baseProyectos.push(
+      {
+        id: "15.431-11",
+        titulo: "Ley Marco de Ciberseguridad e Infraestructura Crítica de la Información. Crea la Agencia Nacional de Ciberseguridad.",
+        resumen: "Marco normativo nacional para operadores de servicios esenciales frente a ciberataques, incidentes informáticos y rescate de datos.",
+        estado: "En sala",
+        etapa: "Segundo Trámite Constitucional",
+        fechaIngreso: "2023-04-18",
+        materia: "Seguridad Nacional y Telecomunicaciones",
+        autores: "Ministerio del Interior y Seguridad Pública",
+        iniciativa: "Mensaje",
+        patrocinantes: 1,
+        urgencia: "Discusión Inmediata",
+        camaraOrigen: isSenado ? "Diputados" : "Senado",
+        comisionActual: meta.nombre,
+        timeline: [
+          { id: "act-s1", fecha: "31 Ago 2026", titulo: "Comisión despacha informe para votación en Sala", descripcion: "Se aprueba el régimen sancionatorio de la ANCI.", tipo: "informe" }
+        ],
+        documentos: [],
+        votaciones: []
+      },
+      {
+        id: "16.120-25",
+        titulo: "Crea el Ministerio de Seguridad Pública y moderniza el Sistema de Inteligencia del Estado.",
+        resumen: "Separa la coordinación política de Interior de la gestión táctica y tecnológica de la seguridad ciudadana.",
+        estado: "En discusión",
+        etapa: "Primer Trámite Constitucional",
+        fechaIngreso: "2023-12-05",
+        materia: "Institucionalidad de Seguridad",
+        autores: "Presidente de la República",
+        iniciativa: "Mensaje",
+        patrocinantes: 1,
+        urgencia: "Suma",
+        camaraOrigen: camaraStr,
+        comisionActual: meta.nombre,
+        timeline: [],
+        documentos: [],
+        votaciones: []
+      },
+      {
+        id: "15.940-25",
+        titulo: "Tipifica el delito de extorsión agravada, sicariato y porte de armamento de guerra.",
+        resumen: "Aumento de penas a presidio mayor y restricción de beneficios carcelarios para integrantes de crimen organizado.",
+        estado: "En discusión",
+        etapa: "Primer Trámite Constitucional",
+        fechaIngreso: "2023-10-30",
+        materia: "Código Penal",
+        autores: "Moción Parlamentaria",
+        iniciativa: "Moción",
+        patrocinantes: 9,
+        urgencia: "Suma",
+        camaraOrigen: camaraStr,
+        comisionActual: meta.nombre,
+        timeline: [],
+        documentos: [],
+        votaciones: []
+      }
+    );
+  }
+  // 5. Default para cualquier otra comisión
+  else {
+    const mainTema = (meta.temas && meta.temas[0]) || meta.nombre.replace(/^Comisión de /i, "");
+    const secTema = (meta.temas && meta.temas[1]) || "Normativa Sectorial";
+    const thirdTema = (meta.temas && meta.temas[2]) || "Fiscalización";
+
+    baseProyectos.push(
+      {
+        id: "16.710-00",
+        titulo: `Ley Marco de modernización y fomento regulatorio en materias de ${mainTema}.`,
+        resumen: `Establece nuevos estándares de eficiencia, transparencia y sustentabilidad operativa en los ámbitos regulados por la ${meta.nombre}.`,
+        estado: "En discusión",
+        etapa: "Primer Trámite Constitucional",
+        fechaIngreso: "2024-05-14",
+        materia: mainTema,
+        autores: meta.integrantes && meta.integrantes[0] ? meta.integrantes[0].nombre : "Parlamentarios de la Comisión",
+        iniciativa: "Moción",
+        patrocinantes: 8,
+        urgencia: "Suma",
+        camaraOrigen: camaraStr,
+        comisionActual: meta.nombre,
+        timeline: [
+          { id: "act-g1", fecha: "01 Sep 2026", titulo: "Inicio de votación en particular", descripcion: "Debate técnico sobre las indicaciones ingresadas al articulado.", tipo: "sesion" },
+          { id: "act-g2", fecha: "26 Ago 2026", titulo: "Audiencias técnicas concluidas", descripcion: "Recepción de expositores gremiales y académicos.", tipo: "informe" }
+        ],
+        documentos: [],
+        votaciones: []
+      },
+      {
+        id: "16.430-00",
+        titulo: `Perfecciona los mecanismos de fiscalización y régimen de sanciones en el sector de ${secTema}.`,
+        resumen: `Otorga mayores facultades a los organismos reguladores para supervisar el estricto cumplimiento de la normativa vigente.`,
+        estado: "En sala",
+        etapa: "Segundo Trámite Constitucional",
+        fechaIngreso: "2024-02-18",
+        materia: secTema,
+        autores: "Ministerio del Ramo y Presidente de la República",
+        iniciativa: "Mensaje",
+        patrocinantes: 1,
+        urgencia: "Discusión Inmediata",
+        camaraOrigen: isSenado ? "Diputados" : "Senado",
+        comisionActual: meta.nombre,
+        timeline: [],
+        documentos: [],
+        votaciones: []
+      },
+      {
+        id: "15.920-00",
+        titulo: `Promueve la innovación tecnológica y agilización de trámites sectoriales en ${thirdTema}.`,
+        resumen: `Implementación de ventanillas únicas digitales y plazos máximos para resoluciones administrativas sectoriales.`,
+        estado: "En estudio",
+        etapa: "Primer Trámite Constitucional",
+        fechaIngreso: "2023-11-09",
+        materia: thirdTema,
+        autores: "Integrantes de la Comisión",
+        iniciativa: "Moción",
+        patrocinantes: 7,
+        urgencia: "Simple",
+        camaraOrigen: camaraStr,
+        comisionActual: meta.nombre,
+        timeline: [],
+        documentos: [],
+        votaciones: []
+      }
+    );
+  }
+
+  return baseProyectos;
+}
+
+/**
  * Builds a complete, rich Comision object from ComisionMeta for offline / client-side execution.
  */
 export function generateFullComisionData(meta: ComisionMeta): Comision {
@@ -1421,6 +1788,8 @@ export function generateFullComisionData(meta: ComisionMeta): Comision {
   const sampleDate1 = "02 de septiembre de 2026";
   const sampleDate2 = "26 de agosto de 2026";
   const sampleDate3 = "19 de agosto de 2026";
+
+  const proyectosLista = getProyectosForComision(meta);
 
   return {
     id: `${meta.prefix}${meta.id}`,
@@ -1434,13 +1803,14 @@ export function generateFullComisionData(meta: ComisionMeta): Comision {
       ? "https://www.senado.cl/actividad-legislativa/citaciones-a-comisiones"
       : "https://www.camara.cl/legislacion/comisiones/citaciones.aspx",
     sesionesRealizadas: 48,
-    proyectosContados: 12,
+    proyectosContados: proyectosLista.length,
     audienciasSostenidas: 34,
     documentosContados: 76,
     alertasActivas: 2,
     integrantes: meta.integrantes,
     temas: meta.temas || ["Legislación", "Trámite Constitucional", "Debate Técnico"],
-    proyectosIds: ["16.621-13", "15.431-11", "16.442-13", "17.402-05"],
+    proyectos: proyectosLista,
+    proyectosIds: proyectosLista.map(p => p.id),
     audiencias: {
       sectorPublico: 18,
       sociedadCivil: 11,

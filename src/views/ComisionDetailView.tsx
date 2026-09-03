@@ -52,6 +52,7 @@ import { Comision, SesionItem, Proyecto, Integrante } from "../types";
 import { 
   findComisionMetaById, 
   generateFullComisionData, 
+  getProyectosForComision,
   TODAS_COMISIONES_DETALLE 
 } from "../data/comisionesData";
 
@@ -502,6 +503,15 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
           data.sesionesRealizadas = Math.max(data.sesionesRealizadas + 1, data.sesiones.length);
         }
         data.proximaSesion = undefined;
+      }
+    }
+
+    // 4. Ensure Proyectos Prioritarios are always loaded for the commission
+    if (!data.proyectos || data.proyectos.length === 0) {
+      const meta = findComisionMetaById(data.id);
+      if (meta) {
+        data.proyectos = getProyectosForComision(meta);
+        data.proyectosContados = data.proyectos.length;
       }
     }
 
