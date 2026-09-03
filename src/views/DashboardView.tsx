@@ -592,9 +592,9 @@ export default function DashboardView({
                       <p className="text-slate-500 font-medium">
                         Iniciativa: <span className="font-semibold text-slate-700">{recentProyecto.iniciativa}</span>
                       </p>
-                      {recentProyecto.autores && recentProyecto.autores.length > 0 && (
-                        <p className="text-slate-500 truncate max-w-[150px] font-medium" title={recentProyecto.autores.join(", ")}>
-                          • Autor: <span className="font-semibold text-slate-700">{recentProyecto.autores.slice(0, 2).join(", ")}{recentProyecto.autores.length > 2 ? "..." : ""}</span>
+                      {recentProyecto.autores && (
+                        <p className="text-slate-500 truncate max-w-[150px] font-medium" title={Array.isArray(recentProyecto.autores) ? recentProyecto.autores.join(", ") : String(recentProyecto.autores)}>
+                          • Autor: <span className="font-semibold text-slate-700">{Array.isArray(recentProyecto.autores) ? recentProyecto.autores.slice(0, 2).join(", ") : String(recentProyecto.autores)}</span>
                         </p>
                       )}
                       <p className="text-slate-400 font-semibold flex items-center gap-1">

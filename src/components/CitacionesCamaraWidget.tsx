@@ -1280,7 +1280,8 @@ export default function CitacionesCamaraWidget({
 
       // Search Query
       const q = searchQuery.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      const fullText = `${c.comision} ${c.materia} ${c.presidente} ${c.boletin || ""} ${c.invitados || ""} ${c.lugar} ${c.ordenDelDia.join(" ")}`.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const ordenStr = Array.isArray(c.ordenDelDia) ? c.ordenDelDia.join(" ") : String(c.ordenDelDia || "");
+      const fullText = `${c.comision} ${c.materia} ${c.presidente} ${c.boletin || ""} ${c.invitados || ""} ${c.lugar} ${ordenStr}`.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
       const matchesSearch = searchQuery === "" || fullText.includes(q);
       if (!matchesSearch) return false;
 

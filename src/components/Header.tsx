@@ -460,17 +460,17 @@ export default function Header({
                             >
                               <div className="flex items-center justify-between">
                                 <span className="text-[10px] bg-purple-50 text-purple-700 font-bold px-1.5 py-0.5 rounded font-mono">
-                                  {item.boletinReferencia}
+                                  {item.boletinReferencia || item.materia || "Comparada"}
                                 </span>
                                 <span className="text-[9px] text-slate-400 font-bold font-mono">
-                                  {item.paises.join(" · ")}
+                                  {Array.isArray(item.paises) ? item.paises.join(" · ") : (item.pais || "Iberoamérica")}
                                 </span>
                               </div>
                               <h4 className="text-xs font-bold text-slate-800 group-hover:text-purple-700 leading-snug transition-colors">
                                 {item.titulo}
                               </h4>
                               <p className="text-[10px] text-slate-500 line-clamp-1">
-                                {item.resumen}
+                                {item.resumen || item.fuente || ""}
                               </p>
                             </div>
                           ))}
