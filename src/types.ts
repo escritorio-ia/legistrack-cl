@@ -146,7 +146,9 @@ export interface Alerta {
   titulo: string;
   subtitulo: string;
   boletinId: string;
-  tiempo: string;
+  tiempo?: string;
+  fecha?: string;
+  leida?: boolean;
   tipo: 'indicador' | 'citacion' | 'votacion' | 'general';
 }
 

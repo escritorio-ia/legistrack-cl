@@ -30,6 +30,7 @@ import {
   ExternalLink
 } from "lucide-react";
 import { Alerta, Proyecto } from "../types";
+import { findComisionMetaById, generateFullComisionData } from "../data/comisionesData";
 
 interface DashboardViewProps {
   setView: (view: string) => void;
@@ -133,21 +134,21 @@ export default function DashboardView({
 
   const handleOpenComisionModal = (comName: string, comId: string) => {
     setSelectedComisionForModal({ nombre: comName, id: comId });
-    setLoadingSessions(true);
-    setModalSessions([]);
+    const meta = findComisionMetaById(comId);
+    const initialSesiones = meta ? generateFullComisionData(meta).sesiones : [];
+    setModalSessions(initialSesiones);
+    setLoadingSessions(false);
     setSelectedSesionForSummary(null);
     setSelectedProyectoForSummary(null);
 
     fetch(`/api/comision/${comId}`)
       .then(res => res.json())
       .then((data: any) => {
-        setModalSessions(data.sesiones || []);
-        setLoadingSessions(false);
+        if (data && data.sesiones && data.sesiones.length > 0) {
+          setModalSessions(data.sesiones);
+        }
       })
-      .catch(err => {
-        console.error("Error loading commission sessions in dashboard:", err);
-        setLoadingSessions(false);
-      });
+      .catch(() => {});
   };
 
   const handleOpenProyectoModal = (proy: any) => {

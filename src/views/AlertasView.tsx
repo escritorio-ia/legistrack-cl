@@ -27,10 +27,58 @@ interface AlertasViewProps {
   toggleFollowProy?: (id: string) => void;
 }
 
+const DEFAULT_ALERTAS: Alerta[] = [
+  {
+    id: "alt-1",
+    titulo: "Urgencia Suma: Teletrabajo para Cuidadoras",
+    subtitulo: "El Ejecutivo renovó la calificación de 'Suma Urgencia' para el Boletín N° 16.621-13 radicado en la Comisión de Trabajo.",
+    fecha: "Hoy, 10:45",
+    tipo: "indicador",
+    boletinId: "16.621-13",
+    leida: false
+  },
+  {
+    id: "alt-2",
+    titulo: "Citación a Sesión Especial: Reforma a Carrera Judicial",
+    subtitulo: "Convocada sesión especial en Comisión de Constitución para votar indicaciones al Boletín N° 15.431-07 a las 15:00 hrs.",
+    fecha: "Hoy, 09:15",
+    tipo: "citacion",
+    boletinId: "15.431-07",
+    leida: false
+  },
+  {
+    id: "alt-3",
+    titulo: "Votación en Sala: Ley Marco de Ciberseguridad",
+    subtitulo: "Aprobada por 118 votos a favor en la Sala de la Cámara de Diputados. Pasa a tercer trámite constitucional.",
+    fecha: "Ayer, 18:30",
+    tipo: "votacion",
+    boletinId: "15.431-11",
+    leida: true
+  },
+  {
+    id: "alt-4",
+    titulo: "Publicación en Diario Oficial: Ley N° 21.643 (Ley Karin)",
+    subtitulo: "Entró en vigencia la normativa de prevención, investigación y sanción del acoso laboral, sexual o de violencia en el trabajo.",
+    fecha: "01 Sep 2026",
+    tipo: "indicador",
+    boletinId: "16.621-13",
+    leida: true
+  }
+];
+
 export default function AlertasView({ followedProys = [], toggleFollowProy }: AlertasViewProps) {
-  const [alertas, setAlertas] = useState<Alerta[]>([]);
+  const [alertas, setAlertas] = useState<Alerta[]>(() => {
+    const saved = localStorage.getItem("app_alertas_list");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch (e) {}
+    }
+    return DEFAULT_ALERTAS;
+  });
   const [proyectos, setProyectos] = useState<Proyecto[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   
   // Custom form state for simulated alert creation
   const [newAlertTitle, setNewAlertTitle] = useState("");
@@ -42,18 +90,19 @@ export default function AlertasView({ followedProys = [], toggleFollowProy }: Al
   const [typeFilter, setTypeFilter] = useState<"all" | "indicador" | "citacion" | "votacion">("all");
 
   const fetchAlerts = () => {
-    setLoading(true);
     Promise.all([
       fetch("/api/alertas").then(res => res.json()),
       fetch("/api/proyectos").then(res => res.json())
     ])
       .then(([alertsData, proysData]) => {
-        setAlertas(alertsData);
+        if (alertsData && alertsData.length > 0) {
+          setAlertas(alertsData);
+          localStorage.setItem("app_alertas_list", JSON.stringify(alertsData));
+        }
         setProyectos(proysData.resultados || proysData || []);
         setLoading(false);
       })
-      .catch(err => {
-        console.error("Error loading alerts and projects:", err);
+      .catch(() => {
         setLoading(false);
       });
   };
@@ -69,6 +118,23 @@ export default function AlertasView({ followedProys = [], toggleFollowProy }: Al
       return;
     }
 
+    const newAlert: Alerta = {
+      id: "alt-user-" + Date.now(),
+      titulo: newAlertTitle,
+      subtitulo: newAlertDesc,
+      boletinId: newAlertBoletin,
+      tipo: "indicador",
+      fecha: "Reciente",
+      leida: false
+    };
+
+    const updated = [newAlert, ...alertas];
+    setAlertas(updated);
+    localStorage.setItem("app_alertas_list", JSON.stringify(updated));
+    setNewAlertTitle("");
+    setNewAlertDesc("");
+    setShowSimulateForm(false);
+
     fetch("/api/alertas/crear", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -77,16 +143,7 @@ export default function AlertasView({ followedProys = [], toggleFollowProy }: Al
         subtitulo: newAlertDesc,
         boletinId: newAlertBoletin
       })
-    })
-    .then(res => {
-      if (res.ok) {
-        setNewAlertTitle("");
-        setNewAlertDesc("");
-        setShowSimulateForm(false);
-        fetchAlerts(); // reload
-        alert("¡Alerta legislativa simulada con éxito!");
-      }
-    });
+    }).catch(() => {});
   };
 
   const filteredAlerts = alertas.filter(
