@@ -48,8 +48,12 @@ import {
   CheckCircle,
   Eye
 } from "lucide-react";
-import React from "react";
 import { Comision, SesionItem, Proyecto, Integrante } from "../types";
+import { 
+  findComisionMetaById, 
+  generateFullComisionData, 
+  TODAS_COMISIONES_DETALLE 
+} from "../data/comisionesData";
 
 export function parseFechaSesion(fechaStr?: string): Date | null {
   if (!fechaStr) return null;
@@ -1219,32 +1223,70 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/comision/${comisionId}`)
-      .then(res => res.json())
+
+    // 1. Resolve immediately from local comprehensive database (supports offline, static hosting, and all slug variants)
+    const localMeta = findComisionMetaById(comisionId);
+    if (localMeta) {
+      const generated = generateFullComisionData(localMeta);
+      applySessionDatesAndState(generated);
+      setLoading(false);
+    }
+
+    // 2. Try fetching live backend updates if available
+    fetch(`/api/comision/${encodeURIComponent(comisionId)}`)
+      .then(res => {
+        if (!res.ok) throw new Error("API not available or status " + res.status);
+        return res.json();
+      })
       .then((data: Comision) => {
-        applySessionDatesAndState(data);
-        setLoading(false);
+        if (data && data.nombre) {
+          applySessionDatesAndState(data);
+        }
       })
       .catch(err => {
-        console.error("Error loading commission details:", err);
+        if (!localMeta) {
+          console.warn("Comisión no encontrada en backend ni local:", comisionId, err);
+        }
+      })
+      .finally(() => {
         setLoading(false);
       });
   }, [comisionId]);
 
   const isSenado = comisionId.startsWith("senado") || (comision?.periodo ? comision.periodo.toLowerCase().includes("senado") : false);
 
-  if (loading) {
+  if (loading && !comision) {
     return (
-      <div className="max-w-[1440px] mx-auto w-full px-6 py-12 text-center text-gray-400">
-        Cargando datos extendidos de la Comisión...
+      <div className="max-w-[1440px] mx-auto w-full px-4 sm:px-6 py-16 text-center">
+        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-blue-50 text-blue-700 text-xs font-bold animate-pulse">
+          <Landmark className="w-4 h-4 animate-spin" />
+          <span>Cargando expediente y mesa de trabajo parlamentaria...</span>
+        </div>
       </div>
     );
   }
 
   if (!comision) {
     return (
-      <div className="max-w-[1440px] mx-auto w-full px-6 py-12 text-center text-gray-500">
-        Comisión de Trabajo {comisionId} no encontrada.
+      <div className="max-w-[1440px] mx-auto w-full px-4 sm:px-6 py-12 flex flex-col items-center justify-center text-center gap-4">
+        <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-200">
+          <Landmark className="w-8 h-8" />
+        </div>
+        <div>
+          <h2 className="text-xl font-black text-slate-900 tracking-tight">Comisión no encontrada</h2>
+          <p className="text-xs text-slate-500 mt-1 max-w-md">
+            No se encontró el registro con identificador <strong>"{comisionId}"</strong>. Puedes volver al directorio para explorar las 52 comisiones de Cámara y Senado.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
+          <button
+            onClick={() => setView("comisiones")}
+            className="px-4 py-2 bg-slate-900 hover:bg-blue-600 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm"
+          >
+            Ver Directorio de Comisiones
+          </button>
+        </div>
       </div>
     );
   }

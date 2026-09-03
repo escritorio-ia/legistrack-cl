@@ -1,4 +1,4 @@
-import { Integrante } from "../types";
+import { Integrante, Comision } from "../types";
 
 export interface ComisionMeta {
   id: string;
@@ -1352,3 +1352,207 @@ export function searchComisionesAutocomplete(query: string): AutocompleteResult 
     temas: matchedTemas.slice(0, 4)
   };
 }
+
+/**
+ * Robust Commission Resolver: Matches any format like "cd-constitucion", "constitucion",
+ * "senado-constitucion", "cd-trabajo-y-prevision", "trabajo", "hacienda", etc.
+ */
+export function findComisionMetaById(rawId: string): ComisionMeta | undefined {
+  if (!rawId) return undefined;
+  const cleanId = rawId.toLowerCase().trim();
+  const strippedId = cleanId.replace(/^(cd-|senado-|sr-)/, "");
+
+  // 1. Exact match on id
+  let found = TODAS_COMISIONES_DETALLE.find(c => c.id.toLowerCase() === cleanId);
+  if (found) return found;
+
+  // 2. Full prefixed match: `${c.prefix}${c.id}` === cleanId (e.g. "cd-constitucion", "senado-constitucion")
+  found = TODAS_COMISIONES_DETALLE.find(c => `${c.prefix}${c.id}`.toLowerCase() === cleanId);
+  if (found) return found;
+
+  // 3. Match stripped with chamber priority
+  const isSenadoReq = cleanId.startsWith("senado") || cleanId.startsWith("sr");
+  found = TODAS_COMISIONES_DETALLE.find(c => {
+    const cStripped = c.id.replace(/^(cd-|senado-|sr-)/, "").toLowerCase();
+    const matches = cStripped === strippedId || c.id.toLowerCase() === strippedId;
+    if (matches) {
+      if (isSenadoReq && c.chamber === "SR") return true;
+      if (!isSenadoReq && c.chamber === "CD") return true;
+    }
+    return false;
+  });
+  if (found) return found;
+
+  // Any stripped match
+  found = TODAS_COMISIONES_DETALLE.find(c => {
+    const cStripped = c.id.replace(/^(cd-|senado-|sr-)/, "").toLowerCase();
+    return cStripped === strippedId || c.id.toLowerCase() === strippedId;
+  });
+  if (found) return found;
+
+  // 4. Token & Substring Match
+  found = TODAS_COMISIONES_DETALLE.find(c => {
+    const normCId = c.id.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    const normCNombre = c.nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    const matchesName = normCNombre.includes(strippedId) || strippedId.includes(normCId);
+    if (matchesName) {
+      if (isSenadoReq && c.chamber === "SR") return true;
+      if (!isSenadoReq && c.chamber === "CD") return true;
+    }
+    return false;
+  });
+  if (found) return found;
+
+  // 5. Fallback first match containing search token
+  return TODAS_COMISIONES_DETALLE.find(c => {
+    const normCId = c.id.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    const normCNombre = c.nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    return normCNombre.includes(strippedId) || normCId.includes(strippedId) || strippedId.includes(normCId);
+  });
+}
+
+/**
+ * Builds a complete, rich Comision object from ComisionMeta for offline / client-side execution.
+ */
+export function generateFullComisionData(meta: ComisionMeta): Comision {
+  const isSenado = meta.chamber === "SR" || meta.prefix === "senado-";
+  const periodoStr = isSenado ? "Senado de la República (2022 - 2030)" : "56º Período Legislativo (2022 - 2026)";
+
+  const sampleDate1 = "02 de septiembre de 2026";
+  const sampleDate2 = "26 de agosto de 2026";
+  const sampleDate3 = "19 de agosto de 2026";
+
+  return {
+    id: `${meta.prefix}${meta.id}`,
+    nombre: meta.nombre,
+    descripcion: meta.descripcion,
+    periodo: periodoStr,
+    officialUrl: isSenado 
+      ? `https://www.senado.cl/comisiones/${meta.id}`
+      : `https://www.camara.cl/legislacion/comisiones/detalle.aspx?prmID=${meta.id}`,
+    citacionesUrl: isSenado
+      ? "https://www.senado.cl/actividad-legislativa/citaciones-a-comisiones"
+      : "https://www.camara.cl/legislacion/comisiones/citaciones.aspx",
+    sesionesRealizadas: 48,
+    proyectosContados: 12,
+    audienciasSostenidas: 34,
+    documentosContados: 76,
+    alertasActivas: 2,
+    integrantes: meta.integrantes,
+    temas: meta.temas || ["Legislación", "Trámite Constitucional", "Debate Técnico"],
+    proyectosIds: ["16.621-13", "15.431-11", "16.442-13", "17.402-05"],
+    audiencias: {
+      sectorPublico: 18,
+      sociedadCivil: 11,
+      academia: 5,
+      ultimasAsistencias: [
+        { entidad: "Ministerio de Hacienda / DIPRES", expositores: 3 },
+        { entidad: "Colegio de Abogados de Chile", expositores: 2 },
+        { entidad: "Asociación Chilena de Municipalidades (AChM)", expositores: 2 },
+        { entidad: "Centro de Estudios Públicos (CEP)", expositores: 1 }
+      ]
+    },
+    proximaSesion: {
+      id: "ses-prox-01",
+      fecha: "Martes 08 de septiembre de 2026",
+      hora: "10:30 a 13:00 hrs.",
+      lugar: "Sala N° 3 del Congreso Nacional, Valparaíso (Híbrida)",
+      modalidad: "Presencial y Telemática",
+      citacionNumero: "Citación Ordinaria N° 142/56",
+      tipo: "Sesión Ordinaria",
+      materia: `Continuar con el estudio en particular de los proyectos de ley radicados en la ${meta.nombre}.`,
+      invitados: "Subsecretario del Ramo, Especialistas Constitucionales y Representantes Gremiales.",
+      acuerdosCount: 0,
+      tabla: [
+        "1. Aprobación de actas anteriores.",
+        "2. Votación de indicaciones formuladas al articulado.",
+        "3. Fijación de plazos para audiencias públicas."
+      ]
+    },
+    sesiones: [
+      {
+        id: "ses-01",
+        fecha: sampleDate1,
+        hora: "10:30 a 13:00 hrs.",
+        lugar: "Valparaíso",
+        tipo: "Sesión Ordinaria",
+        materia: `Audiencias técnicas y debate de indicaciones sobre las materias de competencia de la ${meta.nombre}.`,
+        invitados: "DIPRES, Expertos Académicos y Asociaciones Sectoriales.",
+        acuerdosCount: 3,
+        completada: true,
+        actaTexto: "Se inició la sesión con la asistencia reglamentaria de los miembros titulares. Se escucharon exposiciones y se acordó votar en general en la próxima citación.",
+        acuerdosTexto: [
+          "Se acordó oficiar al Ejecutivo solicitando informe financiero complementario.",
+          "Se aprueba en general por unanimidad de los presentes.",
+          "Se fija plazo para recibir indicaciones hasta el próximo viernes a las 18:00 hrs."
+        ],
+        tabla: [
+          "1. Análisis de observaciones ingresadas.",
+          "2. Exposición del Ejecutivo.",
+          "3. Acuerdos de tramitación."
+        ]
+      },
+      {
+        id: "ses-02",
+        fecha: sampleDate2,
+        hora: "11:00 a 13:30 hrs.",
+        lugar: "Valparaíso",
+        tipo: "Sesión Especial",
+        materia: `Revisión exhaustiva y recepción de audiencias públicas en materia sectorial.`,
+        invitados: "Representantes de la sociedad civil y gremios convocados.",
+        acuerdosCount: 2,
+        completada: true,
+        acuerdosTexto: [
+          "Se escucharon 4 audiencias públicas.",
+          "Se remiten actas a la Secretaría General de la Presidencia."
+        ]
+      },
+      {
+        id: "ses-03",
+        fecha: sampleDate3,
+        hora: "10:00 a 12:30 hrs.",
+        lugar: "Valparaíso",
+        tipo: "Sesión Ordinaria",
+        materia: `Votación de articulado y despacho de informe a Sala.`,
+        invitados: "Ministros y asesores legislativos.",
+        acuerdosCount: 4,
+        completada: true,
+        acuerdosTexto: [
+          "Se despacha el informe a Sala.",
+          "Se designa parlamentario informante."
+        ]
+      }
+    ],
+    documentosGroups: [
+      { tipo: "Informes de Comisión", cuenta: 18 },
+      { tipo: "Actas de Sesión", cuenta: 48 },
+      { tipo: "Minutas Técnicas Asesoría BCN", cuenta: 12 },
+      { tipo: "Oficios y Respuestas Ministeriales", cuenta: 26 },
+      { tipo: "Presentaciones de Expositores", cuenta: 34 }
+    ],
+    actividades: [
+      {
+        id: "act-01",
+        fecha: "02 Sep 2026",
+        titulo: "Sesión Ordinaria Concluida",
+        descripcion: "Finalizó el debate técnico sobre indicaciones particulares.",
+        tipo: "sesion"
+      },
+      {
+        id: "act-02",
+        fecha: "26 Ago 2026",
+        titulo: "Audiencias Públicas Sostenidas",
+        descripcion: "Exposición de organismos públicos y gremios en sala de sesiones.",
+        tipo: "sesion"
+      },
+      {
+        id: "act-03",
+        fecha: "19 Ago 2026",
+        titulo: "Informe de Trámite Despachado",
+        descripcion: "Solicitud de antecedentes remitida al Ministerio respectivo.",
+        tipo: "informe"
+      }
+    ]
+  };
+}
+

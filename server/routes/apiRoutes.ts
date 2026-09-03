@@ -4,7 +4,9 @@ import {
   TODAS_COMISIONES_DETALLE, 
   DIPUTADOS_COMISIONES_DETALLE, 
   SENADO_COMISIONES_DETALLE, 
-  searchComisionesAutocomplete 
+  searchComisionesAutocomplete,
+  findComisionMetaById,
+  generateFullComisionData
 } from "../../src/data/comisionesData";
 import { 
   fetchProyectoFromSenado, 
@@ -274,7 +276,7 @@ apiRouter.get("/comisiones", async (req: Request, res: Response) => {
 
 apiRouter.get("/comision/:id", async (req: Request, res: Response) => {
   const id = req.params.id;
-  const matchDetalle = TODAS_COMISIONES_DETALLE.find(c => c.id === id || `${c.prefix}${c.id}` === id);
+  const matchDetalle = findComisionMetaById(id);
   const todas = await getTodasComisiones();
   const matched = matchDetalle || todas.find(c => c.id === id || c.id.replace(/^(cd|sr)-/, "") === id);
 
