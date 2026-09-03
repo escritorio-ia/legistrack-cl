@@ -723,15 +723,10 @@ export default function Header({
         </div>
       )}
 
-      {/* Sub-Navbar for Legislación++ Module (Fully Responsive Horizontal Scroll) */}
+      {/* Sub-Navbar for Legislación++ Module (Clean Action Tabs) */}
       {["dashboard", "proyectos", "proyecto-detail", "comisiones", "comision-detail", "sala", "alertas"].includes(currentView) && (
-        <div className="bg-slate-950 text-white px-3 sm:px-6 py-2 flex items-center justify-between border-b border-slate-800 shadow-inner sticky top-16 z-40 transition-all overflow-x-auto no-scrollbar">
+        <div className="bg-slate-950 text-white px-3 sm:px-6 py-2 flex items-center border-b border-slate-800 shadow-inner sticky top-16 z-40 transition-all overflow-x-auto no-scrollbar">
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            <span className="text-2xs font-extrabold uppercase tracking-wider text-blue-400 bg-blue-950/80 border border-blue-800/60 px-2.5 py-1 rounded-full font-mono mr-1 sm:mr-2 flex items-center gap-1.5 shrink-0">
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
-              LEGISLACIÓN++
-            </span>
-
             <button
               onClick={() => handleNavigate("proyectos")}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
@@ -788,11 +783,6 @@ export default function Header({
                 </span>
               )}
             </button>
-          </div>
-
-          <div className="hidden lg:flex items-center gap-2 text-2xs text-slate-400 font-mono shrink-0 pl-4">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-            <span>Congreso Nacional &bull; Datos Oficiales</span>
           </div>
         </div>
       )}

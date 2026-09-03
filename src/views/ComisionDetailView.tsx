@@ -1275,17 +1275,37 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
         <div>
           <h2 className="text-xl font-black text-slate-900 tracking-tight">Comisión no encontrada</h2>
           <p className="text-xs text-slate-500 mt-1 max-w-md">
-            No se encontró el registro con identificador <strong>"{comisionId}"</strong>. Puedes volver al directorio para explorar las 52 comisiones de Cámara y Senado.
+            No se encontró el registro con identificador <strong>"{comisionId}"</strong>. Puedes buscar en la web oficial del Congreso o explorar las 52 comisiones en el directorio.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
+        <div className="flex flex-wrap items-center justify-center gap-2.5 mt-2">
           <button
             onClick={() => setView("comisiones")}
             className="px-4 py-2 bg-slate-900 hover:bg-blue-600 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm"
           >
             Ver Directorio de Comisiones
           </button>
+
+          <a
+            href={`https://www.camara.cl/legislacion/comisiones/`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
+          >
+            <span>Buscar en Cámara de Diputados</span>
+            <ExternalLink className="w-3.5 h-3.5" />
+          </a>
+
+          <a
+            href={`https://www.senado.cl/actividad-legislativa/comisiones`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
+          >
+            <span>Buscar en Senado</span>
+            <ExternalLink className="w-3.5 h-3.5" />
+          </a>
         </div>
       </div>
     );
