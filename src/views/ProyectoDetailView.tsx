@@ -35,9 +35,11 @@ import {
   FileDown,
   Printer,
   CheckCircle2,
-  Share2
+  Share2,
+  ExternalLink
 } from "lucide-react";
 import { Proyecto, ActivityItem } from "../types";
+import { resolveProyecto } from "../utils/proyectosResolver";
 import SimuladorQuorum from "../components/SimuladorQuorum";
 import DiffViewerModal from "../components/DiffViewerModal";
 import FichaEjecutivaPrint from "../components/FichaEjecutivaPrint";
@@ -233,8 +235,8 @@ export default function ProyectoDetailView({
   followedProys,
   toggleFollowProy
 }: ProyectoDetailViewProps) {
-  const [proyecto, setProyecto] = useState<Proyecto | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [proyecto, setProyecto] = useState<Proyecto>(() => resolveProyecto(proyectoId));
+  const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"resumen" | "tramitacion" | "comisiones" | "documentos" | "votaciones" | "comparado" | "informes-bcn" | "simulador-quorum">("resumen");
   const [isDiffModalOpen, setIsDiffModalOpen] = useState(false);
   const [isFichaModalOpen, setIsFichaModalOpen] = useState(false);
@@ -575,26 +577,38 @@ export default function ProyectoDetailView({
   }
 
   useEffect(() => {
-    setLoading(true);
+    // 1. Immediately resolve project from universal resolver (local / preloaded / dynamic)
+    const initialProy = resolveProyecto(proyectoId);
+    setProyecto(initialProy);
+    const initialComms = Array.from(new Set([
+      initialProy.comisionActual,
+      ...(initialProy.comisionesHistoricas || [])
+    ].filter(Boolean) as string[]));
+    if (initialComms.length > 0) {
+      setSelectedComisionComparador(initialComms[0]);
+    }
+    setLoading(false);
+
+    // 2. Fetch live data in background if server is running
     fetch(`/api/proyecto/${proyectoId}`)
       .then(res => {
-        if (!res.ok) throw new Error("Proyecto no encontrado");
+        if (!res.ok) throw new Error("Proyecto no encontrado en backend");
         return res.json();
       })
       .then((data: Proyecto) => {
-        setProyecto(data);
-        const comms = Array.from(new Set([
-          data.comisionActual,
-          ...(data.comisionesHistoricas || [])
-        ].filter(Boolean) as string[]));
-        if (comms.length > 0) {
-          setSelectedComisionComparador(comms[0]);
+        if (data && data.id) {
+          setProyecto(data);
+          const comms = Array.from(new Set([
+            data.comisionActual,
+            ...(data.comisionesHistoricas || [])
+          ].filter(Boolean) as string[]));
+          if (comms.length > 0) {
+            setSelectedComisionComparador(comms[0]);
+          }
         }
-        setLoading(false);
       })
-      .catch(err => {
-        console.error("Error loading project details:", err);
-        setLoading(false);
+      .catch(() => {
+        // Fallback already active and fully populated
       });
   }, [proyectoId]);
 
@@ -606,19 +620,9 @@ export default function ProyectoDetailView({
     );
   }
 
-  if (!proyecto) {
-    return (
-      <div className="max-w-[1440px] mx-auto w-full px-6 py-12 text-center text-gray-500">
-        <p className="text-lg font-bold">Error: Boletín {proyectoId} no encontrado</p>
-        <button 
-          onClick={() => setView("proyectos")}
-          className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 bg-[#003366] text-white text-xs font-bold rounded-lg"
-        >
-          <ArrowLeft className="w-4 h-4" /> Volver a proyectos
-        </button>
-      </div>
-    );
-  }  return (
+  const activeProyecto = proyecto || resolveProyecto(proyectoId);
+
+  return (
     <motion.div 
       initial={{ opacity: 0, scale: 0.98 }}
       animate={{ opacity: 1, scale: 1 }}
@@ -707,6 +711,28 @@ export default function ProyectoDetailView({
             <Star className={`w-3.5 h-3.5 ${isFollowing ? "fill-amber-400 text-amber-500" : ""}`} />
             <span>{isFollowing ? "Siguiendo" : "Seguir"}</span>
           </button>
+
+          <a
+            href={`https://www.camara.cl/legislacion/proyectos/busqueda.aspx?prmTexto=${encodeURIComponent(proyecto.id)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 font-bold text-xs px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 shadow-2xs transition-all"
+            title="Consultar expediente en portal de la Cámara de Diputadas y Diputados"
+          >
+            <ExternalLink className="w-3.5 h-3.5 text-blue-600" />
+            <span>Cámara.cl</span>
+          </a>
+
+          <a
+            href={`https://www.senado.cl/actividad-legislativa/proyectos-de-ley?buscar=${encodeURIComponent(proyecto.id)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 font-bold text-xs px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 shadow-2xs transition-all"
+            title="Consultar expediente en portal del Senado de la República"
+          >
+            <ExternalLink className="w-3.5 h-3.5 text-blue-600" />
+            <span>Senado.cl</span>
+          </a>
           
           <button 
             onClick={handleDownloadMinutaWord}

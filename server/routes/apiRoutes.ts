@@ -9,6 +9,7 @@ import {
   generateFullComisionData
 } from "../../src/data/comisionesData";
 import { performUnifiedSearch } from "../../src/utils/searchEngine";
+import { resolveProyecto } from "../../src/utils/proyectosResolver";
 import { 
   fetchProyectoFromSenado, 
   fetchProyectosListadoFromSenado, 
@@ -251,11 +252,11 @@ apiRouter.get("/proyecto/:id", async (req: Request, res: Response) => {
     proyecto = (await fetchProyectosListadoFromSenado()).map(listadoToProyecto).find(p => cleanBulletinNumber(p.id) === idClean);
   }
 
-  if (proyecto) {
-    res.json(proyecto);
-  } else {
-    res.status(404).json({ error: "Boletín no encontrado" });
+  if (!proyecto) {
+    proyecto = resolveProyecto(idParam);
   }
+
+  res.json(proyecto);
 });
 
 // ============================================================================
