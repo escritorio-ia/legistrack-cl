@@ -222,6 +222,7 @@ export function performUnifiedSearch(rawQuery: string): UnifiedSearchResult {
 
   // 6. Direct Live Official Web Portals Links & Intelligent Data Sources
   const encodedQ = encodeURIComponent(rawQuery.trim());
+  const encodedBoletin = encodeURIComponent(rawQuery.replace(/-/g, "").trim());
   const qLower = normalizeSearchString(rawQuery);
 
   const fuentesDatos: FuenteDatoItem[] = [
@@ -231,7 +232,7 @@ export function performUnifiedSearch(rawQuery: string): UnifiedSearchResult {
       institucion: "Congreso Nacional de Chile",
       categoria: "Congreso & Normativa",
       descripcion: "Sistema de Tramitación de Proyectos, boletines oficiales, actas de comisiones, transmisiones de Sala y Open Data parlamentario.",
-      url: `https://tramitacion.senado.cl/appsenado/templates/tramitacion/index.php?boletin=${encodedQ}`,
+      url: `https://tramitacion.senado.cl/wspublico/tramitacion.php?boletin=${encodedBoletin}`,
       queBuscar: `Boletines, estados de tramitación, quórum de votación y proyectos de ley radicados en el Senado sobre "${rawQuery}".`,
       cobertura: "Congreso Nacional (1990 - 2026)",
       relevancia: "Alta"
