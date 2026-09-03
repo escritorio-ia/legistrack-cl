@@ -138,6 +138,7 @@ export interface Comision {
   actividades: ActivityItem[];
   integrantes?: Integrante[];
   proyectos?: Proyecto[];
+  temas?: string[];
 }
 
 export interface Alerta {
