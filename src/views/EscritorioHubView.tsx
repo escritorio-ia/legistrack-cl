@@ -18,19 +18,24 @@ import {
   Radio,
   FileSpreadsheet
 } from "lucide-react";
+import CitacionesCamaraWidget from "../components/CitacionesCamaraWidget";
 
 interface EscritorioHubViewProps {
   setView: (view: string) => void;
   setSelectedProyectoId?: (id: string) => void;
   setSelectedComisionId?: (id: string) => void;
   followedProys?: string[];
+  followedComs?: string[];
+  toggleFollowCom?: (comName: string) => void;
 }
 
 export default function EscritorioHubView({
   setView,
   setSelectedProyectoId,
   setSelectedComisionId,
-  followedProys = []
+  followedProys = [],
+  followedComs = [],
+  toggleFollowCom
 }: EscritorioHubViewProps) {
   return (
     <div className="max-w-[1440px] mx-auto w-full px-3 sm:px-6 lg:px-8 py-5 sm:py-8 space-y-6 sm:space-y-10" id="hub-suite-root">
@@ -249,6 +254,17 @@ export default function EscritorioHubView({
         </div>
       </div>
 
+      {/* Widget de Citaciones Semanales en Vivo */}
+      <div className="space-y-4" id="hub-citaciones-widget-section">
+        <CitacionesCamaraWidget 
+          setView={setView}
+          setSelectedComisionId={setSelectedComisionId}
+          setSelectedProyectoId={setSelectedProyectoId}
+          followedComs={followedComs}
+          toggleFollowCom={toggleFollowCom}
+        />
+      </div>
+
       {/* Quick Access Section */}
       <div className="bg-slate-50 rounded-3xl p-5 sm:p-8 border border-slate-200/80 space-y-4">
         <div className="flex items-center justify-between">
@@ -272,6 +288,21 @@ export default function EscritorioHubView({
           </button>
 
           <button
+            onClick={() => {
+              window.location.hash = "#/comisiones?tab=citaciones";
+              setView("comisiones");
+            }}
+            className="p-4 bg-white hover:bg-amber-50/70 border border-slate-200 hover:border-amber-300 rounded-2xl text-left transition-all shadow-2xs group cursor-pointer"
+          >
+            <span className="text-2xs font-mono font-bold text-amber-600 block flex items-center gap-1">
+              <Calendar className="w-3 h-3" />
+              CITACIONES SEMANA
+            </span>
+            <span className="text-xs font-bold text-slate-900 group-hover:text-amber-700 block mt-0.5">36 Convocatorias</span>
+            <span className="text-2xs text-slate-400 mt-1 block group-hover:text-amber-600 transition-colors">Ver Agenda Oficial &rsaquo;</span>
+          </button>
+
+          <button
             onClick={() => setView("sala")}
             className="p-4 bg-white hover:bg-rose-50/70 border border-slate-200 hover:border-rose-300 rounded-2xl text-left transition-all shadow-2xs group cursor-pointer"
           >
@@ -290,15 +321,6 @@ export default function EscritorioHubView({
             <span className="text-2xs font-mono font-bold text-emerald-600 block">DIPRES ANALYTICS</span>
             <span className="text-xs font-bold text-slate-900 group-hover:text-emerald-700 block mt-0.5">Gasto Fiscal Sectorial</span>
             <span className="text-2xs text-slate-400 mt-1 block group-hover:text-emerald-600 transition-colors">Minutas en Word &rsaquo;</span>
-          </button>
-
-          <button
-            onClick={() => setView("configuracion")}
-            className="p-4 bg-white hover:bg-purple-50/70 border border-slate-200 hover:border-purple-300 rounded-2xl text-left transition-all shadow-2xs group cursor-pointer"
-          >
-            <span className="text-2xs font-mono font-bold text-purple-600 block">DIAGNÓSTICO</span>
-            <span className="text-xs font-bold text-slate-900 group-hover:text-purple-700 block mt-0.5">Salud de APIs & IA</span>
-            <span className="text-2xs text-slate-400 mt-1 block group-hover:text-purple-600 transition-colors">Monitoreo de Red &rsaquo;</span>
           </button>
         </div>
       </div>

@@ -284,6 +284,8 @@ export default function App() {
             setSelectedProyectoId={(id) => navigateView("proyecto-detail", id)}
             setSelectedComisionId={(id) => navigateView("comision-detail", id)}
             followedProys={followedProys}
+            followedComs={followedComs}
+            toggleFollowCom={toggleFollowCom}
           />
         )}
 
