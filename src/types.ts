@@ -78,6 +78,7 @@ export interface Proyecto {
 }
 
 export interface Integrante {
+  prmID?: string;
   nombre: string;
   partido: string;
   rol: string;
@@ -141,6 +142,10 @@ export interface Comision {
   integrantes?: Integrante[];
   proyectos?: Proyecto[];
   temas?: string[];
+  prmID?: string;
+  telefono?: string;
+  email?: string;
+  staff?: { cargo: string; nombre: string }[];
 }
 
 export interface Alerta {

@@ -23,6 +23,7 @@ import {
 import { 
   getTodasComisiones, 
   fetchComisionesCamaraReal,
+  fetchCamaraCitacionesSemanalesLive,
   SENADO_COMISIONES_REALES,
   DIPUTADOS_COMISIONES_REALES
 } from "../services/camaraService";
@@ -284,6 +285,21 @@ apiRouter.get("/comisiones/autocomplete", async (req: Request, res: Response) =>
   res.json(result);
 });
 
+apiRouter.get("/comisiones/citaciones", async (req: Request, res: Response) => {
+  try {
+    const forceRefresh = req.query.refresh === "true";
+    const data = await fetchCamaraCitacionesSemanalesLive(forceRefresh);
+    res.json({
+      success: true,
+      timestamp: new Date().toISOString(),
+      ...data
+    });
+  } catch (error: any) {
+    console.error("Error fetching live citations:", error);
+    res.status(500).json({ error: "Error al obtener citaciones en vivo" });
+  }
+});
+
 apiRouter.get("/comisiones", async (req: Request, res: Response) => {
   const allComisiones = await getTodasComisiones();
   res.json(allComisiones);
@@ -291,9 +307,59 @@ apiRouter.get("/comisiones", async (req: Request, res: Response) => {
 
 apiRouter.get("/comision/:id", async (req: Request, res: Response) => {
   const id = req.params.id;
+  const forceRefresh = req.query.refresh === "true";
   const matchDetalle = findComisionMetaById(id);
+
+  if (matchDetalle) {
+    const fullComision = generateFullComisionData(matchDetalle);
+
+    if (forceRefresh) {
+      try {
+        const liveCit = await fetchCamaraCitacionesSemanalesLive(true);
+        if (liveCit && liveCit.porComision && liveCit.porComision[matchDetalle.id]) {
+          const comLiveCit = liveCit.porComision[matchDetalle.id];
+          if (comLiveCit.length > 0) {
+            fullComision.sesiones = [
+              ...comLiveCit.map((rc: any, idx: number) => ({
+                id: `ses-semana-live-${idx + 1}`,
+                fecha: rc.fecha,
+                hora: rc.hora,
+                lugar: rc.lugar,
+                tipo: rc.tipo || "Sesión de Comisión",
+                materia: rc.materia,
+                invitados: rc.invitados,
+                citacionNumero: rc.citacionNumero,
+                acuerdosCount: 0,
+                completada: false,
+                tabla: rc.tabla
+              })),
+              ...fullComision.sesiones.filter(s => !s.id.startsWith("ses-semana-"))
+            ];
+            fullComision.proximaSesion = {
+              id: comLiveCit[0].id || "ses-prox-live",
+              fecha: comLiveCit[0].fecha,
+              hora: comLiveCit[0].hora,
+              lugar: comLiveCit[0].lugar,
+              modalidad: "Presencial",
+              citacionNumero: comLiveCit[0].citacionNumero,
+              tipo: comLiveCit[0].tipo,
+              materia: comLiveCit[0].materia,
+              invitados: comLiveCit[0].invitados,
+              acuerdosCount: 0,
+              tabla: comLiveCit[0].tabla || [comLiveCit[0].materia]
+            };
+          }
+        }
+      } catch (err) {
+        console.warn("Could not refresh live citaciones for commission:", err);
+      }
+    }
+
+    return res.json(fullComision);
+  }
+
   const todas = await getTodasComisiones();
-  const matched = matchDetalle || todas.find(c => c.id === id || c.id.replace(/^(cd|sr)-/, "") === id);
+  const matched = todas.find(c => c.id === id || c.id.replace(/^(cd|sr)-/, "") === id);
 
   if (!matched) {
     return res.status(404).json({ error: "Comisión no encontrada" });
@@ -301,7 +367,6 @@ apiRouter.get("/comision/:id", async (req: Request, res: Response) => {
 
   const listadoSenado = await fetchProyectosListadoFromSenado();
   const proyectosSenado = listadoSenado.map(listadoToProyecto);
-
   const pMateria = proyectosSenado.filter(p => matched.nombre.toLowerCase().includes(p.materia.toLowerCase()));
 
   const enriched = {
@@ -309,7 +374,7 @@ apiRouter.get("/comision/:id", async (req: Request, res: Response) => {
     nombre: matched.nombre,
     descripcion: matched.descripcion || `Comisión legislativa oficial del Congreso Nacional de Chile.`,
     periodo: (matched as any).senado ? "Senado (2022 - 2030)" : "Cámara de Diputadas y Diputados (2022 - 2026)",
-    sesionesRealizadas: 42,
+    sesionesRealizadas: 48,
     proyectosContados: pMateria.length || 8,
     audienciasSostenidas: 38,
     documentosContados: 65,
@@ -328,7 +393,7 @@ apiRouter.get("/comision/:id", async (req: Request, res: Response) => {
       { tipo: "Actas de Sesión", cuenta: 42 }
     ],
     actividades: [],
-    integrantes: matchDetalle?.integrantes || [],
+    integrantes: [],
     proyectos: pMateria.slice(0, 5)
   };
 

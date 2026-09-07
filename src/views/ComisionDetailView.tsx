@@ -2614,8 +2614,22 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
                           onClick={() => setSelectedIntegranteModal(presIntegrante)}
                           className="bg-white/10 hover:bg-white/15 border border-amber-400/40 rounded-xl p-4 transition-all cursor-pointer group flex items-start gap-3.5"
                         >
-                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-black text-sm shrink-0 border shadow-sm ${partyStyle.bg} ${partyStyle.text} ${partyStyle.border}`}>
-                            {initials || "MP"}
+                          <div className="relative shrink-0">
+                            {presIntegrante.fotoUrl ? (
+                              <img 
+                                src={presIntegrante.fotoUrl} 
+                                alt={presIntegrante.nombre} 
+                                className="w-12 h-12 rounded-xl object-cover border border-amber-400/50 shadow-sm"
+                                onError={(e) => {
+                                  (e.target as HTMLElement).style.display = "none";
+                                  const fallback = (e.target as HTMLElement).nextElementSibling as HTMLElement;
+                                  if (fallback) fallback.style.display = "flex";
+                                }}
+                              />
+                            ) : null}
+                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-black text-sm shrink-0 border shadow-sm ${partyStyle.bg} ${partyStyle.text} ${partyStyle.border}`} style={{ display: presIntegrante.fotoUrl ? "none" : "flex" }}>
+                              {initials || "MP"}
+                            </div>
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2 mb-0.5">
@@ -2623,6 +2637,9 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
                                 Preside la Comisión
                               </span>
                               <span className="text-[10px] text-slate-300 font-bold">{presIntegrante.partido}</span>
+                              {presIntegrante.distrito && (
+                                <span className="text-[9.5px] text-amber-200 font-mono">D{presIntegrante.distrito}</span>
+                              )}
                             </div>
                             <h4 className="text-sm font-black text-white group-hover:text-amber-300 transition-colors truncate">
                               {presIntegrante.nombre}
@@ -2636,23 +2653,63 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
                       );
                     })()}
 
-                    {/* Secretaría Técnica */}
-                    <div className="bg-white/10 border border-white/15 rounded-xl p-4 flex items-start gap-3.5">
-                      <div className="w-12 h-12 rounded-xl bg-blue-900/60 border border-blue-400/30 flex items-center justify-center text-blue-200 font-bold text-sm shrink-0">
-                        <Landmark className="w-6 h-6 text-blue-300" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <span className="bg-blue-400/20 text-blue-200 border border-blue-400/30 text-[9px] font-bold px-2 py-0.5 rounded uppercase">
-                            Secretaría Técnica de Comisión
-                          </span>
+                    {/* Secretaría Técnica y Contacto Oficial */}
+                    <div className="bg-white/10 border border-white/15 rounded-xl p-4 flex flex-col justify-between gap-2.5">
+                      <div className="flex items-start gap-3.5">
+                        <div className="w-12 h-12 rounded-xl bg-blue-900/60 border border-blue-400/30 flex items-center justify-center text-blue-200 font-bold text-sm shrink-0">
+                          <Landmark className="w-6 h-6 text-blue-300" />
                         </div>
-                        <h4 className="text-sm font-bold text-white truncate">
-                          {secretarioText.replace(/^Secretaría:\s*/i, "")}
-                        </h4>
-                        <p className="text-[11px] text-slate-300 mt-1">
-                          Secretaría de Comisiones ({isSenado ? "Senado de la República" : "Cámara de Diputadas y Diputados"}), Valparaíso.
-                        </p>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <span className="bg-blue-400/20 text-blue-200 border border-blue-400/30 text-[9px] font-bold px-2 py-0.5 rounded uppercase">
+                              Secretaría de la Comisión
+                            </span>
+                            {comision.prmID && (
+                              <span className="text-[10px] text-blue-300 font-mono">ID: {comision.prmID}</span>
+                            )}
+                          </div>
+                          <h4 className="text-sm font-bold text-white">
+                            {comision.staff && comision.staff.length > 0 
+                              ? comision.staff[0].nombre 
+                              : secretarioText.replace(/^Secretaría:\s*/i, "")}
+                          </h4>
+                          {comision.staff && comision.staff.length > 0 && (
+                            <p className="text-[10px] text-blue-200 font-semibold">{comision.staff[0].cargo}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Staff complementario o Contacto */}
+                      <div className="pt-2 border-t border-white/10 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-300">
+                        {comision.staff && comision.staff.length > 1 ? (
+                          <div className="flex flex-col gap-0.5 text-[10.5px]">
+                            {comision.staff.slice(1).map((st, sIdx) => (
+                              <div key={sIdx} className="text-slate-300">
+                                <span className="text-slate-400 font-semibold">{st.cargo}:</span> {st.nombre}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-[11px] text-slate-300">
+                            Secretaría de Comisiones ({isSenado ? "Senado de la República" : "Cámara de Diputadas y Diputados"}), Valparaíso.
+                          </p>
+                        )}
+
+                        <div className="flex items-center gap-3 shrink-0 ml-auto">
+                          {comision.telefono && (
+                            <span className="inline-flex items-center gap-1 text-[11px] text-blue-200 font-mono">
+                              📞 {comision.telefono}
+                            </span>
+                          )}
+                          {comision.email && (
+                            <a 
+                              href={`mailto:${comision.email}`}
+                              className="inline-flex items-center gap-1 text-[11px] text-blue-300 hover:text-blue-100 hover:underline transition-colors"
+                            >
+                              ✉️ {comision.email}
+                            </a>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -2750,8 +2807,22 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
                             }`}
                           >
                             <div className="flex items-start gap-3">
-                              <div className={`w-11 h-11 rounded-xl flex items-center justify-center font-black text-xs shrink-0 border shadow-xs ${partyStyle.bg} ${partyStyle.text} ${partyStyle.border}`}>
-                                {initials || "MP"}
+                              <div className="relative shrink-0">
+                                {i.fotoUrl ? (
+                                  <img 
+                                    src={i.fotoUrl} 
+                                    alt={i.nombre} 
+                                    className="w-11 h-11 rounded-xl object-cover border shadow-xs"
+                                    onError={(e) => {
+                                      (e.target as HTMLElement).style.display = "none";
+                                      const fallback = (e.target as HTMLElement).nextElementSibling as HTMLElement;
+                                      if (fallback) fallback.style.display = "flex";
+                                    }}
+                                  />
+                                ) : null}
+                                <div className={`w-11 h-11 rounded-xl flex items-center justify-center font-black text-xs shrink-0 border shadow-xs ${partyStyle.bg} ${partyStyle.text} ${partyStyle.border}`} style={{ display: i.fotoUrl ? "none" : "flex" }}>
+                                  {initials || "MP"}
+                                </div>
                               </div>
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-1.5 mb-1">
@@ -2768,12 +2839,15 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
                                   <span className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded border ${partyStyle.bg} ${partyStyle.text} ${partyStyle.border}`}>
                                     {i.partido}
                                   </span>
+                                  {i.distrito && (
+                                    <span className="text-[9px] text-slate-500 font-mono">D{i.distrito}</span>
+                                  )}
                                 </div>
                                 <h4 className="text-xs font-bold text-slate-900 group-hover:text-blue-700 transition-colors leading-tight">
                                   {i.nombre}
                                 </h4>
                                 <span className="text-[11px] text-slate-500 font-semibold mt-0.5 block">
-                                  {i.camara || (isSenado ? "Senado de la República" : "Cámara de Diputadas y Diputados")}
+                                  {i.distrito ? `Distrito ${i.distrito}` : (i.camara || (isSenado ? "Senado de la República" : "Cámara de Diputadas y Diputados"))}
                                 </span>
                               </div>
                             </div>
@@ -3740,8 +3814,25 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
             {/* Header */}
             <div className="bg-[#003366] text-white p-5 flex justify-between items-start shrink-0">
               <div className="flex items-center gap-3">
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-black text-sm border shadow-sm ${getPartyBadgeStyle(selectedIntegranteModal.partido).bg} ${getPartyBadgeStyle(selectedIntegranteModal.partido).text} ${getPartyBadgeStyle(selectedIntegranteModal.partido).border}`}>
-                  {selectedIntegranteModal.nombre.replace(/^(Sr\.|Sra\.|Don|Doña)\s*/i, "").split(" ").filter(w => w.length > 2).slice(0, 2).map(w => w[0]).join("") || "MP"}
+                <div className="relative shrink-0">
+                  {selectedIntegranteModal.fotoUrl ? (
+                    <img 
+                      src={selectedIntegranteModal.fotoUrl} 
+                      alt={selectedIntegranteModal.nombre} 
+                      className="w-14 h-14 rounded-xl object-cover border-2 border-white/30 shadow-md"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = "none";
+                        const fallback = (e.target as HTMLElement).nextElementSibling as HTMLElement;
+                        if (fallback) fallback.style.display = "flex";
+                      }}
+                    />
+                  ) : null}
+                  <div 
+                    className={`w-14 h-14 rounded-xl flex items-center justify-center font-black text-base border shadow-sm ${getPartyBadgeStyle(selectedIntegranteModal.partido).bg} ${getPartyBadgeStyle(selectedIntegranteModal.partido).text} ${getPartyBadgeStyle(selectedIntegranteModal.partido).border}`}
+                    style={{ display: selectedIntegranteModal.fotoUrl ? "none" : "flex" }}
+                  >
+                    {selectedIntegranteModal.nombre.replace(/^(Sr\.|Sra\.|Don|Doña)\s*/i, "").split(" ").filter(w => w.length > 2).slice(0, 2).map(w => w[0]).join("") || "MP"}
+                  </div>
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
@@ -3757,9 +3848,12 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
                   <h2 className="text-base font-extrabold text-white mt-1 leading-tight">
                     {selectedIntegranteModal.nombre}
                   </h2>
-                  <p className="text-xs text-slate-200 font-semibold mt-0.5">
-                    {selectedIntegranteModal.partido}
-                  </p>
+                  <div className="flex items-center gap-2 text-xs text-slate-200 font-semibold mt-0.5">
+                    <span>{selectedIntegranteModal.partido}</span>
+                    {selectedIntegranteModal.distrito && (
+                      <span className="text-blue-200 font-mono">· Distrito {selectedIntegranteModal.distrito}</span>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -3789,6 +3883,12 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
                     <span className="text-[10px] text-slate-400 font-bold block uppercase">Filiación Política</span>
                     <span className="font-bold text-slate-800">{selectedIntegranteModal.partido}</span>
                   </div>
+                  {selectedIntegranteModal.distrito && (
+                    <div className="col-span-2">
+                      <span className="text-[10px] text-slate-400 font-bold block uppercase">Circunscripción / Territorio</span>
+                      <span className="font-bold text-slate-800">Distrito N° {selectedIntegranteModal.distrito} {selectedIntegranteModal.region ? `(${selectedIntegranteModal.region})` : ''}</span>
+                    </div>
+                  )}
                   {selectedIntegranteModal.email && (
                     <div className="col-span-2 pt-2 border-t border-slate-200/60 flex items-center justify-between">
                       <div>

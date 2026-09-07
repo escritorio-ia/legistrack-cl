@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { 
   Calendar, 
   Clock, 
@@ -39,8 +39,10 @@ import {
   Star,
   History,
   Eye,
-  CheckSquare
+  CheckSquare,
+  RotateCcw
 } from "lucide-react";
+import { CAMARA_CITACIONES_FULL_WEEK } from "../data/comisionesData";
 
 export interface CitacionesCamaraWidgetProps {
   setView?: (view: string) => void;
@@ -1109,6 +1111,25 @@ const CITACIONES_SENADO: Citacion[] = [
   }
 ];
 
+const DYNAMIC_CAMARA_CITACIONES: Citacion[] = CAMARA_CITACIONES_FULL_WEEK.map((c) => {
+  const normName = c.comisionNombre.startsWith("Comisión") ? c.comisionNombre : `Comisión de ${c.comisionNombre}`;
+  return {
+    comision: normName,
+    fechaISO: c.fecha,
+    hora: c.hora.includes("hrs") ? c.hora : `${c.hora} hrs`,
+    lugar: c.lugar,
+    materia: c.materia,
+    invitados: c.invitados,
+    boletin: c.boletinesRelacionados && c.boletinesRelacionados.length > 0 ? c.boletinesRelacionados[0] : undefined,
+    week: 37,
+    presidente: "Presidente de Comisión",
+    tipoSesion: (c.tipo && c.tipo.includes("Especial")) ? "Especial" : "Ordinaria",
+    canalTransmision: "Cámara de Diputados TV (CDTV) / Señal Online",
+    ordenDelDia: c.tabla && c.tabla.length > 0 ? c.tabla : [c.materia],
+    chamber: "CD" as const
+  };
+});
+
 export default function CitacionesCamaraWidget({
   setView,
   setSelectedComisionId,
@@ -1132,14 +1153,59 @@ export default function CitacionesCamaraWidget({
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
   const [copiedToast, setCopiedToast] = useState<string | null>(null);
+  const [liveWeekCitaciones, setLiveWeekCitaciones] = useState<Citacion[]>(DYNAMIC_CAMARA_CITACIONES);
+  const [isLiveSyncing, setIsLiveSyncing] = useState(false);
   const currentYear = 2026;
+
+  const fetchLiveCitaciones = (forceRefresh = false) => {
+    setIsLiveSyncing(true);
+    fetch(`/api/comisiones/citaciones${forceRefresh ? "?refresh=true" : ""}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.todas && Array.isArray(data.todas) && data.todas.length > 0) {
+          const mapped: Citacion[] = data.todas.map((c: any) => {
+            const normName = c.comisionNombre.startsWith("Comisión") ? c.comisionNombre : `Comisión de ${c.comisionNombre}`;
+            return {
+              comision: normName,
+              fechaISO: c.fecha,
+              hora: c.hora.includes("hrs") ? c.hora : `${c.hora} hrs`,
+              lugar: c.lugar,
+              materia: c.materia,
+              invitados: c.invitados,
+              boletin: c.boletinesRelacionados && c.boletinesRelacionados.length > 0 ? c.boletinesRelacionados[0] : undefined,
+              week: 37,
+              presidente: "Presidente de Comisión",
+              tipoSesion: (c.tipo && c.tipo.includes("Especial")) ? "Especial" : "Ordinaria",
+              canalTransmision: "Cámara de Diputados TV (CDTV) / Señal Online",
+              ordenDelDia: c.tabla && c.tabla.length > 0 ? c.tabla : [c.materia],
+              chamber: "CD" as const
+            };
+          });
+          setLiveWeekCitaciones(mapped);
+          if (forceRefresh) {
+            setCopiedToast("¡Citaciones de la semana sincronizadas con la web oficial!");
+            setTimeout(() => setCopiedToast(null), 3500);
+          }
+        }
+      })
+      .catch(err => {
+        console.warn("Could not fetch live citaciones:", err);
+      })
+      .finally(() => {
+        setIsLiveSyncing(false);
+      });
+  };
+
+  useEffect(() => {
+    fetchLiveCitaciones(false);
+  }, []);
 
   // Tag dataset with chambers
   const allEnrichedCitaciones = useMemo(() => {
-    const camaraTagged = CITACIONES_CAMARA.map(c => ({ ...c, chamber: "CD" as const }));
+    const camaraTagged = [...liveWeekCitaciones, ...CITACIONES_CAMARA].map(c => ({ ...c, chamber: "CD" as const }));
     const senadoTagged = CITACIONES_SENADO.map(c => ({ ...c, chamber: "SR" as const }));
     return [...camaraTagged, ...senadoTagged];
-  }, []);
+  }, [liveWeekCitaciones]);
 
   // Deduplicated unique commissions for the quick-select dropdown
   const uniqueCommissions = useMemo(() => {
@@ -1524,6 +1590,15 @@ END:VCALENDAR`;
 
         {/* Global Action Tools */}
         <div className="flex flex-wrap items-center gap-2.5 self-start lg:self-center shrink-0">
+          <button 
+            onClick={() => fetchLiveCitaciones(true)}
+            disabled={isLiveSyncing}
+            className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white px-3.5 py-2 rounded-xl text-xs font-bold border border-blue-400/50 transition-all shadow-xs cursor-pointer active:scale-95"
+            title="Sincronizar citaciones en vivo desde la web oficial de la Cámara"
+          >
+            <RotateCcw className={`w-3.5 h-3.5 ${isLiveSyncing ? "animate-spin text-white" : "text-blue-200"}`} />
+            <span>{isLiveSyncing ? "Sincronizando..." : "Sincronizar"}</span>
+          </button>
           <button 
             onClick={handleCopyWeekDigest}
             className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-750 text-slate-200 hover:text-white px-3.5 py-2 rounded-xl text-xs font-bold border border-slate-700 transition-all shadow-xs cursor-pointer active:scale-95"
