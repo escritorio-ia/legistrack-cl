@@ -128,6 +128,7 @@ export interface Comision {
   periodo: string;
   officialUrl?: string;
   citacionesUrl?: string;
+  tramitacionUrl?: string;
   sesionesRealizadas: number;
   proyectosContados: number;
   audienciasSostenidas: number;
