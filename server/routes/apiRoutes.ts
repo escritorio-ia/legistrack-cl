@@ -16,6 +16,7 @@ import {
   listadoToProyecto, 
   cleanBulletinNumber, 
   fetchSenadoComisionesIntegrantesLive,
+  fetchSenadoComisionProyectosLive,
   estimarQuorum,
   estimarFichaTecnica,
   estimarOrigenDetalle
@@ -312,6 +313,25 @@ apiRouter.get("/comision/:id", async (req: Request, res: Response) => {
 
   if (matchDetalle) {
     const fullComision = generateFullComisionData(matchDetalle);
+
+    if (matchDetalle.chamber === "SR" || matchDetalle.prefix === "senado-") {
+      if (matchDetalle.senadoId) {
+        try {
+          const liveSenadoProjects = await fetchSenadoComisionProyectosLive(
+            matchDetalle.senadoId,
+            matchDetalle.nombre,
+            forceRefresh
+          );
+          if (liveSenadoProjects && liveSenadoProjects.length > 0) {
+            fullComision.proyectos = liveSenadoProjects;
+            fullComision.proyectosContados = liveSenadoProjects.length;
+            fullComision.proyectosIds = liveSenadoProjects.map(p => p.id);
+          }
+        } catch (err) {
+          console.warn("Could not fetch live Senate projects from tramitacion.senado.cl:", err);
+        }
+      }
+    }
 
     if (forceRefresh) {
       try {

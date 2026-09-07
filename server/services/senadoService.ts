@@ -590,3 +590,125 @@ export async function fetchSenadoComisionesIntegrantesLive(): Promise<SenadoComi
     }
   });
 }
+
+function cleanHtmlEntities(str: string): string {
+  if (!str) return "";
+  return str
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&deg;/g, '°')
+    .replace(/&Ntilde;/g, 'Ñ')
+    .replace(/&ntilde;/g, 'ñ')
+    .replace(/&Aacute;/g, 'Á')
+    .replace(/&aacute;/g, 'á')
+    .replace(/&Eacute;/g, 'É')
+    .replace(/&eacute;/g, 'é')
+    .replace(/&Iacute;/g, 'Í')
+    .replace(/&iacute;/g, 'í')
+    .replace(/&Oacute;/g, 'Ó')
+    .replace(/&oacute;/g, 'ó')
+    .replace(/&Uacute;/g, 'Ú')
+    .replace(/&uacute;/g, 'ú')
+    .replace(/<[^>]+>/g, '')
+    .trim();
+}
+
+/**
+ * Fetches real-time projects in tramitación for a Senate committee from tramitacion.senado.cl
+ */
+export async function fetchSenadoComisionProyectosLive(
+  senadoId: string,
+  comisionNombre = "Senado",
+  forceRefresh = false
+): Promise<Proyecto[]> {
+  const cacheKey = `senado_comision_proyectos_${senadoId}`;
+  if (forceRefresh) {
+    cache.delete(cacheKey);
+  }
+
+  return cache.getOrSet(cacheKey, async () => {
+    try {
+      const url = `https://tramitacion.senado.cl/appsenado/index.php?mo=tramitacion&ac=boletin_x_fecha&comiid=${senadoId}&titulo=${encodeURIComponent("Senado: Com. " + comisionNombre)}`;
+      const res = await fetch(url, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          "X-Requested-With": "XMLHttpRequest"
+        },
+        signal: AbortSignal.timeout(7000)
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+
+      const html = await res.text();
+      const trs = [...html.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)];
+      const comProjects: Proyecto[] = [];
+      const seenBoletines = new Set<string>();
+
+      for (const r of trs) {
+        const tds = [...r[1].matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map(d => cleanHtmlEntities(d[1]));
+        if (tds.length >= 4) {
+          const boletin = tds[1];
+          if (boletin && boletin.includes("-") && !seenBoletines.has(boletin)) {
+            seenBoletines.add(boletin);
+            const fecha = tds[0];
+            const titulo = tds[2];
+            const estado = tds[3] || "En tramitación";
+            const stage = estado.toLowerCase().includes("sala") ? "Discusión en Sala" : "Primer Trámite Constitucional";
+
+            comProjects.push({
+              id: boletin,
+              titulo: titulo,
+              resumen: `Proyecto de ley radicado en la ${comisionNombre} del Senado de la República.`,
+              estado: estado,
+              etapa: stage,
+              fechaIngreso: fecha,
+              materia: "Legislación",
+              iniciativa: "Moción",
+              patrocinantes: 5,
+              urgencia: "Sin urgencia",
+              camaraOrigen: "Senado",
+              comisionActual: comisionNombre,
+              linkCongreso: `https://tramitacion.senado.cl/appsenado/index.php?mo=tramitacion&ac=boletin_x_fecha&comiid=${senadoId}&titulo=${encodeURIComponent("Senado: Com. " + comisionNombre)}`,
+              timeline: [
+                {
+                  id: `act-${boletin}-1`,
+                  fecha: fecha || "02 Sep 2026",
+                  titulo: "Radicado en Comisión",
+                  descripcion: `En tramitación legislativa en ${comisionNombre}.`,
+                  tipo: "sesion"
+                }
+              ],
+              documentos: [
+                {
+                  id: `doc-${boletin}-1`,
+                  titulo: `Ficha de Tramitación Oficial (Boletín ${boletin})`,
+                  tipo: "Ficha Oficial",
+                  fecha: fecha,
+                  url: `https://www.senado.cl/actividad-legislativa/tramitacion-de-proyectos/${boletin.split("-")[0]}`
+                }
+              ],
+              votaciones: []
+            });
+          }
+        }
+      }
+
+      // Sort newest first
+      comProjects.sort((a, b) => {
+        const da = new Date(a.fechaIngreso).getTime() || 0;
+        const db = new Date(b.fechaIngreso).getTime() || 0;
+        return db - da;
+      });
+
+      return comProjects;
+    } catch (err: any) {
+      console.warn(`[SenadoService] Could not fetch live projects for comision ${senadoId}:`, err.message);
+      return [];
+    }
+  }, 900); // 15 minutes TTL
+}
+
