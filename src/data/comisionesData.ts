@@ -6453,6 +6453,1199 @@ export const CAMARA_CITACIONES_FULL_WEEK: any[] = [
   }
 ];
 
+export const SENADO_CITACIONES_FULL_WEEK: any[] = [
+  {
+    "id": "senado-cit-25387",
+    "idCitacion": 25387,
+    "idComision": 1009,
+    "comision": "Comisión de Recursos Hídricos, Desertificación y Sequía",
+    "fecha": "09/09/2026",
+    "hora": "09:30 a 11:00",
+    "lugar": "Sala N° 9 de Comisiones, tercer piso del Senado, Valparaíso.",
+    "materia": "1.- Bol.N° 17877-33 Continuar el estudio en particular del proyecto de ley, en primer trámite constitucional, que modifica la ley N° 20.998, con el propósito de modernizar y fortalecer el régimen jurídico aplicable a los servicios sanitarios rurales (Boletín N°17.877-33).\n\nA esta sesión ha sido invitado el Superintendente de Servicios Sanitarios, señor Jorge Rivas, quien expondrá acerca del régimen tarifario aplicable a dichos servicios contemplado en la legislación vigente, así como en la aludida iniciativa legal, particularmente, en las indicaciones formuladas por el Ejecutivo.",
+    "tabla": [
+      "1.- Bol.N° 17877-33 Continuar el estudio en particular del proyecto de ley, en primer trámite constitucional, que modifica la ley N° 20.998, con el propósito de modernizar y fortalecer el régimen jurídico aplicable a los servicios sanitarios rurales (Boletín N°17.877-33).",
+      "A esta sesión ha sido invitado el Superintendente de Servicios Sanitarios, señor Jorge Rivas, quien expondrá acerca del régimen tarifario aplicable a dichos servicios contemplado en la legislación vigente, así como en la aludida iniciativa legal, particularmente, en las indicaciones formuladas por el Ejecutivo."
+    ],
+    "boletines": [
+      "17877-33"
+    ],
+    "boletin": "17877-33",
+    "tipo": "Sesión de Comisión",
+    "canalTransmision": "TV Senado / Señal Online",
+    "citacionNumero": "Citación N° 25387",
+    "chamber": "SR"
+  },
+  {
+    "id": "senado-cit-25399",
+    "idCitacion": 25399,
+    "idComision": 198,
+    "comision": "Comisión de Transportes y Telecomunicaciones",
+    "fecha": "09/09/2026",
+    "hora": "09:30 a 11:00",
+    "lugar": "Sala 5, (Valparaíso)",
+    "materia": "1.- Bol.N° 16853-15 y 16.872-15, refundidos. Continuar con el estudio del proyecto de ley, en segundo trámite constitucional, que modifica la ley N° 18.290, de Tránsito, para que los operadores de transporte público mayor dispongan, en los terminales, de instrumentos de control del consumo de alcohol y drogas por parte de los conductores. \n\n\tA esta sesión ha sido invitada la Gerente General de la Asociación Nacional de Buses Interprovinciales, Internacionales, Industriales y Privados (ABI), señora Carolina Navarrete.",
+    "tabla": [
+      "1.- Bol.N° 16853-15 y 16.872-15, refundidos. Continuar con el estudio del proyecto de ley, en segundo trámite constitucional, que modifica la ley N° 18.290, de Tránsito, para que los operadores de transporte público mayor dispongan, en los terminales, de instrumentos de control del consumo de alcohol y drogas por parte de los conductores.",
+      "A esta sesión ha sido invitada la Gerente General de la Asociación Nacional de Buses Interprovinciales, Internacionales, Industriales y Privados (ABI), señora Carolina Navarrete."
+    ],
+    "boletines": [
+      "16853-15"
+    ],
+    "boletin": "16853-15",
+    "tipo": "Sesión de Comisión",
+    "canalTransmision": "TV Senado / Señal Online",
+    "citacionNumero": "Citación N° 25399",
+    "chamber": "SR"
+  },
+  {
+    "id": "senado-cit-25398",
+    "idCitacion": 25398,
+    "idComision": 1485,
+    "comision": "Comisión Mixta para Boletín Nº 15975-25",
+    "fecha": "09/09/2026",
+    "hora": "10:00 a 11:00",
+    "lugar": "Sala 6, Valparaíso",
+    "materia": "1.- Bol.N° 15975-25 Comisión Mixta encargada de proponer la forma y modo de resolver las divergencias suscitadas durante la tramitación del proyecto de ley que crea el Subsistema de Inteligencia Económica y establece otras medidas para la prevención y alerta de actividades que digan relación con el crimen organizado, Boletín N° 15.975-25, tengo el honor de citar a Usía a la sesión que celebrará la referida Comisión Mixta el día miércoles 9 de septiembre de 2026, de 10:00 a 11:00 horas, en la Sala N° 6, tercer piso, en Valparaíso.\n\nA esta sesión será invitado el Ministro de Seguridad Pública, señor Martín Arrau y el Ministro de Hacienda, señor Jorge Quiroz.",
+    "tabla": [
+      "1.- Bol.N° 15975-25 Comisión Mixta encargada de proponer la forma y modo de resolver las divergencias suscitadas durante la tramitación del proyecto de ley que crea el Subsistema de Inteligencia Económica y establece otras medidas para la prevención y alerta de actividades que digan relación con el crimen organizado, Boletín N° 15.975-25, tengo el honor de citar a Usía a la sesión que celebrará la referida Comisión Mixta el día miércoles 9 de septiembre de 2026, de 10:00 a 11:00 horas, en la Sala N° 6, tercer piso, en Valparaíso.",
+      "A esta sesión será invitado el Ministro de Seguridad Pública, señor Martín Arrau y el Ministro de Hacienda, señor Jorge Quiroz."
+    ],
+    "boletines": [
+      "15975-25"
+    ],
+    "boletin": "15975-25",
+    "tipo": "Sesión de Comisión",
+    "canalTransmision": "TV Senado / Señal Online",
+    "citacionNumero": "Citación N° 25398",
+    "chamber": "SR"
+  },
+  {
+    "id": "senado-cit-25393",
+    "idCitacion": 25393,
+    "idComision": 618,
+    "comision": "Tercera Subcomisión Mixta de Presupuestos ",
+    "fecha": "09/09/2026",
+    "hora": "10:30 a 12:00",
+    "lugar": "Sala N°11 Segundo Piso Senado Valparaíso",
+    "materia": "1.- Con el objeto de conocer el avance de la ejecución presupuestaria de la Partida 16, correspondiente al Ministerio de Salud.",
+    "tabla": [
+      "1.- Con el objeto de conocer el avance de la ejecución presupuestaria de la Partida 16, correspondiente al Ministerio de Salud."
+    ],
+    "boletines": [],
+    "tipo": "Sesión de Comisión",
+    "canalTransmision": "TV Senado / Señal Online",
+    "citacionNumero": "Citación N° 25393",
+    "chamber": "SR"
+  },
+  {
+    "id": "senado-cit-25355",
+    "idCitacion": 25355,
+    "idComision": 619,
+    "comision": "Cuarta Subcomisión Mixta de Presupuestos ",
+    "fecha": "09/09/2026",
+    "hora": "10:30 a 12:30",
+    "lugar": "Sala Nº 3 de Comisiones del Senado, Valparaíso",
+    "materia": "1.- Bol.N° 17870-05 Conocer la ejecución presupuestaria de las siguientes partidas, según ley N° 21.640 de Presupuestos del Sector Público correspondiente al año 2026, (Boletín Nº 17.870-05).\n\n1. 10:30 a 12:15 horas, Partida 05, Ministerio del Interior.\n\nA este punto se encuentran especialmente invitados el Ministro del Interior, señor Claudio Alvarado Andrade; el Subsecretario del Interior, señor Máximo Pavés Cantillano; y el Director de la Dirección de Presupuestos, señor José Pablo Gómez.\n\n2. De 12:15 a 12:30 horas, Partida 28, Servicio Electoral (Servel).\n\nA este punto se encuentran especialmente invitados el Director del Servicio Electoral, señor Raúl García; y el Director de la Dirección de Presupuestos, señor José Pablo Gómez.",
+    "tabla": [
+      "1.- Bol.N° 17870-05 Conocer la ejecución presupuestaria de las siguientes partidas, según ley N° 21.640 de Presupuestos del Sector Público correspondiente al año 2026, (Boletín Nº 17.870-05).",
+      "1. 10:30 a 12:15 horas, Partida 05, Ministerio del Interior.",
+      "A este punto se encuentran especialmente invitados el Ministro del Interior, señor Claudio Alvarado Andrade; el Subsecretario del Interior, señor Máximo Pavés Cantillano; y el Director de la Dirección de Presupuestos, señor José Pablo Gómez.",
+      "2. De 12:15 a 12:30 horas, Partida 28, Servicio Electoral (Servel).",
+      "A este punto se encuentran especialmente invitados el Director del Servicio Electoral, señor Raúl García; y el Director de la Dirección de Presupuestos, señor José Pablo Gómez."
+    ],
+    "boletines": [
+      "17870-05"
+    ],
+    "boletin": "17870-05",
+    "tipo": "Sesión de Comisión",
+    "canalTransmision": "TV Senado / Señal Online",
+    "citacionNumero": "Citación N° 25355",
+    "chamber": "SR"
+  },
+  {
+    "id": "senado-cit-25380",
+    "idCitacion": 25380,
+    "idComision": 899,
+    "comision": "Comisión Especial de Zonas Extremas y Territorios Especiales",
+    "fecha": "09/09/2026",
+    "hora": "13:00 a 13:30",
+    "lugar": "Sala 11, Valparaíso.",
+    "materia": "1.- Tomar acuerdos sobre materias propias de la Comisión.",
+    "tabla": [
+      "1.- Tomar acuerdos sobre materias propias de la Comisión."
+    ],
+    "boletines": [],
+    "tipo": "Sesión de Comisión",
+    "canalTransmision": "TV Senado / Señal Online",
+    "citacionNumero": "Citación N° 25380",
+    "chamber": "SR"
+  },
+  {
+    "id": "senado-cit-25400",
+    "idCitacion": 25400,
+    "idComision": 1461,
+    "comision": "Comisión Mixta para Boletín Nº 16335-14",
+    "fecha": "09/09/2026",
+    "hora": "14:30 a 15:30",
+    "lugar": "Sala 7. tercer piso de Comisiones, Valparaíso",
+    "materia": "1.- Bol.N° 16335-14 Comisión Mixta encargada de resolver divergencias entre ambas Cámaras respecto del proyecto de ley que regula la prevención y mitigación de incendios forestales, y otras materias que indica",
+    "tabla": [
+      "1.- Bol.N° 16335-14 Comisión Mixta encargada de resolver divergencias entre ambas Cámaras respecto del proyecto de ley que regula la prevención y mitigación de incendios forestales, y otras materias que indica"
+    ],
+    "boletines": [
+      "16335-14"
+    ],
+    "boletin": "16335-14",
+    "tipo": "Sesión de Comisión",
+    "canalTransmision": "TV Senado / Señal Online",
+    "citacionNumero": "Citación N° 25400",
+    "chamber": "SR"
+  },
+  {
+    "id": "senado-cit-25370",
+    "idCitacion": 25370,
+    "idComision": 620,
+    "comision": "Quinta Subcomisión Mixta de Presupuestos ",
+    "fecha": "09/09/2026",
+    "hora": "15:00 a 17:00",
+    "lugar": "Sala 5, (Valparaíso)",
+    "materia": "1.- Conocer la Ejecución Presupuestaria a la fecha, el control de compromisos, el plan de trabajo y los programas, resultados y evaluaciones de la Partida 19, del Ministerio de Transportes y Telecomunicaciones.\n\nA esta sesión ha sido invitado el Ministro de Transportes y Telecomunicaciones, señor Louis de Grange Concha.",
+    "tabla": [
+      "1.- Conocer la Ejecución Presupuestaria a la fecha, el control de compromisos, el plan de trabajo y los programas, resultados y evaluaciones de la Partida 19, del Ministerio de Transportes y Telecomunicaciones.",
+      "A esta sesión ha sido invitado el Ministro de Transportes y Telecomunicaciones, señor Louis de Grange Concha."
+    ],
+    "boletines": [],
+    "tipo": "Sesión de Comisión",
+    "canalTransmision": "TV Senado / Señal Online",
+    "citacionNumero": "Citación N° 25370",
+    "chamber": "SR"
+  },
+  {
+    "id": "senado-cit-25307",
+    "idCitacion": 25307,
+    "idComision": 617,
+    "comision": "Segunda Subcomisión Mixta de Presupuestos ",
+    "fecha": "09/09/2026",
+    "hora": "15:30 a 17:30",
+    "lugar": "Sala N° 4 de Comisiones, tercer piso, Valparaíso.",
+    "materia": "1.- Conocer la ejecución presupuestaria del año 2026 de la Partida 11, correspondiente al Ministerio de Defensa Nacional.",
+    "tabla": [
+      "1.- Conocer la ejecución presupuestaria del año 2026 de la Partida 11, correspondiente al Ministerio de Defensa Nacional."
+    ],
+    "boletines": [],
+    "tipo": "Sesión de Comisión",
+    "canalTransmision": "TV Senado / Señal Online",
+    "citacionNumero": "Citación N° 25307",
+    "chamber": "SR"
+  },
+  {
+    "id": "senado-cit-25321",
+    "idCitacion": 25321,
+    "idComision": 624,
+    "comision": "Primera Subcomisión Mixta de Presupuestos",
+    "fecha": "09/09/2026",
+    "hora": "17:00 a 18:30",
+    "lugar": "Sala 7. tercer piso de Comisiones, Valparaíso",
+    "materia": "1.- Continuar con la ejecución presupuestaria del año 2026 de la Partida 07, correspondiente al Ministerio de Economía, Fomento y Turismo.",
+    "tabla": [
+      "1.- Continuar con la ejecución presupuestaria del año 2026 de la Partida 07, correspondiente al Ministerio de Economía, Fomento y Turismo."
+    ],
+    "boletines": [],
+    "tipo": "Sesión de Comisión",
+    "canalTransmision": "TV Senado / Señal Online",
+    "citacionNumero": "Citación N° 25321",
+    "chamber": "SR"
+  },
+  {
+    "id": "senado-cit-25311",
+    "idCitacion": 25311,
+    "idComision": 617,
+    "comision": "Segunda Subcomisión Mixta de Presupuestos ",
+    "fecha": "09/09/2026",
+    "hora": "17:30 a 19:00",
+    "lugar": "Sala 4, tercer piso, Valparaíso",
+    "materia": "1.- Analizar la ejecución presupuestaria de la Ley de Presupuestos del Sector Público correspondiente al año 2026, respecto de la Partida 01, Presidencia de la República y la Partida 22, Secretaría General de la Presidencia, en los horarios que se indican:\n\n- De 17:30 a 18:00 horas:\nPartida 01, Presidencia de la República.\n\n- De 18:00 a 19:00 horas:\nPartida 22, Ministerio Secretaría General de la Presidencia.",
+    "tabla": [
+      "1.- Analizar la ejecución presupuestaria de la Ley de Presupuestos del Sector Público correspondiente al año 2026, respecto de la Partida 01, Presidencia de la República y la Partida 22, Secretaría General de la Presidencia, en los horarios que se indican:",
+      "- De 17:30 a 18:00 horas:",
+      "Partida 01, Presidencia de la República.",
+      "- De 18:00 a 19:00 horas:",
+      "Partida 22, Ministerio Secretaría General de la Presidencia."
+    ],
+    "boletines": [],
+    "tipo": "Sesión de Comisión",
+    "canalTransmision": "TV Senado / Señal Online",
+    "citacionNumero": "Citación N° 25311",
+    "chamber": "SR"
+  },
+  {
+    "id": "senado-cit-25310",
+    "idCitacion": 25310,
+    "idComision": 617,
+    "comision": "Segunda Subcomisión Mixta de Presupuestos ",
+    "fecha": "09/09/2026",
+    "hora": "19:00 a 20:00",
+    "lugar": "Sala 4, tercer piso, Valparaíso",
+    "materia": "1.- Analizar la ejecución presupuestaria de la Ley de Presupuestos del Sector Público correspondiente al año 2026, respecto de la Partida 20, Ministerio Secretaría General de Gobierno (Capítulo 01, Subsecretaría General de Gobierno y Capítulo 02, Consejo Nacional de Televisión).",
+    "tabla": [
+      "1.- Analizar la ejecución presupuestaria de la Ley de Presupuestos del Sector Público correspondiente al año 2026, respecto de la Partida 20, Ministerio Secretaría General de Gobierno (Capítulo 01, Subsecretaría General de Gobierno y Capítulo 02, Consejo Nacional de Televisión)."
+    ],
+    "boletines": [],
+    "tipo": "Sesión de Comisión",
+    "canalTransmision": "TV Senado / Señal Online",
+    "citacionNumero": "Citación N° 25310",
+    "chamber": "SR"
+  },
+  {
+    "id": "senado-cit-25346",
+    "idCitacion": 25346,
+    "idComision": 620,
+    "comision": "Quinta Subcomisión Mixta de Presupuestos ",
+    "fecha": "10/09/2026",
+    "hora": "09:30 a 13:00",
+    "lugar": "Sala 1, (Santiago)",
+    "materia": "1.- Conocer la Ejecución Presupuestaria a la fecha, el control de compromisos, el plan de trabajo y los programas, resultados y evaluaciones de la Partida 19, del Ministerio de Transportes y Telecomunicaciones.\n\nA esta sesión ha sido invitado el Ministro de Transportes y Telecomunicaciones, señor Louis de Grange Concha.",
+    "tabla": [
+      "1.- Conocer la Ejecución Presupuestaria a la fecha, el control de compromisos, el plan de trabajo y los programas, resultados y evaluaciones de la Partida 19, del Ministerio de Transportes y Telecomunicaciones.",
+      "A esta sesión ha sido invitado el Ministro de Transportes y Telecomunicaciones, señor Louis de Grange Concha."
+    ],
+    "boletines": [],
+    "tipo": "Sesión de Comisión",
+    "canalTransmision": "TV Senado / Señal Online",
+    "citacionNumero": "Citación N° 25346",
+    "chamber": "SR"
+  },
+  {
+    "id": "senado-cit-25340",
+    "idCitacion": 25340,
+    "idComision": 620,
+    "comision": "Quinta Subcomisión Mixta de Presupuestos ",
+    "fecha": "10/09/2026",
+    "hora": "14:30 a 17:00",
+    "lugar": "Sala N° 1, Santiago.",
+    "materia": "1.- Conocer la ejecución presupuestaria ala fecha, el control de compromisos, el plan de trabajo y los programas, resultados y evaluaciones de la Partida N° 24, correspondiente al Ministerio de Energía.\n\nA esta sesión se invitará a la Ministra de Energía, al Subsecretario de Energía, y a los Jefes de Servicio respectivos.",
+    "tabla": [
+      "1.- Conocer la ejecución presupuestaria ala fecha, el control de compromisos, el plan de trabajo y los programas, resultados y evaluaciones de la Partida N° 24, correspondiente al Ministerio de Energía.",
+      "A esta sesión se invitará a la Ministra de Energía, al Subsecretario de Energía, y a los Jefes de Servicio respectivos."
+    ],
+    "boletines": [],
+    "tipo": "Sesión de Comisión",
+    "canalTransmision": "Sin transmisión",
+    "citacionNumero": "Citación N° 25340",
+    "chamber": "SR"
+  },
+  {
+    "id": "senado-cit-25358",
+    "idCitacion": 25358,
+    "idComision": 619,
+    "comision": "Cuarta Subcomisión Mixta de Presupuestos ",
+    "fecha": "22/09/2026",
+    "hora": "11:00 a 13:00",
+    "lugar": "Sala de Sesiones del Senado, Valparaíso",
+    "materia": "1.- Bol.N° 17870-05 Conocer la ejecución presupuestaria de la Partida 31, Gobiernos Regionales, según ley N° 21.640 de Presupuestos del Sector Público correspondiente al año 2026 (Boletín Nº 17.870-05).\n\nA esta sesión se encuentran especialmente invitados los representantes de la Asociación de Gobernadores y Gobernadoras Regionales de Chile (AGORECHI); el Subsecretario de Desarrollo Regional y Administrativo (SUBDERE), señor Sebastián Figueroa Melo; y el Director de la Dirección de Presupuestos, señor José Pablo Gómez.",
+    "tabla": [
+      "1.- Bol.N° 17870-05 Conocer la ejecución presupuestaria de la Partida 31, Gobiernos Regionales, según ley N° 21.640 de Presupuestos del Sector Público correspondiente al año 2026 (Boletín Nº 17.870-05).",
+      "A esta sesión se encuentran especialmente invitados los representantes de la Asociación de Gobernadores y Gobernadoras Regionales de Chile (AGORECHI); el Subsecretario de Desarrollo Regional y Administrativo (SUBDERE), señor Sebastián Figueroa Melo; y el Director de la Dirección de Presupuestos, señor José Pablo Gómez."
+    ],
+    "boletines": [
+      "17870-05"
+    ],
+    "boletin": "17870-05",
+    "tipo": "Sesión de Comisión",
+    "canalTransmision": "TV Senado / Señal Online",
+    "citacionNumero": "Citación N° 25358",
+    "chamber": "SR"
+  },
+  {
+    "id": "senado-cit-25389",
+    "idCitacion": 25389,
+    "idComision": 620,
+    "comision": "Quinta Subcomisión Mixta de Presupuestos ",
+    "fecha": "23/09/2026",
+    "hora": "15:00 a 19:00",
+    "lugar": "Sala N° 10, Valparaíso",
+    "materia": "1.- Realizar el seguimiento de la Ejecución Presupuestaria y de los compromisos adquiridos en el marco de la ley de presupuestos 2026, de la Partida 12, Ministerio de Obras Públicas.\n\nA esta sesión ha sido invitado el Ministro de Obras Públicas, señor Louis de Grange.",
+    "tabla": [
+      "1.- Realizar el seguimiento de la Ejecución Presupuestaria y de los compromisos adquiridos en el marco de la ley de presupuestos 2026, de la Partida 12, Ministerio de Obras Públicas.",
+      "A esta sesión ha sido invitado el Ministro de Obras Públicas, señor Louis de Grange."
+    ],
+    "boletines": [],
+    "tipo": "Sesión de Comisión",
+    "canalTransmision": "TV Senado / Señal Online",
+    "citacionNumero": "Citación N° 25389",
+    "chamber": "SR"
+  },
+  {
+    "id": "senado-cit-25341",
+    "idCitacion": 25341,
+    "idComision": 620,
+    "comision": "Quinta Subcomisión Mixta de Presupuestos ",
+    "fecha": "24/09/2026",
+    "hora": "09:30 a 14:00",
+    "lugar": "Sala de Lectura, Senado. Santiago.",
+    "materia": "1.- Conocer la ejecución presupuestaria a la fecha, el control de compromisos, el plan de trabajo y los programas, resultados y evaluaciones de la Partida N° 17, correspondiente al Ministerio de Minería.\n\nA esta sesión se invitará al Biministro de Economía, Fomento y Turismo y de Minería; al Subsecretario de Minería, y a los Jefes de Servicio respectivos.",
+    "tabla": [
+      "1.- Conocer la ejecución presupuestaria a la fecha, el control de compromisos, el plan de trabajo y los programas, resultados y evaluaciones de la Partida N° 17, correspondiente al Ministerio de Minería.",
+      "A esta sesión se invitará al Biministro de Economía, Fomento y Turismo y de Minería; al Subsecretario de Minería, y a los Jefes de Servicio respectivos."
+    ],
+    "boletines": [],
+    "tipo": "Sesión de Comisión",
+    "canalTransmision": "TV Senado / Señal Online",
+    "citacionNumero": "Citación N° 25341",
+    "chamber": "SR"
+  },
+  {
+    "id": "senado-cit-25361",
+    "idCitacion": 25361,
+    "idComision": 620,
+    "comision": "Quinta Subcomisión Mixta de Presupuestos ",
+    "fecha": "24/09/2026",
+    "hora": "14:30 a 17:30",
+    "lugar": "Sala de Lectura, Senado. Santiago.",
+    "materia": "1.- Conocer la ejecución presupuestaria a la fecha, el control de compromisos, el plan de trabajo y los programas, resultados y evaluaciones de la Partida N° 24, correspondiente al Ministerio de Energía.\n\nA esta sesión se invitará a la Ministra de Energía; al Subsecretario de Energía, y a los Jefes de Servicio respectivos.",
+    "tabla": [
+      "1.- Conocer la ejecución presupuestaria a la fecha, el control de compromisos, el plan de trabajo y los programas, resultados y evaluaciones de la Partida N° 24, correspondiente al Ministerio de Energía.",
+      "A esta sesión se invitará a la Ministra de Energía; al Subsecretario de Energía, y a los Jefes de Servicio respectivos."
+    ],
+    "boletines": [],
+    "tipo": "Sesión de Comisión",
+    "canalTransmision": "TV Senado / Señal Online",
+    "citacionNumero": "Citación N° 25361",
+    "chamber": "SR"
+  },
+  {
+    "id": "senado-cit-25318",
+    "idCitacion": 25318,
+    "idComision": 624,
+    "comision": "Primera Subcomisión Mixta de Presupuestos",
+    "fecha": "29/09/2026",
+    "hora": "17:00 a 18:30",
+    "lugar": "Sala N° 2 tercer piso, Senado Valparaíso. ",
+    "materia": "1.- Conocer la ejecución presupuestaria del año 2026 de la Partida 27, correspondiente al Ministerio de la Mujer y la Equidad de Género.",
+    "tabla": [
+      "1.- Conocer la ejecución presupuestaria del año 2026 de la Partida 27, correspondiente al Ministerio de la Mujer y la Equidad de Género."
+    ],
+    "boletines": [],
+    "tipo": "Sesión de Comisión",
+    "canalTransmision": "TV Senado / Señal Online",
+    "citacionNumero": "Citación N° 25318",
+    "chamber": "SR"
+  }
+];
+
+export const SENADO_CITACIONES_POR_COMISION_ID: Record<string, any[]> = {
+  "198": [
+    {
+      "id": "senado-cit-25399",
+      "idCitacion": 25399,
+      "idComision": 198,
+      "comision": "Comisión de Transportes y Telecomunicaciones",
+      "fecha": "09/09/2026",
+      "hora": "09:30 a 11:00",
+      "lugar": "Sala 5, (Valparaíso)",
+      "materia": "1.- Bol.N° 16853-15 y 16.872-15, refundidos. Continuar con el estudio del proyecto de ley, en segundo trámite constitucional, que modifica la ley N° 18.290, de Tránsito, para que los operadores de transporte público mayor dispongan, en los terminales, de instrumentos de control del consumo de alcohol y drogas por parte de los conductores. \n\n\tA esta sesión ha sido invitada la Gerente General de la Asociación Nacional de Buses Interprovinciales, Internacionales, Industriales y Privados (ABI), señora Carolina Navarrete.",
+      "tabla": [
+        "1.- Bol.N° 16853-15 y 16.872-15, refundidos. Continuar con el estudio del proyecto de ley, en segundo trámite constitucional, que modifica la ley N° 18.290, de Tránsito, para que los operadores de transporte público mayor dispongan, en los terminales, de instrumentos de control del consumo de alcohol y drogas por parte de los conductores.",
+        "A esta sesión ha sido invitada la Gerente General de la Asociación Nacional de Buses Interprovinciales, Internacionales, Industriales y Privados (ABI), señora Carolina Navarrete."
+      ],
+      "boletines": [
+        "16853-15"
+      ],
+      "boletin": "16853-15",
+      "tipo": "Sesión de Comisión",
+      "canalTransmision": "TV Senado / Señal Online",
+      "citacionNumero": "Citación N° 25399",
+      "chamber": "SR"
+    }
+  ],
+  "617": [
+    {
+      "id": "senado-cit-25307",
+      "idCitacion": 25307,
+      "idComision": 617,
+      "comision": "Segunda Subcomisión Mixta de Presupuestos ",
+      "fecha": "09/09/2026",
+      "hora": "15:30 a 17:30",
+      "lugar": "Sala N° 4 de Comisiones, tercer piso, Valparaíso.",
+      "materia": "1.- Conocer la ejecución presupuestaria del año 2026 de la Partida 11, correspondiente al Ministerio de Defensa Nacional.",
+      "tabla": [
+        "1.- Conocer la ejecución presupuestaria del año 2026 de la Partida 11, correspondiente al Ministerio de Defensa Nacional."
+      ],
+      "boletines": [],
+      "tipo": "Sesión de Comisión",
+      "canalTransmision": "TV Senado / Señal Online",
+      "citacionNumero": "Citación N° 25307",
+      "chamber": "SR"
+    },
+    {
+      "id": "senado-cit-25311",
+      "idCitacion": 25311,
+      "idComision": 617,
+      "comision": "Segunda Subcomisión Mixta de Presupuestos ",
+      "fecha": "09/09/2026",
+      "hora": "17:30 a 19:00",
+      "lugar": "Sala 4, tercer piso, Valparaíso",
+      "materia": "1.- Analizar la ejecución presupuestaria de la Ley de Presupuestos del Sector Público correspondiente al año 2026, respecto de la Partida 01, Presidencia de la República y la Partida 22, Secretaría General de la Presidencia, en los horarios que se indican:\n\n- De 17:30 a 18:00 horas:\nPartida 01, Presidencia de la República.\n\n- De 18:00 a 19:00 horas:\nPartida 22, Ministerio Secretaría General de la Presidencia.",
+      "tabla": [
+        "1.- Analizar la ejecución presupuestaria de la Ley de Presupuestos del Sector Público correspondiente al año 2026, respecto de la Partida 01, Presidencia de la República y la Partida 22, Secretaría General de la Presidencia, en los horarios que se indican:",
+        "- De 17:30 a 18:00 horas:",
+        "Partida 01, Presidencia de la República.",
+        "- De 18:00 a 19:00 horas:",
+        "Partida 22, Ministerio Secretaría General de la Presidencia."
+      ],
+      "boletines": [],
+      "tipo": "Sesión de Comisión",
+      "canalTransmision": "TV Senado / Señal Online",
+      "citacionNumero": "Citación N° 25311",
+      "chamber": "SR"
+    },
+    {
+      "id": "senado-cit-25310",
+      "idCitacion": 25310,
+      "idComision": 617,
+      "comision": "Segunda Subcomisión Mixta de Presupuestos ",
+      "fecha": "09/09/2026",
+      "hora": "19:00 a 20:00",
+      "lugar": "Sala 4, tercer piso, Valparaíso",
+      "materia": "1.- Analizar la ejecución presupuestaria de la Ley de Presupuestos del Sector Público correspondiente al año 2026, respecto de la Partida 20, Ministerio Secretaría General de Gobierno (Capítulo 01, Subsecretaría General de Gobierno y Capítulo 02, Consejo Nacional de Televisión).",
+      "tabla": [
+        "1.- Analizar la ejecución presupuestaria de la Ley de Presupuestos del Sector Público correspondiente al año 2026, respecto de la Partida 20, Ministerio Secretaría General de Gobierno (Capítulo 01, Subsecretaría General de Gobierno y Capítulo 02, Consejo Nacional de Televisión)."
+      ],
+      "boletines": [],
+      "tipo": "Sesión de Comisión",
+      "canalTransmision": "TV Senado / Señal Online",
+      "citacionNumero": "Citación N° 25310",
+      "chamber": "SR"
+    }
+  ],
+  "618": [
+    {
+      "id": "senado-cit-25393",
+      "idCitacion": 25393,
+      "idComision": 618,
+      "comision": "Tercera Subcomisión Mixta de Presupuestos ",
+      "fecha": "09/09/2026",
+      "hora": "10:30 a 12:00",
+      "lugar": "Sala N°11 Segundo Piso Senado Valparaíso",
+      "materia": "1.- Con el objeto de conocer el avance de la ejecución presupuestaria de la Partida 16, correspondiente al Ministerio de Salud.",
+      "tabla": [
+        "1.- Con el objeto de conocer el avance de la ejecución presupuestaria de la Partida 16, correspondiente al Ministerio de Salud."
+      ],
+      "boletines": [],
+      "tipo": "Sesión de Comisión",
+      "canalTransmision": "TV Senado / Señal Online",
+      "citacionNumero": "Citación N° 25393",
+      "chamber": "SR"
+    }
+  ],
+  "619": [
+    {
+      "id": "senado-cit-25355",
+      "idCitacion": 25355,
+      "idComision": 619,
+      "comision": "Cuarta Subcomisión Mixta de Presupuestos ",
+      "fecha": "09/09/2026",
+      "hora": "10:30 a 12:30",
+      "lugar": "Sala Nº 3 de Comisiones del Senado, Valparaíso",
+      "materia": "1.- Bol.N° 17870-05 Conocer la ejecución presupuestaria de las siguientes partidas, según ley N° 21.640 de Presupuestos del Sector Público correspondiente al año 2026, (Boletín Nº 17.870-05).\n\n1. 10:30 a 12:15 horas, Partida 05, Ministerio del Interior.\n\nA este punto se encuentran especialmente invitados el Ministro del Interior, señor Claudio Alvarado Andrade; el Subsecretario del Interior, señor Máximo Pavés Cantillano; y el Director de la Dirección de Presupuestos, señor José Pablo Gómez.\n\n2. De 12:15 a 12:30 horas, Partida 28, Servicio Electoral (Servel).\n\nA este punto se encuentran especialmente invitados el Director del Servicio Electoral, señor Raúl García; y el Director de la Dirección de Presupuestos, señor José Pablo Gómez.",
+      "tabla": [
+        "1.- Bol.N° 17870-05 Conocer la ejecución presupuestaria de las siguientes partidas, según ley N° 21.640 de Presupuestos del Sector Público correspondiente al año 2026, (Boletín Nº 17.870-05).",
+        "1. 10:30 a 12:15 horas, Partida 05, Ministerio del Interior.",
+        "A este punto se encuentran especialmente invitados el Ministro del Interior, señor Claudio Alvarado Andrade; el Subsecretario del Interior, señor Máximo Pavés Cantillano; y el Director de la Dirección de Presupuestos, señor José Pablo Gómez.",
+        "2. De 12:15 a 12:30 horas, Partida 28, Servicio Electoral (Servel).",
+        "A este punto se encuentran especialmente invitados el Director del Servicio Electoral, señor Raúl García; y el Director de la Dirección de Presupuestos, señor José Pablo Gómez."
+      ],
+      "boletines": [
+        "17870-05"
+      ],
+      "boletin": "17870-05",
+      "tipo": "Sesión de Comisión",
+      "canalTransmision": "TV Senado / Señal Online",
+      "citacionNumero": "Citación N° 25355",
+      "chamber": "SR"
+    },
+    {
+      "id": "senado-cit-25358",
+      "idCitacion": 25358,
+      "idComision": 619,
+      "comision": "Cuarta Subcomisión Mixta de Presupuestos ",
+      "fecha": "22/09/2026",
+      "hora": "11:00 a 13:00",
+      "lugar": "Sala de Sesiones del Senado, Valparaíso",
+      "materia": "1.- Bol.N° 17870-05 Conocer la ejecución presupuestaria de la Partida 31, Gobiernos Regionales, según ley N° 21.640 de Presupuestos del Sector Público correspondiente al año 2026 (Boletín Nº 17.870-05).\n\nA esta sesión se encuentran especialmente invitados los representantes de la Asociación de Gobernadores y Gobernadoras Regionales de Chile (AGORECHI); el Subsecretario de Desarrollo Regional y Administrativo (SUBDERE), señor Sebastián Figueroa Melo; y el Director de la Dirección de Presupuestos, señor José Pablo Gómez.",
+      "tabla": [
+        "1.- Bol.N° 17870-05 Conocer la ejecución presupuestaria de la Partida 31, Gobiernos Regionales, según ley N° 21.640 de Presupuestos del Sector Público correspondiente al año 2026 (Boletín Nº 17.870-05).",
+        "A esta sesión se encuentran especialmente invitados los representantes de la Asociación de Gobernadores y Gobernadoras Regionales de Chile (AGORECHI); el Subsecretario de Desarrollo Regional y Administrativo (SUBDERE), señor Sebastián Figueroa Melo; y el Director de la Dirección de Presupuestos, señor José Pablo Gómez."
+      ],
+      "boletines": [
+        "17870-05"
+      ],
+      "boletin": "17870-05",
+      "tipo": "Sesión de Comisión",
+      "canalTransmision": "TV Senado / Señal Online",
+      "citacionNumero": "Citación N° 25358",
+      "chamber": "SR"
+    }
+  ],
+  "620": [
+    {
+      "id": "senado-cit-25370",
+      "idCitacion": 25370,
+      "idComision": 620,
+      "comision": "Quinta Subcomisión Mixta de Presupuestos ",
+      "fecha": "09/09/2026",
+      "hora": "15:00 a 17:00",
+      "lugar": "Sala 5, (Valparaíso)",
+      "materia": "1.- Conocer la Ejecución Presupuestaria a la fecha, el control de compromisos, el plan de trabajo y los programas, resultados y evaluaciones de la Partida 19, del Ministerio de Transportes y Telecomunicaciones.\n\nA esta sesión ha sido invitado el Ministro de Transportes y Telecomunicaciones, señor Louis de Grange Concha.",
+      "tabla": [
+        "1.- Conocer la Ejecución Presupuestaria a la fecha, el control de compromisos, el plan de trabajo y los programas, resultados y evaluaciones de la Partida 19, del Ministerio de Transportes y Telecomunicaciones.",
+        "A esta sesión ha sido invitado el Ministro de Transportes y Telecomunicaciones, señor Louis de Grange Concha."
+      ],
+      "boletines": [],
+      "tipo": "Sesión de Comisión",
+      "canalTransmision": "TV Senado / Señal Online",
+      "citacionNumero": "Citación N° 25370",
+      "chamber": "SR"
+    },
+    {
+      "id": "senado-cit-25346",
+      "idCitacion": 25346,
+      "idComision": 620,
+      "comision": "Quinta Subcomisión Mixta de Presupuestos ",
+      "fecha": "10/09/2026",
+      "hora": "09:30 a 13:00",
+      "lugar": "Sala 1, (Santiago)",
+      "materia": "1.- Conocer la Ejecución Presupuestaria a la fecha, el control de compromisos, el plan de trabajo y los programas, resultados y evaluaciones de la Partida 19, del Ministerio de Transportes y Telecomunicaciones.\n\nA esta sesión ha sido invitado el Ministro de Transportes y Telecomunicaciones, señor Louis de Grange Concha.",
+      "tabla": [
+        "1.- Conocer la Ejecución Presupuestaria a la fecha, el control de compromisos, el plan de trabajo y los programas, resultados y evaluaciones de la Partida 19, del Ministerio de Transportes y Telecomunicaciones.",
+        "A esta sesión ha sido invitado el Ministro de Transportes y Telecomunicaciones, señor Louis de Grange Concha."
+      ],
+      "boletines": [],
+      "tipo": "Sesión de Comisión",
+      "canalTransmision": "TV Senado / Señal Online",
+      "citacionNumero": "Citación N° 25346",
+      "chamber": "SR"
+    },
+    {
+      "id": "senado-cit-25340",
+      "idCitacion": 25340,
+      "idComision": 620,
+      "comision": "Quinta Subcomisión Mixta de Presupuestos ",
+      "fecha": "10/09/2026",
+      "hora": "14:30 a 17:00",
+      "lugar": "Sala N° 1, Santiago.",
+      "materia": "1.- Conocer la ejecución presupuestaria ala fecha, el control de compromisos, el plan de trabajo y los programas, resultados y evaluaciones de la Partida N° 24, correspondiente al Ministerio de Energía.\n\nA esta sesión se invitará a la Ministra de Energía, al Subsecretario de Energía, y a los Jefes de Servicio respectivos.",
+      "tabla": [
+        "1.- Conocer la ejecución presupuestaria ala fecha, el control de compromisos, el plan de trabajo y los programas, resultados y evaluaciones de la Partida N° 24, correspondiente al Ministerio de Energía.",
+        "A esta sesión se invitará a la Ministra de Energía, al Subsecretario de Energía, y a los Jefes de Servicio respectivos."
+      ],
+      "boletines": [],
+      "tipo": "Sesión de Comisión",
+      "canalTransmision": "Sin transmisión",
+      "citacionNumero": "Citación N° 25340",
+      "chamber": "SR"
+    },
+    {
+      "id": "senado-cit-25389",
+      "idCitacion": 25389,
+      "idComision": 620,
+      "comision": "Quinta Subcomisión Mixta de Presupuestos ",
+      "fecha": "23/09/2026",
+      "hora": "15:00 a 19:00",
+      "lugar": "Sala N° 10, Valparaíso",
+      "materia": "1.- Realizar el seguimiento de la Ejecución Presupuestaria y de los compromisos adquiridos en el marco de la ley de presupuestos 2026, de la Partida 12, Ministerio de Obras Públicas.\n\nA esta sesión ha sido invitado el Ministro de Obras Públicas, señor Louis de Grange.",
+      "tabla": [
+        "1.- Realizar el seguimiento de la Ejecución Presupuestaria y de los compromisos adquiridos en el marco de la ley de presupuestos 2026, de la Partida 12, Ministerio de Obras Públicas.",
+        "A esta sesión ha sido invitado el Ministro de Obras Públicas, señor Louis de Grange."
+      ],
+      "boletines": [],
+      "tipo": "Sesión de Comisión",
+      "canalTransmision": "TV Senado / Señal Online",
+      "citacionNumero": "Citación N° 25389",
+      "chamber": "SR"
+    },
+    {
+      "id": "senado-cit-25341",
+      "idCitacion": 25341,
+      "idComision": 620,
+      "comision": "Quinta Subcomisión Mixta de Presupuestos ",
+      "fecha": "24/09/2026",
+      "hora": "09:30 a 14:00",
+      "lugar": "Sala de Lectura, Senado. Santiago.",
+      "materia": "1.- Conocer la ejecución presupuestaria a la fecha, el control de compromisos, el plan de trabajo y los programas, resultados y evaluaciones de la Partida N° 17, correspondiente al Ministerio de Minería.\n\nA esta sesión se invitará al Biministro de Economía, Fomento y Turismo y de Minería; al Subsecretario de Minería, y a los Jefes de Servicio respectivos.",
+      "tabla": [
+        "1.- Conocer la ejecución presupuestaria a la fecha, el control de compromisos, el plan de trabajo y los programas, resultados y evaluaciones de la Partida N° 17, correspondiente al Ministerio de Minería.",
+        "A esta sesión se invitará al Biministro de Economía, Fomento y Turismo y de Minería; al Subsecretario de Minería, y a los Jefes de Servicio respectivos."
+      ],
+      "boletines": [],
+      "tipo": "Sesión de Comisión",
+      "canalTransmision": "TV Senado / Señal Online",
+      "citacionNumero": "Citación N° 25341",
+      "chamber": "SR"
+    },
+    {
+      "id": "senado-cit-25361",
+      "idCitacion": 25361,
+      "idComision": 620,
+      "comision": "Quinta Subcomisión Mixta de Presupuestos ",
+      "fecha": "24/09/2026",
+      "hora": "14:30 a 17:30",
+      "lugar": "Sala de Lectura, Senado. Santiago.",
+      "materia": "1.- Conocer la ejecución presupuestaria a la fecha, el control de compromisos, el plan de trabajo y los programas, resultados y evaluaciones de la Partida N° 24, correspondiente al Ministerio de Energía.\n\nA esta sesión se invitará a la Ministra de Energía; al Subsecretario de Energía, y a los Jefes de Servicio respectivos.",
+      "tabla": [
+        "1.- Conocer la ejecución presupuestaria a la fecha, el control de compromisos, el plan de trabajo y los programas, resultados y evaluaciones de la Partida N° 24, correspondiente al Ministerio de Energía.",
+        "A esta sesión se invitará a la Ministra de Energía; al Subsecretario de Energía, y a los Jefes de Servicio respectivos."
+      ],
+      "boletines": [],
+      "tipo": "Sesión de Comisión",
+      "canalTransmision": "TV Senado / Señal Online",
+      "citacionNumero": "Citación N° 25361",
+      "chamber": "SR"
+    }
+  ],
+  "624": [
+    {
+      "id": "senado-cit-25321",
+      "idCitacion": 25321,
+      "idComision": 624,
+      "comision": "Primera Subcomisión Mixta de Presupuestos",
+      "fecha": "09/09/2026",
+      "hora": "17:00 a 18:30",
+      "lugar": "Sala 7. tercer piso de Comisiones, Valparaíso",
+      "materia": "1.- Continuar con la ejecución presupuestaria del año 2026 de la Partida 07, correspondiente al Ministerio de Economía, Fomento y Turismo.",
+      "tabla": [
+        "1.- Continuar con la ejecución presupuestaria del año 2026 de la Partida 07, correspondiente al Ministerio de Economía, Fomento y Turismo."
+      ],
+      "boletines": [],
+      "tipo": "Sesión de Comisión",
+      "canalTransmision": "TV Senado / Señal Online",
+      "citacionNumero": "Citación N° 25321",
+      "chamber": "SR"
+    },
+    {
+      "id": "senado-cit-25318",
+      "idCitacion": 25318,
+      "idComision": 624,
+      "comision": "Primera Subcomisión Mixta de Presupuestos",
+      "fecha": "29/09/2026",
+      "hora": "17:00 a 18:30",
+      "lugar": "Sala N° 2 tercer piso, Senado Valparaíso. ",
+      "materia": "1.- Conocer la ejecución presupuestaria del año 2026 de la Partida 27, correspondiente al Ministerio de la Mujer y la Equidad de Género.",
+      "tabla": [
+        "1.- Conocer la ejecución presupuestaria del año 2026 de la Partida 27, correspondiente al Ministerio de la Mujer y la Equidad de Género."
+      ],
+      "boletines": [],
+      "tipo": "Sesión de Comisión",
+      "canalTransmision": "TV Senado / Señal Online",
+      "citacionNumero": "Citación N° 25318",
+      "chamber": "SR"
+    }
+  ],
+  "899": [
+    {
+      "id": "senado-cit-25380",
+      "idCitacion": 25380,
+      "idComision": 899,
+      "comision": "Comisión Especial de Zonas Extremas y Territorios Especiales",
+      "fecha": "09/09/2026",
+      "hora": "13:00 a 13:30",
+      "lugar": "Sala 11, Valparaíso.",
+      "materia": "1.- Tomar acuerdos sobre materias propias de la Comisión.",
+      "tabla": [
+        "1.- Tomar acuerdos sobre materias propias de la Comisión."
+      ],
+      "boletines": [],
+      "tipo": "Sesión de Comisión",
+      "canalTransmision": "TV Senado / Señal Online",
+      "citacionNumero": "Citación N° 25380",
+      "chamber": "SR"
+    }
+  ],
+  "1009": [
+    {
+      "id": "senado-cit-25387",
+      "idCitacion": 25387,
+      "idComision": 1009,
+      "comision": "Comisión de Recursos Hídricos, Desertificación y Sequía",
+      "fecha": "09/09/2026",
+      "hora": "09:30 a 11:00",
+      "lugar": "Sala N° 9 de Comisiones, tercer piso del Senado, Valparaíso.",
+      "materia": "1.- Bol.N° 17877-33 Continuar el estudio en particular del proyecto de ley, en primer trámite constitucional, que modifica la ley N° 20.998, con el propósito de modernizar y fortalecer el régimen jurídico aplicable a los servicios sanitarios rurales (Boletín N°17.877-33).\n\nA esta sesión ha sido invitado el Superintendente de Servicios Sanitarios, señor Jorge Rivas, quien expondrá acerca del régimen tarifario aplicable a dichos servicios contemplado en la legislación vigente, así como en la aludida iniciativa legal, particularmente, en las indicaciones formuladas por el Ejecutivo.",
+      "tabla": [
+        "1.- Bol.N° 17877-33 Continuar el estudio en particular del proyecto de ley, en primer trámite constitucional, que modifica la ley N° 20.998, con el propósito de modernizar y fortalecer el régimen jurídico aplicable a los servicios sanitarios rurales (Boletín N°17.877-33).",
+        "A esta sesión ha sido invitado el Superintendente de Servicios Sanitarios, señor Jorge Rivas, quien expondrá acerca del régimen tarifario aplicable a dichos servicios contemplado en la legislación vigente, así como en la aludida iniciativa legal, particularmente, en las indicaciones formuladas por el Ejecutivo."
+      ],
+      "boletines": [
+        "17877-33"
+      ],
+      "boletin": "17877-33",
+      "tipo": "Sesión de Comisión",
+      "canalTransmision": "TV Senado / Señal Online",
+      "citacionNumero": "Citación N° 25387",
+      "chamber": "SR"
+    }
+  ],
+  "1461": [
+    {
+      "id": "senado-cit-25400",
+      "idCitacion": 25400,
+      "idComision": 1461,
+      "comision": "Comisión Mixta para Boletín Nº 16335-14",
+      "fecha": "09/09/2026",
+      "hora": "14:30 a 15:30",
+      "lugar": "Sala 7. tercer piso de Comisiones, Valparaíso",
+      "materia": "1.- Bol.N° 16335-14 Comisión Mixta encargada de resolver divergencias entre ambas Cámaras respecto del proyecto de ley que regula la prevención y mitigación de incendios forestales, y otras materias que indica",
+      "tabla": [
+        "1.- Bol.N° 16335-14 Comisión Mixta encargada de resolver divergencias entre ambas Cámaras respecto del proyecto de ley que regula la prevención y mitigación de incendios forestales, y otras materias que indica"
+      ],
+      "boletines": [
+        "16335-14"
+      ],
+      "boletin": "16335-14",
+      "tipo": "Sesión de Comisión",
+      "canalTransmision": "TV Senado / Señal Online",
+      "citacionNumero": "Citación N° 25400",
+      "chamber": "SR"
+    }
+  ],
+  "1485": [
+    {
+      "id": "senado-cit-25398",
+      "idCitacion": 25398,
+      "idComision": 1485,
+      "comision": "Comisión Mixta para Boletín Nº 15975-25",
+      "fecha": "09/09/2026",
+      "hora": "10:00 a 11:00",
+      "lugar": "Sala 6, Valparaíso",
+      "materia": "1.- Bol.N° 15975-25 Comisión Mixta encargada de proponer la forma y modo de resolver las divergencias suscitadas durante la tramitación del proyecto de ley que crea el Subsistema de Inteligencia Económica y establece otras medidas para la prevención y alerta de actividades que digan relación con el crimen organizado, Boletín N° 15.975-25, tengo el honor de citar a Usía a la sesión que celebrará la referida Comisión Mixta el día miércoles 9 de septiembre de 2026, de 10:00 a 11:00 horas, en la Sala N° 6, tercer piso, en Valparaíso.\n\nA esta sesión será invitado el Ministro de Seguridad Pública, señor Martín Arrau y el Ministro de Hacienda, señor Jorge Quiroz.",
+      "tabla": [
+        "1.- Bol.N° 15975-25 Comisión Mixta encargada de proponer la forma y modo de resolver las divergencias suscitadas durante la tramitación del proyecto de ley que crea el Subsistema de Inteligencia Económica y establece otras medidas para la prevención y alerta de actividades que digan relación con el crimen organizado, Boletín N° 15.975-25, tengo el honor de citar a Usía a la sesión que celebrará la referida Comisión Mixta el día miércoles 9 de septiembre de 2026, de 10:00 a 11:00 horas, en la Sala N° 6, tercer piso, en Valparaíso.",
+        "A esta sesión será invitado el Ministro de Seguridad Pública, señor Martín Arrau y el Ministro de Hacienda, señor Jorge Quiroz."
+      ],
+      "boletines": [
+        "15975-25"
+      ],
+      "boletin": "15975-25",
+      "tipo": "Sesión de Comisión",
+      "canalTransmision": "TV Senado / Señal Online",
+      "citacionNumero": "Citación N° 25398",
+      "chamber": "SR"
+    }
+  ]
+};
+
+export const SENADO_CITACIONES_POR_DIA: any[] = [
+  {
+    "fecha": "09/09/2026",
+    "citaciones": [
+      {
+        "id": "senado-cit-25387",
+        "idCitacion": 25387,
+        "idComision": 1009,
+        "comision": "Comisión de Recursos Hídricos, Desertificación y Sequía",
+        "fecha": "09/09/2026",
+        "hora": "09:30 a 11:00",
+        "lugar": "Sala N° 9 de Comisiones, tercer piso del Senado, Valparaíso.",
+        "materia": "1.- Bol.N° 17877-33 Continuar el estudio en particular del proyecto de ley, en primer trámite constitucional, que modifica la ley N° 20.998, con el propósito de modernizar y fortalecer el régimen jurídico aplicable a los servicios sanitarios rurales (Boletín N°17.877-33).\n\nA esta sesión ha sido invitado el Superintendente de Servicios Sanitarios, señor Jorge Rivas, quien expondrá acerca del régimen tarifario aplicable a dichos servicios contemplado en la legislación vigente, así como en la aludida iniciativa legal, particularmente, en las indicaciones formuladas por el Ejecutivo.",
+        "tabla": [
+          "1.- Bol.N° 17877-33 Continuar el estudio en particular del proyecto de ley, en primer trámite constitucional, que modifica la ley N° 20.998, con el propósito de modernizar y fortalecer el régimen jurídico aplicable a los servicios sanitarios rurales (Boletín N°17.877-33).",
+          "A esta sesión ha sido invitado el Superintendente de Servicios Sanitarios, señor Jorge Rivas, quien expondrá acerca del régimen tarifario aplicable a dichos servicios contemplado en la legislación vigente, así como en la aludida iniciativa legal, particularmente, en las indicaciones formuladas por el Ejecutivo."
+        ],
+        "boletines": [
+          "17877-33"
+        ],
+        "boletin": "17877-33",
+        "tipo": "Sesión de Comisión",
+        "canalTransmision": "TV Senado / Señal Online",
+        "citacionNumero": "Citación N° 25387",
+        "chamber": "SR"
+      },
+      {
+        "id": "senado-cit-25399",
+        "idCitacion": 25399,
+        "idComision": 198,
+        "comision": "Comisión de Transportes y Telecomunicaciones",
+        "fecha": "09/09/2026",
+        "hora": "09:30 a 11:00",
+        "lugar": "Sala 5, (Valparaíso)",
+        "materia": "1.- Bol.N° 16853-15 y 16.872-15, refundidos. Continuar con el estudio del proyecto de ley, en segundo trámite constitucional, que modifica la ley N° 18.290, de Tránsito, para que los operadores de transporte público mayor dispongan, en los terminales, de instrumentos de control del consumo de alcohol y drogas por parte de los conductores. \n\n\tA esta sesión ha sido invitada la Gerente General de la Asociación Nacional de Buses Interprovinciales, Internacionales, Industriales y Privados (ABI), señora Carolina Navarrete.",
+        "tabla": [
+          "1.- Bol.N° 16853-15 y 16.872-15, refundidos. Continuar con el estudio del proyecto de ley, en segundo trámite constitucional, que modifica la ley N° 18.290, de Tránsito, para que los operadores de transporte público mayor dispongan, en los terminales, de instrumentos de control del consumo de alcohol y drogas por parte de los conductores.",
+          "A esta sesión ha sido invitada la Gerente General de la Asociación Nacional de Buses Interprovinciales, Internacionales, Industriales y Privados (ABI), señora Carolina Navarrete."
+        ],
+        "boletines": [
+          "16853-15"
+        ],
+        "boletin": "16853-15",
+        "tipo": "Sesión de Comisión",
+        "canalTransmision": "TV Senado / Señal Online",
+        "citacionNumero": "Citación N° 25399",
+        "chamber": "SR"
+      },
+      {
+        "id": "senado-cit-25398",
+        "idCitacion": 25398,
+        "idComision": 1485,
+        "comision": "Comisión Mixta para Boletín Nº 15975-25",
+        "fecha": "09/09/2026",
+        "hora": "10:00 a 11:00",
+        "lugar": "Sala 6, Valparaíso",
+        "materia": "1.- Bol.N° 15975-25 Comisión Mixta encargada de proponer la forma y modo de resolver las divergencias suscitadas durante la tramitación del proyecto de ley que crea el Subsistema de Inteligencia Económica y establece otras medidas para la prevención y alerta de actividades que digan relación con el crimen organizado, Boletín N° 15.975-25, tengo el honor de citar a Usía a la sesión que celebrará la referida Comisión Mixta el día miércoles 9 de septiembre de 2026, de 10:00 a 11:00 horas, en la Sala N° 6, tercer piso, en Valparaíso.\n\nA esta sesión será invitado el Ministro de Seguridad Pública, señor Martín Arrau y el Ministro de Hacienda, señor Jorge Quiroz.",
+        "tabla": [
+          "1.- Bol.N° 15975-25 Comisión Mixta encargada de proponer la forma y modo de resolver las divergencias suscitadas durante la tramitación del proyecto de ley que crea el Subsistema de Inteligencia Económica y establece otras medidas para la prevención y alerta de actividades que digan relación con el crimen organizado, Boletín N° 15.975-25, tengo el honor de citar a Usía a la sesión que celebrará la referida Comisión Mixta el día miércoles 9 de septiembre de 2026, de 10:00 a 11:00 horas, en la Sala N° 6, tercer piso, en Valparaíso.",
+          "A esta sesión será invitado el Ministro de Seguridad Pública, señor Martín Arrau y el Ministro de Hacienda, señor Jorge Quiroz."
+        ],
+        "boletines": [
+          "15975-25"
+        ],
+        "boletin": "15975-25",
+        "tipo": "Sesión de Comisión",
+        "canalTransmision": "TV Senado / Señal Online",
+        "citacionNumero": "Citación N° 25398",
+        "chamber": "SR"
+      },
+      {
+        "id": "senado-cit-25393",
+        "idCitacion": 25393,
+        "idComision": 618,
+        "comision": "Tercera Subcomisión Mixta de Presupuestos ",
+        "fecha": "09/09/2026",
+        "hora": "10:30 a 12:00",
+        "lugar": "Sala N°11 Segundo Piso Senado Valparaíso",
+        "materia": "1.- Con el objeto de conocer el avance de la ejecución presupuestaria de la Partida 16, correspondiente al Ministerio de Salud.",
+        "tabla": [
+          "1.- Con el objeto de conocer el avance de la ejecución presupuestaria de la Partida 16, correspondiente al Ministerio de Salud."
+        ],
+        "boletines": [],
+        "tipo": "Sesión de Comisión",
+        "canalTransmision": "TV Senado / Señal Online",
+        "citacionNumero": "Citación N° 25393",
+        "chamber": "SR"
+      },
+      {
+        "id": "senado-cit-25355",
+        "idCitacion": 25355,
+        "idComision": 619,
+        "comision": "Cuarta Subcomisión Mixta de Presupuestos ",
+        "fecha": "09/09/2026",
+        "hora": "10:30 a 12:30",
+        "lugar": "Sala Nº 3 de Comisiones del Senado, Valparaíso",
+        "materia": "1.- Bol.N° 17870-05 Conocer la ejecución presupuestaria de las siguientes partidas, según ley N° 21.640 de Presupuestos del Sector Público correspondiente al año 2026, (Boletín Nº 17.870-05).\n\n1. 10:30 a 12:15 horas, Partida 05, Ministerio del Interior.\n\nA este punto se encuentran especialmente invitados el Ministro del Interior, señor Claudio Alvarado Andrade; el Subsecretario del Interior, señor Máximo Pavés Cantillano; y el Director de la Dirección de Presupuestos, señor José Pablo Gómez.\n\n2. De 12:15 a 12:30 horas, Partida 28, Servicio Electoral (Servel).\n\nA este punto se encuentran especialmente invitados el Director del Servicio Electoral, señor Raúl García; y el Director de la Dirección de Presupuestos, señor José Pablo Gómez.",
+        "tabla": [
+          "1.- Bol.N° 17870-05 Conocer la ejecución presupuestaria de las siguientes partidas, según ley N° 21.640 de Presupuestos del Sector Público correspondiente al año 2026, (Boletín Nº 17.870-05).",
+          "1. 10:30 a 12:15 horas, Partida 05, Ministerio del Interior.",
+          "A este punto se encuentran especialmente invitados el Ministro del Interior, señor Claudio Alvarado Andrade; el Subsecretario del Interior, señor Máximo Pavés Cantillano; y el Director de la Dirección de Presupuestos, señor José Pablo Gómez.",
+          "2. De 12:15 a 12:30 horas, Partida 28, Servicio Electoral (Servel).",
+          "A este punto se encuentran especialmente invitados el Director del Servicio Electoral, señor Raúl García; y el Director de la Dirección de Presupuestos, señor José Pablo Gómez."
+        ],
+        "boletines": [
+          "17870-05"
+        ],
+        "boletin": "17870-05",
+        "tipo": "Sesión de Comisión",
+        "canalTransmision": "TV Senado / Señal Online",
+        "citacionNumero": "Citación N° 25355",
+        "chamber": "SR"
+      },
+      {
+        "id": "senado-cit-25380",
+        "idCitacion": 25380,
+        "idComision": 899,
+        "comision": "Comisión Especial de Zonas Extremas y Territorios Especiales",
+        "fecha": "09/09/2026",
+        "hora": "13:00 a 13:30",
+        "lugar": "Sala 11, Valparaíso.",
+        "materia": "1.- Tomar acuerdos sobre materias propias de la Comisión.",
+        "tabla": [
+          "1.- Tomar acuerdos sobre materias propias de la Comisión."
+        ],
+        "boletines": [],
+        "tipo": "Sesión de Comisión",
+        "canalTransmision": "TV Senado / Señal Online",
+        "citacionNumero": "Citación N° 25380",
+        "chamber": "SR"
+      },
+      {
+        "id": "senado-cit-25400",
+        "idCitacion": 25400,
+        "idComision": 1461,
+        "comision": "Comisión Mixta para Boletín Nº 16335-14",
+        "fecha": "09/09/2026",
+        "hora": "14:30 a 15:30",
+        "lugar": "Sala 7. tercer piso de Comisiones, Valparaíso",
+        "materia": "1.- Bol.N° 16335-14 Comisión Mixta encargada de resolver divergencias entre ambas Cámaras respecto del proyecto de ley que regula la prevención y mitigación de incendios forestales, y otras materias que indica",
+        "tabla": [
+          "1.- Bol.N° 16335-14 Comisión Mixta encargada de resolver divergencias entre ambas Cámaras respecto del proyecto de ley que regula la prevención y mitigación de incendios forestales, y otras materias que indica"
+        ],
+        "boletines": [
+          "16335-14"
+        ],
+        "boletin": "16335-14",
+        "tipo": "Sesión de Comisión",
+        "canalTransmision": "TV Senado / Señal Online",
+        "citacionNumero": "Citación N° 25400",
+        "chamber": "SR"
+      },
+      {
+        "id": "senado-cit-25370",
+        "idCitacion": 25370,
+        "idComision": 620,
+        "comision": "Quinta Subcomisión Mixta de Presupuestos ",
+        "fecha": "09/09/2026",
+        "hora": "15:00 a 17:00",
+        "lugar": "Sala 5, (Valparaíso)",
+        "materia": "1.- Conocer la Ejecución Presupuestaria a la fecha, el control de compromisos, el plan de trabajo y los programas, resultados y evaluaciones de la Partida 19, del Ministerio de Transportes y Telecomunicaciones.\n\nA esta sesión ha sido invitado el Ministro de Transportes y Telecomunicaciones, señor Louis de Grange Concha.",
+        "tabla": [
+          "1.- Conocer la Ejecución Presupuestaria a la fecha, el control de compromisos, el plan de trabajo y los programas, resultados y evaluaciones de la Partida 19, del Ministerio de Transportes y Telecomunicaciones.",
+          "A esta sesión ha sido invitado el Ministro de Transportes y Telecomunicaciones, señor Louis de Grange Concha."
+        ],
+        "boletines": [],
+        "tipo": "Sesión de Comisión",
+        "canalTransmision": "TV Senado / Señal Online",
+        "citacionNumero": "Citación N° 25370",
+        "chamber": "SR"
+      },
+      {
+        "id": "senado-cit-25307",
+        "idCitacion": 25307,
+        "idComision": 617,
+        "comision": "Segunda Subcomisión Mixta de Presupuestos ",
+        "fecha": "09/09/2026",
+        "hora": "15:30 a 17:30",
+        "lugar": "Sala N° 4 de Comisiones, tercer piso, Valparaíso.",
+        "materia": "1.- Conocer la ejecución presupuestaria del año 2026 de la Partida 11, correspondiente al Ministerio de Defensa Nacional.",
+        "tabla": [
+          "1.- Conocer la ejecución presupuestaria del año 2026 de la Partida 11, correspondiente al Ministerio de Defensa Nacional."
+        ],
+        "boletines": [],
+        "tipo": "Sesión de Comisión",
+        "canalTransmision": "TV Senado / Señal Online",
+        "citacionNumero": "Citación N° 25307",
+        "chamber": "SR"
+      },
+      {
+        "id": "senado-cit-25321",
+        "idCitacion": 25321,
+        "idComision": 624,
+        "comision": "Primera Subcomisión Mixta de Presupuestos",
+        "fecha": "09/09/2026",
+        "hora": "17:00 a 18:30",
+        "lugar": "Sala 7. tercer piso de Comisiones, Valparaíso",
+        "materia": "1.- Continuar con la ejecución presupuestaria del año 2026 de la Partida 07, correspondiente al Ministerio de Economía, Fomento y Turismo.",
+        "tabla": [
+          "1.- Continuar con la ejecución presupuestaria del año 2026 de la Partida 07, correspondiente al Ministerio de Economía, Fomento y Turismo."
+        ],
+        "boletines": [],
+        "tipo": "Sesión de Comisión",
+        "canalTransmision": "TV Senado / Señal Online",
+        "citacionNumero": "Citación N° 25321",
+        "chamber": "SR"
+      },
+      {
+        "id": "senado-cit-25311",
+        "idCitacion": 25311,
+        "idComision": 617,
+        "comision": "Segunda Subcomisión Mixta de Presupuestos ",
+        "fecha": "09/09/2026",
+        "hora": "17:30 a 19:00",
+        "lugar": "Sala 4, tercer piso, Valparaíso",
+        "materia": "1.- Analizar la ejecución presupuestaria de la Ley de Presupuestos del Sector Público correspondiente al año 2026, respecto de la Partida 01, Presidencia de la República y la Partida 22, Secretaría General de la Presidencia, en los horarios que se indican:\n\n- De 17:30 a 18:00 horas:\nPartida 01, Presidencia de la República.\n\n- De 18:00 a 19:00 horas:\nPartida 22, Ministerio Secretaría General de la Presidencia.",
+        "tabla": [
+          "1.- Analizar la ejecución presupuestaria de la Ley de Presupuestos del Sector Público correspondiente al año 2026, respecto de la Partida 01, Presidencia de la República y la Partida 22, Secretaría General de la Presidencia, en los horarios que se indican:",
+          "- De 17:30 a 18:00 horas:",
+          "Partida 01, Presidencia de la República.",
+          "- De 18:00 a 19:00 horas:",
+          "Partida 22, Ministerio Secretaría General de la Presidencia."
+        ],
+        "boletines": [],
+        "tipo": "Sesión de Comisión",
+        "canalTransmision": "TV Senado / Señal Online",
+        "citacionNumero": "Citación N° 25311",
+        "chamber": "SR"
+      },
+      {
+        "id": "senado-cit-25310",
+        "idCitacion": 25310,
+        "idComision": 617,
+        "comision": "Segunda Subcomisión Mixta de Presupuestos ",
+        "fecha": "09/09/2026",
+        "hora": "19:00 a 20:00",
+        "lugar": "Sala 4, tercer piso, Valparaíso",
+        "materia": "1.- Analizar la ejecución presupuestaria de la Ley de Presupuestos del Sector Público correspondiente al año 2026, respecto de la Partida 20, Ministerio Secretaría General de Gobierno (Capítulo 01, Subsecretaría General de Gobierno y Capítulo 02, Consejo Nacional de Televisión).",
+        "tabla": [
+          "1.- Analizar la ejecución presupuestaria de la Ley de Presupuestos del Sector Público correspondiente al año 2026, respecto de la Partida 20, Ministerio Secretaría General de Gobierno (Capítulo 01, Subsecretaría General de Gobierno y Capítulo 02, Consejo Nacional de Televisión)."
+        ],
+        "boletines": [],
+        "tipo": "Sesión de Comisión",
+        "canalTransmision": "TV Senado / Señal Online",
+        "citacionNumero": "Citación N° 25310",
+        "chamber": "SR"
+      }
+    ]
+  },
+  {
+    "fecha": "10/09/2026",
+    "citaciones": [
+      {
+        "id": "senado-cit-25346",
+        "idCitacion": 25346,
+        "idComision": 620,
+        "comision": "Quinta Subcomisión Mixta de Presupuestos ",
+        "fecha": "10/09/2026",
+        "hora": "09:30 a 13:00",
+        "lugar": "Sala 1, (Santiago)",
+        "materia": "1.- Conocer la Ejecución Presupuestaria a la fecha, el control de compromisos, el plan de trabajo y los programas, resultados y evaluaciones de la Partida 19, del Ministerio de Transportes y Telecomunicaciones.\n\nA esta sesión ha sido invitado el Ministro de Transportes y Telecomunicaciones, señor Louis de Grange Concha.",
+        "tabla": [
+          "1.- Conocer la Ejecución Presupuestaria a la fecha, el control de compromisos, el plan de trabajo y los programas, resultados y evaluaciones de la Partida 19, del Ministerio de Transportes y Telecomunicaciones.",
+          "A esta sesión ha sido invitado el Ministro de Transportes y Telecomunicaciones, señor Louis de Grange Concha."
+        ],
+        "boletines": [],
+        "tipo": "Sesión de Comisión",
+        "canalTransmision": "TV Senado / Señal Online",
+        "citacionNumero": "Citación N° 25346",
+        "chamber": "SR"
+      },
+      {
+        "id": "senado-cit-25340",
+        "idCitacion": 25340,
+        "idComision": 620,
+        "comision": "Quinta Subcomisión Mixta de Presupuestos ",
+        "fecha": "10/09/2026",
+        "hora": "14:30 a 17:00",
+        "lugar": "Sala N° 1, Santiago.",
+        "materia": "1.- Conocer la ejecución presupuestaria ala fecha, el control de compromisos, el plan de trabajo y los programas, resultados y evaluaciones de la Partida N° 24, correspondiente al Ministerio de Energía.\n\nA esta sesión se invitará a la Ministra de Energía, al Subsecretario de Energía, y a los Jefes de Servicio respectivos.",
+        "tabla": [
+          "1.- Conocer la ejecución presupuestaria ala fecha, el control de compromisos, el plan de trabajo y los programas, resultados y evaluaciones de la Partida N° 24, correspondiente al Ministerio de Energía.",
+          "A esta sesión se invitará a la Ministra de Energía, al Subsecretario de Energía, y a los Jefes de Servicio respectivos."
+        ],
+        "boletines": [],
+        "tipo": "Sesión de Comisión",
+        "canalTransmision": "Sin transmisión",
+        "citacionNumero": "Citación N° 25340",
+        "chamber": "SR"
+      }
+    ]
+  },
+  {
+    "fecha": "22/09/2026",
+    "citaciones": [
+      {
+        "id": "senado-cit-25358",
+        "idCitacion": 25358,
+        "idComision": 619,
+        "comision": "Cuarta Subcomisión Mixta de Presupuestos ",
+        "fecha": "22/09/2026",
+        "hora": "11:00 a 13:00",
+        "lugar": "Sala de Sesiones del Senado, Valparaíso",
+        "materia": "1.- Bol.N° 17870-05 Conocer la ejecución presupuestaria de la Partida 31, Gobiernos Regionales, según ley N° 21.640 de Presupuestos del Sector Público correspondiente al año 2026 (Boletín Nº 17.870-05).\n\nA esta sesión se encuentran especialmente invitados los representantes de la Asociación de Gobernadores y Gobernadoras Regionales de Chile (AGORECHI); el Subsecretario de Desarrollo Regional y Administrativo (SUBDERE), señor Sebastián Figueroa Melo; y el Director de la Dirección de Presupuestos, señor José Pablo Gómez.",
+        "tabla": [
+          "1.- Bol.N° 17870-05 Conocer la ejecución presupuestaria de la Partida 31, Gobiernos Regionales, según ley N° 21.640 de Presupuestos del Sector Público correspondiente al año 2026 (Boletín Nº 17.870-05).",
+          "A esta sesión se encuentran especialmente invitados los representantes de la Asociación de Gobernadores y Gobernadoras Regionales de Chile (AGORECHI); el Subsecretario de Desarrollo Regional y Administrativo (SUBDERE), señor Sebastián Figueroa Melo; y el Director de la Dirección de Presupuestos, señor José Pablo Gómez."
+        ],
+        "boletines": [
+          "17870-05"
+        ],
+        "boletin": "17870-05",
+        "tipo": "Sesión de Comisión",
+        "canalTransmision": "TV Senado / Señal Online",
+        "citacionNumero": "Citación N° 25358",
+        "chamber": "SR"
+      }
+    ]
+  },
+  {
+    "fecha": "23/09/2026",
+    "citaciones": [
+      {
+        "id": "senado-cit-25389",
+        "idCitacion": 25389,
+        "idComision": 620,
+        "comision": "Quinta Subcomisión Mixta de Presupuestos ",
+        "fecha": "23/09/2026",
+        "hora": "15:00 a 19:00",
+        "lugar": "Sala N° 10, Valparaíso",
+        "materia": "1.- Realizar el seguimiento de la Ejecución Presupuestaria y de los compromisos adquiridos en el marco de la ley de presupuestos 2026, de la Partida 12, Ministerio de Obras Públicas.\n\nA esta sesión ha sido invitado el Ministro de Obras Públicas, señor Louis de Grange.",
+        "tabla": [
+          "1.- Realizar el seguimiento de la Ejecución Presupuestaria y de los compromisos adquiridos en el marco de la ley de presupuestos 2026, de la Partida 12, Ministerio de Obras Públicas.",
+          "A esta sesión ha sido invitado el Ministro de Obras Públicas, señor Louis de Grange."
+        ],
+        "boletines": [],
+        "tipo": "Sesión de Comisión",
+        "canalTransmision": "TV Senado / Señal Online",
+        "citacionNumero": "Citación N° 25389",
+        "chamber": "SR"
+      }
+    ]
+  },
+  {
+    "fecha": "24/09/2026",
+    "citaciones": [
+      {
+        "id": "senado-cit-25341",
+        "idCitacion": 25341,
+        "idComision": 620,
+        "comision": "Quinta Subcomisión Mixta de Presupuestos ",
+        "fecha": "24/09/2026",
+        "hora": "09:30 a 14:00",
+        "lugar": "Sala de Lectura, Senado. Santiago.",
+        "materia": "1.- Conocer la ejecución presupuestaria a la fecha, el control de compromisos, el plan de trabajo y los programas, resultados y evaluaciones de la Partida N° 17, correspondiente al Ministerio de Minería.\n\nA esta sesión se invitará al Biministro de Economía, Fomento y Turismo y de Minería; al Subsecretario de Minería, y a los Jefes de Servicio respectivos.",
+        "tabla": [
+          "1.- Conocer la ejecución presupuestaria a la fecha, el control de compromisos, el plan de trabajo y los programas, resultados y evaluaciones de la Partida N° 17, correspondiente al Ministerio de Minería.",
+          "A esta sesión se invitará al Biministro de Economía, Fomento y Turismo y de Minería; al Subsecretario de Minería, y a los Jefes de Servicio respectivos."
+        ],
+        "boletines": [],
+        "tipo": "Sesión de Comisión",
+        "canalTransmision": "TV Senado / Señal Online",
+        "citacionNumero": "Citación N° 25341",
+        "chamber": "SR"
+      },
+      {
+        "id": "senado-cit-25361",
+        "idCitacion": 25361,
+        "idComision": 620,
+        "comision": "Quinta Subcomisión Mixta de Presupuestos ",
+        "fecha": "24/09/2026",
+        "hora": "14:30 a 17:30",
+        "lugar": "Sala de Lectura, Senado. Santiago.",
+        "materia": "1.- Conocer la ejecución presupuestaria a la fecha, el control de compromisos, el plan de trabajo y los programas, resultados y evaluaciones de la Partida N° 24, correspondiente al Ministerio de Energía.\n\nA esta sesión se invitará a la Ministra de Energía; al Subsecretario de Energía, y a los Jefes de Servicio respectivos.",
+        "tabla": [
+          "1.- Conocer la ejecución presupuestaria a la fecha, el control de compromisos, el plan de trabajo y los programas, resultados y evaluaciones de la Partida N° 24, correspondiente al Ministerio de Energía.",
+          "A esta sesión se invitará a la Ministra de Energía; al Subsecretario de Energía, y a los Jefes de Servicio respectivos."
+        ],
+        "boletines": [],
+        "tipo": "Sesión de Comisión",
+        "canalTransmision": "TV Senado / Señal Online",
+        "citacionNumero": "Citación N° 25361",
+        "chamber": "SR"
+      }
+    ]
+  },
+  {
+    "fecha": "29/09/2026",
+    "citaciones": [
+      {
+        "id": "senado-cit-25318",
+        "idCitacion": 25318,
+        "idComision": 624,
+        "comision": "Primera Subcomisión Mixta de Presupuestos",
+        "fecha": "29/09/2026",
+        "hora": "17:00 a 18:30",
+        "lugar": "Sala N° 2 tercer piso, Senado Valparaíso. ",
+        "materia": "1.- Conocer la ejecución presupuestaria del año 2026 de la Partida 27, correspondiente al Ministerio de la Mujer y la Equidad de Género.",
+        "tabla": [
+          "1.- Conocer la ejecución presupuestaria del año 2026 de la Partida 27, correspondiente al Ministerio de la Mujer y la Equidad de Género."
+        ],
+        "boletines": [],
+        "tipo": "Sesión de Comisión",
+        "canalTransmision": "TV Senado / Señal Online",
+        "citacionNumero": "Citación N° 25318",
+        "chamber": "SR"
+      }
+    ]
+  }
+];
+
 export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
   {
     id: "constitucion",
@@ -72376,10 +73569,10 @@ export function generateFullComisionData(meta: ComisionMeta): Comision {
 
   const proyectosLista = getProyectosForComision(meta);
 
-  // All official sessions & citaciones of the entire week for this commission
-  const weekCitaciones = !isSenado && CAMARA_CITACIONES_POR_COMISION[meta.id] 
-    ? CAMARA_CITACIONES_POR_COMISION[meta.id] 
-    : [];
+  // All official sessions & citaciones of the entire week for this commission (Cámara & Senado)
+  const weekCitaciones = isSenado
+    ? (meta.senadoId && SENADO_CITACIONES_POR_COMISION_ID[meta.senadoId] ? SENADO_CITACIONES_POR_COMISION_ID[meta.senadoId] : [])
+    : (CAMARA_CITACIONES_POR_COMISION[meta.id] || []);
 
   const proximaReal = weekCitaciones.length > 0 ? weekCitaciones[0] : null;
 

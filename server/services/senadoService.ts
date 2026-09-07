@@ -712,3 +712,92 @@ export async function fetchSenadoComisionProyectosLive(
   }, 900); // 15 minutes TTL
 }
 
+/**
+ * Fetches real-time committee citations for the Senate from web-back.senado.cl API
+ */
+export async function fetchSenadoCitacionesLive(forceRefresh = false): Promise<{
+  citaciones: any[];
+  porComision: Record<string, any[]>;
+  porDia: any[];
+}> {
+  const cacheKey = "senado_citaciones_live";
+  if (forceRefresh) {
+    cache.delete(cacheKey);
+  }
+
+  return cache.getOrSet(cacheKey, async () => {
+    try {
+      const url = "https://web-back.senado.cl/api/commissions_citations?limit=100";
+      const res = await fetch(url, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          "Accept": "application/json, text/plain, */*"
+        },
+        signal: AbortSignal.timeout(7000)
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+
+      const raw = await res.json();
+      const senadoCitacionesFlat: any[] = [];
+      const senadoCitacionesByComId: Record<string, any[]> = {};
+      const senadoCitacionesByDay: any[] = [];
+
+      for (const day of raw.data || []) {
+        const dayCitaciones: any[] = [];
+        
+        for (const c of day.CITACIONES || []) {
+          const boletines = c.PUNTOS_PROPUESTOS?.map((p: any) => p.NUMERO_BOLETIN).filter(Boolean) || [];
+          const comId = String(c.ID_COMISION);
+          const comNombre = c.COMINOMBRE?.startsWith("de ") ? `Comisión ${c.COMINOMBRE}` : c.COMINOMBRE;
+
+          const citItem = {
+            id: `senado-cit-${c.ID_CITACION}`,
+            idCitacion: c.ID_CITACION,
+            idComision: c.ID_COMISION,
+            comision: comNombre,
+            fecha: day.FECHA,
+            hora: c.HORARIO,
+            lugar: c.LUGAR || "Valparaíso / Santiago",
+            materia: c.MATERIA?.trim() || "Sesión de Comisión",
+            tabla: c.MATERIA ? c.MATERIA.split("\n").map((s: string) => s.trim()).filter(Boolean) : [],
+            boletines: boletines,
+            boletin: boletines[0] || undefined,
+            tipo: "Sesión de Comisión",
+            canalTransmision: c.TV === 1 ? "TV Senado / Señal Online" : "Sin transmisión",
+            citacionNumero: `Citación N° ${c.ID_CITACION}`,
+            chamber: "SR"
+          };
+
+          senadoCitacionesFlat.push(citItem);
+          dayCitaciones.push(citItem);
+
+          if (!senadoCitacionesByComId[comId]) {
+            senadoCitacionesByComId[comId] = [];
+          }
+          senadoCitacionesByComId[comId].push(citItem);
+        }
+
+        if (dayCitaciones.length > 0) {
+          senadoCitacionesByDay.push({
+            fecha: day.FECHA,
+            citaciones: dayCitaciones
+          });
+        }
+      }
+
+      return {
+        citaciones: senadoCitacionesFlat,
+        porComision: senadoCitacionesByComId,
+        porDia: senadoCitacionesByDay
+      };
+    } catch (err: any) {
+      console.warn("[SenadoService] Could not fetch live Senate citaciones:", err.message);
+      return { citaciones: [], porComision: {}, porDia: [] };
+    }
+  }, 900); // 15 minutes TTL
+}
+
+

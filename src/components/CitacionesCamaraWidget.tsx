@@ -42,7 +42,7 @@ import {
   CheckSquare,
   RotateCcw
 } from "lucide-react";
-import { CAMARA_CITACIONES_FULL_WEEK } from "../data/comisionesData";
+import { CAMARA_CITACIONES_FULL_WEEK, SENADO_CITACIONES_FULL_WEEK } from "../data/comisionesData";
 
 export interface CitacionesCamaraWidgetProps {
   setView?: (view: string) => void;
@@ -1130,6 +1130,24 @@ const DYNAMIC_CAMARA_CITACIONES: Citacion[] = CAMARA_CITACIONES_FULL_WEEK.map((c
   };
 });
 
+const DYNAMIC_SENADO_CITACIONES: Citacion[] = (SENADO_CITACIONES_FULL_WEEK || []).map((c) => {
+  return {
+    comision: c.comision,
+    fechaISO: c.fecha,
+    hora: c.hora.includes("hrs") ? c.hora : `${c.hora} hrs`,
+    lugar: c.lugar,
+    materia: c.materia,
+    invitados: c.invitados || "Convocados y expositores del Senado",
+    boletin: c.boletin,
+    week: 37,
+    presidente: "Presidente de Comisión",
+    tipoSesion: c.tipo && c.tipo.includes("Especial") ? "Especial" : "Ordinaria",
+    canalTransmision: c.canalTransmision || "TV Senado / Señal Online",
+    ordenDelDia: c.tabla && c.tabla.length > 0 ? c.tabla : [c.materia],
+    chamber: "SR" as const
+  };
+});
+
 export default function CitacionesCamaraWidget({
   setView,
   setSelectedComisionId,
@@ -1153,7 +1171,10 @@ export default function CitacionesCamaraWidget({
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
   const [copiedToast, setCopiedToast] = useState<string | null>(null);
-  const [liveWeekCitaciones, setLiveWeekCitaciones] = useState<Citacion[]>(DYNAMIC_CAMARA_CITACIONES);
+  const [liveWeekCitaciones, setLiveWeekCitaciones] = useState<Citacion[]>([
+    ...DYNAMIC_CAMARA_CITACIONES,
+    ...DYNAMIC_SENADO_CITACIONES
+  ]);
   const [isLiveSyncing, setIsLiveSyncing] = useState(false);
   const currentYear = 2026;
 
@@ -1162,28 +1183,33 @@ export default function CitacionesCamaraWidget({
     fetch(`/api/comisiones/citaciones${forceRefresh ? "?refresh=true" : ""}`)
       .then(res => res.json())
       .then(data => {
-        if (data && data.todas && Array.isArray(data.todas) && data.todas.length > 0) {
-          const mapped: Citacion[] = data.todas.map((c: any) => {
-            const normName = c.comisionNombre.startsWith("Comisión") ? c.comisionNombre : `Comisión de ${c.comisionNombre}`;
+        const rawCitList = data.citaciones || data.todas;
+        if (rawCitList && Array.isArray(rawCitList) && rawCitList.length > 0) {
+          const mapped: Citacion[] = rawCitList.map((c: any) => {
+            const isSR = c.chamber === "SR" || c.id?.startsWith("senado-") || c.comision?.toLowerCase().includes("senado");
+            const normName = c.comisionNombre 
+              ? (c.comisionNombre.startsWith("Comisión") ? c.comisionNombre : `Comisión de ${c.comisionNombre}`)
+              : (c.comision || "Comisión Legislativa");
+
             return {
               comision: normName,
               fechaISO: c.fecha,
-              hora: c.hora.includes("hrs") ? c.hora : `${c.hora} hrs`,
-              lugar: c.lugar,
-              materia: c.materia,
+              hora: c.hora ? (c.hora.includes("hrs") ? c.hora : `${c.hora} hrs`) : "Horario reglamentario",
+              lugar: c.lugar || "Valparaíso / Santiago",
+              materia: c.materia || "Sesión de Comisión",
               invitados: c.invitados,
-              boletin: c.boletinesRelacionados && c.boletinesRelacionados.length > 0 ? c.boletinesRelacionados[0] : undefined,
+              boletin: c.boletin || (c.boletinesRelacionados && c.boletinesRelacionados.length > 0 ? c.boletinesRelacionados[0] : undefined),
               week: 37,
-              presidente: "Presidente de Comisión",
+              presidente: c.presidente || "Presidente de Comisión",
               tipoSesion: (c.tipo && c.tipo.includes("Especial")) ? "Especial" : "Ordinaria",
-              canalTransmision: "Cámara de Diputados TV (CDTV) / Señal Online",
-              ordenDelDia: c.tabla && c.tabla.length > 0 ? c.tabla : [c.materia],
-              chamber: "CD" as const
+              canalTransmision: isSR ? (c.canalTransmision || "TV Senado / Señal Online") : (c.canalTransmision || "Cámara de Diputados TV (CDTV) / Señal Online"),
+              ordenDelDia: c.tabla && c.tabla.length > 0 ? c.tabla : [c.materia || "Sesión legislativa"],
+              chamber: isSR ? ("SR" as const) : ("CD" as const)
             };
           });
           setLiveWeekCitaciones(mapped);
           if (forceRefresh) {
-            setCopiedToast("¡Citaciones de la semana sincronizadas con la web oficial!");
+            setCopiedToast("¡Citaciones de Congreso (Cámara y Senado) sincronizadas en vivo!");
             setTimeout(() => setCopiedToast(null), 3500);
           }
         }
@@ -1202,9 +1228,13 @@ export default function CitacionesCamaraWidget({
 
   // Tag dataset with chambers
   const allEnrichedCitaciones = useMemo(() => {
-    const camaraTagged = [...liveWeekCitaciones, ...CITACIONES_CAMARA].map(c => ({ ...c, chamber: "CD" as const }));
-    const senadoTagged = CITACIONES_SENADO.map(c => ({ ...c, chamber: "SR" as const }));
-    return [...camaraTagged, ...senadoTagged];
+    const camaraTagged = liveWeekCitaciones.filter(c => c.chamber === "CD");
+    const senadoTagged = liveWeekCitaciones.filter(c => c.chamber === "SR");
+
+    const camaraAll = [...camaraTagged, ...CITACIONES_CAMARA.map(c => ({ ...c, chamber: "CD" as const }))];
+    const senadoAll = [...senadoTagged, ...CITACIONES_SENADO.map(c => ({ ...c, chamber: "SR" as const }))];
+
+    return [...camaraAll, ...senadoAll];
   }, [liveWeekCitaciones]);
 
   // Deduplicated unique commissions for the quick-select dropdown

@@ -17,6 +17,7 @@ import {
   cleanBulletinNumber, 
   fetchSenadoComisionesIntegrantesLive,
   fetchSenadoComisionProyectosLive,
+  fetchSenadoCitacionesLive,
   estimarQuorum,
   estimarFichaTecnica,
   estimarOrigenDetalle
@@ -289,11 +290,30 @@ apiRouter.get("/comisiones/autocomplete", async (req: Request, res: Response) =>
 apiRouter.get("/comisiones/citaciones", async (req: Request, res: Response) => {
   try {
     const forceRefresh = req.query.refresh === "true";
-    const data = await fetchCamaraCitacionesSemanalesLive(forceRefresh);
+    const [camaraData, senadoData] = await Promise.all([
+      fetchCamaraCitacionesSemanalesLive(forceRefresh).catch(() => ({ citaciones: [], porComision: {}, porDia: [] })),
+      fetchSenadoCitacionesLive(forceRefresh).catch(() => ({ citaciones: [], porComision: {}, porDia: [] }))
+    ]);
+
+    const todasCitaciones = [
+      ...(camaraData.citaciones || []),
+      ...(senadoData.citaciones || [])
+    ];
+
     res.json({
       success: true,
       timestamp: new Date().toISOString(),
-      ...data
+      citaciones: todasCitaciones,
+      porComision: {
+        ...(camaraData.porComision || {}),
+        ...(senadoData.porComision || {})
+      },
+      porDia: [
+        ...(camaraData.porDia || []),
+        ...(senadoData.porDia || [])
+      ],
+      camara: camaraData,
+      senado: senadoData
     });
   } catch (error: any) {
     console.error("Error fetching live citations:", error);
@@ -317,23 +337,62 @@ apiRouter.get("/comision/:id", async (req: Request, res: Response) => {
     if (matchDetalle.chamber === "SR" || matchDetalle.prefix === "senado-") {
       if (matchDetalle.senadoId) {
         try {
-          const liveSenadoProjects = await fetchSenadoComisionProyectosLive(
-            matchDetalle.senadoId,
-            matchDetalle.nombre,
-            forceRefresh
-          );
+          const [liveSenadoProjects, liveSenadoCit] = await Promise.all([
+            fetchSenadoComisionProyectosLive(
+              matchDetalle.senadoId,
+              matchDetalle.nombre,
+              forceRefresh
+            ),
+            fetchSenadoCitacionesLive(forceRefresh)
+          ]);
+
           if (liveSenadoProjects && liveSenadoProjects.length > 0) {
             fullComision.proyectos = liveSenadoProjects;
             fullComision.proyectosContados = liveSenadoProjects.length;
             fullComision.proyectosIds = liveSenadoProjects.map(p => p.id);
           }
+
+          if (liveSenadoCit && liveSenadoCit.porComision && liveSenadoCit.porComision[matchDetalle.senadoId]) {
+            const comLiveCit = liveSenadoCit.porComision[matchDetalle.senadoId];
+            if (comLiveCit.length > 0) {
+              fullComision.sesiones = [
+                ...comLiveCit.map((rc: any, idx: number) => ({
+                  id: `ses-senado-live-${idx + 1}`,
+                  fecha: rc.fecha,
+                  hora: rc.hora,
+                  lugar: rc.lugar,
+                  tipo: rc.tipo || "Sesión de Comisión",
+                  materia: rc.materia,
+                  invitados: rc.invitados || "Invitados oficiales según orden del día.",
+                  citacionNumero: rc.citacionNumero,
+                  acuerdosCount: 0,
+                  completada: false,
+                  tabla: rc.tabla && rc.tabla.length > 0 ? rc.tabla : [rc.materia]
+                })),
+                ...fullComision.sesiones.filter(s => !s.id.startsWith("ses-senado-"))
+              ];
+              fullComision.proximaSesion = {
+                id: comLiveCit[0].id || "ses-senado-prox-live",
+                fecha: comLiveCit[0].fecha,
+                hora: comLiveCit[0].hora,
+                lugar: comLiveCit[0].lugar,
+                modalidad: "Presencial y Telemática",
+                citacionNumero: comLiveCit[0].citacionNumero,
+                tipo: comLiveCit[0].tipo || "Sesión de Comisión",
+                materia: comLiveCit[0].materia,
+                invitados: comLiveCit[0].invitados || "Convocados y expositores del Senado.",
+                acuerdosCount: 0,
+                tabla: comLiveCit[0].tabla || [comLiveCit[0].materia]
+              };
+            }
+          }
         } catch (err) {
-          console.warn("Could not fetch live Senate projects from tramitacion.senado.cl:", err);
+          console.warn("Could not fetch live Senate data from senado.cl:", err);
         }
       }
     }
 
-    if (forceRefresh) {
+    if (forceRefresh && matchDetalle.chamber === "CD") {
       try {
         const liveCit = await fetchCamaraCitacionesSemanalesLive(true);
         if (liveCit && liveCit.porComision && liveCit.porComision[matchDetalle.id]) {
