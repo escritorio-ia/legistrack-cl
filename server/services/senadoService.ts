@@ -749,9 +749,18 @@ export async function fetchSenadoCitacionesLive(forceRefresh = false): Promise<{
         const dayCitaciones: any[] = [];
         
         for (const c of day.CITACIONES || []) {
-          const boletines = c.PUNTOS_PROPUESTOS?.map((p: any) => p.NUMERO_BOLETIN).filter(Boolean) || [];
+          const boletinesPoints = c.PUNTOS_PROPUESTOS?.map((p: any) => p.NUMERO_BOLETIN).filter(Boolean) || [];
+          
+          // Also extract bulletins mentioned in MATERIA text (e.g. Bol.N° 17088-12, 16.553-12, 18525-06)
+          const materiaText = c.MATERIA || "";
+          const materiaMatches = [...materiaText.matchAll(/(?:bol(?:et[ií]n)?\.?\s*n[°º\s]*|bolet[ií]n\s+)?([0-9]{1,2}\.?[0-9]{3}-[0-9]{2})/gi)]
+            .map(m => m[1].replace(/\./g, "").trim())
+            .filter(b => /^\d{3,6}-\d{2}$/.test(b));
+
+          const allBoletines = [...new Set([...boletinesPoints, ...materiaMatches])];
+
           const comId = String(c.ID_COMISION);
-          const comNombre = c.COMINOMBRE?.startsWith("de ") ? `Comisión ${c.COMINOMBRE}` : c.COMINOMBRE;
+          const comNombre = c.COMINOMBRE?.startsWith("de ") ? `Comisión ${c.COMINOMBRE}` : (c.COMINOMBRE?.startsWith("Comisión") ? c.COMINOMBRE : `Comisión de ${c.COMINOMBRE}`);
 
           const citItem = {
             id: `senado-cit-${c.ID_CITACION}`,
@@ -759,16 +768,17 @@ export async function fetchSenadoCitacionesLive(forceRefresh = false): Promise<{
             idComision: c.ID_COMISION,
             comision: comNombre,
             fecha: day.FECHA,
-            hora: c.HORARIO,
+            hora: c.HORARIO || "Horario reglamentario",
             lugar: c.LUGAR || "Valparaíso / Santiago",
-            materia: c.MATERIA?.trim() || "Sesión de Comisión",
-            tabla: c.MATERIA ? c.MATERIA.split("\n").map((s: string) => s.trim()).filter(Boolean) : [],
-            boletines: boletines,
-            boletin: boletines[0] || undefined,
+            materia: materiaText.trim() || "Sesión de Comisión",
+            tabla: materiaText ? materiaText.split("\n").map((s: string) => s.trim()).filter(Boolean) : [],
+            boletines: allBoletines,
+            boletin: allBoletines[0] || undefined,
             tipo: "Sesión de Comisión",
             canalTransmision: c.TV === 1 ? "TV Senado / Señal Online" : "Sin transmisión",
             citacionNumero: `Citación N° ${c.ID_CITACION}`,
-            chamber: "SR"
+            chamber: "SR",
+            linkOficial: "https://www.senado.cl/actividad-legislativa/comisiones/citaciones"
           };
 
           senadoCitacionesFlat.push(citItem);
@@ -797,7 +807,7 @@ export async function fetchSenadoCitacionesLive(forceRefresh = false): Promise<{
       console.warn("[SenadoService] Could not fetch live Senate citaciones:", err.message);
       return { citaciones: [], porComision: {}, porDia: [] };
     }
-  }, 900); // 15 minutes TTL
+  }, 300); // 5 minutes TTL for real-time fresh synchronization
 }
 
 

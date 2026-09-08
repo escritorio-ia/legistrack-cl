@@ -1224,6 +1224,13 @@ export default function CitacionesCamaraWidget({
 
   useEffect(() => {
     fetchLiveCitaciones(false);
+
+    // Continuous auto-refresh every 60 seconds from official portals
+    const interval = setInterval(() => {
+      fetchLiveCitaciones(false);
+    }, 60000);
+
+    return () => clearInterval(interval);
   }, []);
 
   // Tag dataset with chambers
@@ -1283,21 +1290,36 @@ export default function CitacionesCamaraWidget({
       if (norm.includes("salud")) return "senado-salud";
       if (norm.includes("educacion")) return "senado-educacion";
       if (norm.includes("defensa")) return "senado-defensa";
-      if (norm.includes("rree") || norm.includes("relaciones")) return "senado-rree";
+      if (norm.includes("rree") || norm.includes("relaciones")) return "senado-relaciones-exteriores";
       if (norm.includes("gobierno")) return "senado-gobierno";
       if (norm.includes("obras")) return "senado-obras-publicas";
       if (norm.includes("agricultura")) return "senado-agricultura";
       if (norm.includes("medio ambiente")) return "senado-medio-ambiente";
-      if (norm.includes("mineria")) return "senado-mineria";
+      if (norm.includes("mineria")) return "senado-mineria-y-energia";
       if (norm.includes("economia")) return "senado-economia";
       if (norm.includes("vivienda")) return "senado-vivienda";
-      if (norm.includes("futuro")) return "senado-desafios-futuro";
-      if (norm.includes("mujer")) return "senado-mujeres-genero";
-      if (norm.includes("infancia") || norm.includes("familia")) return "senado-infancia";
+      if (norm.includes("futuro") || norm.includes("ciencia")) return "senado-desafios-futuro";
+      if (norm.includes("mujer")) return "senado-mujer-genero";
+      if (norm.includes("infancia") || norm.includes("familia")) return "senado-familia-infancia";
+      if (norm.includes("adulto mayor") || norm.includes("discapacidad")) return "senado-adulto-mayor-discapacidad";
+      if (norm.includes("cultura") || norm.includes("deporte")) return "senado-cultura-deportes";
       if (norm.includes("transporte")) return "senado-transportes";
-      if (norm.includes("pesca")) return "senado-pesca";
-      if (norm.includes("hidricos") || norm.includes("agua")) return "senado-recursos-hidricos";
-      if (norm.includes("presupuesto")) return "senado-presupuestos-mixta";
+      if (norm.includes("pesca") || norm.includes("maritimo")) return "senado-pesca";
+      if (norm.includes("hidricos") || norm.includes("agua") || norm.includes("sequia")) return "senado-recursos-hidricos";
+      if (norm.includes("primera subcomision")) return "senado-subcomision-1-presupuestos";
+      if (norm.includes("segunda subcomision")) return "senado-subcomision-2-presupuestos";
+      if (norm.includes("tercera subcomision")) return "senado-subcomision-3-presupuestos";
+      if (norm.includes("cuarta subcomision")) return "senado-subcomision-4-presupuestos";
+      if (norm.includes("quinta subcomision")) return "senado-subcomision-5-presupuestos";
+      if (norm.includes("presupuesto")) return "senado-especial-mixta-presupuestos";
+      if (norm.includes("zonas extremas")) return "senado-zonas-extremas";
+      if (norm.includes("etica")) return "senado-etica";
+      if (norm.includes("regimen")) return "senado-regimen-interior";
+      if (norm.includes("revisora")) return "senado-revisora-cuentas";
+      if (norm.includes("ruf") || norm.includes("15805")) return "senado-mixta-ruf-15805-07";
+      if (norm.includes("15975")) return "senado-mixta-15975-25";
+      if (norm.includes("16335")) return "senado-mixta-16335-14";
+      if (norm.includes("16569")) return "senado-mixta-16569-25";
       return "senado-constitucion";
     } else {
       if (norm.includes("constitucion")) return "cd-constitucion";
@@ -1624,14 +1646,34 @@ END:VCALENDAR`;
             onClick={() => fetchLiveCitaciones(true)}
             disabled={isLiveSyncing}
             className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white px-3.5 py-2 rounded-xl text-xs font-bold border border-blue-400/50 transition-all shadow-xs cursor-pointer active:scale-95"
-            title="Sincronizar citaciones en vivo desde la web oficial de la Cámara"
+            title="Sincronizar citaciones en vivo desde los portales oficiales del Senado y Cámara"
           >
             <RotateCcw className={`w-3.5 h-3.5 ${isLiveSyncing ? "animate-spin text-white" : "text-blue-200"}`} />
             <span>{isLiveSyncing ? "Sincronizando..." : "Sincronizar"}</span>
           </button>
+          <a
+            href="https://www.senado.cl/actividad-legislativa/comisiones/citaciones"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-750 text-slate-200 hover:text-white px-3 py-2 rounded-xl text-xs font-bold border border-slate-700 transition-all shadow-xs cursor-pointer active:scale-95"
+            title="Abrir portal oficial de citaciones a comisiones del Senado de Chile"
+          >
+            <ExternalLink className="w-3.5 h-3.5 text-blue-400" />
+            <span>Portal Senado</span>
+          </a>
+          <a
+            href="https://www.camara.cl/legislacion/comisiones/citaciones_semana.aspx"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-750 text-slate-200 hover:text-white px-3 py-2 rounded-xl text-xs font-bold border border-slate-700 transition-all shadow-xs cursor-pointer active:scale-95"
+            title="Abrir portal oficial de citaciones de la Cámara de Diputadas y Diputados"
+          >
+            <ExternalLink className="w-3.5 h-3.5 text-amber-400" />
+            <span>Portal Cámara</span>
+          </a>
           <button 
             onClick={handleCopyWeekDigest}
-            className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-750 text-slate-200 hover:text-white px-3.5 py-2 rounded-xl text-xs font-bold border border-slate-700 transition-all shadow-xs cursor-pointer active:scale-95"
+            className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-750 text-slate-200 hover:text-white px-3 py-2 rounded-xl text-xs font-bold border border-slate-700 transition-all shadow-xs cursor-pointer active:scale-95"
             title="Copiar resumen estructurado de las citaciones visibles en Markdown"
           >
             <Copy className="w-3.5 h-3.5 text-blue-400" />
@@ -1639,7 +1681,7 @@ END:VCALENDAR`;
           </button>
           <button 
             onClick={handlePrint}
-            className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-750 text-slate-200 hover:text-white px-3.5 py-2 rounded-xl text-xs font-bold border border-slate-700 transition-all shadow-xs cursor-pointer active:scale-95"
+            className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-750 text-slate-200 hover:text-white px-3 py-2 rounded-xl text-xs font-bold border border-slate-700 transition-all shadow-xs cursor-pointer active:scale-95"
             title="Imprimir o guardar como PDF"
           >
             <Printer className="w-3.5 h-3.5 text-slate-300" />

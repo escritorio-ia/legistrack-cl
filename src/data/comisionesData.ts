@@ -169566,7 +169566,7 @@ export function generateFullComisionData(meta: ComisionMeta): Comision {
       ? `https://www.senado.cl/comisiones/${meta.id}`
       : `https://www.camara.cl/legislacion/comisiones/integrantes.aspx?prmID=${meta.prmID || meta.id}`,
     citacionesUrl: isSenado
-      ? "https://www.senado.cl/actividad-legislativa/citaciones-a-comisiones"
+      ? "https://www.senado.cl/actividad-legislativa/comisiones/citaciones"
       : "https://www.camara.cl/legislacion/comisiones/citaciones_semana.aspx",
     tramitacionUrl: isSenado
       ? (meta.senadoId ? `https://tramitacion.senado.cl/appsenado/index.php?mo=tramitacion&ac=boletin_x_fecha&comiid=${meta.senadoId}&titulo=${encodeURIComponent("Senado: Com. " + meta.nombre)}` : "https://tramitacion.senado.cl/appsenado/templates/tramitacion/index.php")

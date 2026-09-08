@@ -321,6 +321,43 @@ apiRouter.get("/comisiones/citaciones", async (req: Request, res: Response) => {
   }
 });
 
+// Direct alias endpoints for live citaciones
+apiRouter.get("/citaciones", (req: Request, res: Response) => {
+  res.redirect("/api/comisiones/citaciones");
+});
+
+apiRouter.get(["/senado/citaciones", "/citaciones/senado"], async (req: Request, res: Response) => {
+  try {
+    const forceRefresh = req.query.refresh === "true";
+    const senadoData = await fetchSenadoCitacionesLive(forceRefresh);
+    res.json({
+      success: true,
+      chamber: "SR",
+      portalUrl: "https://www.senado.cl/actividad-legislativa/comisiones/citaciones",
+      timestamp: new Date().toISOString(),
+      ...senadoData
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+apiRouter.get(["/camara/citaciones", "/citaciones/camara"], async (req: Request, res: Response) => {
+  try {
+    const forceRefresh = req.query.refresh === "true";
+    const camaraData = await fetchCamaraCitacionesSemanalesLive(forceRefresh);
+    res.json({
+      success: true,
+      chamber: "CD",
+      portalUrl: "https://www.camara.cl/legislacion/comisiones/citaciones_semana.aspx",
+      timestamp: new Date().toISOString(),
+      ...camaraData
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 apiRouter.get("/comisiones", async (req: Request, res: Response) => {
   const allComisiones = await getTodasComisiones();
   res.json(allComisiones);
