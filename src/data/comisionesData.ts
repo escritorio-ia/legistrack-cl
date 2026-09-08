@@ -7658,8 +7658,23 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     icon: "Landmark",
     color: "blue",
     featured: true,
+    telefono: "(56-32) 250 4116",
     email: "gobsen@senado.cl",
     temas: ["Descentralización","Gobiernos Regionales","Municipios","Modernización del Estado","Regiones"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Juan Pablo Durán"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Niscia Rubio"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Beatriz Galleguillos"
+      }
+    ],
     integrantes: [
       {
         nombre: "Danisa Astudillo Peiretti",
@@ -7714,8 +7729,23 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     icon: "Globe",
     color: "blue",
     featured: true,
+    telefono: "(56-32) 2504348",
     email: "relacionesexteriores@senado.cl",
     temas: ["Tratados Internacionales","Cancillería","Comercio Exterior","Límites","Integración Regional"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Julio Cámara"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Magdalena Ascorra"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Paula  Sagredo"
+      }
+    ],
     integrantes: [
       {
         nombre: "Rodolfo Carter Fernández",
@@ -7770,8 +7800,35 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     icon: "Scale",
     color: "slate",
     featured: true,
+    telefono: "322504225-3225",
     email: "constitucion@senado.cl",
     temas: ["Constitución","Corte Suprema","Tribunal Constitucional","Justicia","Leyes Orgánicas","Código Penal"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Ignacio Vasquez"
+      },
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Rodrigo Pineda"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Cristián Contador"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Mauricio Fuentes"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Alejandra Díaz"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Lorena Martínez"
+      }
+    ],
     integrantes: [
       {
         nombre: "Pedro Araya Guerrero",
@@ -7826,8 +7883,23 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     icon: "TrendingUp",
     color: "emerald",
     featured: true,
+    telefono: "(56-32) 250 4336",
     email: "econosen@senado.cl",
     temas: ["Libre Competencia","SERNAC","Pymes","Inversión","Comercio","Mercados"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Pedro Fadic"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Robert Angelbeck"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Claudia Karmy"
+      }
+    ],
     integrantes: [
       {
         nombre: "Ricardo Celis Araya",
@@ -7882,8 +7954,27 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     icon: "DollarSign",
     color: "emerald",
     featured: true,
+    telefono: "(56-32) 250 4402",
     email: "hacisen@senado.cl",
     temas: ["Presupuesto Nacional","Reforma Tributaria","Sostenibilidad Fiscal","Pacto Fiscal","CFA","Deuda"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "María Soledad Aravena"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Alejandra Pacheco"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Sebastián Montenegro"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Cecilia Vielma"
+      }
+    ],
     integrantes: [
       {
         nombre: "Rodolfo Carter Fernández",
@@ -7938,8 +8029,23 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     icon: "GraduationCap",
     color: "indigo",
     featured: true,
+    telefono: "(56-32) 250 4040",
     email: "edusen@senado.cl",
     temas: ["Educación Escolar","Educación Superior","SLEP","Estatuto Docente","Gratuidad","Calidad"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Francisco Vives"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Carol Fuller"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Diana Robles"
+      }
+    ],
     integrantes: [
       {
         nombre: "Rojo Edwards",
@@ -7993,8 +8099,23 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     prefix: "senado-",
     icon: "Shield",
     color: "slate",
+    telefono: "(56-32) 250 4604",
     email: "defensen@senado.cl",
     temas: ["Fuerzas Armadas","Soberanía","Defensa Nacional","Ciberdefensa","Fronteras"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Milena Karelovic"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Fernanda Esteban"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Mabel Alberti"
+      }
+    ],
     integrantes: [
       {
         nombre: "Pedro Araya Guerrero",
@@ -8048,8 +8169,23 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     prefix: "senado-",
     icon: "Truck",
     color: "amber",
+    telefono: "(56-32) 250 4604",
     email: "ooppsen@senado.cl",
     temas: ["Concesiones","MOP","Carreteras","Puentes","Agua Potable Rural","Infraestructura"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Milena Karelovic"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Fernanda Esteban"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Mabel Alberti"
+      }
+    ],
     integrantes: [
       {
         nombre: "Rodolfo Carter Fernández",
@@ -8103,8 +8239,23 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     prefix: "senado-",
     icon: "Sprout",
     color: "emerald",
+    telefono: "(56-32) 250 4075",
     email: "agrisen@senado.cl",
     temas: ["SAG","INDAP","Suelo Agrícola","Seguridad Alimentaria","Riego","Desarrollo Rural"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Ximena Belmar"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Carolina Loyola"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Elizabeth Donoso"
+      }
+    ],
     integrantes: [
       {
         nombre: "Andrea Balladares Letelier",
@@ -8159,8 +8310,23 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     icon: "Leaf",
     color: "emerald",
     featured: true,
+    telefono: "(56-32) 250 4250",
     email: "medioambiente@senado.cl",
     temas: ["Cambio Climático","Biodiversidad","SEIA","Glaciares","Bienes Nacionales","Áreas Protegidas"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Juan Pablo Libuy"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Nicolás Montero"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "María Teresa Ibarra"
+      }
+    ],
     integrantes: [
       {
         nombre: "Miguel Ángel Calisto Águila",
@@ -8215,8 +8381,27 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     icon: "HardHat",
     color: "emerald",
     featured: true,
+    telefono: "(56-32) 250 4205",
     email: "trabajo@senado.cl",
     temas: ["Pensiones","Reforma Previsional","Seguridad Social","Código del Trabajo","Jornada Laboral","Empleo"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Pilar Silva"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Mireya Canavati"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Paulina Collado"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Angélica Antiguay"
+      }
+    ],
     integrantes: [
       {
         nombre: "Andrea Balladares Letelier",
@@ -8271,8 +8456,23 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     icon: "Heart",
     color: "rose",
     featured: true,
+    telefono: "(56-32) 250 4526",
     email: "saludsen@senado.cl",
     temas: ["Fonasa","Isapres","Hospitales","Medicamentos","Listas de Espera","Salud Mental"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Marcela Correa"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Evelyn Coronado"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Paula Pérez"
+      }
+    ],
     integrantes: [
       {
         nombre: "Karol Cariola Oliva",
@@ -8327,8 +8527,23 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     icon: "Zap",
     color: "amber",
     featured: true,
+    telefono: "(56-32) 250 4348",
     email: "mineria@senado.cl",
     temas: ["Litio","Cobre","Codelco","Transición Energética","Energías Renovables","Royalty"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Julio Cámara"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Magdalena Ascorra"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Paula  Sagredo"
+      }
+    ],
     integrantes: [
       {
         nombre: "Miguel Ángel Calisto Águila",
@@ -8382,8 +8597,23 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     prefix: "senado-",
     icon: "Home",
     color: "blue",
+    telefono: "(56) 32 2504156",
     email: "vivienda@senado.cl",
     temas: ["Plan Habitacional","Subsidios","Urbanismo","Campamentos","Regeneración Urbana"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Jorge Jenschke"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Luis Díaz"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Pamela Monsalves"
+      }
+    ],
     integrantes: [
       {
         nombre: "Miguel Ángel Becker Alvear",
@@ -8437,8 +8667,23 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     prefix: "senado-",
     icon: "Compass",
     color: "cyan",
+    telefono: "(56-32) 2504372",
     email: "transen@senado.cl",
     temas: ["Transporte Público","Subsidio Transporte","Telecomunicaciones","5G","Conectividad Digital"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Araceli Garrido"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Francisca Phillips"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Patricia Jara"
+      }
+    ],
     integrantes: [
       {
         nombre: "Danisa Astudillo Peiretti",
@@ -8492,8 +8737,23 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     prefix: "senado-",
     icon: "Users",
     color: "purple",
+    telefono: "(56-32) 250 4075",
     email: "ddhhsen@senado.cl",
     temas: ["Derechos Humanos","Memoria","Nacionalidad","Inclusión","Reparación"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Ximena Belmar"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Carolina Loyola"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Elizabeth Donoso"
+      }
+    ],
     integrantes: [
       {
         nombre: "Fabiola Campillai Rojas",
@@ -8548,8 +8808,23 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     icon: "Fish",
     color: "cyan",
     featured: true,
+    telefono: "(56-32) 250 4250",
     email: "pescasen@senado.cl",
     temas: ["Ley de Pesca","Pesca Artesanal","Acuicultura","Borde Costero","Cuotas Pesqueras"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Juan Pablo Libuy"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Nicolás Montero"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "María Teresa Ibarra"
+      }
+    ],
     integrantes: [
       {
         nombre: "Miguel Ángel Calisto Águila",
@@ -8603,8 +8878,23 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     prefix: "senado-",
     icon: "Building2",
     color: "slate",
+    telefono: "(56-32) 250 4000",
     email: "regimen-interior@senado.cl",
     temas: ["Administración del Senado","Presupuesto Corporación","Reglamento","Gestión Interna"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Luis Rojas"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Leonel Figueroa"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Marcia León"
+      }
+    ],
     integrantes: [
       {
         nombre: "Juan Luis Castro González",
@@ -8674,8 +8964,19 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     prefix: "senado-",
     icon: "BookOpen",
     color: "slate",
+    telefono: "(56-32) 250 4348",
     email: "ctasen@senado.cl",
     temas: ["Auditoría Interna","Control de Gastos","Cuentas del Senado","Transparencia"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Pedro Fadic"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Claudia Karmy"
+      }
+    ],
     integrantes: [
     ]
   },
@@ -8689,8 +8990,19 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     prefix: "senado-",
     icon: "Award",
     color: "indigo",
+    telefono: "(56-32) 250 4057",
     email: "eticaytransparencia@senado.cl",
     temas: ["Probidad","Ética Parlamentaria","Transparencia","Conflictos de Interés"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Julio Cámara"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Viviana Castro"
+      }
+    ],
     integrantes: [
       {
         nombre: "Andrea Balladares Letelier",
@@ -8745,8 +9057,23 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     icon: "Cpu",
     color: "purple",
     featured: true,
+    telefono: "(56-32) 250 4336",
     email: "comisionfuturo@senado.cl",
     temas: ["Inteligencia Artificial","Congreso Futuro","Ciencia e Innovación","Tecnología","Espacio"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Pedro Fadic"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Robert Angelbeck"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Claudia Karmy"
+      }
+    ],
     integrantes: [
       {
         nombre: "Ricardo Celis Araya",
@@ -8801,6 +9128,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     icon: "Shield",
     color: "slate",
     featured: true,
+    telefono: "(56-32) 250 4227",
     email: "seguridadpublica@senado.cl",
     temas: ["Seguridad Pública","Crimen Organizado","Carabineros","PDI","Ley Antiterrorista","RUF"],
     integrantes: [
@@ -8857,8 +9185,23 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     icon: "Droplets",
     color: "cyan",
     featured: true,
+    telefono: "(56-32) 250 4156",
     email: "recursoshidricos@senado.cl",
     temas: ["Código de Aguas","Sequía","Desalinización","Cuencas","Seguridad Hídrica"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Jorge Jenschke"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Luis Díaz"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Pamela Monsalves"
+      }
+    ],
     integrantes: [
       {
         nombre: "Karol Cariola Oliva",
@@ -8913,8 +9256,23 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     icon: "Sparkles",
     color: "rose",
     featured: true,
+    telefono: "(56-32) 250 4205",
     email: "comisiondelamujer@senado.cl",
     temas: ["Equidad de Género","Violencia contra la Mujer","Igualdad Salarial","Cuidados"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Pilar Silva"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Paulina Collado"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Angélica Antiguay"
+      }
+    ],
     integrantes: [
       {
         nombre: "Loreto Carvajal Ambiado",
@@ -8968,8 +9326,23 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     prefix: "senado-",
     icon: "Smile",
     color: "amber",
+    telefono: "(56-32) 250 4116",
     email: "adultomydiscapacidad@senado.cl",
     temas: ["Personas Mayores","Discapacidad","Cuidados","Inclusión","Accesibilidad"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Juan Pablo Durán"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Niscia Rubio"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Beatriz Galleguillos"
+      }
+    ],
     integrantes: [
       {
         nombre: "Miguel Ángel Becker Alvear",
@@ -9023,8 +9396,23 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     prefix: "senado-",
     icon: "Music",
     color: "purple",
+    telefono: "(56-32) 250 4040",
     email: "culturaydeportes@senado.cl",
     temas: ["Patrimonio","Artes y Cultura","Deporte","Alto Rendimiento","Monumentos"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Francisco Vives"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Jacqueline Calderón"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Diana Robles"
+      }
+    ],
     integrantes: [
       {
         nombre: "Alfonso De Urresti Longton",
@@ -9078,8 +9466,23 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     prefix: "senado-",
     icon: "Users",
     color: "rose",
+    telefono: "(56-32) 250 4372",
     email: "comisioninfancia@senado.cl",
     temas: ["Protección de la Niñez","Mejor Niñez","Adopción","Familias","Derechos de Infancia"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Araceli Garrido"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Francisca Phillips"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Patricia Jara"
+      }
+    ],
     integrantes: [
       {
         nombre: "Andrea Balladares Letelier",
@@ -9134,8 +9537,27 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     icon: "DollarSign",
     color: "emerald",
     featured: true,
+    telefono: "(56-32) 250 4402",
     email: "compres@senado.cl",
     temas: ["Ley de Presupuestos","Partidas Presupuestarias","Erario Nacional","DIPRES","Gasto Público"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "María Soledad Aravena"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Alejandra Pacheco"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Sebastián Montenegro"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Cecilia Vielma"
+      }
+    ],
     integrantes: [
       {
         nombre: "Andrea Balladares Letelier",
@@ -9357,8 +9779,23 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     prefix: "senado-",
     icon: "Scale",
     color: "slate",
+    telefono: "(56-32) 250 4225",
     email: "constitucion@senado.cl",
     temas: ["Constitución","Bicameral","Normativa Constitucional"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Rodrigo Pineda"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Cristián Contador"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Susana Guajardo"
+      }
+    ],
     integrantes: [
       {
         nombre: "Eric Aedo Jeldres",
@@ -9516,6 +9953,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     prefix: "senado-",
     icon: "Award",
     color: "indigo",
+    telefono: "(56-32) 2505629",
     email: "rocio.noriega@congreso.cl",
     temas: ["Transparencia","Parlamento Abierto","Probidad","Acceso a la Información"],
     integrantes: [
@@ -9572,8 +10010,23 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     icon: "Shield",
     color: "slate",
     featured: true,
+    telefono: "(56-32) 250 4040",
     email: "seguridadpublica@senado.cl",
     temas: ["Agenda de Seguridad","Crimen Organizado","Policías","Leyes de Seguridad"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Francisco Vives"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Niscia Rubio"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Diana Robles"
+      }
+    ],
     integrantes: [
       {
         nombre: "Jorge Alessandri Vergara",
@@ -9692,8 +10145,23 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     icon: "Compass",
     color: "blue",
     featured: true,
+    telefono: "(56-32) 250 4526",
     email: "zonasextremas@senado.cl",
     temas: ["Zonas Extremas","Magallanes","Aysén","Arica","Territorios Especiales","Incentivos"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Marcela Correa"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Evelyn Coronado"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Paula Pérez"
+      }
+    ],
     integrantes: [
       {
         nombre: "Danisa Astudillo Peiretti",
@@ -9835,8 +10303,23 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     prefix: "senado-",
     icon: "Building2",
     color: "slate",
+    telefono: "(56-32) 250 4116",
     email: "gobierno@senado.cl",
     temas: ["LOC Congreso Nacional","Reglamento","Funcionamiento Legislativo"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Juan Pablo Durán"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Niscia Rubio"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Beatriz Galleguillos"
+      }
+    ],
     integrantes: [
       {
         nombre: "Pedro Araya Guerrero",
@@ -9914,8 +10397,35 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     prefix: "senado-",
     icon: "DollarSign",
     color: "emerald",
-    email: "agrisen@senado.cl, gobsen@senado.cl",
+    telefono: "32-2504075 - 25",
+    email: "agrisen@senado.cl",
     temas: ["Presupuestos","Ministerio de Agricultura","Economía","Partidas Presupuestarias"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Juan Pablo Durán"
+      },
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Ximena Belmar"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Carolina Loyola"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Niscia Rubio"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Beatriz Galleguillos"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Elizabeth Donoso"
+      }
+    ],
     integrantes: [
       {
         nombre: "Andrea Balladares Letelier",
@@ -9969,8 +10479,31 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     prefix: "senado-",
     icon: "DollarSign",
     color: "emerald",
+    telefono: "32- 2504604 250",
     email: "subcomision-2-presupuestos@senado.cl",
     temas: ["Presupuestos","Obras Públicas","Transportes","Partidas Presupuestarias"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Milena Karelovic"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Fernanda Esteban"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Katherine Ortiz"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Carolina Galleguillos"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Mabel Alberti"
+      }
+    ],
     integrantes: [
       {
         nombre: "Rodolfo Carter Fernández",
@@ -10024,8 +10557,47 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     prefix: "senado-",
     icon: "DollarSign",
     color: "emerald",
-    email: "tercerapresupuestos@senado.cl",
+    telefono: "(56-32) 250 4205",
+    email: "trabasen@senado.cl",
     temas: ["Presupuestos","Salud","Trabajo","Partidas Presupuestarias"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Ignacio Vasquez"
+      },
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Pilar Silva"
+      },
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Rodrigo Pineda"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Cristián Contador"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Mauricio Fuentes"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Paulina Collado"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Alejandra Díaz"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Angélica Antiguay"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Lorena Martínez"
+      }
+    ],
     integrantes: [
       {
         nombre: "Jaime Coloma Álamos",
@@ -10079,8 +10651,67 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     prefix: "senado-",
     icon: "DollarSign",
     color: "emerald",
+    telefono: "32 2504040 4336",
     email: "edusen@senado.cl",
     temas: ["Presupuestos","Educación","Ciencia","Partidas Presupuestarias"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Francisco Vives"
+      },
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Jorge Jenschke"
+      },
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Julio Cámara"
+      },
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Pedro Fadic"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Carol Fuller"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Jacqueline Calderón"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Luis Díaz"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Magdalena Ascorra"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Niscia Rubio"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Robert Angelbeck"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Claudia Karmy"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Diana Robles"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Pamela Monsalves"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Paula  Sagredo"
+      }
+    ],
     integrantes: [
       {
         nombre: "Boris Barrera Moreno",
@@ -10142,8 +10773,47 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     prefix: "senado-",
     icon: "DollarSign",
     color: "emerald",
+    telefono: "(56-32) 250 4250",
     email: "quintasubcomision@senado.cl",
     temas: ["Presupuestos","Interior","Seguridad Pública","Defensa","Partidas Presupuestarias"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Araceli Garrido"
+      },
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Juan Pablo Libuy"
+      },
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Marcela Correa"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Evelyn Coronado"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Francisca Phillips"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Nicolás Montero"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "María Teresa Ibarra"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Patricia Jara"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Paula Pérez"
+      }
+    ],
     integrantes: [
       {
         nombre: "Carlos Bianchi Chelech",
@@ -10197,8 +10867,39 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     prefix: "senado-",
     icon: "Scale",
     color: "purple",
-    email: "comisiones@senado.cl",
+    telefono: "(56-32) 250 4658",
+    email: "constitucion@senado.cl",
     temas: ["Tramitación Mixta","Resolución de Discrepancias","Congreso Nacional"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Ignacio Vasquez"
+      },
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Rodrigo Pineda"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Cristián Contador"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Mauricio Fuentes"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Elisa Calderon"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Lorena Martínez"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Susana Guajardo"
+      }
+    ],
     integrantes: [
     ]
   },
@@ -10213,8 +10914,23 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     icon: "Shield",
     color: "purple",
     featured: true,
-    email: "comisiones@senado.cl",
+    telefono: "32- 2504604 250",
+    email: "defensen@senado.cl",
     temas: ["Tramitación Mixta","Resolución de Discrepancias","Congreso Nacional"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Milena Karelovic"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Fernanda Esteban"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Mabel Alberti"
+      }
+    ],
     integrantes: [
     ]
   },
@@ -10228,8 +10944,23 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     prefix: "senado-",
     icon: "Scale",
     color: "purple",
+    telefono: "(56-32) 250 4000",
     email: "comisiones@senado.cl",
     temas: ["Tramitación Mixta","Resolución de Discrepancias","Congreso Nacional"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Juan Pablo Durán"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Niscia Rubio"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Beatriz Galleguillos"
+      }
+    ],
     integrantes: [
     ]
   },
@@ -10243,8 +10974,23 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     prefix: "senado-",
     icon: "Scale",
     color: "purple",
+    telefono: "(56-32) 250 4000",
     email: "comisiones@senado.cl",
     temas: ["Tramitación Mixta","Resolución de Discrepancias","Congreso Nacional"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Juan Pablo Durán"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Niscia Rubio"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Beatriz Galleguillos"
+      }
+    ],
     integrantes: [
     ]
   },
@@ -10258,8 +11004,31 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     prefix: "senado-",
     icon: "Scale",
     color: "purple",
-    email: "comisiones@senado.cl",
+    telefono: "(56-32) 250 4658",
+    email: "constsen@senado.cl",
     temas: ["Tramitación Mixta","Resolución de Discrepancias","Congreso Nacional"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Ignacio Vasquez"
+      },
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Rodrigo Pineda"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Cristián Contador"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Mauricio Fuentes"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Lorena Martínez"
+      }
+    ],
     integrantes: [
     ]
   },
@@ -10273,8 +11042,23 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     prefix: "senado-",
     icon: "Scale",
     color: "purple",
-    email: "comisiones@senado.cl",
+    telefono: "(56-32) 250 4075",
+    email: "agrisen@senado.cl",
     temas: ["Tramitación Mixta","Resolución de Discrepancias","Congreso Nacional"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Ximena Belmar"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Carolina Loyola"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Elizabeth Donoso"
+      }
+    ],
     integrantes: [
     ]
   },
@@ -10288,8 +11072,23 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     prefix: "senado-",
     icon: "Scale",
     color: "purple",
+    telefono: "(56-32) 250 4000",
     email: "comisiones@senado.cl",
     temas: ["Tramitación Mixta","Resolución de Discrepancias","Congreso Nacional"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Mireya Canavati"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Katherine Ortiz"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Carolina Galleguillos"
+      }
+    ],
     integrantes: [
     ]
   },
@@ -10303,8 +11102,23 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     prefix: "senado-",
     icon: "Scale",
     color: "purple",
+    telefono: "(56-32) 250 4000",
     email: "comisiones@senado.cl",
     temas: ["Tramitación Mixta","Resolución de Discrepancias","Congreso Nacional"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Francisco Vives"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Carol Fuller"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Diana Robles"
+      }
+    ],
     integrantes: [
     ]
   },
@@ -10318,8 +11132,23 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     prefix: "senado-",
     icon: "Scale",
     color: "purple",
+    telefono: "(56-32) 250 4000",
     email: "comisiones@senado.cl",
     temas: ["Tramitación Mixta","Resolución de Discrepancias","Congreso Nacional"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Francisco Vives"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Carol Fuller"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Diana Robles"
+      }
+    ],
     integrantes: [
     ]
   },
@@ -10333,8 +11162,27 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     prefix: "senado-",
     icon: "Scale",
     color: "purple",
+    telefono: "(56-32) 250 4000",
     email: "comisiones@senado.cl",
     temas: ["Tramitación Mixta","Resolución de Discrepancias","Congreso Nacional"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "María Soledad Aravena"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Alejandra Pacheco"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Sebastián Montenegro"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Cecilia Vielma"
+      }
+    ],
     integrantes: [
     ]
   },
@@ -10348,8 +11196,23 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     prefix: "senado-",
     icon: "Scale",
     color: "purple",
+    telefono: "(56-32) 250 4000",
     email: "comisiones@senado.cl",
     temas: ["Tramitación Mixta","Resolución de Discrepancias","Congreso Nacional"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Jorge Jenschke"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Luis Díaz"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Pamela Monsalves"
+      }
+    ],
     integrantes: [
     ]
   },
@@ -10364,8 +11227,23 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     icon: "Shield",
     color: "slate",
     featured: true,
-    email: "comisiones@senado.cl",
+    telefono: "(56-32) 250 4604",
+    email: "defensen@senado.cl",
     temas: ["Tramitación Mixta","Resolución de Discrepancias","Congreso Nacional"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Milena Karelovic"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Fernanda Esteban"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Mabel Alberti"
+      }
+    ],
     integrantes: [
     ]
   },
@@ -10379,8 +11257,23 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     prefix: "senado-",
     icon: "Scale",
     color: "slate",
-    email: "comisiones@senado.cl",
+    telefono: "(56-32) 250 4658",
+    email: "constitucion@senado.cl",
     temas: ["Tramitación Mixta","Resolución de Discrepancias","Congreso Nacional"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Ignacio Vasquez"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Mauricio Fuentes"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Lorena Martínez"
+      }
+    ],
     integrantes: [
     ]
   },
@@ -10394,8 +11287,23 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     prefix: "senado-",
     icon: "Sun",
     color: "amber",
-    email: "comisiones@senado.cl",
+    telefono: "(56-32) 250 4075",
+    email: "agrisen@senado.cl",
     temas: ["Tramitación Mixta","Resolución de Discrepancias","Congreso Nacional"],
+    staff: [
+      {
+        cargo: "Abogado Secretario",
+        nombre: "Ximena Belmar"
+      },
+      {
+        cargo: "Abogado Ayudante",
+        nombre: "Carolina Loyola"
+      },
+      {
+        cargo: "Secretaria Ejecutiva",
+        nombre: "Elizabeth Donoso"
+      }
+    ],
     integrantes: [
     ]
   }
