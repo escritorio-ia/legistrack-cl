@@ -2164,6 +2164,9 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
                       <h3 className="text-xs font-black uppercase text-slate-800 tracking-wider flex items-center gap-1.5">
                         <FileText className="w-4 h-4 text-emerald-600" />
                         <span>Proyectos Prioritarios en Tabla</span>
+                        <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                          {comision.proyectos?.length || 0}
+                        </span>
                       </h3>
                       <button
                         onClick={() => setActiveTab("proyectos")}
@@ -2174,39 +2177,61 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
                       </button>
                     </div>
 
-                    <div className="space-y-2.5">
-                      {(comision.proyectos || []).slice(0, 3).map((p) => (
-                        <div
-                          key={p.id}
-                          onClick={() => { setSelectedProyectoId(p.id); setView("proyecto-detail"); }}
-                          className="p-3 rounded-xl border border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/20 transition-all cursor-pointer group shadow-2xs"
-                        >
-                          <div className="flex items-center justify-between gap-2 mb-1">
-                            <span className="font-mono text-[11px] font-extrabold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                              Boletín {p.id}
-                            </span>
-                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase border ${
-                              p.estado === "En discusión" || p.estado === "En sala"
-                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                : "bg-slate-100 text-slate-700 border-slate-200"
-                            }`}>
-                              {p.estado || "En estudio"}
-                            </span>
+                    <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
+                      {(comision.proyectos || []).slice(0, 4).map((p, idx) => {
+                        const isEnTablaSession = comision.proximaSesion?.materia?.includes(p.id.replace(/[\.\s]/g, "")) || 
+                          comision.proximaSesion?.materia?.includes(p.id) ||
+                          (idx === 0 && comision.proximaSesion?.materia?.toLowerCase().includes("bolet"));
+
+                        return (
+                          <div
+                            key={p.id}
+                            onClick={() => { setSelectedProyectoId(p.id); setView("proyecto-detail"); }}
+                            className={`p-3 rounded-xl border transition-all cursor-pointer group shadow-2xs ${
+                              isEnTablaSession 
+                                ? "border-emerald-300 bg-emerald-50/40 hover:bg-emerald-50/70" 
+                                : "border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/20 bg-white"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2 mb-1 flex-wrap">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-mono text-[11px] font-extrabold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                                  Boletín {p.id}
+                                </span>
+                                {isEnTablaSession && (
+                                  <span className="text-[9px] font-extrabold bg-amber-100 text-amber-900 border border-amber-300 px-1.5 py-0.5 rounded uppercase flex items-center gap-1">
+                                    <Sparkles className="w-2.5 h-2.5 text-amber-600" />
+                                    <span>En Tabla Esta Semana</span>
+                                  </span>
+                                )}
+                              </div>
+                              <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase border ${
+                                p.estado === "En discusión" || p.estado === "En sala" || p.estado === "En tramitación"
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  : "bg-slate-100 text-slate-700 border-slate-200"
+                              }`}>
+                                {p.estado || "En tramitación"}
+                              </span>
+                            </div>
+                            <h4 className="text-xs font-bold text-slate-900 group-hover:text-emerald-700 transition-colors line-clamp-2 leading-snug">
+                              {p.titulo}
+                            </h4>
+                            <p className="text-[10px] text-slate-500 mt-1 flex items-center justify-between">
+                              <span>{p.etapa || "Primer Trámite Constitucional"}</span>
+                              {p.fechaIngreso && <span className="text-slate-400">Ingreso: {p.fechaIngreso}</span>}
+                            </p>
                           </div>
-                          <h4 className="text-xs font-bold text-slate-900 group-hover:text-emerald-700 transition-colors line-clamp-1 leading-snug">
-                            {p.titulo}
-                          </h4>
-                          <p className="text-[10px] text-slate-500 mt-0.5">{p.etapa || "Primer Trámite Constitucional"}</p>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
 
                   <button
                     onClick={() => setActiveTab("proyectos")}
-                    className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-xs py-2 rounded-xl transition-colors cursor-pointer text-center"
+                    className="w-full bg-slate-50 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-300 text-slate-700 hover:text-emerald-800 font-bold text-xs py-2.5 rounded-xl transition-all cursor-pointer text-center flex items-center justify-center gap-1.5"
                   >
-                    Explorar cartera completa de proyectos de ley &rarr;
+                    <span>Explorar cartera completa ({comision.proyectos?.length || 0} proyectos en trámite)</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>

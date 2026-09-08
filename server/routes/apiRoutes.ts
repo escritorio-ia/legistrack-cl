@@ -392,6 +392,56 @@ apiRouter.get("/comision/:id", async (req: Request, res: Response) => {
       }
     }
 
+    if (matchDetalle.chamber === "CD" || matchDetalle.prefix === "cd-") {
+      const CAMARA_SLUG_TO_TRAMITACION_ID: Record<string, string> = {
+        "agricultura": "210",
+        "constitucion": "205",
+        "hacienda": "207",
+        "gobierno-interior": "203",
+        "trabajo-y-prevision": "213",
+        "educacion": "206",
+        "salud": "212",
+        "seguridad": "839",
+        "obras-publicas": "209",
+        "economia": "215",
+        "medio-ambiente": "211",
+        "mineria": "214",
+        "vivienda": "216",
+        "pesca": "439",
+        "mujeres-genero": "1121",
+        "defensa": "208",
+        "rree": "204",
+        "derechos-humanos": "217",
+        "desarrollo-social": "874",
+        "recursos-hidricos": "965",
+        "cultura": "760",
+        "deportes": "1018",
+        "personas-mayores": "1218",
+        "ciencias": "219",
+        "familias": "218",
+        "regimen-interno": "220",
+        "emergencias": "1066"
+      };
+
+      const camaraComiId = CAMARA_SLUG_TO_TRAMITACION_ID[matchDetalle.id];
+      if (camaraComiId) {
+        try {
+          const liveCamaraProjects = await fetchSenadoComisionProyectosLive(
+            camaraComiId,
+            matchDetalle.nombre,
+            forceRefresh
+          );
+          if (liveCamaraProjects && liveCamaraProjects.length > 0) {
+            fullComision.proyectos = liveCamaraProjects;
+            fullComision.proyectosContados = liveCamaraProjects.length;
+            fullComision.proyectosIds = liveCamaraProjects.map(p => p.id);
+          }
+        } catch (err) {
+          console.warn("Could not fetch live Cámara projects:", err);
+        }
+      }
+    }
+
     if (forceRefresh && matchDetalle.chamber === "CD") {
       try {
         const liveCit = await fetchCamaraCitacionesSemanalesLive(true);
