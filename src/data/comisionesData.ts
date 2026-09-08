@@ -7666,6 +7666,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PS",
         rol: "Presidenta de Comisión",
         email: "dastudillo@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/4CC00500-13AA-0722-E063-5A68A8C08157/danisa-astudillo-pieretti-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -7673,6 +7674,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "RN",
         rol: "Miembro Titular",
         email: "mbecker@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC30-6F29-E063-5968A8C00BC5/miguel-angel-becker-alvear-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -7680,6 +7682,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PPD",
         rol: "Miembro Titular",
         email: "lcarvajal@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBAB-6F29-E063-5968A8C00BC5/loreto-carvajal-ambiado-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -7687,6 +7690,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "UDI",
         rol: "Miembro Titular",
         email: "rtrisotti@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBC8-6F29-E063-5968A8C00BC5/renzo-trisotti-martinez-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -7694,6 +7698,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "FRVS",
         rol: "Miembro Titular",
         email: "evelasquez@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC1C-6F29-E063-5968A8C00BC5/esteban-velasquez-nunez-dip_450x750.jpg",
         camara: "Senado de la República"
       }
     ]
@@ -7717,6 +7722,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PREP",
         rol: "Miembro Titular",
         email: "rcarter@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/4CC00500-13AF-0722-E063-5A68A8C08157/rodolfo-carter-fernandez-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -7724,6 +7730,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PPD",
         rol: "Miembro Titular",
         email: "lcarvajal@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBAB-6F29-E063-5968A8C00BC5/loreto-carvajal-ambiado-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -7731,6 +7738,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PL",
         rol: "Miembro Titular",
         email: "vmirosevic@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBBC-6F29-E063-5968A8C00BC5/vlado-mirosevic-verdugo-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -7738,6 +7746,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "UDI",
         rol: "Miembro Titular",
         email: "imoreira@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DA07-6F29-E063-5968A8C00BC5/ivan-moreira-barros-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -7745,6 +7754,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "RN",
         rol: "Presidente de Comisión",
         email: "mjossandon@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBA4-6F29-E063-5968A8C00BC5/manuel-jose-ossandon-irarrazabal-sen_450x750.jpg",
         camara: "Senado de la República"
       }
     ]
@@ -7768,6 +7778,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PPD",
         rol: "Presidente de Comisión",
         email: "paraya@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DAD8-6F29-E063-5968A8C00BC5/pedro-araya-guerrero-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -7775,6 +7786,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "RN",
         rol: "Miembro Titular",
         email: "alongton@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBF7-6F29-E063-5968A8C00BC5/andres-longton-herrera-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -7782,6 +7794,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PC",
         rol: "Miembro Titular",
         email: "cpascual@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DCA1-6F29-E063-5968A8C00BC5/claudia-pascual-grau-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -7789,6 +7802,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PREP",
         rol: "Miembro Titular",
         email: "asquella@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-D9F5-6F29-E063-5968A8C00BC5/arturo-squella-ovalle-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -7796,6 +7810,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PS",
         rol: "Miembro Titular",
         email: "pvodanovic@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC24-6F29-E063-5968A8C00BC5/paulina-vodanovic-rojas-sen_450x750.jpg",
         camara: "Senado de la República"
       }
     ]
@@ -7819,6 +7834,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PPD",
         rol: "Miembro Titular",
         email: "rcelis@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBDD-6F29-E063-5968A8C00BC5/ricardo-celis-araya-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -7826,6 +7842,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "FA",
         rol: "Miembro Titular",
         email: "dibanez@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBEE-6F29-E063-5968A8C00BC5/diego-ibanez-cotroneo-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -7833,6 +7850,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "RN",
         rol: "Miembro Titular",
         email: "ckuschel@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DA66-6F29-E063-5968A8C00BC5/carlos-ignacio-kuschel-silva-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -7840,6 +7858,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PS",
         rol: "Presidente de Comisión",
         email: "gsaavedra@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC10-6F29-E063-5968A8C00BC5/gaston-saavedra-chandia-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -7847,6 +7866,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "Demócratas",
         rol: "Miembro Titular",
         email: "mwalker@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-D9FC-6F29-E063-5968A8C00BC5/matias-walker-prieto-dip_450x750.jpg",
         camara: "Senado de la República"
       }
     ]
@@ -7870,6 +7890,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PREP",
         rol: "Miembro Titular",
         email: "rcarter@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/4CC00500-13AF-0722-E063-5A68A8C08157/rodolfo-carter-fernandez-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -7877,6 +7898,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PS",
         rol: "Miembro Titular",
         email: "dcicardini@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBAC-6F29-E063-5968A8C00BC5/daniella-cicardini-milla-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -7884,6 +7906,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "RN",
         rol: "Miembro Titular",
         email: "mgatica@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC9B-6F29-E063-5968A8C00BC5/maria-jose-gatica-bertin-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -7891,6 +7914,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "UDI",
         rol: "Presidente de Comisión",
         email: "jmacaya@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-D9E9-6F29-E063-5968A8C00BC5/javier-macaya-danus-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -7898,6 +7922,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PS",
         rol: "Miembro Titular",
         email: "pvodanovic@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC24-6F29-E063-5968A8C00BC5/paulina-vodanovic-rojas-sen_450x750.jpg",
         camara: "Senado de la República"
       }
     ]
@@ -7921,6 +7946,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PREP",
         rol: "Miembro Titular",
         email: "redwards@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC97-6F29-E063-5968A8C00BC5/rojo-edwards-silva-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -7928,6 +7954,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PL",
         rol: "Miembro Titular",
         email: "vmirosevic@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBBC-6F29-E063-5968A8C00BC5/vlado-mirosevic-verdugo-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -7935,6 +7962,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "DC",
         rol: "Miembro Titular",
         email: "yprovoste@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBC3-6F29-E063-5968A8C00BC5/yasna-provoste-campillay-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -7942,6 +7970,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "UDI",
         rol: "Presidente de Comisión",
         email: "gsanhueza@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC11-6F29-E063-5968A8C00BC5/gustavo-sanhueza-duenas-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -7949,6 +7978,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "IND",
         rol: "Miembro Titular",
         email: "cvial@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/4CC00500-13BC-0722-E063-5A68A8C08157/cristian-vial-maceratta-sen_450x750.jpg",
         camara: "Senado de la República"
       }
     ]
@@ -7971,6 +8001,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PPD",
         rol: "Miembro Titular",
         email: "paraya@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DAD8-6F29-E063-5968A8C00BC5/pedro-araya-guerrero-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -7978,6 +8009,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "RN",
         rol: "Miembro Titular",
         email: "cflores@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBE7-6F29-E063-5968A8C00BC5/camila-flores-oporto-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -7985,6 +8017,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "DC",
         rol: "Presidente de Comisión",
         email: "fhuenchumilla@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DAFD-6F29-E063-5968A8C00BC5/francisco-huenchumilla-jaramillo-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -7992,6 +8025,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PS",
         rol: "Miembro Titular",
         email: "gsaavedra@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC10-6F29-E063-5968A8C00BC5/gaston-saavedra-chandia-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -7999,6 +8033,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "IND",
         rol: "Miembro Titular",
         email: "cvial@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/4CC00500-13BC-0722-E063-5A68A8C08157/cristian-vial-maceratta-sen_450x750.jpg",
         camara: "Senado de la República"
       }
     ]
@@ -8021,6 +8056,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PREP",
         rol: "Miembro Titular",
         email: "rcarter@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/4CC00500-13AF-0722-E063-5A68A8C08157/rodolfo-carter-fernandez-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8028,6 +8064,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PS",
         rol: "Miembro Titular",
         email: "adeurresti@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DAA4-6F29-E063-5968A8C00BC5/alfonso-de-urresti-longton-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8035,6 +8072,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "RN",
         rol: "Presidente de Comisión",
         email: "mgatica@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC9B-6F29-E063-5968A8C00BC5/maria-jose-gatica-bertin-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8042,6 +8080,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PPD",
         rol: "Miembro Titular",
         email: "xordenes@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC8E-6F29-E063-5968A8C00BC5/ximena-ordenes-neira-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8049,6 +8088,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PREP",
         rol: "Miembro Titular",
         email: "iurrutia@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DB61-6F29-E063-5968A8C00BC5/ignacio-urrutia-bonilla-dip_450x750.jpg",
         camara: "Senado de la República"
       }
     ]
@@ -8071,6 +8111,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "RN",
         rol: "Miembro Titular",
         email: "aballadares@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/4CC00500-13AB-0722-E063-5A68A8C08157/andrea-balladares-letelier-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8078,6 +8119,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PPD",
         rol: "Miembro Titular",
         email: "lcarvajal@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBAB-6F29-E063-5968A8C00BC5/loreto-carvajal-ambiado-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8085,6 +8127,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PS",
         rol: "Miembro Titular",
         email: "adeurresti@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DAA4-6F29-E063-5968A8C00BC5/alfonso-de-urresti-longton-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8092,6 +8135,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "IND",
         rol: "Presidente de Comisión",
         email: "asepulveda@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DB22-6F29-E063-5968A8C00BC5/alejandra-sepulveda-orbenes-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8099,6 +8143,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PREP",
         rol: "Miembro Titular",
         email: "iurrutia@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DB61-6F29-E063-5968A8C00BC5/ignacio-urrutia-bonilla-dip_450x750.jpg",
         camara: "Senado de la República"
       }
     ]
@@ -8122,6 +8167,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "DEM",
         rol: "Miembro Titular",
         email: "mcalisto@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBD9-6F29-E063-5968A8C00BC5/miguel-angel-calisto-aguila-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8129,6 +8175,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PPD",
         rol: "Miembro Titular",
         email: "rcelis@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBDD-6F29-E063-5968A8C00BC5/ricardo-celis-araya-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8136,6 +8183,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PS",
         rol: "Miembro Titular",
         email: "adeurresti@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DAA4-6F29-E063-5968A8C00BC5/alfonso-de-urresti-longton-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8143,6 +8191,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "UDI",
         rol: "Presidente de Comisión",
         email: "sgahona@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBB6-6F29-E063-5968A8C00BC5/sergio-gahona-salazar-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8150,6 +8199,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "RN",
         rol: "Miembro Titular",
         email: "alongton@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBF7-6F29-E063-5968A8C00BC5/andres-longton-herrera-dip_450x750.jpg",
         camara: "Senado de la República"
       }
     ]
@@ -8173,6 +8223,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "RN",
         rol: "Miembro Titular",
         email: "aballadares@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/4CC00500-13AB-0722-E063-5A68A8C08157/andrea-balladares-letelier-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8180,6 +8231,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "Evópoli",
         rol: "Presidente de Comisión",
         email: "lcruzcoke@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBE1-6F29-E063-5968A8C00BC5/luciano-cruz-coke-carvallo-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8187,6 +8239,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PC",
         rol: "Miembro Titular",
         email: "dnunez@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBBE-6F29-E063-5968A8C00BC5/daniel-nunez-arancibia-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8194,6 +8247,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PS",
         rol: "Miembro Titular",
         email: "gsaavedra@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC10-6F29-E063-5968A8C00BC5/gaston-saavedra-chandia-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8201,6 +8255,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PREP",
         rol: "Miembro Titular",
         email: "asquella@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-D9F5-6F29-E063-5968A8C00BC5/arturo-squella-ovalle-dip_450x750.jpg",
         camara: "Senado de la República"
       }
     ]
@@ -8224,6 +8279,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PC",
         rol: "Miembro Titular",
         email: "kcariola@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBAA-6F29-E063-5968A8C00BC5/karol-cariola-oliva-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8231,6 +8287,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PS",
         rol: "Presidente de Comisión",
         email: "jcastro@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DB93-6F29-E063-5968A8C00BC5/juan-luis-castro-gonzalez-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8238,6 +8295,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "UDI",
         rol: "Miembro Titular",
         email: "sgahona@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBB6-6F29-E063-5968A8C00BC5/sergio-gahona-salazar-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8245,6 +8303,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "IND",
         rol: "Miembro Titular",
         email: "elee@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/4CC00500-13B5-0722-E063-5A68A8C08157/enrique-lee-flores-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8252,6 +8311,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PPD",
         rol: "Miembro Titular",
         email: "xordenes@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC8E-6F29-E063-5968A8C00BC5/ximena-ordenes-neira-sen_450x750.jpg",
         camara: "Senado de la República"
       }
     ]
@@ -8275,6 +8335,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "DEM",
         rol: "Miembro Titular",
         email: "mcalisto@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBD9-6F29-E063-5968A8C00BC5/miguel-angel-calisto-aguila-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8282,6 +8343,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PS",
         rol: "Miembro Titular",
         email: "jcastro@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DB93-6F29-E063-5968A8C00BC5/juan-luis-castro-gonzalez-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8289,6 +8351,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PC",
         rol: "Miembro Titular",
         email: "dnunez@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBBE-6F29-E063-5968A8C00BC5/daniel-nunez-arancibia-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8296,6 +8359,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "DC",
         rol: "Presidenta de Comisión",
         email: "yprovoste@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBC3-6F29-E063-5968A8C00BC5/yasna-provoste-campillay-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8303,6 +8367,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "UDI",
         rol: "Miembro Titular",
         email: "rtrisotti@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBC8-6F29-E063-5968A8C00BC5/renzo-trisotti-martinez-dip_450x750.jpg",
         camara: "Senado de la República"
       }
     ]
@@ -8325,6 +8390,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "RN",
         rol: "Miembro Titular",
         email: "mbecker@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC30-6F29-E063-5968A8C00BC5/miguel-angel-becker-alvear-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8332,6 +8398,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PPD",
         rol: "Miembro Titular",
         email: "lcarvajal@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBAB-6F29-E063-5968A8C00BC5/loreto-carvajal-ambiado-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8339,6 +8406,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PS",
         rol: "Presidente de Comisión",
         email: "fespinoza@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DADC-6F29-E063-5968A8C00BC5/fidel-espinoza-sandoval-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8346,6 +8414,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "UDI",
         rol: "Miembro Titular",
         email: "gsanhueza@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC11-6F29-E063-5968A8C00BC5/gustavo-sanhueza-duenas-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8353,6 +8422,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "IND",
         rol: "Miembro Titular",
         email: "asepulveda@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DB22-6F29-E063-5968A8C00BC5/alejandra-sepulveda-orbenes-dip_450x750.jpg",
         camara: "Senado de la República"
       }
     ]
@@ -8375,6 +8445,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PS",
         rol: "Miembro Titular",
         email: "dastudillo@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/4CC00500-13AA-0722-E063-5A68A8C08157/danisa-astudillo-pieretti-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8382,6 +8453,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PPD",
         rol: "Miembro Titular",
         email: "lcarvajal@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBAB-6F29-E063-5968A8C00BC5/loreto-carvajal-ambiado-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8389,6 +8461,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "RN",
         rol: "Presidente de Comisión",
         email: "cflores@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBE7-6F29-E063-5968A8C00BC5/camila-flores-oporto-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8396,6 +8469,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "IND",
         rol: "Miembro Titular",
         email: "akusanovic@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC9D-6F29-E063-5968A8C00BC5/alejandro-kusanovic-glusevic-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8403,6 +8477,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "UDI",
         rol: "Miembro Titular",
         email: "evanrysselberghe@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-D9F9-6F29-E063-5968A8C00BC5/enrique-van-rysselberghe-herrera-dip_450x750.jpg",
         camara: "Senado de la República"
       }
     ]
@@ -8425,6 +8500,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "IND",
         rol: "Presidenta de Comisión",
         email: "fcampillai@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC94-6F29-E063-5968A8C00BC5/fabiola-campillai-rojas-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8432,6 +8508,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PPD",
         rol: "Miembro Titular",
         email: "lcarvajal@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBAB-6F29-E063-5968A8C00BC5/loreto-carvajal-ambiado-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8439,6 +8516,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PS",
         rol: "Miembro Titular",
         email: "fespinoza@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DADC-6F29-E063-5968A8C00BC5/fidel-espinoza-sandoval-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8446,6 +8524,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "UDI",
         rol: "Miembro Titular",
         email: "evanrysselberghe@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-D9F9-6F29-E063-5968A8C00BC5/enrique-van-rysselberghe-herrera-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8453,6 +8532,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "Demócratas",
         rol: "Miembro Titular",
         email: "mwalker@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-D9FC-6F29-E063-5968A8C00BC5/matias-walker-prieto-dip_450x750.jpg",
         camara: "Senado de la República"
       }
     ]
@@ -8476,6 +8556,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "DEM",
         rol: "Miembro Titular",
         email: "mcalisto@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBD9-6F29-E063-5968A8C00BC5/miguel-angel-calisto-aguila-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8483,6 +8564,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PS",
         rol: "Miembro Titular",
         email: "fespinoza@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DADC-6F29-E063-5968A8C00BC5/fidel-espinoza-sandoval-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8490,6 +8572,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "DC",
         rol: "Miembro Titular",
         email: "iflores@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBB3-6F29-E063-5968A8C00BC5/ivan-flores-garcia-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8497,6 +8580,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "IND",
         rol: "Miembro Titular",
         email: "akusanovic@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC9D-6F29-E063-5968A8C00BC5/alejandro-kusanovic-glusevic-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8504,6 +8588,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "RN",
         rol: "Presidente de Comisión",
         email: "ckuschel@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DA66-6F29-E063-5968A8C00BC5/carlos-ignacio-kuschel-silva-dip_450x750.jpg",
         camara: "Senado de la República"
       }
     ]
@@ -8526,6 +8611,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PS",
         rol: "Miembro Titular",
         email: "jcastro@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DB93-6F29-E063-5968A8C00BC5/juan-luis-castro-gonzalez-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8533,6 +8619,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "UDI",
         rol: "Miembro Titular",
         email: "sgahona@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBB6-6F29-E063-5968A8C00BC5/sergio-gahona-salazar-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8540,6 +8627,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "UDI",
         rol: "Miembro Titular",
         email: "imoreira@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DA07-6F29-E063-5968A8C00BC5/ivan-moreira-barros-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8547,6 +8635,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "RN",
         rol: "Presidenta de Comisión",
         email: "pnunez@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBBF-6F29-E063-5968A8C00BC5/paulina-nunez-urrutia-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8554,6 +8643,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "RN",
         rol: "Miembro Titular",
         email: "mjossandon@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBA4-6F29-E063-5968A8C00BC5/manuel-jose-ossandon-irarrazabal-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8561,6 +8651,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "DC",
         rol: "Miembro Titular",
         email: "yprovoste@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBC3-6F29-E063-5968A8C00BC5/yasna-provoste-campillay-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8568,6 +8659,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PREP",
         rol: "Miembro Titular",
         email: "iurrutia@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DB61-6F29-E063-5968A8C00BC5/ignacio-urrutia-bonilla-dip_450x750.jpg",
         camara: "Senado de la República"
       }
     ]
@@ -8605,6 +8697,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "RN",
         rol: "Miembro Titular",
         email: "aballadares@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/4CC00500-13AB-0722-E063-5A68A8C08157/andrea-balladares-letelier-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8612,6 +8705,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PS",
         rol: "Miembro Titular",
         email: "jcastro@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DB93-6F29-E063-5968A8C00BC5/juan-luis-castro-gonzalez-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8619,6 +8713,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "DC",
         rol: "Miembro Titular",
         email: "fhuenchumilla@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DAFD-6F29-E063-5968A8C00BC5/francisco-huenchumilla-jaramillo-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8626,6 +8721,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "UDI",
         rol: "Presidente de Comisión",
         email: "gsanhueza@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC11-6F29-E063-5968A8C00BC5/gustavo-sanhueza-duenas-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8633,6 +8729,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PREP",
         rol: "Miembro Titular",
         email: "iurrutia@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DB61-6F29-E063-5968A8C00BC5/ignacio-urrutia-bonilla-dip_450x750.jpg",
         camara: "Senado de la República"
       }
     ]
@@ -8656,6 +8753,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PPD",
         rol: "Miembro Titular",
         email: "rcelis@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBDD-6F29-E063-5968A8C00BC5/ricardo-celis-araya-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8663,6 +8761,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PS",
         rol: "Miembro Titular",
         email: "dcicardini@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBAC-6F29-E063-5968A8C00BC5/daniella-cicardini-milla-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8670,6 +8769,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "Evópoli",
         rol: "Miembro Titular",
         email: "lcruzcoke@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBE1-6F29-E063-5968A8C00BC5/luciano-cruz-coke-carvallo-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8677,6 +8777,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PREP",
         rol: "Presidente de Comisión",
         email: "redwards@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC97-6F29-E063-5968A8C00BC5/rojo-edwards-silva-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8684,6 +8785,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "RN",
         rol: "Miembro Titular",
         email: "mjossandon@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBA4-6F29-E063-5968A8C00BC5/manuel-jose-ossandon-irarrazabal-sen_450x750.jpg",
         camara: "Senado de la República"
       }
     ]
@@ -8707,6 +8809,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PPD",
         rol: "Miembro Titular",
         email: "paraya@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DAD8-6F29-E063-5968A8C00BC5/pedro-araya-guerrero-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8714,6 +8817,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "IND",
         rol: "Presidente de Comisión",
         email: "kbianchi@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBD7-6F29-E063-5968A8C00BC5/karim-bianchi-retamales-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8721,6 +8825,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PS",
         rol: "Miembro Titular",
         email: "jcastro@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DB93-6F29-E063-5968A8C00BC5/juan-luis-castro-gonzalez-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8728,6 +8833,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "RN",
         rol: "Miembro Titular",
         email: "alongton@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBF7-6F29-E063-5968A8C00BC5/andres-longton-herrera-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8735,6 +8841,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "IND",
         rol: "Miembro Titular",
         email: "cvial@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/4CC00500-13BC-0722-E063-5A68A8C08157/cristian-vial-maceratta-sen_450x750.jpg",
         camara: "Senado de la República"
       }
     ]
@@ -8758,6 +8865,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PC",
         rol: "Presidenta de Comisión",
         email: "kcariola@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBAA-6F29-E063-5968A8C00BC5/karol-cariola-oliva-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8765,6 +8873,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PPD",
         rol: "Miembro Titular",
         email: "rcelis@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBDD-6F29-E063-5968A8C00BC5/ricardo-celis-araya-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8772,6 +8881,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PS",
         rol: "Miembro Titular",
         email: "dcicardini@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBAC-6F29-E063-5968A8C00BC5/daniella-cicardini-milla-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8779,6 +8889,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "RN",
         rol: "Miembro Titular",
         email: "ckuschel@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DA66-6F29-E063-5968A8C00BC5/carlos-ignacio-kuschel-silva-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8786,6 +8897,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PREP",
         rol: "Miembro Titular",
         email: "iurrutia@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DB61-6F29-E063-5968A8C00BC5/ignacio-urrutia-bonilla-dip_450x750.jpg",
         camara: "Senado de la República"
       }
     ]
@@ -8809,6 +8921,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PPD",
         rol: "Presidenta de Comisión",
         email: "lcarvajal@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBAB-6F29-E063-5968A8C00BC5/loreto-carvajal-ambiado-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8816,6 +8929,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PS",
         rol: "Miembro Titular",
         email: "dcicardini@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBAC-6F29-E063-5968A8C00BC5/daniella-cicardini-milla-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8823,6 +8937,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PREP",
         rol: "Miembro Titular",
         email: "vkaiser@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/4CC00500-13B4-0722-E063-5A68A8C08157/vanessa-kaiser-barents-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8830,6 +8945,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "RN",
         rol: "Miembro Titular",
         email: "pnunez@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBBF-6F29-E063-5968A8C00BC5/paulina-nunez-urrutia-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8837,6 +8953,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "FA",
         rol: "Miembro Titular",
         email: "bsanchez@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/4CC00500-13B8-0722-E063-5A68A8C08157/beatriz-sanchez-munoz-sen_450x750.jpg",
         camara: "Senado de la República"
       }
     ]
@@ -8859,6 +8976,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "RN",
         rol: "Miembro Titular",
         email: "mbecker@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC30-6F29-E063-5968A8C00BC5/miguel-angel-becker-alvear-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8866,6 +8984,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "IND",
         rol: "Miembro Titular",
         email: "fcampillai@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC94-6F29-E063-5968A8C00BC5/fabiola-campillai-rojas-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8873,6 +8992,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PS",
         rol: "Miembro Titular",
         email: "jcastro@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DB93-6F29-E063-5968A8C00BC5/juan-luis-castro-gonzalez-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8880,6 +9000,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PREP",
         rol: "Miembro Titular",
         email: "vkaiser@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/4CC00500-13B4-0722-E063-5A68A8C08157/vanessa-kaiser-barents-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8887,6 +9008,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "Evópoli",
         rol: "Presidente de Comisión",
         email: "skeitel@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBF3-6F29-E063-5968A8C00BC5/sebastian-keitel-bianchi-dip_450x750.jpg",
         camara: "Senado de la República"
       }
     ]
@@ -8909,6 +9031,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PS",
         rol: "Presidente de Comisión",
         email: "adeurresti@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DAA4-6F29-E063-5968A8C00BC5/alfonso-de-urresti-longton-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8916,6 +9039,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "Evópoli",
         rol: "Miembro Titular",
         email: "skeitel@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBF3-6F29-E063-5968A8C00BC5/sebastian-keitel-bianchi-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8923,6 +9047,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "IND",
         rol: "Miembro Titular",
         email: "elee@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/4CC00500-13B5-0722-E063-5A68A8C08157/enrique-lee-flores-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8930,6 +9055,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "FA",
         rol: "Miembro Titular",
         email: "bsanchez@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/4CC00500-13B8-0722-E063-5A68A8C08157/beatriz-sanchez-munoz-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8937,6 +9063,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "IND",
         rol: "Miembro Titular",
         email: "asepulveda@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DB22-6F29-E063-5968A8C00BC5/alejandra-sepulveda-orbenes-dip_450x750.jpg",
         camara: "Senado de la República"
       }
     ]
@@ -8959,6 +9086,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "RN",
         rol: "Miembro Titular",
         email: "aballadares@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/4CC00500-13AB-0722-E063-5A68A8C08157/andrea-balladares-letelier-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8966,6 +9094,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "IND",
         rol: "Miembro Titular",
         email: "fcampillai@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC94-6F29-E063-5968A8C00BC5/fabiola-campillai-rojas-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8973,6 +9102,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PPD",
         rol: "Miembro Titular",
         email: "lcarvajal@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBAB-6F29-E063-5968A8C00BC5/loreto-carvajal-ambiado-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8980,6 +9110,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PREP",
         rol: "Presidenta de Comisión",
         email: "vkaiser@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/4CC00500-13B4-0722-E063-5A68A8C08157/vanessa-kaiser-barents-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -8987,6 +9118,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "UDI",
         rol: "Miembro Titular",
         email: "evanrysselberghe@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-D9F9-6F29-E063-5968A8C00BC5/enrique-van-rysselberghe-herrera-dip_450x750.jpg",
         camara: "Senado de la República"
       }
     ]
@@ -9010,6 +9142,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "RN",
         rol: "Miembro Titular",
         email: "aballadares@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/4CC00500-13AB-0722-E063-5A68A8C08157/andrea-balladares-letelier-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9017,6 +9150,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PC",
         rol: "Miembro Titular",
         email: "bbarrera@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBD5-6F29-E063-5968A8C00BC5/boris-barrera-moreno-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9024,6 +9158,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "IND",
         rol: "Miembro Titular",
         email: "cbianchi@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DA96-6F29-E063-5968A8C00BC5/carlos-bianchi-chelech-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9031,6 +9166,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "FA",
         rol: "Miembro Titular",
         email: "jbrito@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBD8-6F29-E063-5968A8C00BC5/jorge-brito-hasbun-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9038,6 +9174,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PREP",
         rol: "Miembro Titular",
         email: "rcarter@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/4CC00500-13AF-0722-E063-5A68A8C08157/rodolfo-carter-fernandez-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9045,6 +9182,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "DC",
         rol: "Miembro Titular",
         email: "pcastillo@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/4DC90314-4044-303C-E063-5A68A8C06A3A/priscilla-castillo-gerli_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9052,6 +9190,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PS",
         rol: "Miembro Titular",
         email: "dcicardini@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBAC-6F29-E063-5968A8C00BC5/daniella-cicardini-milla-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9059,6 +9198,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "UDI",
         rol: "Miembro Titular",
         email: "jcoloma@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/4DC90314-4047-303C-E063-5A68A8C06A3A/jaime-coloma-alamos_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9066,6 +9206,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "Evópoli",
         rol: "Miembro Titular",
         email: "lcruzcoke@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBE1-6F29-E063-5968A8C00BC5/luciano-cruz-coke-carvallo-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9073,6 +9214,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PS",
         rol: "Miembro Titular",
         email: "adeurresti@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DAA4-6F29-E063-5968A8C00BC5/alfonso-de-urresti-longton-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9080,6 +9222,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "RN",
         rol: "Miembro Titular",
         email: "eduran@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBE5-6F29-E063-5968A8C00BC5/eduardo-duran-salinas-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9087,6 +9230,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "RN",
         rol: "Miembro Titular",
         email: "mgatica@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC9B-6F29-E063-5968A8C00BC5/maria-jose-gatica-bertin-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9094,6 +9238,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PREP",
         rol: "Miembro Titular",
         email: "pkarlezi@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/4DC90314-4059-303C-E063-5A68A8C06A3A/pier-karlezi-hazleby_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9101,6 +9246,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "UDI",
         rol: "Presidente de Comisión",
         email: "jmacaya@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-D9E9-6F29-E063-5968A8C00BC5/javier-macaya-danus-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9108,6 +9254,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PREP",
         rol: "Miembro Titular",
         email: "jmeza@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC58-6F29-E063-5968A8C00BC5/jose-carlos-meza-pereira-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9115,6 +9262,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PC",
         rol: "Miembro Titular",
         email: "dnunez@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBBE-6F29-E063-5968A8C00BC5/daniel-nunez-arancibia-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9122,6 +9270,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PPD",
         rol: "Miembro Titular",
         email: "xordenes@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC8E-6F29-E063-5968A8C00BC5/ximena-ordenes-neira-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9129,6 +9278,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "DC",
         rol: "Miembro Titular",
         email: "yprovoste@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBC3-6F29-E063-5968A8C00BC5/yasna-provoste-campillay-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9136,6 +9286,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PREP",
         rol: "Miembro Titular",
         email: "aromero@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC6B-6F29-E063-5968A8C00BC5/agustin-romero-leiva-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9143,6 +9294,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "UDI",
         rol: "Miembro Titular",
         email: "gsanhueza@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC11-6F29-E063-5968A8C00BC5/gustavo-sanhueza-duenas-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9150,6 +9302,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "RN",
         rol: "Miembro Titular",
         email: "dschalper@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC14-6F29-E063-5968A8C00BC5/diego-schalper-sepulveda-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9157,6 +9310,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "UDI",
         rol: "Miembro Titular",
         email: "rtrisotti@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBC8-6F29-E063-5968A8C00BC5/renzo-trisotti-martinez-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9164,6 +9318,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PREP",
         rol: "Miembro Titular",
         email: "fugarte@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/4DC90314-407D-303C-E063-5A68A8C06A3A/fernando-ugarte-tejeda_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9171,6 +9326,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PDG",
         rol: "Miembro Titular",
         email: "jvalenzuela@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/4DC90314-4083-303C-E063-5A68A8C06A3A/juan-valenzuela-henriquez_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9178,6 +9334,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PS",
         rol: "Miembro Titular",
         email: "pvodanovic@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC24-6F29-E063-5968A8C00BC5/paulina-vodanovic-rojas-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9185,6 +9342,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "UDI",
         rol: "Miembro Titular",
         email: "fweisse@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC7D-6F29-E063-5968A8C00BC5/flor-weisse-novoa-dip_450x750.jpg",
         camara: "Senado de la República"
       }
     ]
@@ -9207,6 +9365,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "DC",
         rol: "Miembro Titular",
         email: "eaedo@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC27-6F29-E063-5968A8C00BC5/eric-aedo-jeldres-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9214,6 +9373,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "DEM",
         rol: "Miembro Titular",
         email: "mcalisto@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBD9-6F29-E063-5968A8C00BC5/miguel-angel-calisto-aguila-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9221,6 +9381,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PPD",
         rol: "Miembro Titular",
         email: "lcarvajal@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBAB-6F29-E063-5968A8C00BC5/loreto-carvajal-ambiado-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9228,6 +9389,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "UDI",
         rol: "Miembro Titular",
         email: "jcoloma@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBAD-6F29-E063-5968A8C00BC5/juan-antonio-coloma-alamos-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9235,6 +9397,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "Evópoli",
         rol: "Miembro Titular",
         email: "lcruzcoke@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBE1-6F29-E063-5968A8C00BC5/luciano-cruz-coke-carvallo-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9242,6 +9405,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PC",
         rol: "Miembro Titular",
         email: "lcuello@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC40-6F29-E063-5968A8C00BC5/luis-cuello-pena-y-lillo-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9249,6 +9413,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PS",
         rol: "Miembro Titular",
         email: "tderementeria@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC42-6F29-E063-5968A8C00BC5/tomas-de-rementeria-venegas-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9256,6 +9421,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PS",
         rol: "Miembro Titular",
         email: "adeurresti@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DAA4-6F29-E063-5968A8C00BC5/alfonso-de-urresti-longton-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9263,6 +9429,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "UDI",
         rol: "Miembro Titular",
         email: "lebensperger@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC82-6F29-E063-5968A8C00BC5/luz-eliana-ebensperger-orrego-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9270,6 +9437,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "RN",
         rol: "Miembro Titular",
         email: "rgalilea@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC8A-6F29-E063-5968A8C00BC5/rodrigo-galilea-vial-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9277,6 +9445,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "DC",
         rol: "Miembro Titular",
         email: "fhuenchumilla@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DAFD-6F29-E063-5968A8C00BC5/francisco-huenchumilla-jaramillo-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9284,6 +9453,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "RN",
         rol: "Miembro Titular",
         email: "pnunez@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBBF-6F29-E063-5968A8C00BC5/paulina-nunez-urrutia-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9291,6 +9461,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PC",
         rol: "Miembro Titular",
         email: "cpascual@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DCA1-6F29-E063-5968A8C00BC5/claudia-pascual-grau-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9298,6 +9469,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "FA",
         rol: "Miembro Titular",
         email: "cperez@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC08-6F29-E063-5968A8C00BC5/catalina-perez-salinas-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9305,6 +9477,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PREP",
         rol: "Miembro Titular",
         email: "lsanchez@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DB03-6F29-E063-5968A8C00BC5/luis-monge-sanchez-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9312,6 +9485,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "RN",
         rol: "Miembro Titular",
         email: "dschalper@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC14-6F29-E063-5968A8C00BC5/diego-schalper-sepulveda-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9319,6 +9493,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PPD",
         rol: "Miembro Titular",
         email: "rsoto@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC16-6F29-E063-5968A8C00BC5/raul-soto-mardones-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9326,6 +9501,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "Demócratas",
         rol: "Presidente de Comisión",
         email: "mwalker@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-D9FC-6F29-E063-5968A8C00BC5/matias-walker-prieto-dip_450x750.jpg",
         camara: "Senado de la República"
       }
     ]
@@ -9348,6 +9524,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PS",
         rol: "Miembro Titular",
         email: "adeurresti@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DAA4-6F29-E063-5968A8C00BC5/alfonso-de-urresti-longton-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9355,6 +9532,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "UDI",
         rol: "Miembro Titular",
         email: "jmacaya@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-D9E9-6F29-E063-5968A8C00BC5/javier-macaya-danus-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9362,6 +9540,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PL",
         rol: "Miembro Titular",
         email: "vmirosevic@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBBC-6F29-E063-5968A8C00BC5/vlado-mirosevic-verdugo-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9369,6 +9548,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "RN",
         rol: "Miembro Titular",
         email: "pnunez@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBBF-6F29-E063-5968A8C00BC5/paulina-nunez-urrutia-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9376,6 +9556,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PS",
         rol: "Miembro Titular",
         email: "lsoto@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBC7-6F29-E063-5968A8C00BC5/leonardo-soto-ferrada-dip_450x750.jpg",
         camara: "Senado de la República"
       }
     ]
@@ -9399,6 +9580,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "UDI",
         rol: "Miembro Titular",
         email: "jalessandri@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBD2-6F29-E063-5968A8C00BC5/jorge-alessandri-vergara-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9406,6 +9588,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PREP",
         rol: "Miembro Titular",
         email: "caraya@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC2A-6F29-E063-5968A8C00BC5/cristian-araya-lerdo-de-tejada-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9413,6 +9596,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "FA",
         rol: "Miembro Titular",
         email: "lfries@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC45-6F29-E063-5968A8C00BC5/lorena-fries-monleon-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9420,6 +9604,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PS",
         rol: "Presidente de Comisión",
         email: "jminsulza@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC81-6F29-E063-5968A8C00BC5/jose-miguel-insulza-salinas-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9427,6 +9612,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "Amarillos",
         rol: "Miembro Titular",
         email: "ajouannet@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC4C-6F29-E063-5968A8C00BC5/andres-jouannet-valderrama-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9434,6 +9620,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PS",
         rol: "Miembro Titular",
         email: "rleiva@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBF5-6F29-E063-5968A8C00BC5/raul-leiva-carvajal-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9441,6 +9628,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "RN",
         rol: "Miembro Titular",
         email: "alongton@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBF7-6F29-E063-5968A8C00BC5/andres-longton-herrera-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9448,6 +9636,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "FA",
         rol: "Miembro Titular",
         email: "morsini@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC03-6F29-E063-5968A8C00BC5/maite-orsini-pascal-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9455,6 +9644,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PC",
         rol: "Miembro Titular",
         email: "aplacencia@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC66-6F29-E063-5968A8C00BC5/alejandra-placencia-cabello-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9462,6 +9652,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "RN",
         rol: "Miembro Titular",
         email: "rprohens@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC84-6F29-E063-5968A8C00BC5/rafael-prohens-espinosa-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9469,6 +9660,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "DC",
         rol: "Miembro Titular",
         email: "yprovoste@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBC3-6F29-E063-5968A8C00BC5/yasna-provoste-campillay-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9476,6 +9668,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PPD",
         rol: "Miembro Titular",
         email: "jquintana@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DB5B-6F29-E063-5968A8C00BC5/jaime-quintana-leal-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9483,6 +9676,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "UDI",
         rol: "Miembro Titular",
         email: "evanrysselberghe@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-D9F9-6F29-E063-5968A8C00BC5/enrique-van-rysselberghe-herrera-dip_450x750.jpg",
         camara: "Senado de la República"
       }
     ]
@@ -9506,6 +9700,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PS",
         rol: "Miembro Titular",
         email: "dastudillo@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/4CC00500-13AA-0722-E063-5A68A8C08157/danisa-astudillo-pieretti-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9513,6 +9708,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "IND",
         rol: "Miembro Titular",
         email: "kbianchi@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBD7-6F29-E063-5968A8C00BC5/karim-bianchi-retamales-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9520,6 +9716,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "DEM",
         rol: "Miembro Titular",
         email: "mcalisto@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBD9-6F29-E063-5968A8C00BC5/miguel-angel-calisto-aguila-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9527,6 +9724,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PC",
         rol: "Miembro Titular",
         email: "kcariola@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBAA-6F29-E063-5968A8C00BC5/karol-cariola-oliva-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9534,6 +9732,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PS",
         rol: "Miembro Titular",
         email: "fespinoza@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DADC-6F29-E063-5968A8C00BC5/fidel-espinoza-sandoval-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9541,6 +9740,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "RN",
         rol: "Miembro Titular",
         email: "cflores@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBE7-6F29-E063-5968A8C00BC5/camila-flores-oporto-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9548,6 +9748,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "FA",
         rol: "Miembro Titular",
         email: "dibanez@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBEE-6F29-E063-5968A8C00BC5/diego-ibanez-cotroneo-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9555,6 +9756,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "IND",
         rol: "Miembro Titular",
         email: "akusanovic@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC9D-6F29-E063-5968A8C00BC5/alejandro-kusanovic-glusevic-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9562,6 +9764,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "RN",
         rol: "Miembro Titular",
         email: "ckuschel@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DA66-6F29-E063-5968A8C00BC5/carlos-ignacio-kuschel-silva-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9569,6 +9772,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "IND",
         rol: "Presidente de Comisión",
         email: "elee@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/4CC00500-13B5-0722-E063-5A68A8C08157/enrique-lee-flores-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9576,6 +9780,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "RN",
         rol: "Miembro Titular",
         email: "alongton@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBF7-6F29-E063-5968A8C00BC5/andres-longton-herrera-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9583,6 +9788,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PL",
         rol: "Miembro Titular",
         email: "vmirosevic@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBBC-6F29-E063-5968A8C00BC5/vlado-mirosevic-verdugo-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9590,6 +9796,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "UDI",
         rol: "Miembro Titular",
         email: "imoreira@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DA07-6F29-E063-5968A8C00BC5/ivan-moreira-barros-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9597,6 +9804,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PPD",
         rol: "Miembro Titular",
         email: "xordenes@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC8E-6F29-E063-5968A8C00BC5/ximena-ordenes-neira-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9604,6 +9812,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PREP",
         rol: "Miembro Titular",
         email: "asquella@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-D9F5-6F29-E063-5968A8C00BC5/arturo-squella-ovalle-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9611,6 +9820,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "UDI",
         rol: "Miembro Titular",
         email: "rtrisotti@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBC8-6F29-E063-5968A8C00BC5/renzo-trisotti-martinez-dip_450x750.jpg",
         camara: "Senado de la República"
       }
     ]
@@ -9633,6 +9843,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PPD",
         rol: "Miembro Titular",
         email: "paraya@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DAD8-6F29-E063-5968A8C00BC5/pedro-araya-guerrero-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9640,6 +9851,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "IND",
         rol: "Miembro Titular",
         email: "jbassa@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/4DC90314-403D-303C-E063-5A68A8C06A3A/jaime-bassa-mercado_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9647,6 +9859,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "RN",
         rol: "Miembro Titular",
         email: "fcontreras@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/4DC90314-4049-303C-E063-5A68A8C06A3A/flor-contreras-vivallo_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9654,6 +9867,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PREP",
         rol: "Miembro Titular",
         email: "cdelreal@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBE2-6F29-E063-5968A8C00BC5/catalina-del-real-mihovilovic-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9661,6 +9875,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "UDI",
         rol: "Miembro Titular",
         email: "sgahona@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBB6-6F29-E063-5968A8C00BC5/sergio-gahona-salazar-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9668,6 +9883,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PS",
         rol: "Miembro Titular",
         email: "dmanouchehri@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC54-6F29-E063-5968A8C00BC5/daniel-manouchehri-lobos-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9675,6 +9891,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "RN",
         rol: "Presidente de Comisión",
         email: "mjossandon@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBA4-6F29-E063-5968A8C00BC5/manuel-jose-ossandon-irarrazabal-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9682,6 +9899,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "DC",
         rol: "Miembro Titular",
         email: "yprovoste@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBC3-6F29-E063-5968A8C00BC5/yasna-provoste-campillay-dip_450x750.jpg",
         camara: "Senado de la República"
       }
     ]
@@ -9704,6 +9922,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "RN",
         rol: "Miembro Titular",
         email: "aballadares@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/4CC00500-13AB-0722-E063-5A68A8C08157/andrea-balladares-letelier-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9711,6 +9930,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "FA",
         rol: "Miembro Titular",
         email: "jbrito@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBD8-6F29-E063-5968A8C00BC5/jorge-brito-hasbun-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9718,6 +9938,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PS",
         rol: "Miembro Titular",
         email: "dcicardini@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBAC-6F29-E063-5968A8C00BC5/daniella-cicardini-milla-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9725,6 +9946,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "Evópoli",
         rol: "Presidente de Comisión",
         email: "lcruzcoke@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBE1-6F29-E063-5968A8C00BC5/luciano-cruz-coke-carvallo-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9732,6 +9954,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "RN",
         rol: "Miembro Titular",
         email: "dschalper@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC14-6F29-E063-5968A8C00BC5/diego-schalper-sepulveda-dip_450x750.jpg",
         camara: "Senado de la República"
       }
     ]
@@ -9754,6 +9977,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PREP",
         rol: "Presidente de Comisión",
         email: "rcarter@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/4CC00500-13AF-0722-E063-5A68A8C08157/rodolfo-carter-fernandez-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9761,6 +9985,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "DC",
         rol: "Miembro Titular",
         email: "pcastillo@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/4DC90314-4044-303C-E063-5A68A8C06A3A/priscilla-castillo-gerli_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9768,6 +9993,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PS",
         rol: "Miembro Titular",
         email: "adeurresti@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DAA4-6F29-E063-5968A8C00BC5/alfonso-de-urresti-longton-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9775,6 +10001,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "UDI",
         rol: "Miembro Titular",
         email: "jmacaya@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-D9E9-6F29-E063-5968A8C00BC5/javier-macaya-danus-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9782,6 +10009,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PREP",
         rol: "Miembro Titular",
         email: "jmeza@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC58-6F29-E063-5968A8C00BC5/jose-carlos-meza-pereira-dip_450x750.jpg",
         camara: "Senado de la República"
       }
     ]
@@ -9804,6 +10032,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "UDI",
         rol: "Miembro Titular",
         email: "jcoloma@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/4DC90314-4047-303C-E063-5A68A8C06A3A/jaime-coloma-alamos_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9811,6 +10040,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PREP",
         rol: "Miembro Titular",
         email: "pkarlezi@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/4DC90314-4059-303C-E063-5A68A8C06A3A/pier-karlezi-hazleby_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9818,6 +10048,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PPD",
         rol: "Miembro Titular",
         email: "xordenes@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC8E-6F29-E063-5968A8C00BC5/ximena-ordenes-neira-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9825,6 +10056,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PREP",
         rol: "Presidente de Comisión",
         email: "aromero@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC6B-6F29-E063-5968A8C00BC5/agustin-romero-leiva-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9832,6 +10064,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PREP",
         rol: "Miembro Titular",
         email: "fugarte@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/4DC90314-407D-303C-E063-5A68A8C06A3A/fernando-ugarte-tejeda_450x750.jpg",
         camara: "Senado de la República"
       }
     ]
@@ -9854,6 +10087,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PC",
         rol: "Miembro Titular",
         email: "bbarrera@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBD5-6F29-E063-5968A8C00BC5/boris-barrera-moreno-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9861,6 +10095,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "RN",
         rol: "Miembro Titular",
         email: "eduran@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBE5-6F29-E063-5968A8C00BC5/eduardo-duran-salinas-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9868,6 +10103,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "DC",
         rol: "Presidenta de Comisión",
         email: "yprovoste@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBC3-6F29-E063-5968A8C00BC5/yasna-provoste-campillay-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9875,6 +10111,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "UDI",
         rol: "Miembro Titular",
         email: "gsanhueza@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC11-6F29-E063-5968A8C00BC5/gustavo-sanhueza-duenas-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9882,6 +10119,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "UDI",
         rol: "Miembro Titular",
         email: "rtrisotti@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBC8-6F29-E063-5968A8C00BC5/renzo-trisotti-martinez-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9889,6 +10127,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PDG",
         rol: "Miembro Titular",
         email: "jvalenzuela@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/4DC90314-4083-303C-E063-5A68A8C06A3A/juan-valenzuela-henriquez_450x750.jpg",
         camara: "Senado de la República"
       }
     ]
@@ -9911,6 +10150,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "IND",
         rol: "Miembro Titular",
         email: "cbianchi@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DA96-6F29-E063-5968A8C00BC5/carlos-bianchi-chelech-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9918,6 +10158,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "RN",
         rol: "Miembro Titular",
         email: "mgatica@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC9B-6F29-E063-5968A8C00BC5/maria-jose-gatica-bertin-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9925,6 +10166,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PC",
         rol: "Miembro Titular",
         email: "dnunez@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DBBE-6F29-E063-5968A8C00BC5/daniel-nunez-arancibia-dip_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9932,6 +10174,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "PS",
         rol: "Presidenta de Comisión",
         email: "pvodanovic@senado.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC24-6F29-E063-5968A8C00BC5/paulina-vodanovic-rojas-sen_450x750.jpg",
         camara: "Senado de la República"
       },
       {
@@ -9939,6 +10182,7 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
         partido: "UDI",
         rol: "Miembro Titular",
         email: "fweisse@congreso.cl",
+        fotoUrl: "https://cdn.senado.cl/portal-senado-produccion/public/parlamentarios/049F997F-DC7D-6F29-E063-5968A8C00BC5/flor-weisse-novoa-dip_450x750.jpg",
         camara: "Senado de la República"
       }
     ]
