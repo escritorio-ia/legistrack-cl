@@ -7648,10 +7648,112 @@ export const SENADO_CITACIONES_POR_DIA: any[] = [
 
 export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
   {
+    id: "gobierno",
+    senadoId: "185",
+    nombre: "Comisión de Gobierno, Descentralización y Regionalización",
+    descripcion: "Reforma al Estado, descentralización fiscal y administrativa, gobiernos regionales, municipios y división político-administrativa.",
+    estado: "Comisión Permanente",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "Landmark",
+    color: "blue",
+    featured: true,
+    email: "gobsen@senado.cl",
+    temas: ["Descentralización","Gobiernos Regionales","Municipios","Modernización del Estado","Regiones"],
+    integrantes: [
+      {
+        nombre: "Danisa Astudillo Peiretti",
+        partido: "PS",
+        rol: "Presidenta de Comisión",
+        email: "dastudillo@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Miguel Ángel Becker Alvear",
+        partido: "RN",
+        rol: "Miembro Titular",
+        email: "mbecker@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Loreto Carvajal Ambiado",
+        partido: "PPD",
+        rol: "Miembro Titular",
+        email: "lcarvajal@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Renzo Trisotti Martínez",
+        partido: "UDI",
+        rol: "Miembro Titular",
+        email: "rtrisotti@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Esteban Velásquez Núñez",
+        partido: "FRVS",
+        rol: "Miembro Titular",
+        email: "evelasquez@senado.cl",
+        camara: "Senado de la República"
+      }
+    ]
+  },
+  {
+    id: "relaciones-exteriores",
+    senadoId: "221",
+    nombre: "Comisión de Relaciones Exteriores",
+    descripcion: "Tratados y acuerdos internacionales, política exterior de Chile, integración vecinal y representación diplomática.",
+    estado: "Comisión Permanente",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "Globe",
+    color: "blue",
+    featured: true,
+    email: "relacionesexteriores@senado.cl",
+    temas: ["Tratados Internacionales","Cancillería","Comercio Exterior","Límites","Integración Regional"],
+    integrantes: [
+      {
+        nombre: "Rodolfo Carter Fernández",
+        partido: "PREP",
+        rol: "Miembro Titular",
+        email: "rcarter@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Loreto Carvajal Ambiado",
+        partido: "PPD",
+        rol: "Miembro Titular",
+        email: "lcarvajal@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Vlado Mirosevic Verdugo",
+        partido: "PL",
+        rol: "Miembro Titular",
+        email: "vmirosevic@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Iván Moreira Barros",
+        partido: "UDI",
+        rol: "Miembro Titular",
+        email: "imoreira@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Manuel José Ossandón Irarrázabal",
+        partido: "RN",
+        rol: "Presidente de Comisión",
+        email: "mjossandon@senado.cl",
+        camara: "Senado de la República"
+      }
+    ]
+  },
+  {
     id: "constitucion",
     senadoId: "186",
     nombre: "Comisión de Constitución, Legislación, Justicia y Reglamento",
-    descripcion: "Reformas de rango constitucional, leyes de cuórum calificado, nombramientos de ministros de Corte y TC.",
+    descripcion: "Reformas a la Constitución Política, leyes orgánicas constitucionales, sistema judicial, nombramientos de ministros de Corte y TC.",
     estado: "Comisión Permanente",
     chamber: "SR",
     prefix: "senado-",
@@ -7659,515 +7761,2398 @@ export const SENADO_COMISIONES_DETALLE: ComisionMeta[] = [
     color: "slate",
     featured: true,
     email: "constitucion@senado.cl",
-    temas: ["Constitución", "Corte Suprema", "Tribunal Constitucional", "Justicia", "Leyes Orgánicas"],
+    temas: ["Constitución","Corte Suprema","Tribunal Constitucional","Justicia","Leyes Orgánicas","Código Penal"],
     integrantes: [
-      { nombre: "Paulina Núñez Urrutia", partido: "RN", rol: "Presidenta de Comisión", email: "paulinanunez@senado.cl", camara: "Senado de la República" },
-      { nombre: "Pedro Araya Guerrero", partido: "PPD", rol: "Miembro Titular", email: "paraya@senado.cl", camara: "Senado de la República" },
-      { nombre: "Luz Eliana Ebensperger Orrego", partido: "UDI", rol: "Miembro Titular", email: "lebensperger@senado.cl", camara: "Senado de la República" },
-      { nombre: "Rodrigo Galilea Vial", partido: "RN", rol: "Miembro Titular", email: "rgalilea@senado.cl", camara: "Senado de la República" },
-      { nombre: "Alfonso De Urresti Longton", partido: "PS", rol: "Miembro Titular", email: "adeurresti@senado.cl", camara: "Senado de la República" }
-    ]
-  },
-  {
-    id: "hacienda",
-    senadoId: "188",
-    nombre: "Comisión de Hacienda",
-    descripcion: "Control de partidas de presupuesto anual, financiamiento de salud, educación y convenios internacionales.",
-    estado: "Comisión Permanente",
-    chamber: "SR",
-    prefix: "senado-",
-    icon: "TrendingUp",
-    color: "emerald",
-    featured: true,
-    email: "hacienda@senado.cl",
-    temas: ["Presupuesto", "Sostenibilidad Fiscal", "Pacto Fiscal", "Tributaria", "CFA", "Deuda"],
-    integrantes: [
-      { nombre: "Felipe Kast Sommerhoff", partido: "Evópoli", rol: "Presidente de Comisión", email: "fkast@senado.cl", camara: "Senado de la República" },
-      { nombre: "Juan Antonio Coloma Correa", partido: "UDI", rol: "Miembro Titular", email: "jcoloma@senado.cl", camara: "Senado de la República" },
-      { nombre: "José García Ruminot", partido: "RN", rol: "Miembro Titular", email: "jgarcia@senado.cl", camara: "Senado de la República" },
-      { nombre: "Ricardo Lagos Weber", partido: "PPD", rol: "Miembro Titular", email: "rlagos@senado.cl", camara: "Senado de la República" },
-      { nombre: "Daniel Núñez Arancibia", partido: "PC", rol: "Miembro Titular", email: "danielnunez@senado.cl", camara: "Senado de la República" }
-    ]
-  },
-  {
-    id: "trabajo-y-prevision",
-    senadoId: "194",
-    nombre: "Comisión de Trabajo y Previsión Social",
-    descripcion: "Revisión del Senado para proyectos de pensiones, jornada laboral flexible y seguridad física ocupacional.",
-    estado: "Comisión Permanente",
-    chamber: "SR",
-    prefix: "senado-",
-    icon: "HardHat",
-    color: "emerald",
-    featured: true,
-    email: "trabasen@senado.cl",
-    temas: ["Pensiones", "Reforma Previsional", "Seguridad Social", "Jornada Laboral", "Superintendencia"],
-    integrantes: [
-      { nombre: "Juan Luis Castro González", partido: "PS", rol: "Presidente de Comisión", email: "juanluiscastro@senado.cl", camara: "Senado de la República" },
-      { nombre: "Loreto Carvajal Ambiado", partido: "PPD", rol: "Miembro Titular", email: "lcarvajal@senado.cl", camara: "Senado de la República" },
-      { nombre: "Rodrigo Galilea Vial", partido: "RN", rol: "Miembro Titular", email: "rgalilea@senado.cl", camara: "Senado de la República" },
-      { nombre: "Gastón Saavedra Chandía", partido: "PS", rol: "Miembro Titular", email: "gsaavedra@senado.cl", camara: "Senado de la República" },
-      { nombre: "Alejandra Sepúlveda Orbenes", partido: "IND", rol: "Miembro Titular", email: "asepulveda@senado.cl", camara: "Senado de la República" }
-    ]
-  },
-  {
-    id: "seguridad-publica",
-    senadoId: "615",
-    nombre: "Comisión de Seguridad Pública",
-    descripcion: "Discusión parlamentaria de combate al delito, modernización de policías, ley de armas y de fronteras.",
-    estado: "Comisión Permanente",
-    chamber: "SR",
-    prefix: "senado-",
-    icon: "Shield",
-    email: "seguridadpublica@senado.cl",
-    temas: ["Seguridad Pública", "Ley Antiterrorista", "Ministerio de Seguridad", "Reglas Uso Fuerza", "Carabineros"],
-    integrantes: [
-      { nombre: "Iván Flores García", partido: "DC", rol: "Presidente de Comisión", email: "iflores@senado.cl", camara: "Senado de la República" },
-      { nombre: "José Miguel Insulza Salinas", partido: "PS", rol: "Miembro Titular", email: "jminsulza@senado.cl", camara: "Senado de la República" },
-      { nombre: "Manuel José Ossandón Irarrázabal", partido: "RN", rol: "Miembro Titular", email: "mjossandon@senado.cl", camara: "Senado de la República" },
-      { nombre: "Paulina Vodanovic Rojas", partido: "PS", rol: "Miembro Titular", email: "pvodanovic@senado.cl", camara: "Senado de la República" },
-      { nombre: "Felipe Kast Sommerhoff", partido: "Evópoli", rol: "Miembro Titular", email: "fkast@senado.cl", camara: "Senado de la República" }
-    ]
-  },
-  {
-    id: "salud",
-    senadoId: "195",
-    nombre: "Comisión de Salud",
-    descripcion: "Fiscalización de red hospitalaria nacional, ley de isapres, aseguradoras y planes preventivos estatales.",
-    estado: "Comisión Permanente",
-    chamber: "SR",
-    prefix: "senado-",
-    icon: "Heart",
-    email: "saludsen@senado.cl",
-    temas: ["Isapres", "Fonasa", "Hospitales", "Deuda Isapres", "Cobertura Complementaria"],
-    integrantes: [
-      { nombre: "Javier Macaya Danús", partido: "UDI", rol: "Presidente de Comisión", email: "jmacaya@senado.cl", camara: "Senado de la República" },
-      { nombre: "Juan Luis Castro González", partido: "PS", rol: "Miembro Titular", email: "juanluiscastro@senado.cl", camara: "Senado de la República" },
-      { nombre: "Francisco Chahuán Chahuán", partido: "RN", rol: "Miembro Titular", email: "fchahuan@senado.cl", camara: "Senado de la República" },
-      { nombre: "Sergio Gahona Salazar", partido: "UDI", rol: "Miembro Titular", email: "sgahona@senado.cl", camara: "Senado de la República" },
-      { nombre: "Ximena Órdenes Neira", partido: "PPD", rol: "Miembro Titular", email: "xordenes@senado.cl", camara: "Senado de la República" }
-    ]
-  },
-  {
-    id: "educacion",
-    senadoId: "189",
-    nombre: "Comisión de Educación y Cultura",
-    descripcion: "Estatuto docente, financiamiento escolar técnico-profesional y resguardo del patrimonio histórico.",
-    estado: "Comisión Permanente",
-    chamber: "SR",
-    prefix: "senado-",
-    icon: "BookOpen",
-    email: "edusen@senado.cl",
-    temas: ["Educación Superior", "CRUCH", "Estatuto Docente", "Gratuidad", "Patrimonio"],
-    integrantes: [
-      { nombre: "José García Ruminot", partido: "RN", rol: "Presidente de Comisión", email: "jgarcia@senado.cl", camara: "Senado de la República" },
-      { nombre: "Carmen Gloria Aravena Acuña", partido: "PREP", rol: "Miembro Titular", email: "cgaravena@senado.cl", camara: "Senado de la República" },
-      { nombre: "Fidel Espinoza Sandoval", partido: "PS", rol: "Miembro Titular", email: "fespinoza@senado.cl", camara: "Senado de la República" },
-      { nombre: "Yasna Provoste Campillay", partido: "DC", rol: "Miembro Titular", email: "yasnaprovoste@senado.cl", camara: "Senado de la República" },
-      { nombre: "Gustavo Sanhueza Dueñas", partido: "UDI", rol: "Miembro Titular", email: "gsanhueza@senado.cl", camara: "Senado de la República" }
-    ]
-  },
-  {
-    id: "defensa",
-    senadoId: "190",
-    nombre: "Comisión de Defensa Nacional",
-    descripcion: "Asuntos estratégicos de seguridad exterior, ciberseguridad militar, radares y personal de las FF.AA.",
-    estado: "Comisión Permanente",
-    chamber: "SR",
-    prefix: "senado-",
-    icon: "ShieldAlert",
-    email: "defensasen@senado.cl",
-    temas: ["Fuerzas Armadas", "Ciberdefensa", "Defensa Estratégica", "Soberanía", "Militares"],
-    integrantes: [
-      { nombre: "Kenneth Pugh Olavarría", partido: "IND", rol: "Presidente de Comisión", email: "kpugh@senado.cl", camara: "Senado de la República" },
-      { nombre: "Pedro Araya Guerrero", partido: "PPD", rol: "Miembro Titular", email: "paraya@senado.cl", camara: "Senado de la República" },
-      { nombre: "Francisco Huenchumilla Jaramillo", partido: "DC", rol: "Miembro Titular", email: "fhuenchumilla@senado.cl", camara: "Senado de la República" },
-      { nombre: "Javier Macaya Danús", partido: "UDI", rol: "Miembro Titular", email: "jmacaya@senado.cl", camara: "Senado de la República" },
-      { nombre: "Gastón Saavedra Chandía", partido: "PS", rol: "Miembro Titular", email: "gsaavedra@senado.cl", camara: "Senado de la República" }
-    ]
-  },
-  {
-    id: "rree",
-    senadoId: "221",
-    nombre: "Comisión de Relaciones Exteriores",
-    descripcion: "Discusión y sanción parlamentaria de tratados de libre comercio, misiones internacionales y fronteras.",
-    estado: "Comisión Permanente",
-    chamber: "SR",
-    prefix: "senado-",
-    icon: "Globe",
-    email: "rreesen@senado.cl",
-    temas: ["Tratados Internacionales", "Cancillería", "Límites", "Tratados Bilaterales", "Diplomacia"],
-    integrantes: [
-      { nombre: "José Miguel Insulza Salinas", partido: "PS", rol: "Presidente de Comisión", email: "jminsulza@senado.cl", camara: "Senado de la República" },
-      { nombre: "Francisco Chahuán Chahuán", partido: "RN", rol: "Miembro Titular", email: "fchahuan@senado.cl", camara: "Senado de la República" },
-      { nombre: "Rojo Edwards", partido: "PREP", rol: "Miembro Titular", email: "redwards@senado.cl", camara: "Senado de la República" },
-      { nombre: "Iván Moreira Barros", partido: "UDI", rol: "Miembro Titular", email: "imoreira@senado.cl", camara: "Senado de la República" },
-      { nombre: "Jaime Quintana Leal", partido: "PPD", rol: "Miembro Titular", email: "jquintana@senado.cl", camara: "Senado de la República" }
-    ]
-  },
-  {
-    id: "gobierno",
-    senadoId: "185",
-    nombre: "Comisión de Gobierno, Descentralización y Regionalización",
-    descripcion: "Transparencia del Estado, elección de gobernadores, atribuciones de cores y ley de compras públicas.",
-    estado: "Comisión Permanente",
-    chamber: "SR",
-    prefix: "senado-",
-    icon: "Landmark",
-    email: "gobsen@senado.cl",
-    temas: ["Descentralización", "Gobernaciones", "Compras Públicas", "Probidad", "Regionalización"],
-    integrantes: [
-      { nombre: "Manuel José Ossandón Irarrázabal", partido: "RN", rol: "Presidente de Comisión", email: "mjossandon@senado.cl", camara: "Senado de la República" },
-      { nombre: "Carlos Ignacio Kuschel Silva", partido: "RN", rol: "Miembro Titular", email: "ckuschel@senado.cl", camara: "Senado de la República" },
-      { nombre: "Paulina Vodanovic Rojas", partido: "PS", rol: "Miembro Titular", email: "pvodanovic@senado.cl", camara: "Senado de la República" },
-      { nombre: "Loreto Carvajal Ambiado", partido: "PPD", rol: "Miembro Titular", email: "lcarvajal@senado.cl", camara: "Senado de la República" },
-      { nombre: "Esteban Velásquez Núñez", partido: "FRVS", rol: "Miembro Titular", email: "evelasquez@senado.cl", camara: "Senado de la República" }
-    ]
-  },
-  {
-    id: "obras-publicas",
-    senadoId: "191",
-    nombre: "Comisión de Obras Públicas",
-    descripcion: "Legislación en concesiones de autopistas, pavimentación escolar y planes de embalses hídricos.",
-    estado: "Comisión Permanente",
-    chamber: "SR",
-    prefix: "senado-",
-    icon: "HardHat",
-    email: "oopsen@senado.cl",
-    temas: ["Concesiones", "MOP", "Infraestructura", "Carreteras", "Embalses"],
-    integrantes: [
-      { nombre: "Carlos Ignacio Kuschel Silva", partido: "RN", rol: "Presidente de Comisión", email: "ckuschel@senado.cl", camara: "Senado de la República" },
-      { nombre: "Juan Castro Prieto", partido: "RN", rol: "Miembro Titular", email: "jcastro@senado.cl", camara: "Senado de la República" },
-      { nombre: "Alfonso De Urresti Longton", partido: "PS", rol: "Miembro Titular", email: "adeurresti@senado.cl", camara: "Senado de la República" },
-      { nombre: "Sergio Gahona Salazar", partido: "UDI", rol: "Miembro Titular", email: "sgahona@senado.cl", camara: "Senado de la República" },
-      { nombre: "Yasna Provoste Campillay", partido: "DC", rol: "Miembro Titular", email: "yasnaprovoste@senado.cl", camara: "Senado de la República" }
-    ]
-  },
-  {
-    id: "agricultura",
-    senadoId: "192",
-    nombre: "Comisión de Agricultura",
-    descripcion: "Normas de parcelaciones rurales, sanidad animal del SAG, seguros apícolas y fomento del sector agrícola.",
-    estado: "Comisión Permanente",
-    chamber: "SR",
-    prefix: "senado-",
-    icon: "Leaf",
-    email: "agrisen@senado.cl",
-    temas: ["Agricultura", "SAG", "INDAP", "Suelo Agrícola", "Sanidad Vegetal", "Productores"],
-    integrantes: [
-      { nombre: "Juan Castro Prieto", partido: "RN", rol: "Presidente de Comisión", email: "jcastro@senado.cl", camara: "Senado de la República" },
-      { nombre: "Carmen Gloria Aravena Acuña", partido: "PREP", rol: "Miembro Titular", email: "cgaravena@senado.cl", camara: "Senado de la República" },
-      { nombre: "Fidel Espinoza Sandoval", partido: "PS", rol: "Miembro Titular", email: "fespinoza@senado.cl", camara: "Senado de la República" },
-      { nombre: "Iván Flores García", partido: "DC", rol: "Miembro Titular", email: "iflores@senado.cl", camara: "Senado de la República" },
-      { nombre: "Alejandra Sepúlveda Orbenes", partido: "IND", rol: "Miembro Titular", email: "asepulveda@senado.cl", camara: "Senado de la República" }
-    ]
-  },
-  {
-    id: "medio-ambiente",
-    senadoId: "193",
-    nombre: "Comisión de Medio Ambiente, Cambio Climático y Bienes Nacionales",
-    descripcion: "Protección ambiental de humedales, ley de reciclaje, borde costero y restitución de terrenos fiscales.",
-    estado: "Comisión Permanente",
-    chamber: "SR",
-    prefix: "senado-",
-    icon: "Leaf",
-    email: "mambsen@senado.cl",
-    temas: ["Humedales", "Bienes Nacionales", "Servicio Biodiversidad (SBAP)", "Reciclaje", "Contaminación"],
-    integrantes: [
-      { nombre: "Isabel Allende Bussi", partido: "PS", rol: "Presidenta de Comisión", email: "iallenbussi@senado.cl", camara: "Senado de la República" },
-      { nombre: "Ricardo Lagos Weber", partido: "PPD", rol: "Miembro Titular", email: "rlagos@senado.cl", camara: "Senado de la República" },
-      { nombre: "Paulina Núñez Urrutia", partido: "RN", rol: "Miembro Titular", email: "paulinanunez@senado.cl", camara: "Senado de la República" },
-      { nombre: "Sergio Gahona Salazar", partido: "UDI", rol: "Miembro Titular", email: "sgahona@senado.cl", camara: "Senado de la República" },
-      { nombre: "Matías Walker Prieto", partido: "Demócratas", rol: "Miembro Titular", email: "mwalker@senado.cl", camara: "Senado de la República" }
-    ]
-  },
-  {
-    id: "mineria",
-    senadoId: "196",
-    nombre: "Comisión de Minería y Energía",
-    descripcion: "Políticas del cobre, royalty minero, descarbonización industrial de Chile y reforma al mercado del gas.",
-    estado: "Comisión Permanente",
-    chamber: "SR",
-    prefix: "senado-",
-    icon: "Zap",
-    email: "mineriaysen@senado.cl",
-    temas: ["Royalty", "Cobre", "Litio", "Estrategia Nacional del Litio", "Gas", "Energía Eléctrica"],
-    integrantes: [
-      { nombre: "Juan Luis Castro González", partido: "PS", rol: "Presidente de Comisión", email: "juanluiscastro@senado.cl", camara: "Senado de la República" },
-      { nombre: "Loreto Carvajal Ambiado", partido: "PPD", rol: "Miembro Titular", email: "lcarvajal@senado.cl", camara: "Senado de la República" },
-      { nombre: "José Miguel Durana Semir", partido: "UDI", rol: "Miembro Titular", email: "jdurana@senado.cl", camara: "Senado de la República" },
-      { nombre: "Luz Eliana Ebensperger Orrego", partido: "UDI", rol: "Miembro Titular", email: "lebensperger@senado.cl", camara: "Senado de la República" },
-      { nombre: "Rafael Prohens Espinosa", partido: "RN", rol: "Miembro Titular", email: "rprohens@senado.cl", camara: "Senado de la República" }
+      {
+        nombre: "Pedro Araya Guerrero",
+        partido: "PPD",
+        rol: "Presidente de Comisión",
+        email: "paraya@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Andrés Longton Herrera",
+        partido: "RN",
+        rol: "Miembro Titular",
+        email: "alongton@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Claudia Pascual Grau",
+        partido: "PC",
+        rol: "Miembro Titular",
+        email: "cpascual@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Arturo Squella Ovalle",
+        partido: "PREP",
+        rol: "Miembro Titular",
+        email: "asquella@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Paulina Vodanovic Rojas",
+        partido: "PS",
+        rol: "Miembro Titular",
+        email: "pvodanovic@senado.cl",
+        camara: "Senado de la República"
+      }
     ]
   },
   {
     id: "economia",
     senadoId: "187",
     nombre: "Comisión de Economía",
-    descripcion: "Revisión de proyectos de fomento productivo, protección de datos bancarios, quiebras de empresas y mipymes.",
+    descripcion: "Fomento productivo, libre competencia, protección al consumidor, inversiones, pymes y desarrollo económico.",
     estado: "Comisión Permanente",
     chamber: "SR",
     prefix: "senado-",
     icon: "TrendingUp",
-    email: "economiasen@senado.cl",
-    temas: ["Inversión", "Pymes", "SERNAC", "Mercado Financiero", "Competencia"],
+    color: "emerald",
+    featured: true,
+    email: "econosen@senado.cl",
+    temas: ["Libre Competencia","SERNAC","Pymes","Inversión","Comercio","Mercados"],
     integrantes: [
-      { nombre: "Loreto Carvajal Ambiado", partido: "PPD", rol: "Presidenta de Comisión", email: "lcarvajal@senado.cl", camara: "Senado de la República" },
-      { nombre: "José Miguel Durana Semir", partido: "UDI", rol: "Miembro Titular", email: "jdurana@senado.cl", camara: "Senado de la República" },
-      { nombre: "Daniel Núñez Arancibia", partido: "PC", rol: "Miembro Titular", email: "danielnunez@senado.cl", camara: "Senado de la República" },
-      { nombre: "Kenneth Pugh Olavarría", partido: "IND", rol: "Miembro Titular", email: "kpugh@senado.cl", camara: "Senado de la República" },
-      { nombre: "Gustavo Sanhueza Dueñas", partido: "UDI", rol: "Miembro Titular", email: "gsanhueza@senado.cl", camara: "Senado de la República" }
+      {
+        nombre: "Ricardo Celis Araya",
+        partido: "PPD",
+        rol: "Miembro Titular",
+        email: "rcelis@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Diego Ibáñez Cotroneo",
+        partido: "FA",
+        rol: "Miembro Titular",
+        email: "dibanez@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Carlos Ignacio Kuschel Silva",
+        partido: "RN",
+        rol: "Miembro Titular",
+        email: "ckuschel@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Gastón Saavedra Chandía",
+        partido: "PS",
+        rol: "Presidente de Comisión",
+        email: "gsaavedra@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Matías Walker Prieto",
+        partido: "Demócratas",
+        rol: "Miembro Titular",
+        email: "mwalker@senado.cl",
+        camara: "Senado de la República"
+      }
+    ]
+  },
+  {
+    id: "hacienda",
+    senadoId: "188",
+    nombre: "Comisión de Hacienda",
+    descripcion: "Ley de Presupuestos de la Nación, política tributaria, sostenibilidad fiscal, deuda pública y regulación financiera.",
+    estado: "Comisión Permanente",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "DollarSign",
+    color: "emerald",
+    featured: true,
+    email: "hacisen@senado.cl",
+    temas: ["Presupuesto Nacional","Reforma Tributaria","Sostenibilidad Fiscal","Pacto Fiscal","CFA","Deuda"],
+    integrantes: [
+      {
+        nombre: "Rodolfo Carter Fernández",
+        partido: "PREP",
+        rol: "Miembro Titular",
+        email: "rcarter@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Daniella Cicardini Milla",
+        partido: "PS",
+        rol: "Miembro Titular",
+        email: "dcicardini@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "María José Gatica Bertin",
+        partido: "RN",
+        rol: "Miembro Titular",
+        email: "mgatica@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Javier Macaya Danús",
+        partido: "UDI",
+        rol: "Presidente de Comisión",
+        email: "jmacaya@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Paulina Vodanovic Rojas",
+        partido: "PS",
+        rol: "Miembro Titular",
+        email: "pvodanovic@senado.cl",
+        camara: "Senado de la República"
+      }
+    ]
+  },
+  {
+    id: "educacion",
+    senadoId: "189",
+    nombre: "Comisión de Educación",
+    descripcion: "Políticas educativas nacionales, financiamiento escolar y superior, estatuto docente, SLEP y calidad educativa.",
+    estado: "Comisión Permanente",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "GraduationCap",
+    color: "indigo",
+    featured: true,
+    email: "edusen@senado.cl",
+    temas: ["Educación Escolar","Educación Superior","SLEP","Estatuto Docente","Gratuidad","Calidad"],
+    integrantes: [
+      {
+        nombre: "Rojo Edwards",
+        partido: "PREP",
+        rol: "Miembro Titular",
+        email: "redwards@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Vlado Mirosevic Verdugo",
+        partido: "PL",
+        rol: "Miembro Titular",
+        email: "vmirosevic@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Yasna Provoste Campillay",
+        partido: "DC",
+        rol: "Miembro Titular",
+        email: "yprovoste@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Gustavo Sanhueza Dueñas",
+        partido: "UDI",
+        rol: "Presidente de Comisión",
+        email: "gsanhueza@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Cristian Vial Maceratta",
+        partido: "IND",
+        rol: "Miembro Titular",
+        email: "cvial@senado.cl",
+        camara: "Senado de la República"
+      }
+    ]
+  },
+  {
+    id: "defensa",
+    senadoId: "190",
+    nombre: "Comisión de Defensa Nacional",
+    descripcion: "Soberanía nacional, Fuerzas Armadas (Ejército, Armada, FACH), compras militares, defensa cibernética y fronteras.",
+    estado: "Comisión Permanente",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "Shield",
+    color: "slate",
+    email: "defensen@senado.cl",
+    temas: ["Fuerzas Armadas","Soberanía","Defensa Nacional","Ciberdefensa","Fronteras"],
+    integrantes: [
+      {
+        nombre: "Pedro Araya Guerrero",
+        partido: "PPD",
+        rol: "Miembro Titular",
+        email: "paraya@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Camila Flores Oporto",
+        partido: "RN",
+        rol: "Miembro Titular",
+        email: "cflores@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Francisco Huenchumilla Jaramillo",
+        partido: "DC",
+        rol: "Presidente de Comisión",
+        email: "fhuenchumilla@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Gastón Saavedra Chandía",
+        partido: "PS",
+        rol: "Miembro Titular",
+        email: "gsaavedra@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Cristian Vial Maceratta",
+        partido: "IND",
+        rol: "Miembro Titular",
+        email: "cvial@senado.cl",
+        camara: "Senado de la República"
+      }
+    ]
+  },
+  {
+    id: "obras-publicas",
+    senadoId: "191",
+    nombre: "Comisión de Obras Públicas",
+    descripcion: "Infraestructura vial, portuaria y aeroportuaria, concesiones públicas, agua potable rural y conectividad nacional.",
+    estado: "Comisión Permanente",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "Truck",
+    color: "amber",
+    email: "ooppsen@senado.cl",
+    temas: ["Concesiones","MOP","Carreteras","Puentes","Agua Potable Rural","Infraestructura"],
+    integrantes: [
+      {
+        nombre: "Rodolfo Carter Fernández",
+        partido: "PREP",
+        rol: "Miembro Titular",
+        email: "rcarter@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Alfonso De Urresti Longton",
+        partido: "PS",
+        rol: "Miembro Titular",
+        email: "adeurresti@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "María José Gatica Bertin",
+        partido: "RN",
+        rol: "Presidente de Comisión",
+        email: "mgatica@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Ximena Ordenes Neira",
+        partido: "PPD",
+        rol: "Miembro Titular",
+        email: "xordenes@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Ignacio Urrutia Bonilla",
+        partido: "PREP",
+        rol: "Miembro Titular",
+        email: "iurrutia@senado.cl",
+        camara: "Senado de la República"
+      }
+    ]
+  },
+  {
+    id: "agricultura",
+    senadoId: "192",
+    nombre: "Comisión de Agricultura",
+    descripcion: "Desarrollo silvoagropecuario, seguridad alimentaria, fiscalización SAG/INDAP, uso de suelos y recursos rurales.",
+    estado: "Comisión Permanente",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "Sprout",
+    color: "emerald",
+    email: "agrisen@senado.cl",
+    temas: ["SAG","INDAP","Suelo Agrícola","Seguridad Alimentaria","Riego","Desarrollo Rural"],
+    integrantes: [
+      {
+        nombre: "Andrea Balladares Letelier",
+        partido: "RN",
+        rol: "Miembro Titular",
+        email: "aballadares@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Loreto Carvajal Ambiado",
+        partido: "PPD",
+        rol: "Miembro Titular",
+        email: "lcarvajal@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Alfonso De Urresti Longton",
+        partido: "PS",
+        rol: "Miembro Titular",
+        email: "adeurresti@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Alejandra Sepúlveda Orbenes",
+        partido: "IND",
+        rol: "Presidente de Comisión",
+        email: "asepulveda@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Ignacio Urrutia Bonilla",
+        partido: "PREP",
+        rol: "Miembro Titular",
+        email: "iurrutia@senado.cl",
+        camara: "Senado de la República"
+      }
+    ]
+  },
+  {
+    id: "medio-ambiente",
+    senadoId: "193",
+    nombre: "Comisión de Medio Ambiente, Cambio Climático y Bienes Nacionales",
+    descripcion: "Evaluación ambiental, ley de glaciares, mitigación climática, biodiversidad, áreas protegidas y bienes fiscales.",
+    estado: "Comisión Permanente",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "Leaf",
+    color: "emerald",
+    featured: true,
+    email: "medioambiente@senado.cl",
+    temas: ["Cambio Climático","Biodiversidad","SEIA","Glaciares","Bienes Nacionales","Áreas Protegidas"],
+    integrantes: [
+      {
+        nombre: "Miguel Ángel Calisto Águila",
+        partido: "DEM",
+        rol: "Miembro Titular",
+        email: "mcalisto@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Ricardo Celis Araya",
+        partido: "PPD",
+        rol: "Miembro Titular",
+        email: "rcelis@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Alfonso De Urresti Longton",
+        partido: "PS",
+        rol: "Miembro Titular",
+        email: "adeurresti@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Sergio Gahona Salazar",
+        partido: "UDI",
+        rol: "Presidente de Comisión",
+        email: "sgahona@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Andrés Longton Herrera",
+        partido: "RN",
+        rol: "Miembro Titular",
+        email: "alongton@senado.cl",
+        camara: "Senado de la República"
+      }
+    ]
+  },
+  {
+    id: "trabajo-y-prevision",
+    senadoId: "194",
+    nombre: "Comisión de Trabajo y Previsión Social",
+    descripcion: "Reforma al sistema previsional, pensiones, Código del Trabajo, seguridad social, empleo y negociación colectiva.",
+    estado: "Comisión Permanente",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "HardHat",
+    color: "emerald",
+    featured: true,
+    email: "trabajo@senado.cl",
+    temas: ["Pensiones","Reforma Previsional","Seguridad Social","Código del Trabajo","Jornada Laboral","Empleo"],
+    integrantes: [
+      {
+        nombre: "Andrea Balladares Letelier",
+        partido: "RN",
+        rol: "Miembro Titular",
+        email: "aballadares@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Luciano Cruz-Coke Carvallo",
+        partido: "Evópoli",
+        rol: "Presidente de Comisión",
+        email: "lcruzcoke@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Daniel Núñez Arancibia",
+        partido: "PC",
+        rol: "Miembro Titular",
+        email: "dnunez@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Gastón Saavedra Chandía",
+        partido: "PS",
+        rol: "Miembro Titular",
+        email: "gsaavedra@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Arturo Squella Ovalle",
+        partido: "PREP",
+        rol: "Miembro Titular",
+        email: "asquella@senado.cl",
+        camara: "Senado de la República"
+      }
+    ]
+  },
+  {
+    id: "salud",
+    senadoId: "195",
+    nombre: "Comisión de Salud",
+    descripcion: "Sistema de salud público (Fonasa) y privado (Isapres), red hospitalaria, medicamentos, listas de espera y bioética.",
+    estado: "Comisión Permanente",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "Heart",
+    color: "rose",
+    featured: true,
+    email: "saludsen@senado.cl",
+    temas: ["Fonasa","Isapres","Hospitales","Medicamentos","Listas de Espera","Salud Mental"],
+    integrantes: [
+      {
+        nombre: "Karol Cariola Oliva",
+        partido: "PC",
+        rol: "Miembro Titular",
+        email: "kcariola@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Juan Luis Castro González",
+        partido: "PS",
+        rol: "Presidente de Comisión",
+        email: "jcastro@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Sergio Gahona Salazar",
+        partido: "UDI",
+        rol: "Miembro Titular",
+        email: "sgahona@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Enrique Lee Flores",
+        partido: "IND",
+        rol: "Miembro Titular",
+        email: "elee@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Ximena Ordenes Neira",
+        partido: "PPD",
+        rol: "Miembro Titular",
+        email: "xordenes@senado.cl",
+        camara: "Senado de la República"
+      }
+    ]
+  },
+  {
+    id: "mineria-y-energia",
+    senadoId: "196",
+    nombre: "Comisión de Minería y Energía",
+    descripcion: "Royalty minero, estrategia nacional del litio, transición energética, energías renovables, Codelco y Enami.",
+    estado: "Comisión Permanente",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "Zap",
+    color: "amber",
+    featured: true,
+    email: "mineria@senado.cl",
+    temas: ["Litio","Cobre","Codelco","Transición Energética","Energías Renovables","Royalty"],
+    integrantes: [
+      {
+        nombre: "Miguel Ángel Calisto Águila",
+        partido: "DEM",
+        rol: "Miembro Titular",
+        email: "mcalisto@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Juan Luis Castro González",
+        partido: "PS",
+        rol: "Miembro Titular",
+        email: "jcastro@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Daniel Núñez Arancibia",
+        partido: "PC",
+        rol: "Miembro Titular",
+        email: "dnunez@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Yasna Provoste Campillay",
+        partido: "DC",
+        rol: "Presidenta de Comisión",
+        email: "yprovoste@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Renzo Trisotti Martínez",
+        partido: "UDI",
+        rol: "Miembro Titular",
+        email: "rtrisotti@senado.cl",
+        camara: "Senado de la República"
+      }
     ]
   },
   {
     id: "vivienda",
     senadoId: "197",
     nombre: "Comisión de Vivienda y Urbanismo",
-    descripcion: "Políticas de regularización de campamentos, comités de vivienda social y ley de copropiedad inmobiliaria.",
+    descripcion: "Plan de emergencia habitacional, subsidios habitacionales, ordenamiento territorial, campamentos y desarrollo urbano.",
     estado: "Comisión Permanente",
     chamber: "SR",
     prefix: "senado-",
     icon: "Home",
-    email: "vivsen@senado.cl",
-    temas: ["Vivienda", "Plan de Emergencia Habitacional", "Urbanismo", "Campamentos", "Copropiedad"],
+    color: "blue",
+    email: "vivienda@senado.cl",
+    temas: ["Plan Habitacional","Subsidios","Urbanismo","Campamentos","Regeneración Urbana"],
     integrantes: [
-      { nombre: "Fidel Espinoza Sandoval", partido: "PS", rol: "Presidente de Comisión", email: "fespinoza@senado.cl", camara: "Senado de la República" },
-      { nombre: "María José Gatica Bertin", partido: "RN", rol: "Miembro Titular", email: "mjgatica@senado.cl", camara: "Senado de la República" },
-      { nombre: "Carlos Ignacio Kuschel Silva", partido: "RN", rol: "Miembro Titular", email: "ckuschel@senado.cl", camara: "Senado de la República" },
-      { nombre: "Claudia Pascual Grau", partido: "PC", rol: "Miembro Titular", email: "cpascual@senado.cl", camara: "Senado de la República" },
-      { nombre: "David Sandoval Plaza", partido: "UDI", rol: "Miembro Titular", email: "dsandoval@senado.cl", camara: "Senado de la República" }
-    ]
-  },
-  {
-    id: "derechos-humanos",
-    senadoId: "199",
-    nombre: "Comisión de Derechos Humanos, Nacionalidad y Ciudadanía",
-    descripcion: "Revisión de cartas de nacionalidad por gracia chilena, convenios de la OEA y derechos fundamentales.",
-    estado: "Comisión Permanente",
-    chamber: "SR",
-    prefix: "senado-",
-    icon: "Users",
-    email: "ddhhsen@senado.cl",
-    temas: ["Derechos Humanos", "Nacionalidad por Gracia", "INDH", "Garantías", "Convenios"],
-    integrantes: [
-      { nombre: "Fabiola Campillai Rojas", partido: "IND", rol: "Presidenta de Comisión", email: "fcampillai@senado.cl", camara: "Senado de la República" },
-      { nombre: "Francisco Chahuán Chahuán", partido: "RN", rol: "Miembro Titular", email: "fchahuan@senado.cl", camara: "Senado de la República" },
-      { nombre: "Fidel Espinoza Sandoval", partido: "PS", rol: "Miembro Titular", email: "fespinoza@senado.cl", camara: "Senado de la República" },
-      { nombre: "Enrique Van Rysselberghe Herrera", partido: "UDI", rol: "Miembro Titular", email: "evr@senado.cl", camara: "Senado de la República" },
-      { nombre: "Gastón Saavedra Chandía", partido: "PS", rol: "Miembro Titular", email: "gsaavedra@senado.cl", camara: "Senado de la República" }
-    ]
-  },
-  {
-    id: "desafios-futuro",
-    senadoId: "941",
-    nombre: "Comisión de Desafíos del Futuro, Ciencia, Tecnología e Innovación",
-    descripcion: "Organizadores del 'Congreso Futuro', regulación de neuroderechos, metaverso y ética de datos masivos.",
-    estado: "Comisión Permanente",
-    chamber: "SR",
-    prefix: "senado-",
-    icon: "Cpu",
-    email: "comisionfuturo@senado.cl",
-    temas: ["Congreso Futuro", "Inteligencia Artificial", "Neuroderechos", "Espacio", "Biotecnología"],
-    integrantes: [
-      { nombre: "Juan Antonio Coloma Correa", partido: "UDI", rol: "Presidente de Comisión", email: "jcoloma@senado.cl", camara: "Senado de la República" },
-      { nombre: "Francisco Chahuán Chahuán", partido: "RN", rol: "Miembro Titular", email: "fchahuan@senado.cl", camara: "Senado de la República" },
-      { nombre: "Alfonso De Urresti Longton", partido: "PS", rol: "Miembro Titular", email: "adeurresti@senado.cl", camara: "Senado de la República" },
-      { nombre: "Felipe Kast Sommerhoff", partido: "Evópoli", rol: "Miembro Titular", email: "fkast@senado.cl", camara: "Senado de la República" },
-      { nombre: "Kenneth Pugh Olavarría", partido: "IND", rol: "Miembro Titular", email: "kpugh@senado.cl", camara: "Senado de la República" }
-    ]
-  },
-  {
-    id: "mujeres-genero",
-    senadoId: "1126",
-    nombre: "Comisión de la Mujer y Equidad de Género",
-    descripcion: "Igualdad salarial de género, de cupos en directorios y prevención de femicidios.",
-    estado: "Comisión Permanente",
-    chamber: "SR",
-    prefix: "senado-",
-    icon: "Sparkles",
-    email: "comisiondelamujer@senado.cl",
-    temas: ["Mujer", "Equidad de Género", "Ley Integral contra la Violencia", "Cuidados"],
-    integrantes: [
-      { nombre: "Loreto Carvajal Ambiado", partido: "PPD", rol: "Presidenta de Comisión", email: "lcarvajal@senado.cl", camara: "Senado de la República" },
-      { nombre: "Paulina Núñez Urrutia", partido: "RN", rol: "Miembro Titular", email: "paulinanunez@senado.cl", camara: "Senado de la República" },
-      { nombre: "Claudia Pascual Grau", partido: "PC", rol: "Miembro Titular", email: "cpascual@senado.cl", camara: "Senado de la República" },
-      { nombre: "Carmen Gloria Aravena Acuña", partido: "PREP", rol: "Miembro Titular", email: "cgaravena@senado.cl", camara: "Senado de la República" },
-      { nombre: "Isabel Allende Bussi", partido: "PS", rol: "Miembro Titular", email: "iallenbussi@senado.cl", camara: "Senado de la República" }
-    ]
-  },
-  {
-    id: "infancia",
-    senadoId: "1323",
-    nombre: "Comisión de Familia, Infancia y Adolescencia",
-    descripcion: "Seguimiento legislativo a la ley de garantías de la infancia, SENAME, Mejor Niñez e integración juvenil.",
-    estado: "Comisión Permanente",
-    chamber: "SR",
-    prefix: "senado-",
-    icon: "Smile",
-    email: "comisioninfancia@senado.cl",
-    temas: ["Infancia", "Adolescencia", "Mejor Niñez", "Protección Integral", "Garantías de la Niñez"],
-    integrantes: [
-      { nombre: "Fabiola Campillai Rojas", partido: "IND", rol: "Presidenta de Comisión", email: "fcampillai@senado.cl", camara: "Senado de la República" },
-      { nombre: "Paulina Núñez Urrutia", partido: "RN", rol: "Miembro Titular", email: "paulinanunez@senado.cl", camara: "Senado de la República" },
-      { nombre: "Loreto Carvajal Ambiado", partido: "PPD", rol: "Miembro Titular", email: "lcarvajal@senado.cl", camara: "Senado de la República" },
-      { nombre: "Enrique Van Rysselberghe Herrera", partido: "UDI", rol: "Miembro Titular", email: "evr@senado.cl", camara: "Senado de la República" },
-      { nombre: "Carmen Gloria Aravena Acuña", partido: "PREP", rol: "Miembro Titular", email: "cgaravena@senado.cl", camara: "Senado de la República" }
+      {
+        nombre: "Miguel Ángel Becker Alvear",
+        partido: "RN",
+        rol: "Miembro Titular",
+        email: "mbecker@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Loreto Carvajal Ambiado",
+        partido: "PPD",
+        rol: "Miembro Titular",
+        email: "lcarvajal@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Fidel Espinoza Sandoval",
+        partido: "PS",
+        rol: "Presidente de Comisión",
+        email: "fespinoza@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Gustavo Sanhueza Dueñas",
+        partido: "UDI",
+        rol: "Miembro Titular",
+        email: "gsanhueza@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Alejandra Sepúlveda Orbenes",
+        partido: "IND",
+        rol: "Miembro Titular",
+        email: "asepulveda@senado.cl",
+        camara: "Senado de la República"
+      }
     ]
   },
   {
     id: "transportes",
     senadoId: "198",
     nombre: "Comisión de Transportes y Telecomunicaciones",
-    descripcion: "Regulación de empresas de aplicaciones de transporte (Ley EAT), puertos, trenes para Chile y 5G.",
+    descripcion: "Regulación de transporte público y de carga, subsidios al transporte, 5G, ciberseguridad y conectividad digital.",
     estado: "Comisión Permanente",
     chamber: "SR",
     prefix: "senado-",
-    icon: "HardHat",
+    icon: "Compass",
+    color: "cyan",
     email: "transen@senado.cl",
-    temas: ["Trenes para Chile", "Ley EAT / Uber", "Puertos", "5G", "Subsidio Transporte"],
+    temas: ["Transporte Público","Subsidio Transporte","Telecomunicaciones","5G","Conectividad Digital"],
     integrantes: [
-      { nombre: "Enrique Van Rysselberghe Herrera", partido: "UDI", rol: "Presidente de Comisión", email: "evr@senado.cl", camara: "Senado de la República" },
-      { nombre: "Alejandro Kusanovic Glusevic", partido: "IND", rol: "Miembro Titular", email: "akusanovic@senado.cl", camara: "Senado de la República" },
-      { nombre: "Ximena Órdenes Neira", partido: "PPD", rol: "Miembro Titular", email: "xordenes@senado.cl", camara: "Senado de la República" },
-      { nombre: "Juan Luis Castro González", partido: "PS", rol: "Miembro Titular", email: "juanluiscastro@senado.cl", camara: "Senado de la República" },
-      { nombre: "Francisco Chahuán Chahuán", partido: "RN", rol: "Miembro Titular", email: "fchahuan@senado.cl", camara: "Senado de la República" }
+      {
+        nombre: "Danisa Astudillo Peiretti",
+        partido: "PS",
+        rol: "Miembro Titular",
+        email: "dastudillo@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Loreto Carvajal Ambiado",
+        partido: "PPD",
+        rol: "Miembro Titular",
+        email: "lcarvajal@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Camila Flores Oporto",
+        partido: "RN",
+        rol: "Presidente de Comisión",
+        email: "cflores@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Alejandro Kusanovic Glusevic",
+        partido: "IND",
+        rol: "Miembro Titular",
+        email: "akusanovic@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Enrique Van Rysselberghe Herrera",
+        partido: "UDI",
+        rol: "Miembro Titular",
+        email: "evanrysselberghe@senado.cl",
+        camara: "Senado de la República"
+      }
+    ]
+  },
+  {
+    id: "derechos-humanos",
+    senadoId: "199",
+    nombre: "Comisión de Derechos Humanos, Nacionalidad y Ciudadanía",
+    descripcion: "Protección y promoción de los derechos fundamentales, memoria histórica, nacionalidad, refugio e inclusión.",
+    estado: "Comisión Permanente",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "Users",
+    color: "purple",
+    email: "ddhhsen@senado.cl",
+    temas: ["Derechos Humanos","Memoria","Nacionalidad","Inclusión","Reparación"],
+    integrantes: [
+      {
+        nombre: "Fabiola Campillai Rojas",
+        partido: "IND",
+        rol: "Presidenta de Comisión",
+        email: "fcampillai@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Loreto Carvajal Ambiado",
+        partido: "PPD",
+        rol: "Miembro Titular",
+        email: "lcarvajal@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Fidel Espinoza Sandoval",
+        partido: "PS",
+        rol: "Miembro Titular",
+        email: "fespinoza@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Enrique Van Rysselberghe Herrera",
+        partido: "UDI",
+        rol: "Miembro Titular",
+        email: "evanrysselberghe@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Matías Walker Prieto",
+        partido: "Demócratas",
+        rol: "Miembro Titular",
+        email: "mwalker@senado.cl",
+        camara: "Senado de la República"
+      }
     ]
   },
   {
     id: "pesca",
     senadoId: "200",
     nombre: "Comisión de Intereses Marítimos, Pesca y Acuicultura",
-    descripcion: "Tramitación de la Nueva Ley de Pesca, fraccionamiento pesquero, acuicultura sustentable y salmones.",
+    descripcion: "Nueva Ley de Pesca, cuotas de captura, protección de pesca artesanal e industrial, acuicultura sustentable y borde costero.",
     estado: "Comisión Permanente",
     chamber: "SR",
     prefix: "senado-",
-    icon: "Droplet",
+    icon: "Fish",
+    color: "cyan",
+    featured: true,
     email: "pescasen@senado.cl",
-    temas: ["Nueva Ley de Pesca", "Fraccionamiento", "Pesca Artesanal", "Acuicultura", "Salmones", "Borde Costero"],
+    temas: ["Ley de Pesca","Pesca Artesanal","Acuicultura","Borde Costero","Cuotas Pesqueras"],
     integrantes: [
-      { nombre: "Fidel Espinoza Sandoval", partido: "PS", rol: "Presidente de Comisión", email: "fespinoza@senado.cl", camara: "Senado de la República" },
-      { nombre: "Carlos Ignacio Kuschel Silva", partido: "RN", rol: "Miembro Titular", email: "ckuschel@senado.cl", camara: "Senado de la República" },
-      { nombre: "Iván Flores García", partido: "DC", rol: "Miembro Titular", email: "iflores@senado.cl", camara: "Senado de la República" },
-      { nombre: "Alejandro Kusanovic Glusevic", partido: "IND", rol: "Miembro Titular", email: "akusanovic@senado.cl", camara: "Senado de la República" },
-      { nombre: "David Sandoval Plaza", partido: "UDI", rol: "Miembro Titular", email: "dsandoval@senado.cl", camara: "Senado de la República" }
-    ]
-  },
-  {
-    id: "recursos-hidricos",
-    senadoId: "1009",
-    nombre: "Comisión de Recursos Hídricos, Desertificación y Sequía",
-    descripcion: "Políticas de seguridad hídrica, embalses estratégicos, fiscalización de extracciones ilegales y reúso de aguas.",
-    estado: "Comisión Permanente",
-    chamber: "SR",
-    prefix: "senado-",
-    icon: "Droplet",
-    email: "recursoshidricos@senado.cl",
-    temas: ["Seguridad Hídrica", "Sequía", "Embalses", "Desalación", "Juntas de Vigilancia"],
-    integrantes: [
-      { nombre: "Sergio Gahona Salazar", partido: "UDI", rol: "Presidente de Comisión", email: "sgahona@senado.cl", camara: "Senado de la República" },
-      { nombre: "Yasna Provoste Campillay", partido: "DC", rol: "Miembro Titular", email: "yasnaprovoste@senado.cl", camara: "Senado de la República" },
-      { nombre: "Carlos Ignacio Kuschel Silva", partido: "RN", rol: "Miembro Titular", email: "ckuschel@senado.cl", camara: "Senado de la República" },
-      { nombre: "Daniel Núñez Arancibia", partido: "PC", rol: "Miembro Titular", email: "danielnunez@senado.cl", camara: "Senado de la República" },
-      { nombre: "Juan Castro Prieto", partido: "RN", rol: "Miembro Titular", email: "jcastro@senado.cl", camara: "Senado de la República" }
+      {
+        nombre: "Miguel Ángel Calisto Águila",
+        partido: "DEM",
+        rol: "Miembro Titular",
+        email: "mcalisto@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Fidel Espinoza Sandoval",
+        partido: "PS",
+        rol: "Miembro Titular",
+        email: "fespinoza@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Iván Flores García",
+        partido: "DC",
+        rol: "Miembro Titular",
+        email: "iflores@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Alejandro Kusanovic Glusevic",
+        partido: "IND",
+        rol: "Miembro Titular",
+        email: "akusanovic@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Carlos Ignacio Kuschel Silva",
+        partido: "RN",
+        rol: "Presidente de Comisión",
+        email: "ckuschel@senado.cl",
+        camara: "Senado de la República"
+      }
     ]
   },
   {
     id: "regimen-interior",
     senadoId: "201",
     nombre: "Comisión de Régimen Interior",
-    descripcion: "Administración institucional del Senado, presupuesto interno, ceremonial y auditoría parlamentaria.",
+    descripcion: "Administración institucional del Senado, presupuesto interno de la Corporación, personal y reglamentación interna.",
     estado: "Comisión Permanente",
     chamber: "SR",
     prefix: "senado-",
-    icon: "Landmark",
-    email: "regimeninterior@senado.cl",
-    temas: ["Régimen Interior", "Presupuesto Senado", "Auditoría", "Administración"],
+    icon: "Building2",
+    color: "slate",
+    email: "regimen-interior@senado.cl",
+    temas: ["Administración del Senado","Presupuesto Corporación","Reglamento","Gestión Interna"],
     integrantes: [
-      { nombre: "José García Ruminot", partido: "RN", rol: "Presidente de Comisión", email: "jgarcia@senado.cl", camara: "Senado de la República" },
-      { nombre: "Juan Luis Castro González", partido: "PS", rol: "Miembro Titular", email: "juanluiscastro@senado.cl", camara: "Senado de la República" },
-      { nombre: "Sergio Gahona Salazar", partido: "UDI", rol: "Miembro Titular", email: "sgahona@senado.cl", camara: "Senado de la República" },
-      { nombre: "Iván Moreira Barros", partido: "UDI", rol: "Miembro Titular", email: "imoreira@senado.cl", camara: "Senado de la República" },
-      { nombre: "Manuel José Ossandón Irarrázabal", partido: "RN", rol: "Miembro Titular", email: "mjossandon@senado.cl", camara: "Senado de la República" },
-      { nombre: "Yasna Provoste Campillay", partido: "DC", rol: "Miembro Titular", email: "yasnaprovoste@senado.cl", camara: "Senado de la República" },
-      { nombre: "Pedro Araya Guerrero", partido: "PPD", rol: "Miembro Titular", email: "paraya@senado.cl", camara: "Senado de la República" }
+      {
+        nombre: "Juan Luis Castro González",
+        partido: "PS",
+        rol: "Miembro Titular",
+        email: "jcastro@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Sergio Gahona Salazar",
+        partido: "UDI",
+        rol: "Miembro Titular",
+        email: "sgahona@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Iván Moreira Barros",
+        partido: "UDI",
+        rol: "Miembro Titular",
+        email: "imoreira@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Paulina Núñez Urrutia",
+        partido: "RN",
+        rol: "Presidenta de Comisión",
+        email: "pnunez@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Manuel José Ossandón Irarrázabal",
+        partido: "RN",
+        rol: "Miembro Titular",
+        email: "mjossandon@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Yasna Provoste Campillay",
+        partido: "DC",
+        rol: "Miembro Titular",
+        email: "yprovoste@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Ignacio Urrutia Bonilla",
+        partido: "PREP",
+        rol: "Miembro Titular",
+        email: "iurrutia@senado.cl",
+        camara: "Senado de la República"
+      }
+    ]
+  },
+  {
+    id: "revisora-cuentas",
+    senadoId: "202",
+    nombre: "Comisión Revisora de Cuentas",
+    descripcion: "Auditoría, control financiero y revisión de cuentas de los gastos y presupuestos de la Corporación del Senado.",
+    estado: "Comisión Permanente",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "BookOpen",
+    color: "slate",
+    email: "ctasen@senado.cl",
+    temas: ["Auditoría Interna","Control de Gastos","Cuentas del Senado","Transparencia"],
+    integrantes: [
+    ]
+  },
+  {
+    id: "etica",
+    senadoId: "718",
+    nombre: "Comisión de Ética y Transparencia del Senado",
+    descripcion: "Supervisión de la conducta parlamentaria, probidad pública, declaraciones de intereses y sanciones disciplinarias.",
+    estado: "Comisión Permanente",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "Award",
+    color: "indigo",
+    email: "eticaytransparencia@senado.cl",
+    temas: ["Probidad","Ética Parlamentaria","Transparencia","Conflictos de Interés"],
+    integrantes: [
+      {
+        nombre: "Andrea Balladares Letelier",
+        partido: "RN",
+        rol: "Miembro Titular",
+        email: "aballadares@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Juan Luis Castro González",
+        partido: "PS",
+        rol: "Miembro Titular",
+        email: "jcastro@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Francisco Huenchumilla Jaramillo",
+        partido: "DC",
+        rol: "Miembro Titular",
+        email: "fhuenchumilla@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Gustavo Sanhueza Dueñas",
+        partido: "UDI",
+        rol: "Presidente de Comisión",
+        email: "gsanhueza@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Ignacio Urrutia Bonilla",
+        partido: "PREP",
+        rol: "Miembro Titular",
+        email: "iurrutia@senado.cl",
+        camara: "Senado de la República"
+      }
+    ]
+  },
+  {
+    id: "desafios-futuro",
+    senadoId: "941",
+    nombre: "Comisión de Desafíos del Futuro, Ciencia, Tecnología e Innovación",
+    descripcion: "Inteligencia Artificial, regulación tecnológica, exploración espacial, ciencia aplicada, innovación y Congreso Futuro.",
+    estado: "Comisión Permanente",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "Cpu",
+    color: "purple",
+    featured: true,
+    email: "comisionfuturo@senado.cl",
+    temas: ["Inteligencia Artificial","Congreso Futuro","Ciencia e Innovación","Tecnología","Espacio"],
+    integrantes: [
+      {
+        nombre: "Ricardo Celis Araya",
+        partido: "PPD",
+        rol: "Miembro Titular",
+        email: "rcelis@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Daniella Cicardini Milla",
+        partido: "PS",
+        rol: "Miembro Titular",
+        email: "dcicardini@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Luciano Cruz-Coke Carvallo",
+        partido: "Evópoli",
+        rol: "Miembro Titular",
+        email: "lcruzcoke@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Rojo Edwards",
+        partido: "PREP",
+        rol: "Presidente de Comisión",
+        email: "redwards@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Manuel José Ossandón Irarrázabal",
+        partido: "RN",
+        rol: "Miembro Titular",
+        email: "mjossandon@senado.cl",
+        camara: "Senado de la República"
+      }
+    ]
+  },
+  {
+    id: "seguridad-publica",
+    senadoId: "615",
+    nombre: "Comisión de Seguridad Pública",
+    descripcion: "Combate al crimen organizado, modernización de Carabineros y PDI, Ley Antiterrorista, Reglas de Uso de la Fuerza y cárceles.",
+    estado: "Comisión Permanente",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "Shield",
+    color: "slate",
+    featured: true,
+    email: "seguridadpublica@senado.cl",
+    temas: ["Seguridad Pública","Crimen Organizado","Carabineros","PDI","Ley Antiterrorista","RUF"],
+    integrantes: [
+      {
+        nombre: "Pedro Araya Guerrero",
+        partido: "PPD",
+        rol: "Miembro Titular",
+        email: "paraya@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Karim Bianchi Retamales",
+        partido: "IND",
+        rol: "Presidente de Comisión",
+        email: "kbianchi@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Juan Luis Castro González",
+        partido: "PS",
+        rol: "Miembro Titular",
+        email: "jcastro@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Andrés Longton Herrera",
+        partido: "RN",
+        rol: "Miembro Titular",
+        email: "alongton@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Cristian Vial Maceratta",
+        partido: "IND",
+        rol: "Miembro Titular",
+        email: "cvial@senado.cl",
+        camara: "Senado de la República"
+      }
+    ]
+  },
+  {
+    id: "recursos-hidricos",
+    senadoId: "1009",
+    nombre: "Comisión de Recursos Hídricos, Desertificación y Sequía",
+    descripcion: "Código de Aguas, gestión de cuencas hidrográficas, desalinización, combate a la sequía y seguridad hídrica.",
+    estado: "Comisión Permanente",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "Droplets",
+    color: "cyan",
+    featured: true,
+    email: "recursoshidricos@senado.cl",
+    temas: ["Código de Aguas","Sequía","Desalinización","Cuencas","Seguridad Hídrica"],
+    integrantes: [
+      {
+        nombre: "Karol Cariola Oliva",
+        partido: "PC",
+        rol: "Presidenta de Comisión",
+        email: "kcariola@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Ricardo Celis Araya",
+        partido: "PPD",
+        rol: "Miembro Titular",
+        email: "rcelis@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Daniella Cicardini Milla",
+        partido: "PS",
+        rol: "Miembro Titular",
+        email: "dcicardini@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Carlos Ignacio Kuschel Silva",
+        partido: "RN",
+        rol: "Miembro Titular",
+        email: "ckuschel@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Ignacio Urrutia Bonilla",
+        partido: "PREP",
+        rol: "Miembro Titular",
+        email: "iurrutia@senado.cl",
+        camara: "Senado de la República"
+      }
+    ]
+  },
+  {
+    id: "mujer-genero",
+    senadoId: "1126",
+    nombre: "Comisión de la Mujer y Equidad de Género",
+    descripcion: "Derechos de las mujeres, prevención y sanción de la violencia de género, igualdad salarial y corresponsabilidad.",
+    estado: "Comisión Permanente",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "Sparkles",
+    color: "rose",
+    featured: true,
+    email: "comisiondelamujer@senado.cl",
+    temas: ["Equidad de Género","Violencia contra la Mujer","Igualdad Salarial","Cuidados"],
+    integrantes: [
+      {
+        nombre: "Loreto Carvajal Ambiado",
+        partido: "PPD",
+        rol: "Presidenta de Comisión",
+        email: "lcarvajal@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Daniella Cicardini Milla",
+        partido: "PS",
+        rol: "Miembro Titular",
+        email: "dcicardini@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Vanessa Kaiser Barents-Von Hohenhagen",
+        partido: "PREP",
+        rol: "Miembro Titular",
+        email: "vkaiser@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Paulina Núñez Urrutia",
+        partido: "RN",
+        rol: "Miembro Titular",
+        email: "pnunez@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Beatriz Sánchez Muñoz",
+        partido: "FA",
+        rol: "Miembro Titular",
+        email: "bsanchez@senado.cl",
+        camara: "Senado de la República"
+      }
+    ]
+  },
+  {
+    id: "adulto-mayor-discapacidad",
+    senadoId: "1133",
+    nombre: "Comisión del Adulto Mayor y Discapacidad",
+    descripcion: "Políticas integrales para personas mayores, sistema nacional de cuidados, inclusión laboral y accesibilidad universal.",
+    estado: "Comisión Permanente",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "Smile",
+    color: "amber",
+    email: "adultomydiscapacidad@senado.cl",
+    temas: ["Personas Mayores","Discapacidad","Cuidados","Inclusión","Accesibilidad"],
+    integrantes: [
+      {
+        nombre: "Miguel Ángel Becker Alvear",
+        partido: "RN",
+        rol: "Miembro Titular",
+        email: "mbecker@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Fabiola Campillai Rojas",
+        partido: "IND",
+        rol: "Miembro Titular",
+        email: "fcampillai@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Juan Luis Castro González",
+        partido: "PS",
+        rol: "Miembro Titular",
+        email: "jcastro@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Vanessa Kaiser Barents-Von Hohenhagen",
+        partido: "PREP",
+        rol: "Miembro Titular",
+        email: "vkaiser@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Sebastián Keitel Bianchi",
+        partido: "Evópoli",
+        rol: "Presidente de Comisión",
+        email: "skeitel@senado.cl",
+        camara: "Senado de la República"
+      }
     ]
   },
   {
     id: "cultura-deportes",
     senadoId: "1324",
     nombre: "Comisión de Cultura, Patrimonio, Artes, Deportes y Recreación",
-    descripcion: "Legislación de fomento cultural nacional, resguardo del patrimonio histórico y fomento del deporte.",
+    descripcion: "Protección del patrimonio cultural, financiamiento de artes escénicas y museos, alto rendimiento y deporte formativo.",
     estado: "Comisión Permanente",
     chamber: "SR",
     prefix: "senado-",
-    icon: "Award",
+    icon: "Music",
+    color: "purple",
     email: "culturaydeportes@senado.cl",
-    temas: ["Cultura", "Patrimonio", "Artes", "Deportes", "Recreación", "Atletas"],
+    temas: ["Patrimonio","Artes y Cultura","Deporte","Alto Rendimiento","Monumentos"],
     integrantes: [
-      { nombre: "Alfonso De Urresti Longton", partido: "PS", rol: "Presidente de Comisión", email: "adeurresti@senado.cl", camara: "Senado de la República" },
-      { nombre: "Sebastián Keitel Bianchi", partido: "IND-Evópoli", rol: "Miembro Titular", email: "skeitel@senado.cl", camara: "Senado de la República" },
-      { nombre: "Luciano Cruz-Coke Carvallo", partido: "Evópoli", rol: "Miembro Titular", email: "lcruzcoke@senado.cl", camara: "Senado de la República" },
-      { nombre: "Fidel Espinoza Sandoval", partido: "PS", rol: "Miembro Titular", email: "fespinoza@senado.cl", camara: "Senado de la República" },
-      { nombre: "Alejandra Sepúlveda Órdenes", partido: "IND", rol: "Miembro Titular", email: "asepulveda@senado.cl", camara: "Senado de la República" }
+      {
+        nombre: "Alfonso De Urresti Longton",
+        partido: "PS",
+        rol: "Presidente de Comisión",
+        email: "adeurresti@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Sebastián Keitel Bianchi",
+        partido: "Evópoli",
+        rol: "Miembro Titular",
+        email: "skeitel@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Enrique Lee Flores",
+        partido: "IND",
+        rol: "Miembro Titular",
+        email: "elee@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Beatriz Sánchez Muñoz",
+        partido: "FA",
+        rol: "Miembro Titular",
+        email: "bsanchez@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Alejandra Sepúlveda Orbenes",
+        partido: "IND",
+        rol: "Miembro Titular",
+        email: "asepulveda@senado.cl",
+        camara: "Senado de la República"
+      }
     ]
   },
   {
-    id: "adulto-mayor",
-    senadoId: "1133",
-    nombre: "Comisión del Adulto Mayor y Discapacidad",
-    descripcion: "Normas de protección a personas mayores, inclusión laboral de personas con discapacidad y pensiones.",
+    id: "familia-infancia",
+    senadoId: "1323",
+    nombre: "Comisión de Familia, Infancia y Adolescencia",
+    descripcion: "Garantías y protección integral de la niñez y adolescencia, adopción, servicio Mejor Niñez y derechos de las familias.",
     estado: "Comisión Permanente",
     chamber: "SR",
     prefix: "senado-",
     icon: "Users",
-    email: "adultomydiscapacidad@senado.cl",
-    temas: ["Adulto Mayor", "Discapacidad", "Inclusión", "SENADIS", "Cuidados"],
+    color: "rose",
+    email: "comisioninfancia@senado.cl",
+    temas: ["Protección de la Niñez","Mejor Niñez","Adopción","Familias","Derechos de Infancia"],
     integrantes: [
-      { nombre: "David Sandoval Plaza", partido: "UDI", rol: "Presidente de Comisión", email: "dsandoval@senado.cl", camara: "Senado de la República" },
-      { nombre: "Sebastián Keitel Bianchi", partido: "IND-Evópoli", rol: "Miembro Titular", email: "skeitel@senado.cl", camara: "Senado de la República" },
-      { nombre: "Fabiola Campillai Rojas", partido: "IND", rol: "Miembro Titular", email: "fcampillai@senado.cl", camara: "Senado de la República" },
-      { nombre: "Juan Luis Castro González", partido: "PS", rol: "Miembro Titular", email: "juanluiscastro@senado.cl", camara: "Senado de la República" },
-      { nombre: "Enrique Van Rysselberghe Herrera", partido: "UDI", rol: "Miembro Titular", email: "evr@senado.cl", camara: "Senado de la República" }
+      {
+        nombre: "Andrea Balladares Letelier",
+        partido: "RN",
+        rol: "Miembro Titular",
+        email: "aballadares@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Fabiola Campillai Rojas",
+        partido: "IND",
+        rol: "Miembro Titular",
+        email: "fcampillai@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Loreto Carvajal Ambiado",
+        partido: "PPD",
+        rol: "Miembro Titular",
+        email: "lcarvajal@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Vanessa Kaiser Barents-Von Hohenhagen",
+        partido: "PREP",
+        rol: "Presidenta de Comisión",
+        email: "vkaiser@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Enrique Van Rysselberghe Herrera",
+        partido: "UDI",
+        rol: "Miembro Titular",
+        email: "evanrysselberghe@senado.cl",
+        camara: "Senado de la República"
+      }
     ]
   },
   {
-    id: "presupuestos-mixta",
+    id: "especial-mixta-presupuestos",
     senadoId: "367",
     nombre: "Comisión Especial Mixta de Presupuestos",
-    descripcion: "Comisión bicameral encargada de la tramitación de la Ley de Presupuestos de la Nación y fiscalización de partidas.",
+    descripcion: "Instancia parlamentaria bicameral de 26 legisladores encargada de la tramitación integral de la Ley de Presupuestos del Sector Público.",
     estado: "Comisión Permanente",
     chamber: "SR",
     prefix: "senado-",
-    icon: "TrendingUp",
+    icon: "DollarSign",
+    color: "emerald",
+    featured: true,
     email: "compres@senado.cl",
-    temas: ["Presupuesto Nacional", "Partidas Presupuestarias", "Hacienda", "DIPRES", "Gasto Público"],
+    temas: ["Ley de Presupuestos","Partidas Presupuestarias","Erario Nacional","DIPRES","Gasto Público"],
     integrantes: [
-      { nombre: "Felipe Kast Sommerhoff", partido: "Evópoli", rol: "Presidente de Comisión", email: "fkast@senado.cl", camara: "Senado de la República" },
-      { nombre: "Juan Antonio Coloma Correa", partido: "UDI", rol: "Miembro Titular", email: "jcoloma@senado.cl", camara: "Senado de la República" },
-      { nombre: "José García Ruminot", partido: "RN", rol: "Miembro Titular", email: "jgarcia@senado.cl", camara: "Senado de la República" },
-      { nombre: "Ricardo Lagos Weber", partido: "PPD", rol: "Miembro Titular", email: "rlagos@senado.cl", camara: "Senado de la República" },
-      { nombre: "Daniel Núñez Arancibia", partido: "PC", rol: "Miembro Titular", email: "danielnunez@senado.cl", camara: "Senado de la República" },
-      { nombre: "Alfonso De Urresti Longton", partido: "PS", rol: "Miembro Titular", email: "adeurresti@senado.cl", camara: "Senado de la República" },
-      { nombre: "María José Gatica Bertin", partido: "RN", rol: "Miembro Titular", email: "mjgatica@senado.cl", camara: "Senado de la República" },
-      { nombre: "Ximena Órdenes Neira", partido: "PPD", rol: "Miembro Titular", email: "xordenes@senado.cl", camara: "Senado de la República" },
-      { nombre: "Yasna Provoste Campillay", partido: "DC", rol: "Miembro Titular", email: "yasnaprovoste@senado.cl", camara: "Senado de la República" },
-      { nombre: "Gustavo Sanhueza Dueñas", partido: "UDI", rol: "Miembro Titular", email: "gsanhueza@senado.cl", camara: "Senado de la República" },
-      { nombre: "Paulina Vodanovic Rojas", partido: "PS", rol: "Miembro Titular", email: "pvodanovic@senado.cl", camara: "Senado de la República" },
-      { nombre: "Luciano Cruz-Coke Carvallo", partido: "Evópoli", rol: "Miembro Titular", email: "lcruzcoke@senado.cl", camara: "Senado de la República" },
-      { nombre: "Carlos Ignacio Kuschel Silva", partido: "RN", rol: "Miembro Titular", email: "ckuschel@senado.cl", camara: "Senado de la República" },
-      { nombre: "Carlos Bianchi Chelech", partido: "IND-PPD", rol: "Miembro Titular", email: "cbianchi@congreso.cl", camara: "Cámara de Diputadas y Diputados" },
-      { nombre: "Gael Yeomans Araya", partido: "FA", rol: "Miembro Titular", email: "gyeomans@congreso.cl", camara: "Cámara de Diputadas y Diputados" },
-      { nombre: "Guillermo Ramírez Diez", partido: "UDI", rol: "Miembro Titular", email: "gramirez@congreso.cl", camara: "Cámara de Diputadas y Diputados" },
-      { nombre: "Boris Barrera Moreno", partido: "PC", rol: "Miembro Titular", email: "bbarrera@congreso.cl", camara: "Cámara de Diputadas y Diputados" },
-      { nombre: "Frank Sauerbaum Muñoz", partido: "RN", rol: "Miembro Titular", email: "fsauerbaum@congreso.cl", camara: "Cámara de Diputadas y Diputados" },
-      { nombre: "Jaime Naranjo Ortiz", partido: "PS", rol: "Miembro Titular", email: "jnaranjo@congreso.cl", camara: "Cámara de Diputadas y Diputados" },
-      { nombre: "Sofía Cid Versalovic", partido: "IND-RN", rol: "Miembro Titular", email: "scid@congreso.cl", camara: "Cámara de Diputadas y Diputados" },
-      { nombre: "Agustín Romero Leiva", partido: "PREP", rol: "Miembro Titular", email: "aromero@congreso.cl", camara: "Cámara de Diputadas y Diputados" },
-      { nombre: "Alexis Sepúlveda Soto", partido: "PR", rol: "Miembro Titular", email: "asepulveda@congreso.cl", camara: "Cámara de Diputadas y Diputados" },
-      { nombre: "Miguel Mellado Suazo", partido: "RN", rol: "Miembro Titular", email: "mmellado@congreso.cl", camara: "Cámara de Diputadas y Diputados" },
-      { nombre: "Gastón Von Mühlenbrock Zamora", partido: "UDI", rol: "Miembro Titular", email: "gvonmuhlenbrock@congreso.cl", camara: "Cámara de Diputadas y Diputados" },
-      { nombre: "Vlado Mirosevic Verdugo", partido: "PL", rol: "Miembro Titular", email: "vmirosevic@congreso.cl", camara: "Cámara de Diputadas y Diputados" },
-      { nombre: "Ricardo Cifuentes Lillo", partido: "DC", rol: "Miembro Titular", email: "rcifuentes@congreso.cl", camara: "Cámara de Diputadas y Diputados" }
+      {
+        nombre: "Andrea Balladares Letelier",
+        partido: "RN",
+        rol: "Miembro Titular",
+        email: "aballadares@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Boris Barrera Moreno",
+        partido: "PC",
+        rol: "Miembro Titular",
+        email: "bbarrera@congreso.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Carlos Bianchi Chelech",
+        partido: "IND",
+        rol: "Miembro Titular",
+        email: "cbianchi@congreso.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Jorge Brito Hasbún",
+        partido: "FA",
+        rol: "Miembro Titular",
+        email: "jbrito@congreso.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Rodolfo Carter Fernández",
+        partido: "PREP",
+        rol: "Miembro Titular",
+        email: "rcarter@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Priscilla Castillo Gerli",
+        partido: "DC",
+        rol: "Miembro Titular",
+        email: "pcastillo@congreso.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Daniella Cicardini Milla",
+        partido: "PS",
+        rol: "Miembro Titular",
+        email: "dcicardini@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Jaime Coloma Álamos",
+        partido: "UDI",
+        rol: "Miembro Titular",
+        email: "jcoloma@congreso.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Luciano Cruz-Coke Carvallo",
+        partido: "Evópoli",
+        rol: "Miembro Titular",
+        email: "lcruzcoke@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Alfonso De Urresti Longton",
+        partido: "PS",
+        rol: "Miembro Titular",
+        email: "adeurresti@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Eduardo Durán Salinas",
+        partido: "RN",
+        rol: "Miembro Titular",
+        email: "eduran@congreso.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "María José Gatica Bertin",
+        partido: "RN",
+        rol: "Miembro Titular",
+        email: "mgatica@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Pier Karlezi Hazleby",
+        partido: "PREP",
+        rol: "Miembro Titular",
+        email: "pkarlezi@congreso.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Javier Macaya Danús",
+        partido: "UDI",
+        rol: "Presidente de Comisión",
+        email: "jmacaya@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "José Carlos Meza Pereira",
+        partido: "PREP",
+        rol: "Miembro Titular",
+        email: "jmeza@congreso.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Daniel Núñez Arancibia",
+        partido: "PC",
+        rol: "Miembro Titular",
+        email: "dnunez@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Ximena Ordenes Neira",
+        partido: "PPD",
+        rol: "Miembro Titular",
+        email: "xordenes@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Yasna Provoste Campillay",
+        partido: "DC",
+        rol: "Miembro Titular",
+        email: "yprovoste@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Agustín Romero Leiva",
+        partido: "PREP",
+        rol: "Miembro Titular",
+        email: "aromero@congreso.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Gustavo Sanhueza Dueñas",
+        partido: "UDI",
+        rol: "Miembro Titular",
+        email: "gsanhueza@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Diego Schalper Sepúlveda",
+        partido: "RN",
+        rol: "Miembro Titular",
+        email: "dschalper@congreso.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Renzo Trisotti Martínez",
+        partido: "UDI",
+        rol: "Miembro Titular",
+        email: "rtrisotti@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Fernando Ugarte Tejeda",
+        partido: "PREP",
+        rol: "Miembro Titular",
+        email: "fugarte@congreso.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Juan Valenzuela Henríquez",
+        partido: "PDG",
+        rol: "Miembro Titular",
+        email: "jvalenzuela@congreso.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Paulina Vodanovic Rojas",
+        partido: "PS",
+        rol: "Miembro Titular",
+        email: "pvodanovic@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Flor Weisse Novoa",
+        partido: "UDI",
+        rol: "Miembro Titular",
+        email: "fweisse@congreso.cl",
+        camara: "Senado de la República"
+      }
+    ]
+  },
+  {
+    id: "bicameral-art-153",
+    senadoId: "1340",
+    nombre: "Comisión Bicameral Art. 153 de la Constitución Política",
+    descripcion: "Comisión Bicameral para la armonización y evaluación de reformas en virtud del art. 153 de la Carta Fundamental.",
+    estado: "Comisión Especial",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "Scale",
+    color: "slate",
+    email: "constitucion@senado.cl",
+    temas: ["Constitución","Bicameral","Normativa Constitucional"],
+    integrantes: [
+      {
+        nombre: "Eric Aedo Jeldres",
+        partido: "DC",
+        rol: "Miembro Titular",
+        email: "eaedo@congreso.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Miguel Ángel Calisto Águila",
+        partido: "DEM",
+        rol: "Miembro Titular",
+        email: "mcalisto@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Loreto Carvajal Ambiado",
+        partido: "PPD",
+        rol: "Miembro Titular",
+        email: "lcarvajal@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Juan Antonio Coloma Alamos",
+        partido: "UDI",
+        rol: "Miembro Titular",
+        email: "jcoloma@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Luciano Cruz-Coke Carvallo",
+        partido: "Evópoli",
+        rol: "Miembro Titular",
+        email: "lcruzcoke@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Luis Cuello Peña Y Lillo",
+        partido: "PC",
+        rol: "Miembro Titular",
+        email: "lcuello@congreso.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Tomás De Rementería Venegas",
+        partido: "PS",
+        rol: "Miembro Titular",
+        email: "tderementeria@congreso.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Alfonso De Urresti Longton",
+        partido: "PS",
+        rol: "Miembro Titular",
+        email: "adeurresti@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Luz Eliana Ebensperger Orrego",
+        partido: "UDI",
+        rol: "Miembro Titular",
+        email: "lebensperger@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Rodrigo Galilea Vial",
+        partido: "RN",
+        rol: "Miembro Titular",
+        email: "rgalilea@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Francisco Huenchumilla Jaramillo",
+        partido: "DC",
+        rol: "Miembro Titular",
+        email: "fhuenchumilla@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Paulina Núñez Urrutia",
+        partido: "RN",
+        rol: "Miembro Titular",
+        email: "pnunez@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Claudia Pascual Grau",
+        partido: "PC",
+        rol: "Miembro Titular",
+        email: "cpascual@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Catalina Pérez Salinas",
+        partido: "FA",
+        rol: "Miembro Titular",
+        email: "cperez@congreso.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Luis Sánchez Ossa",
+        partido: "PREP",
+        rol: "Miembro Titular",
+        email: "lsanchez@congreso.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Diego Schalper Sepúlveda",
+        partido: "RN",
+        rol: "Miembro Titular",
+        email: "dschalper@congreso.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Raúl Soto Mardones",
+        partido: "PPD",
+        rol: "Miembro Titular",
+        email: "rsoto@congreso.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Matías Walker Prieto",
+        partido: "Demócratas",
+        rol: "Presidente de Comisión",
+        email: "mwalker@senado.cl",
+        camara: "Senado de la República"
+      }
+    ]
+  },
+  {
+    id: "grupo-transparencia",
+    senadoId: "971",
+    nombre: "Grupo Bicameral de Transparencia",
+    descripcion: "Promoción de políticas de Parlamento Abierto, acceso a la información pública, integridad y datos abiertos del Congreso.",
+    estado: "Comisión Especial",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "Award",
+    color: "indigo",
+    email: "rocio.noriega@congreso.cl",
+    temas: ["Transparencia","Parlamento Abierto","Probidad","Acceso a la Información"],
+    integrantes: [
+      {
+        nombre: "Alfonso De Urresti Longton",
+        partido: "PS",
+        rol: "Miembro Titular",
+        email: "adeurresti@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Javier Macaya Danús",
+        partido: "UDI",
+        rol: "Miembro Titular",
+        email: "jmacaya@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Vlado Mirosevic Verdugo",
+        partido: "PL",
+        rol: "Miembro Titular",
+        email: "vmirosevic@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Paulina Núñez Urrutia",
+        partido: "RN",
+        rol: "Miembro Titular",
+        email: "pnunez@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Leonardo Soto Ferrada",
+        partido: "PS",
+        rol: "Miembro Titular",
+        email: "lsoto@congreso.cl",
+        camara: "Senado de la República"
+      }
+    ]
+  },
+  {
+    id: "bicameral-seguridad",
+    senadoId: "1314",
+    nombre: "Comisión Bicameral de Seguridad Pública",
+    descripcion: "Coordinación legislativa conjunta entre Senado y Cámara para tramitar la agenda prioritaria de seguridad ciudadana y combate al crimen.",
+    estado: "Comisión Especial",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "Shield",
+    color: "slate",
+    featured: true,
+    email: "seguridadpublica@senado.cl",
+    temas: ["Agenda de Seguridad","Crimen Organizado","Policías","Leyes de Seguridad"],
+    integrantes: [
+      {
+        nombre: "Jorge Alessandri Vergara",
+        partido: "UDI",
+        rol: "Miembro Titular",
+        email: "jalessandri@congreso.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Cristián Araya Lerdo de Tejada",
+        partido: "PREP",
+        rol: "Miembro Titular",
+        email: "caraya@congreso.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Lorena Fries Monleón",
+        partido: "FA",
+        rol: "Miembro Titular",
+        email: "lfries@congreso.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "José Miguel Insulza Salinas",
+        partido: "PS",
+        rol: "Presidente de Comisión",
+        email: "jminsulza@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Andrés Jouannet Valderrama",
+        partido: "Amarillos",
+        rol: "Miembro Titular",
+        email: "ajouannet@congreso.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Raúl Leiva Carvajal",
+        partido: "PS",
+        rol: "Miembro Titular",
+        email: "rleiva@congreso.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Andrés Longton Herrera",
+        partido: "RN",
+        rol: "Miembro Titular",
+        email: "alongton@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Maite Orsini Pascal",
+        partido: "FA",
+        rol: "Miembro Titular",
+        email: "morsini@congreso.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Alejandra Placencia Cabello",
+        partido: "PC",
+        rol: "Miembro Titular",
+        email: "aplacencia@congreso.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Rafael Prohens Espinosa",
+        partido: "RN",
+        rol: "Miembro Titular",
+        email: "rprohens@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Yasna Provoste Campillay",
+        partido: "DC",
+        rol: "Miembro Titular",
+        email: "yprovoste@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Jaime Quintana Leal",
+        partido: "PPD",
+        rol: "Miembro Titular",
+        email: "jquintana@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Enrique Van Rysselberghe Herrera",
+        partido: "UDI",
+        rol: "Miembro Titular",
+        email: "evanrysselberghe@senado.cl",
+        camara: "Senado de la República"
+      }
+    ]
+  },
+  {
+    id: "zonas-extremas",
+    senadoId: "899",
+    nombre: "Comisión Especial de Zonas Extremas y Territorios Especiales",
+    descripcion: "Políticas de desarrollo, conectividad, incentivos tributarios y subsidios para Arica, Tarapacá, Aysén, Magallanes, Rapa Nui y Juan Fernández.",
+    estado: "Comisión Especial",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "Compass",
+    color: "blue",
+    featured: true,
+    email: "zonasextremas@senado.cl",
+    temas: ["Zonas Extremas","Magallanes","Aysén","Arica","Territorios Especiales","Incentivos"],
+    integrantes: [
+      {
+        nombre: "Danisa Astudillo Peiretti",
+        partido: "PS",
+        rol: "Miembro Titular",
+        email: "dastudillo@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Karim Bianchi Retamales",
+        partido: "IND",
+        rol: "Miembro Titular",
+        email: "kbianchi@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Miguel Ángel Calisto Águila",
+        partido: "DEM",
+        rol: "Miembro Titular",
+        email: "mcalisto@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Karol Cariola Oliva",
+        partido: "PC",
+        rol: "Miembro Titular",
+        email: "kcariola@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Fidel Espinoza Sandoval",
+        partido: "PS",
+        rol: "Miembro Titular",
+        email: "fespinoza@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Camila Flores Oporto",
+        partido: "RN",
+        rol: "Miembro Titular",
+        email: "cflores@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Diego Ibáñez Cotroneo",
+        partido: "FA",
+        rol: "Miembro Titular",
+        email: "dibanez@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Alejandro Kusanovic Glusevic",
+        partido: "IND",
+        rol: "Miembro Titular",
+        email: "akusanovic@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Carlos Ignacio Kuschel Silva",
+        partido: "RN",
+        rol: "Miembro Titular",
+        email: "ckuschel@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Enrique Lee Flores",
+        partido: "IND",
+        rol: "Presidente de Comisión",
+        email: "elee@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Andrés Longton Herrera",
+        partido: "RN",
+        rol: "Miembro Titular",
+        email: "alongton@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Vlado Mirosevic Verdugo",
+        partido: "PL",
+        rol: "Miembro Titular",
+        email: "vmirosevic@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Iván Moreira Barros",
+        partido: "UDI",
+        rol: "Miembro Titular",
+        email: "imoreira@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Ximena Ordenes Neira",
+        partido: "PPD",
+        rol: "Miembro Titular",
+        email: "xordenes@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Arturo Squella Ovalle",
+        partido: "PREP",
+        rol: "Miembro Titular",
+        email: "asquella@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Renzo Trisotti Martínez",
+        partido: "UDI",
+        rol: "Miembro Titular",
+        email: "rtrisotti@senado.cl",
+        camara: "Senado de la República"
+      }
+    ]
+  },
+  {
+    id: "bicameral-art-66",
+    senadoId: "1114",
+    nombre: "Comisión Bicameral del artículo 66 de la LOC Congreso Nacional",
+    descripcion: "Comisión Bicameral de resolución y análisis de la Ley Orgánica Constitucional del Congreso Nacional.",
+    estado: "Comisión Especial",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "Building2",
+    color: "slate",
+    email: "gobierno@senado.cl",
+    temas: ["LOC Congreso Nacional","Reglamento","Funcionamiento Legislativo"],
+    integrantes: [
+      {
+        nombre: "Pedro Araya Guerrero",
+        partido: "PPD",
+        rol: "Miembro Titular",
+        email: "paraya@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Jaime Bassa Mercado",
+        partido: "IND",
+        rol: "Miembro Titular",
+        email: "jbassa@congreso.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Flor Contreras Vivallo",
+        partido: "RN",
+        rol: "Miembro Titular",
+        email: "fcontreras@congreso.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Catalina Del Real Mihovilovic",
+        partido: "PREP",
+        rol: "Miembro Titular",
+        email: "cdelreal@congreso.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Sergio Gahona Salazar",
+        partido: "UDI",
+        rol: "Miembro Titular",
+        email: "sgahona@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Daniel Manouchehri Lobos",
+        partido: "PS",
+        rol: "Miembro Titular",
+        email: "dmanouchehri@congreso.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Manuel José Ossandón Irarrázabal",
+        partido: "RN",
+        rol: "Presidente de Comisión",
+        email: "mjossandon@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Yasna Provoste Campillay",
+        partido: "DC",
+        rol: "Miembro Titular",
+        email: "yprovoste@senado.cl",
+        camara: "Senado de la República"
+      }
+    ]
+  },
+  {
+    id: "subcomision-1-presupuestos",
+    senadoId: "624",
+    nombre: "Primera Subcomisión Mixta de Presupuestos",
+    descripcion: "Estudio y fiscalización de partidas presupuestarias ministeriales (Agricultura, Economía, etc.).",
+    estado: "Subcomisión Mixta de Presupuestos",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "DollarSign",
+    color: "emerald",
+    email: "agrisen@senado.cl, gobsen@senado.cl",
+    temas: ["Presupuestos","Ministerio de Agricultura","Economía","Partidas Presupuestarias"],
+    integrantes: [
+      {
+        nombre: "Andrea Balladares Letelier",
+        partido: "RN",
+        rol: "Miembro Titular",
+        email: "aballadares@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Jorge Brito Hasbún",
+        partido: "FA",
+        rol: "Miembro Titular",
+        email: "jbrito@congreso.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Daniella Cicardini Milla",
+        partido: "PS",
+        rol: "Miembro Titular",
+        email: "dcicardini@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Luciano Cruz-Coke Carvallo",
+        partido: "Evópoli",
+        rol: "Presidente de Comisión",
+        email: "lcruzcoke@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Diego Schalper Sepúlveda",
+        partido: "RN",
+        rol: "Miembro Titular",
+        email: "dschalper@congreso.cl",
+        camara: "Senado de la República"
+      }
+    ]
+  },
+  {
+    id: "subcomision-2-presupuestos",
+    senadoId: "617",
+    nombre: "Segunda Subcomisión Mixta de Presupuestos",
+    descripcion: "Estudio y fiscalización de partidas presupuestarias de Obras Públicas, Transportes y Telecomunicaciones.",
+    estado: "Subcomisión Mixta de Presupuestos",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "DollarSign",
+    color: "emerald",
+    email: "subcomision-2-presupuestos@senado.cl",
+    temas: ["Presupuestos","Obras Públicas","Transportes","Partidas Presupuestarias"],
+    integrantes: [
+      {
+        nombre: "Rodolfo Carter Fernández",
+        partido: "PREP",
+        rol: "Presidente de Comisión",
+        email: "rcarter@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Priscilla Castillo Gerli",
+        partido: "DC",
+        rol: "Miembro Titular",
+        email: "pcastillo@congreso.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Alfonso De Urresti Longton",
+        partido: "PS",
+        rol: "Miembro Titular",
+        email: "adeurresti@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Javier Macaya Danús",
+        partido: "UDI",
+        rol: "Miembro Titular",
+        email: "jmacaya@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "José Carlos Meza Pereira",
+        partido: "PREP",
+        rol: "Miembro Titular",
+        email: "jmeza@congreso.cl",
+        camara: "Senado de la República"
+      }
+    ]
+  },
+  {
+    id: "subcomision-3-presupuestos",
+    senadoId: "618",
+    nombre: "Tercera Subcomisión Mixta de Presupuestos",
+    descripcion: "Estudio y fiscalización de partidas presupuestarias de Salud, Trabajo y Previsión Social.",
+    estado: "Subcomisión Mixta de Presupuestos",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "DollarSign",
+    color: "emerald",
+    email: "tercerapresupuestos@senado.cl",
+    temas: ["Presupuestos","Salud","Trabajo","Partidas Presupuestarias"],
+    integrantes: [
+      {
+        nombre: "Jaime Coloma Álamos",
+        partido: "UDI",
+        rol: "Miembro Titular",
+        email: "jcoloma@congreso.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Pier Karlezi Hazleby",
+        partido: "PREP",
+        rol: "Miembro Titular",
+        email: "pkarlezi@congreso.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Ximena Ordenes Neira",
+        partido: "PPD",
+        rol: "Miembro Titular",
+        email: "xordenes@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Agustín Romero Leiva",
+        partido: "PREP",
+        rol: "Presidente de Comisión",
+        email: "aromero@congreso.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Fernando Ugarte Tejeda",
+        partido: "PREP",
+        rol: "Miembro Titular",
+        email: "fugarte@congreso.cl",
+        camara: "Senado de la República"
+      }
+    ]
+  },
+  {
+    id: "subcomision-4-presupuestos",
+    senadoId: "619",
+    nombre: "Cuarta Subcomisión Mixta de Presupuestos",
+    descripcion: "Estudio y fiscalización de partidas presupuestarias de Educación, Cultura y Ciencias.",
+    estado: "Subcomisión Mixta de Presupuestos",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "DollarSign",
+    color: "emerald",
+    email: "edusen@senado.cl",
+    temas: ["Presupuestos","Educación","Ciencia","Partidas Presupuestarias"],
+    integrantes: [
+      {
+        nombre: "Boris Barrera Moreno",
+        partido: "PC",
+        rol: "Miembro Titular",
+        email: "bbarrera@congreso.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Eduardo Durán Salinas",
+        partido: "RN",
+        rol: "Miembro Titular",
+        email: "eduran@congreso.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Yasna Provoste Campillay",
+        partido: "DC",
+        rol: "Presidenta de Comisión",
+        email: "yprovoste@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Gustavo Sanhueza Dueñas",
+        partido: "UDI",
+        rol: "Miembro Titular",
+        email: "gsanhueza@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Renzo Trisotti Martínez",
+        partido: "UDI",
+        rol: "Miembro Titular",
+        email: "rtrisotti@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Juan Valenzuela Henríquez",
+        partido: "PDG",
+        rol: "Miembro Titular",
+        email: "jvalenzuela@congreso.cl",
+        camara: "Senado de la República"
+      }
+    ]
+  },
+  {
+    id: "subcomision-5-presupuestos",
+    senadoId: "620",
+    nombre: "Quinta Subcomisión Mixta de Presupuestos",
+    descripcion: "Estudio y fiscalización de partidas presupuestarias de Interior, Seguridad Pública, Justicia y Defensa.",
+    estado: "Subcomisión Mixta de Presupuestos",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "DollarSign",
+    color: "emerald",
+    email: "quintasubcomision@senado.cl",
+    temas: ["Presupuestos","Interior","Seguridad Pública","Defensa","Partidas Presupuestarias"],
+    integrantes: [
+      {
+        nombre: "Carlos Bianchi Chelech",
+        partido: "IND",
+        rol: "Miembro Titular",
+        email: "cbianchi@congreso.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "María José Gatica Bertin",
+        partido: "RN",
+        rol: "Miembro Titular",
+        email: "mgatica@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Daniel Núñez Arancibia",
+        partido: "PC",
+        rol: "Miembro Titular",
+        email: "dnunez@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Paulina Vodanovic Rojas",
+        partido: "PS",
+        rol: "Presidenta de Comisión",
+        email: "pvodanovic@senado.cl",
+        camara: "Senado de la República"
+      },
+      {
+        nombre: "Flor Weisse Novoa",
+        partido: "UDI",
+        rol: "Miembro Titular",
+        email: "fweisse@congreso.cl",
+        camara: "Senado de la República"
+      }
+    ]
+  },
+  {
+    id: "mixta-16569-25",
+    senadoId: "1471",
+    nombre: "Comisión Mixta para Boletín Nº 16569-25",
+    descripcion: "Comisión Mixta encargada de resolver las discrepancias suscitadas entre ambas Cámaras respecto del Boletín Nº 16569-25.",
+    estado: "Comisión Mixta",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "Scale",
+    color: "purple",
+    email: "comisiones@senado.cl",
+    temas: ["Tramitación Mixta","Resolución de Discrepancias","Congreso Nacional"],
+    integrantes: [
+    ]
+  },
+  {
+    id: "mixta-ruf-15805-07",
+    senadoId: "1464",
+    nombre: "Comisión Mixta para Boletín Nº 15805-07 (Reglas de Uso de la Fuerza - RUF)",
+    descripcion: "Comisión Mixta encargada de resolver discrepancias sobre el proyecto que establece las Reglas de Uso de la Fuerza (RUF) para las Fuerzas Armadas y de Orden.",
+    estado: "Comisión Mixta",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "Shield",
+    color: "purple",
+    featured: true,
+    email: "comisiones@senado.cl",
+    temas: ["Tramitación Mixta","Resolución de Discrepancias","Congreso Nacional"],
+    integrantes: [
+    ]
+  },
+  {
+    id: "mixta-17640-06",
+    senadoId: "1487",
+    nombre: "Comisión Mixta para Boletín Nº 17640-06",
+    descripcion: "Comisión Mixta encargada de resolver discrepancias legislativas sobre el Boletín Nº 17640-06.",
+    estado: "Comisión Mixta",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "Scale",
+    color: "purple",
+    email: "comisiones@senado.cl",
+    temas: ["Tramitación Mixta","Resolución de Discrepancias","Congreso Nacional"],
+    integrantes: [
+    ]
+  },
+  {
+    id: "mixta-16836-06",
+    senadoId: "1480",
+    nombre: "Comisión Mixta para Boletín Nº 16836-06",
+    descripcion: "Comisión Mixta encargada de dirimir diferencias entre Senado y Cámara respecto del Boletín Nº 16836-06.",
+    estado: "Comisión Mixta",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "Scale",
+    color: "purple",
+    email: "comisiones@senado.cl",
+    temas: ["Tramitación Mixta","Resolución de Discrepancias","Congreso Nacional"],
+    integrantes: [
+    ]
+  },
+  {
+    id: "mixta-16481-25",
+    senadoId: "1475",
+    nombre: "Comisión Mixta para Boletín Nº 16481-25",
+    descripcion: "Comisión Mixta encargada de resolver discrepancias respecto del Boletín Nº 16481-25.",
+    estado: "Comisión Mixta",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "Scale",
+    color: "purple",
+    email: "comisiones@senado.cl",
+    temas: ["Tramitación Mixta","Resolución de Discrepancias","Congreso Nacional"],
+    integrantes: [
+    ]
+  },
+  {
+    id: "mixta-16335-14",
+    senadoId: "1461",
+    nombre: "Comisión Mixta para Boletín Nº 16335-14",
+    descripcion: "Comisión Mixta encargada de resolver discrepancias respecto del Boletín Nº 16335-14.",
+    estado: "Comisión Mixta",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "Scale",
+    color: "purple",
+    email: "comisiones@senado.cl",
+    temas: ["Tramitación Mixta","Resolución de Discrepancias","Congreso Nacional"],
+    integrantes: [
+    ]
+  },
+  {
+    id: "mixta-15975-25",
+    senadoId: "1485",
+    nombre: "Comisión Mixta para Boletín Nº 15975-25",
+    descripcion: "Comisión Mixta encargada de resolver discrepancias legislativas sobre el Boletín Nº 15975-25.",
+    estado: "Comisión Mixta",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "Scale",
+    color: "purple",
+    email: "comisiones@senado.cl",
+    temas: ["Tramitación Mixta","Resolución de Discrepancias","Congreso Nacional"],
+    integrantes: [
+    ]
+  },
+  {
+    id: "mixta-11992-04",
+    senadoId: "1426",
+    nombre: "Comisión Mixta para Boletín Nº 11992-04",
+    descripcion: "Comisión Mixta encargada de resolver discrepancias respecto del Boletín Nº 11992-04.",
+    estado: "Comisión Mixta",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "Scale",
+    color: "purple",
+    email: "comisiones@senado.cl",
+    temas: ["Tramitación Mixta","Resolución de Discrepancias","Congreso Nacional"],
+    integrantes: [
+    ]
+  },
+  {
+    id: "mixta-14309-04",
+    senadoId: "1477",
+    nombre: "Comisión Mixta para Boletín Nº 14309-04",
+    descripcion: "Comisión Mixta encargada de resolver discrepancias respecto del Boletín Nº 14309-04.",
+    estado: "Comisión Mixta",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "Scale",
+    color: "purple",
+    email: "comisiones@senado.cl",
+    temas: ["Tramitación Mixta","Resolución de Discrepancias","Congreso Nacional"],
+    integrantes: [
+    ]
+  },
+  {
+    id: "mixta-18216-05",
+    senadoId: "1482",
+    nombre: "Comisión Mixta para Boletín Nº 18216-05",
+    descripcion: "Comisión Mixta encargada de resolver discrepancias respecto del Boletín Nº 18216-05.",
+    estado: "Comisión Mixta",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "Scale",
+    color: "purple",
+    email: "comisiones@senado.cl",
+    temas: ["Tramitación Mixta","Resolución de Discrepancias","Congreso Nacional"],
+    integrantes: [
+    ]
+  },
+  {
+    id: "mixta-17012-14",
+    senadoId: "1488",
+    nombre: "Comisión Mixta para Boletín Nº 17012-14",
+    descripcion: "Comisión Mixta encargada de resolver discrepancias respecto del Boletín Nº 17012-14.",
+    estado: "Comisión Mixta",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "Scale",
+    color: "purple",
+    email: "comisiones@senado.cl",
+    temas: ["Tramitación Mixta","Resolución de Discrepancias","Congreso Nacional"],
+    integrantes: [
+    ]
+  },
+  {
+    id: "defensa-y-seguridad-unidas",
+    senadoId: "1130",
+    nombre: "Comisión de Defensa Nacional y de Seguridad Pública, unidas",
+    descripcion: "Instancia conjunta de comisiones unidas del Senado para proyectos de alta trascendencia en defensa y orden público.",
+    estado: "Comisión Unida",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "Shield",
+    color: "slate",
+    featured: true,
+    email: "comisiones@senado.cl",
+    temas: ["Tramitación Mixta","Resolución de Discrepancias","Congreso Nacional"],
+    integrantes: [
+    ]
+  },
+  {
+    id: "constitucion-y-economia-unidas",
+    senadoId: "1467",
+    nombre: "Comisión de Constitución y de Economía, unidas (Boletín S 2716-05)",
+    descripcion: "Comisión unida de Constitución y Economía para el análisis conjunto de materias regulatorias e institucionales.",
+    estado: "Comisión Unida",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "Scale",
+    color: "slate",
+    email: "comisiones@senado.cl",
+    temas: ["Tramitación Mixta","Resolución de Discrepancias","Congreso Nacional"],
+    integrantes: [
+    ]
+  },
+  {
+    id: "agricultura-conjunta-fotovoltaicos",
+    senadoId: "1478",
+    nombre: "Comisión Conjunta de Agricultura: Paneles Fotovoltaicos",
+    descripcion: "Comisión conjunta de Agricultura de ambas Cámaras para analizar el emplazamiento de paneles fotovoltaicos en predios agrícolas.",
+    estado: "Comisión Especiales",
+    chamber: "SR",
+    prefix: "senado-",
+    icon: "Sun",
+    color: "amber",
+    email: "comisiones@senado.cl",
+    temas: ["Tramitación Mixta","Resolución de Discrepancias","Congreso Nacional"],
+    integrantes: [
     ]
   }
 ];
