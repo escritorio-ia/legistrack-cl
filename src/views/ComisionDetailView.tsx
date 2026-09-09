@@ -46,7 +46,8 @@ import {
   Tv,
   Zap,
   CheckCircle,
-  Eye
+  Eye,
+  MessageSquare
 } from "lucide-react";
 import { Comision, SesionItem, Proyecto, Integrante } from "../types";
 import { 
