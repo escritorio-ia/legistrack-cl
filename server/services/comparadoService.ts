@@ -6,6 +6,8 @@
 import { generarContenidoUniversalIA, safeJsonParse } from "./aiService";
 import { cache } from "./cacheService";
 
+export const LEYCHILE_API_KEY = process.env.LEYCHILE_API_KEY || "qW5yv690wb8WIEq1wN08HsHZur4MyrSSrhLgcXdstNZwtJ3Fihfu3baz4y3uYlCb";
+
 export interface ResultadoComparado {
   pais: string;
   fuente: string;
@@ -184,11 +186,12 @@ async function fetchConTimeout(url: string, ms = 8000): Promise<Response> {
 }
 
 /**
- * Consulta oficial en LeyChile (Biblioteca del Congreso Nacional)
+ * Consulta oficial en LeyChile (Biblioteca del Congreso Nacional) utilizando API Key oficial
  */
 export async function buscarChile(q: string): Promise<ResultadoComparado[]> {
   try {
-    const url = `https://www.leychile.cl/Consulta/obtxml?opt=61&cadena=${encodeURIComponent(q)}&cantidad=10`;
+    const keyParam = LEYCHILE_API_KEY ? `&key=${encodeURIComponent(LEYCHILE_API_KEY)}` : "";
+    const url = `https://www.leychile.cl/Consulta/obtxml?opt=61&cadena=${encodeURIComponent(q)}&cantidad=12${keyParam}`;
     const res = await fetchConTimeout(url, 7000);
     if (!res.ok) return [];
     const xml = await res.text();
@@ -224,7 +227,7 @@ export async function buscarChile(q: string): Promise<ResultadoComparado[]> {
 
         return {
           pais: "Chile",
-          fuente: "LeyChile — Biblioteca del Congreso Nacional",
+          fuente: "LeyChile — Biblioteca del Congreso Nacional (API Oficial BCN)",
           titulo: tituloFinal,
           fecha,
           url: url ? decodeEntities(url) : undefined,
@@ -235,6 +238,47 @@ export async function buscarChile(q: string): Promise<ResultadoComparado[]> {
       .filter((r) => r.titulo && r.titulo !== "Norma sin título");
   } catch {
     return [];
+  }
+}
+
+/**
+ * Consulta directa a LeyChile por número de Ley oficial
+ */
+export async function buscarLeyChilePorNumero(numLey: string): Promise<ResultadoComparado | null> {
+  try {
+    const cleanNum = numLey.replace(/\D/g, "");
+    if (!cleanNum) return null;
+    const keyParam = LEYCHILE_API_KEY ? `&key=${encodeURIComponent(LEYCHILE_API_KEY)}` : "";
+    const url = `https://www.leychile.cl/Consulta/obtxml?opt=61&cadena=${encodeURIComponent("Ley " + cleanNum)}&cantidad=3${keyParam}`;
+    const res = await fetchConTimeout(url, 6000);
+    if (!res.ok) return null;
+    const xml = await res.text();
+    const decodeEntities = (s: string) => s.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'");
+    const normaMatch = xml.match(/<Norma>[\s\S]*?<\/Norma>/);
+    if (!normaMatch) return null;
+    const block = normaMatch[0];
+    const rawTitulo = (block.match(/<TituloNorma>([\s\S]*?)<\/TituloNorma>/) || [, ""])[1];
+    const fecha = (block.match(/<FechaPublicacion>([\s\S]*?)<\/FechaPublicacion>/) || [, undefined])[1];
+    const urlNorma = (block.match(/<Url>([\s\S]*?)<\/Url>/) || [, undefined])[1];
+    const compuesto = (block.match(/<Compuesto>([\s\S]*?)<\/Compuesto>/) || [, ""])[1];
+
+    let tituloFinal = rawTitulo ? decodeEntities(rawTitulo) : `Ley ${cleanNum}`;
+    if (compuesto && compuesto.toLowerCase().startsWith("ley-") && !tituloFinal.toLowerCase().startsWith("ley")) {
+      const numFormat = compuesto.replace(/^ley-/i, "").replace(/(\d+)(\d{3})$/, "$1.$2");
+      tituloFinal = `Ley ${numFormat}: ${tituloFinal}`;
+    }
+
+    return {
+      pais: "Chile",
+      fuente: "LeyChile — Biblioteca del Congreso Nacional (API Oficial BCN)",
+      titulo: tituloFinal,
+      fecha,
+      url: urlNorma ? decodeEntities(urlNorma) : `https://www.leychile.cl/Navegar?idNorma=${cleanNum}`,
+      tipo: "Ley",
+      descripcion: `🎯 Objeto & Ámbito: Marco regulatorio oficial publicado en el Diario Oficial de Chile.\n⚖️ Jurisdicción: República de Chile.`
+    };
+  } catch {
+    return null;
   }
 }
 

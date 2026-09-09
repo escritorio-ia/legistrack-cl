@@ -232,6 +232,89 @@ export async function fetchComisionesCamaraReal(): Promise<ComisionReal[]> {
   });
 }
 
+export async function searchCamaraYouTubeVideos(query: string, fecha?: string): Promise<any[]> {
+  const cacheKey = `yt_camara_search_${query}_${fecha || ""}`;
+  return cache.wrap(cacheKey, 10 * 60 * 1000, async () => {
+    try {
+      const cleanQuery = query.replace(/^(comisi[oó]n\s+de\s+|comisi[oó]n\s+)/i, "").trim();
+      
+      let cleanFecha = (fecha || "septiembre 2026").trim();
+      
+      // Si la fecha viene en formato DD/MM/YYYY o DD-MM-YYYY, convertirla a formato legible (ej. 8 septiembre 2026)
+      const dmY = cleanFecha.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+      if (dmY) {
+        const d = parseInt(dmY[1], 10);
+        const m = parseInt(dmY[2], 10);
+        const y = dmY[3];
+        const meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+        const mesNom = meses[m - 1] || "septiembre";
+        cleanFecha = `${d} ${mesNom} ${y}`;
+      } else {
+        cleanFecha = cleanFecha
+          .replace(/,\s*/g, " ")
+          .replace(/\bde\b/gi, "")
+          .replace(/\s+/g, " ")
+          .trim();
+      }
+      
+      // Estructura idéntica al canal oficial: "Comisión de [Nombre] - [Día/Fecha]"
+      const searchTerm = `Comisión de ${cleanQuery} ${cleanFecha}`;
+      const res = await fetch(`https://www.youtube.com/results?search_query=${encodeURIComponent(searchTerm)}`, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          "Accept-Language": "es-419,es;q=0.9"
+        },
+        signal: AbortSignal.timeout(8000)
+      });
+      if (!res.ok) return [];
+      const html = await res.text();
+      const startIdx = html.indexOf("ytInitialData = {");
+      if (startIdx === -1) return [];
+      const jsonStart = startIdx + "ytInitialData = ".length;
+      const scriptEnd = html.indexOf(";</script>", jsonStart);
+      if (scriptEnd === -1) return [];
+      const data = JSON.parse(html.slice(jsonStart, scriptEnd));
+
+      const videos: any[] = [];
+      function extract(obj: any) {
+        if (!obj || typeof obj !== "object") return;
+        if (obj.videoId && (obj.title?.runs || obj.title?.simpleText)) {
+          const title = obj.title.runs ? obj.title.runs.map((r: any) => r.text).join("") : obj.title.simpleText;
+          const desc = obj.detailedMetadataSnippets?.[0]?.snippetText?.runs?.map((r: any) => r.text).join("") || obj.descriptionSnippet?.runs?.map((r: any) => r.text).join("") || "";
+          const published = obj.publishedTimeText?.simpleText || "";
+          const length = obj.lengthText?.simpleText || "";
+          videos.push({
+            id: obj.videoId,
+            videoId: obj.videoId,
+            title,
+            published,
+            length,
+            desc,
+            url: `https://www.youtube.com/watch?v=${obj.videoId}`
+          });
+        }
+        for (const k of Object.keys(obj)) {
+          extract(obj[k]);
+        }
+      }
+      extract(data);
+
+      const seen = new Set();
+      const unique: any[] = [];
+      for (const v of videos) {
+        if (!seen.has(v.id)) {
+          seen.add(v.id);
+          unique.push(v);
+        }
+      }
+      return unique.slice(0, 10);
+    } catch (err) {
+      console.warn("Could not search YouTube videos:", err);
+      return [];
+    }
+  });
+}
+
 export async function getTodasComisiones(): Promise<ComisionReal[]> {
   const camaraLive = await fetchComisionesCamaraReal();
   const byId = new Map<string, ComisionReal>();

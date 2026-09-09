@@ -406,74 +406,111 @@ export default function AlertasView({ followedProys = [], toggleFollowProy }: Al
         <div className="lg:col-span-4 flex flex-col gap-5">
           
           {/* Active Rules Panel */}
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm" id="sub-rules-panel">
-            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider border-b border-slate-100 pb-2 mb-3">
-              Filtros de Suscripción Activa
-            </h3>
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm" id="sub-rules-panel">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-3">
+              <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                <Bell className="w-3.5 h-3.5 text-blue-600" />
+                <span>Disparadores y Eventos Personalizados</span>
+              </h3>
+              <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                4 Activos
+              </span>
+            </div>
 
-            <div className="space-y-3.5 text-xs text-slate-700 font-semibold leading-none" id="rules-boxes">
-              
-              {/* Rule 1 */}
-              <div className="flex items-center justify-between p-3.5 bg-slate-50 rounded-lg border border-slate-150">
-                <div className="flex items-center gap-2">
-                  <Tag className="w-4 h-4 text-slate-400" />
-                  <span>Materia: Trabajo y Previsión</span>
+            <div className="space-y-2.5 text-xs text-slate-700 font-semibold leading-none" id="rules-boxes">
+              {/* Event Trigger 1 */}
+              <div className="flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100/80 rounded-xl border border-slate-200/80 transition-colors">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-6 h-6 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                    <Zap className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-slate-800 block">Renovación de Urgencias</span>
+                    <span className="text-[10px] text-slate-500 font-medium">Suma o Discusión Inmediata por el Ejecutivo</span>
+                  </div>
                 </div>
-                <CheckSquare className="w-4 h-4 text-blue-600 fill-blue-50" />
+                <input type="checkbox" defaultChecked className="w-4 h-4 text-blue-600 rounded accent-blue-600 cursor-pointer" />
               </div>
 
-              {/* Rule 2 */}
-              <div className="flex items-center justify-between p-3.5 bg-slate-50 rounded-lg border border-slate-150">
-                <div className="flex items-center gap-2">
-                  <Tag className="w-4 h-4 text-slate-400" />
-                  <span>Materia: Hacienda y Presupuesto</span>
+              {/* Event Trigger 2 */}
+              <div className="flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100/80 rounded-xl border border-slate-200/80 transition-colors">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-6 h-6 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
+                    <Radio className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-slate-800 block">Ingreso de Indicaciones</span>
+                    <span className="text-[10px] text-slate-500 font-medium">Indicaciones sustitutivas en comisiones seguidas</span>
+                  </div>
                 </div>
-                <CheckSquare className="w-4 h-4 text-blue-600 fill-blue-50" />
+                <input type="checkbox" defaultChecked className="w-4 h-4 text-blue-600 rounded accent-blue-600 cursor-pointer" />
               </div>
 
-              {/* Rule 3 */}
-              <div className="flex items-center justify-between p-3.5 bg-slate-50 rounded-lg border border-slate-150">
-                <div className="flex items-center gap-2">
-                  <Sliders className="w-4 h-4 text-slate-400" />
-                  <span>Urgencias: Discusión Inmediata</span>
+              {/* Event Trigger 3 */}
+              <div className="flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100/80 rounded-xl border border-slate-200/80 transition-colors">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                    <Calendar className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-slate-800 block">Citaciones de Comisión</span>
+                    <span className="text-[10px] text-slate-500 font-medium">Tablas publicadas en Cámara y Senado</span>
+                  </div>
                 </div>
-                <CheckSquare className="w-4 h-4 text-blue-600 fill-blue-50" />
+                <input type="checkbox" defaultChecked className="w-4 h-4 text-blue-600 rounded accent-blue-600 cursor-pointer" />
+              </div>
+
+              {/* Event Trigger 4 */}
+              <div className="flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100/80 rounded-xl border border-slate-200/80 transition-colors">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-6 h-6 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                    <Megaphone className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-slate-800 block">Votación en Sala</span>
+                    <span className="text-[10px] text-slate-500 font-medium">Resultados y aprobación en general o particular</span>
+                  </div>
+                </div>
+                <input type="checkbox" defaultChecked className="w-4 h-4 text-blue-600 rounded accent-blue-600 cursor-pointer" />
               </div>
             </div>
 
             <button 
-              onClick={() => alert("Mostrando panel de administración avanzada de correo y avisos legislativos...")}
-              className="w-full bg-blue-600 text-white hover:bg-blue-700 font-semibold text-xs py-2 rounded-lg mt-5 text-center transition-colors shadow-xs cursor-pointer"
+              onClick={() => alert("✅ Preferencias de suscripción y avisos instantáneos guardadas correctamente.")}
+              className="w-full bg-slate-900 hover:bg-blue-600 text-white font-bold text-xs py-2.5 rounded-xl mt-4 text-center transition-all shadow-sm cursor-pointer"
             >
-              Configurar Avisos por Correo
+              Guardar Configuración de Alertas
             </button>
           </div>
 
           {/* Keywords monitor panel */}
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm" id="sub-keywords-panel">
-            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider border-b border-slate-100 pb-2 mb-3">
-              Palabras Clave en Monitoreo
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm" id="sub-keywords-panel">
+            <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider border-b border-slate-100 pb-2 mb-3 flex items-center gap-1.5">
+              <Tag className="w-3.5 h-3.5 text-blue-600" />
+              <span>Palabras Clave en Monitoreo</span>
             </h3>
 
             <div className="flex flex-wrap gap-1.5" id="keywords-badges-row">
-              <span className="p-1 px-2.5 bg-slate-50 border border-slate-150 text-slate-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 rounded-full text-[10px] font-semibold cursor-pointer transition-colors">
-                teletrabajo
-              </span>
-              <span className="p-1 px-2.5 bg-slate-50 border border-slate-150 text-slate-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 rounded-full text-[10px] font-semibold cursor-pointer transition-colors">
-                sala cuna
-              </span>
-              <span className="p-1 px-2.5 bg-slate-50 border border-slate-150 text-slate-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 rounded-full text-[10px] font-semibold cursor-pointer transition-colors">
-                inteligencia artificial
-              </span>
-              <span className="p-1 px-2.5 bg-slate-50 border border-slate-150 text-slate-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 rounded-full text-[10px] font-semibold cursor-pointer transition-colors">
-                impuesto
-              </span>
-              <span className="p-1 px-2.5 bg-white text-blue-600 border border-blue-600 rounded-full text-[10px] font-bold cursor-pointer hover:bg-blue-50 transition-colors">
-                + Nueva
-              </span>
+              {["teletrabajo", "sala cuna", "inteligencia artificial", "impuesto", "seguridad ciudadana", "código de aguas", "subdivisiones rurales"].map((kw, i) => (
+                <span 
+                  key={i}
+                  className="p-1 px-3 bg-slate-50 border border-slate-200 text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 rounded-full text-[11px] font-bold cursor-pointer transition-colors"
+                >
+                  #{kw}
+                </span>
+              ))}
+              <button 
+                onClick={() => {
+                  const kw = prompt("Ingresa la palabra clave o término legislativo a monitorear:");
+                  if (kw) alert(`Palabra clave "#${kw}" añadida al radar de alertas.`);
+                }}
+                className="p-1 px-3 bg-blue-50 text-blue-700 border border-blue-300 rounded-full text-[11px] font-bold cursor-pointer hover:bg-blue-600 hover:text-white transition-all"
+              >
+                + Añadir Término
+              </button>
             </div>
-            <p className="text-[10px] text-slate-400 mt-3 font-semibold leading-relaxed font-sans">
-              Le avisamos en cuanto se indexen nuevos boletines o indicaciones de reforma que integren las palabras clave en monitoreo.
+            <p className="text-[11px] text-slate-500 mt-3 font-medium leading-relaxed font-sans">
+              El sistema notificará automáticamente cuando se presenten mociones, indicaciones o proyectos que contengan estos conceptos clave.
             </p>
           </div>
 

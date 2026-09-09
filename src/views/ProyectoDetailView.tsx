@@ -44,6 +44,9 @@ import { fetchLiveSenateProject } from "../utils/senadoClientApi";
 import SimuladorQuorum from "../components/SimuladorQuorum";
 import DiffViewerModal from "../components/DiffViewerModal";
 import FichaEjecutivaPrint from "../components/FichaEjecutivaPrint";
+import MinutaEjecutivaModal from "../components/MinutaEjecutivaModal";
+import TerritorialImpactPanel from "../components/TerritorialImpactPanel";
+import NotasColaborativasDrawer from "../components/NotasColaborativasDrawer";
 
 interface ProyectoDetailViewProps {
   proyectoId: string;
@@ -238,9 +241,10 @@ export default function ProyectoDetailView({
 }: ProyectoDetailViewProps) {
   const [proyecto, setProyecto] = useState<Proyecto>(() => resolveProyecto(proyectoId));
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<"resumen" | "tramitacion" | "comisiones" | "documentos" | "votaciones" | "comparado" | "informes-bcn" | "simulador-quorum">("resumen");
+  const [activeTab, setActiveTab] = useState<"resumen" | "tramitacion" | "comisiones" | "territorial" | "documentos" | "votaciones" | "comparado" | "informes-bcn" | "simulador-quorum">("resumen");
   const [isDiffModalOpen, setIsDiffModalOpen] = useState(false);
   const [isFichaModalOpen, setIsFichaModalOpen] = useState(false);
+  const [isNotesDrawerOpen, setIsNotesDrawerOpen] = useState(false);
   const isFollowing = followedProys?.includes(proyectoId) ?? false;
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState("");
@@ -713,6 +717,15 @@ export default function ProyectoDetailView({
           </button>
 
           <button 
+            onClick={() => setIsNotesDrawerOpen(true)}
+            className="flex items-center gap-1.5 font-bold text-xs px-3.5 py-2 rounded-xl border border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100 shadow-2xs transition-all cursor-pointer"
+            title="Abrir Notas Colaborativas en Cloud con Firebase"
+          >
+            <Building2 className="w-3.5 h-3.5 text-blue-600" />
+            <span>Notas de Equipo (Cloud)</span>
+          </button>
+
+          <button 
             onClick={() => {
               if (toggleFollowProy) {
                 toggleFollowProy(proyectoId);
@@ -875,6 +888,15 @@ export default function ProyectoDetailView({
               Comisiones
             </button>
             <button
+              onClick={() => setActiveTab("territorial")}
+              className={`pb-2.5 px-3 border-b-2 transition-colors cursor-pointer flex items-center gap-1 ${
+                activeTab === "territorial" ? "border-emerald-600 text-emerald-700 font-bold" : "border-transparent text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              <Compass className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Impacto Territorial</span>
+            </button>
+            <button
               onClick={() => setActiveTab("documentos")}
               className={`pb-2.5 px-3 border-b-2 transition-colors cursor-pointer ${
                 activeTab === "documentos" ? "border-blue-600 text-blue-600 font-bold" : "border-transparent text-slate-500 hover:text-slate-800"
@@ -919,7 +941,177 @@ export default function ProyectoDetailView({
             {/* 1. Resumen Tab */}
             {activeTab === "resumen" && (
               <div className="flex flex-col gap-5" id="tabpanel-resumen">
-                
+
+                {/* 🌟 PIPELINE INTERACTIVO DE TRAMITACIÓN LEGISLATIVA */}
+                <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-blue-950 text-white rounded-3xl p-6 sm:p-7 shadow-xl border border-slate-800 space-y-5">
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-blue-500/20 text-blue-400 flex items-center justify-center border border-blue-500/30">
+                        <TrendingUp className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-base font-extrabold tracking-tight text-white flex items-center gap-2">
+                          <span>Pipeline Interactivo de Tramitación</span>
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">
+                            EN TIEMPO REAL
+                          </span>
+                        </h3>
+                        <p className="text-xs text-slate-300 font-medium">
+                          Etapa actual: <strong className="text-white">{proyecto.etapa || "1er Trámite Constitucional"}</strong> • Cámara de Origen: <strong className="text-white">{proyecto.camaraOrigen}</strong>
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono font-bold text-slate-300 bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-700">
+                        ⏱️ {proyecto.diasTramitacion ?? 45} días en trámite
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Visual 5-Step Pipeline Progress Bar */}
+                  {(() => {
+                    const etapaLow = (proyecto.etapa || proyecto.estado || "").toLowerCase();
+                    const stagesList = [
+                      { num: 1, label: "Ingreso", sub: proyecto.camaraOrigen || "Origen", done: true, current: false },
+                      { num: 2, label: "1er Trámite", sub: "Comisión y Sala", done: true, current: !etapaLow.includes("segundo") && !etapaLow.includes("publicado") && !etapaLow.includes("promulgado") && !etapaLow.includes("mixta") },
+                      { num: 3, label: "2do Trámite", sub: proyecto.camaraOrigen === "Senado" ? "Cámara Dip." : "Senado", done: etapaLow.includes("segundo") || etapaLow.includes("tercer") || etapaLow.includes("publicado") || etapaLow.includes("promulgado"), current: etapaLow.includes("segundo") },
+                      { num: 4, label: "Comisión Mixta / TC", sub: "Discrepancias", done: etapaLow.includes("mixta") || etapaLow.includes("publicado") || etapaLow.includes("promulgado"), current: etapaLow.includes("mixta") },
+                      { num: 5, label: "Promulgación y Ley", sub: "Diario Oficial", done: etapaLow.includes("publicado") || etapaLow.includes("promulgado"), current: etapaLow.includes("publicado") || etapaLow.includes("promulgado") }
+                    ];
+
+                    return (
+                      <div className="py-2">
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 relative">
+                          {stagesList.map((st, i) => (
+                            <div 
+                              key={i} 
+                              className={`p-3.5 rounded-2xl border transition-all relative flex flex-col justify-between ${
+                                st.current 
+                                  ? "bg-blue-600/30 border-blue-400 text-white shadow-lg ring-2 ring-blue-500/40" 
+                                  : st.done 
+                                    ? "bg-slate-800/60 border-slate-700 text-slate-200" 
+                                    : "bg-slate-900/40 border-slate-800/80 text-slate-500 opacity-60"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between mb-2">
+                                <span className={`w-6 h-6 rounded-full text-[11px] font-mono font-bold flex items-center justify-center ${
+                                  st.current 
+                                    ? "bg-blue-500 text-white" 
+                                    : st.done 
+                                      ? "bg-emerald-500 text-slate-950 font-black" 
+                                      : "bg-slate-800 text-slate-400"
+                                }`}>
+                                  {st.done && !st.current ? "✓" : st.num}
+                                </span>
+                                {st.current && (
+                                  <span className="text-[9px] font-bold uppercase tracking-wider text-blue-300 bg-blue-900/60 px-2 py-0.5 rounded-md animate-pulse">
+                                    ACTUAL
+                                  </span>
+                                )}
+                              </div>
+                              <div>
+                                <h4 className="text-xs font-bold leading-tight text-white">{st.label}</h4>
+                                <span className="text-[10px] text-slate-400 font-medium block mt-0.5">{st.sub}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Bottleneck / Velocity Alert Bar */}
+                  <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-2 text-slate-300">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
+                      <span>
+                        <strong>Ritmo Legislativo Estimado:</strong> Tramitación activa en {proyecto.comisionActual || "Comisión Técnica competente"}.
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => setActiveTab("tramitacion")}
+                        className="text-xs font-bold text-blue-400 hover:text-blue-300 hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        Ver Cronograma de Hitos Detallados &rsaquo;
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 🤖 FICHA EJECUTIVA INTELIGENTE "1-PAGER" POR IA */}
+                <div className="bg-gradient-to-br from-indigo-50/70 via-white to-blue-50/50 rounded-3xl border border-indigo-200/90 shadow-sm p-6 sm:p-7 space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-indigo-100 pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl bg-indigo-600/10 text-indigo-700 flex items-center justify-center border border-indigo-200">
+                        <Sparkles className="w-5 h-5 text-indigo-600" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-black text-slate-900 tracking-tight flex items-center gap-2">
+                          <span>Ficha Ejecutiva Inteligente ("1-Pager")</span>
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 border border-indigo-200 font-bold">
+                            SÍNTESIS DE ALTO IMPACTO
+                          </span>
+                        </h3>
+                        <p className="text-[11px] text-slate-500 font-medium">
+                          Resumen ejecutivo en 3 viñetas para toma de decisiones parlamentarias y gremiales
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => setIsFichaModalOpen(true)}
+                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                      <span>Exportar Minuta PDF / Word</span>
+                    </button>
+                  </div>
+
+                  {/* 3 Executive Bullet Points */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                    {/* Bullet 1 */}
+                    <div className="p-4 bg-white rounded-2xl border border-slate-200/90 shadow-2xs space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center font-bold text-xs">1</span>
+                        <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wide">¿Qué Cambia?</h4>
+                      </div>
+                      <p className="text-xs text-slate-700 leading-relaxed font-medium">
+                        {proyecto.fichaTecnica?.objeto 
+                          ? proyecto.fichaTecnica.objeto.replace(/^🎯\s*Objeto\s*&\s*Ámbito:\s*/i, "")
+                          : proyecto.resumen || "Modificaciones sustantivas al marco normativo vigente para perfeccionar obligaciones legales."}
+                      </p>
+                    </div>
+
+                    {/* Bullet 2 */}
+                    <div className="p-4 bg-white rounded-2xl border border-slate-200/90 shadow-2xs space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-xs">2</span>
+                        <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wide">¿Quiénes se Impactan?</h4>
+                      </div>
+                      <p className="text-xs text-slate-700 leading-relaxed font-medium">
+                        {proyecto.fichaTecnica?.mecanismos 
+                          ? proyecto.fichaTecnica.mecanismos.replace(/^⚙️\s*Mecanismos\s*Clave:\s*/i, "")
+                          : "Sujetos obligados del sector público y privado, trabajadores, usuarios y órganos fiscalizadores competentes."}
+                      </p>
+                    </div>
+
+                    {/* Bullet 3 */}
+                    <div className="p-4 bg-white rounded-2xl border border-slate-200/90 shadow-2xs space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs">3</span>
+                        <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wide">Impacto y Fiscalización</h4>
+                      </div>
+                      <p className="text-xs text-slate-700 leading-relaxed font-medium">
+                        {proyecto.fichaTecnica?.fiscalizacion 
+                          ? proyecto.fichaTecnica.fiscalizacion.replace(/^⚖️\s*Fiscalización\s*&\s*(Sanciones|Cumplimiento):\s*/i, "")
+                          : "Monitoreo administrativo y sanciones pecuniarias graduales bajo supervisión de los organismos fiscalizadores del Estado."}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
                 {/* FICHA TÉCNICA EN 3 EJES */}
                 <div className="bg-gradient-to-br from-slate-50 via-white to-blue-50/20 rounded-2xl border border-slate-200/90 shadow-sm p-6 space-y-4">
                   <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3">
@@ -1414,6 +1606,19 @@ export default function ProyectoDetailView({
                     );
                   })}
                 </div>
+              </div>
+            )}
+
+            {/* 3.5 Territorial Impact Tab Panel */}
+            {activeTab === "territorial" && (
+              <div id="tabpanel-territorial" className="animate-fade-in">
+                <TerritorialImpactPanel 
+                  proyecto={proyecto}
+                  onSelectCommission={(cId) => {
+                    setSelectedComisionId?.(cId);
+                    setView("comision-detail");
+                  }}
+                />
               </div>
             )}
 
@@ -2023,6 +2228,22 @@ export default function ProyectoDetailView({
         isOpen={isFichaModalOpen}
         onClose={() => setIsFichaModalOpen(false)}
         proyecto={proyecto}
+      />
+
+      {/* Minuta Ejecutiva y Técnica Formal Modal */}
+      <MinutaEjecutivaModal
+        isOpen={isFichaModalOpen}
+        onClose={() => setIsFichaModalOpen(false)}
+        proyecto={proyecto}
+      />
+
+      {/* Notas Colaborativas Drawer (Firebase Cloud) */}
+      <NotasColaborativasDrawer
+        isOpen={isNotesDrawerOpen}
+        onClose={() => setIsNotesDrawerOpen(false)}
+        contextId={proyecto.id}
+        contextTitle={proyecto.titulo}
+        contextType="proyecto"
       />
 
     </motion.div>

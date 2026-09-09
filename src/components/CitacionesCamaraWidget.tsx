@@ -1163,6 +1163,7 @@ export default function CitacionesCamaraWidget({
   const [activeChamber, setActiveChamber] = useState<"camara" | "senado" | "todas">("todas");
   const [selectedCommissionFilter, setSelectedCommissionFilter] = useState<string>("todas");
   const [week, setWeek] = useState<number | "all">("all");
+  const [selectedMonth, setSelectedMonth] = useState<"todos" | "marzo" | "abril" | "mayo" | "junio" | "julio" | "agosto" | "septiembre">("todos");
   const [dayFilter, setDayFilter] = useState<"todos" | "lunes" | "martes" | "miercoles" | "jueves" | "viernes">("todos");
   const [typeFilter, setTypeFilter] = useState<"todos" | "Ordinaria" | "Especial">("todos");
   const [onlyWithGuests, setOnlyWithGuests] = useState<boolean>(false);
@@ -1358,20 +1359,24 @@ export default function CitacionesCamaraWidget({
       // Commission picker filter
       if (selectedCommissionFilter !== "todas" && c.comision !== selectedCommissionFilter) return false;
 
+      // Month filter (From March 11 onwards)
+      const fNorm = c.fechaISO.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      if (selectedMonth !== "todos") {
+        if (!fNorm.includes(selectedMonth)) return false;
+      }
+
       // Temporal & Followed Scope Filter:
-      // Note: Week 33 (11-14 Agosto) is past; Week 34+ (17-21 Agosto) is active / upcoming
-      const isPastSession = c.week <= 33;
+      // Note: Week 33 (11-14 Agosto) and earlier/specific past months are past; Week 34+ is active / upcoming
+      const isPastSession = c.week <= 33 || fNorm.includes("marzo") || fNorm.includes("abril") || fNorm.includes("mayo") || fNorm.includes("junio") || fNorm.includes("julio");
 
       if (scope === "mis-comisiones") {
-        // Must be in followed commissions and active/upcoming
+        // Must be in followed commissions
         if (!isCommissionFollowed(c.comision)) return false;
-        // Exclude past sessions by default in followed view
-        if (isPastSession) return false;
       } else if (scope === "proximas") {
         // Exclude past dates
         if (isPastSession) return false;
       } else if (scope === "historial") {
-        // Only include past dates
+        // Only include historical dates from March 11 onwards
         if (!isPastSession) return false;
       }
 
@@ -1399,13 +1404,13 @@ export default function CitacionesCamaraWidget({
       // Search Query
       const q = searchQuery.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
       const ordenStr = Array.isArray(c.ordenDelDia) ? c.ordenDelDia.join(" ") : String(c.ordenDelDia || "");
-      const fullText = `${c.comision} ${c.materia} ${c.presidente} ${c.boletin || ""} ${c.invitados || ""} ${c.lugar} ${ordenStr}`.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const fullText = `${c.comision} ${c.materia} ${c.presidente} ${c.boletin || ""} ${c.invitados || ""} ${c.lugar} ${ordenStr} ${c.fechaISO}`.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
       const matchesSearch = searchQuery === "" || fullText.includes(q);
       if (!matchesSearch) return false;
 
       return true;
     });
-  }, [allEnrichedCitaciones, activeChamber, selectedCommissionFilter, scope, followedComs, week, typeFilter, onlyWithGuests, onlyWithBills, dayFilter, searchQuery]);
+  }, [allEnrichedCitaciones, activeChamber, selectedCommissionFilter, selectedMonth, scope, followedComs, week, typeFilter, onlyWithGuests, onlyWithBills, dayFilter, searchQuery]);
 
   // Group citations by day of week
   const citationsByDay = useMemo(() => {
@@ -1750,13 +1755,31 @@ END:VCALENDAR`;
             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
               scope === "historial"
                 ? "bg-slate-800 text-slate-200 border border-slate-700 shadow-xs"
-                : "text-slate-500 hover:text-slate-300 hover:bg-slate-850"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-850"
             }`}
-            title="Ver actas y citaciones de sesiones pasadas"
+            title="Ver actas y citaciones de sesiones pasadas desde el 11 de Marzo"
           >
-            <History className="w-3.5 h-3.5" />
-            <span>Historial Pasado</span>
+            <History className="w-3.5 h-3.5 text-amber-400" />
+            <span>Historial (Desde 11 Marzo)</span>
           </button>
+        </div>
+
+        {/* Month Quick Filters (March to September) */}
+        <div className="flex flex-wrap items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-slate-800">
+          <span className="text-[10px] uppercase font-bold text-slate-500 px-2">Mes:</span>
+          {(["todos", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre"] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => setSelectedMonth(m)}
+              className={`px-2 py-1 rounded-lg text-[10px] font-extrabold uppercase tracking-wider transition-all cursor-pointer ${
+                selectedMonth === m
+                  ? "bg-blue-600 text-white shadow-xs"
+                  : "text-slate-400 hover:text-white hover:bg-slate-800"
+              }`}
+            >
+              {m === "todos" ? "Todos" : m.slice(0, 3)}
+            </button>
+          ))}
         </div>
 
         {/* View Layout Mode Buttons */}

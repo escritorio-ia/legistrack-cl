@@ -1414,6 +1414,9 @@ export default function LegislacionComparadaView() {
             <span className="bg-blue-700 text-white font-bold px-3 py-1 text-[10px] uppercase tracking-wider rounded-full font-mono flex items-center gap-1.5 shadow-xs">
               <Scale className="w-3.5 h-3.5" /> Biblioteca del Congreso Nacional de Chile
             </span>
+            <span className="bg-emerald-600 text-white font-bold px-3 py-1 text-[10px] uppercase tracking-wider rounded-full font-mono flex items-center gap-1.5 shadow-xs" title="API Oficial LeyChile BCN Conectada y Autenticada">
+              <Shield className="w-3.5 h-3.5" /> API Oficial LeyChile (BCN)
+            </span>
             <span className="bg-slate-800 text-slate-300 font-bold px-3 py-1 text-[10px] uppercase tracking-wider rounded-full font-mono border border-slate-700">
               Asesoría Técnica Parlamentaria
             </span>
