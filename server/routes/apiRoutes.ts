@@ -311,8 +311,8 @@ apiRouter.get("/comisiones/citaciones", async (req: Request, res: Response) => {
     ]);
 
     const todasCitaciones = [
-      ...(camaraData.citaciones || []),
-      ...(senadoData.citaciones || [])
+      ...((camaraData as any).citaciones || (camaraData as any).todas || []),
+      ...((senadoData as any).citaciones || (senadoData as any).todas || [])
     ];
 
     res.json({
@@ -900,6 +900,17 @@ apiRouter.get("/global-search", async (req: Request, res: Response) => {
     })),
     ...unified.comparada
   ];
+
+  const mergedProjectsMap = new Map<string, Proyecto>();
+  for (const p of unified.proyectos) {
+    if (p && p.id) mergedProjectsMap.set(p.id, p);
+  }
+  for (const p of liveProys) {
+    if (p && p.id && !mergedProjectsMap.has(p.id)) {
+      mergedProjectsMap.set(p.id, p);
+    }
+  }
+  const finalProjects = Array.from(mergedProjectsMap.values());
 
   res.json({
     proyectos: finalProjects.slice(0, 15),

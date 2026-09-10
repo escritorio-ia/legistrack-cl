@@ -35,8 +35,9 @@ import {
   FileDown,
   Printer,
   CheckCircle2,
-  Share2,
-  ExternalLink
+  ExternalLink,
+  Compass,
+  Sparkles
 } from "lucide-react";
 import { Proyecto, ActivityItem, VotacionItem } from "../types";
 import { resolveProyecto } from "../utils/proyectosResolver";
@@ -2241,9 +2242,9 @@ export default function ProyectoDetailView({
       <NotasColaborativasDrawer
         isOpen={isNotesDrawerOpen}
         onClose={() => setIsNotesDrawerOpen(false)}
-        contextId={proyecto.id}
-        contextTitle={proyecto.titulo}
-        contextType="proyecto"
+        targetId={proyecto.id}
+        targetName={proyecto.titulo}
+        targetType="proyecto"
       />
 
     </motion.div>

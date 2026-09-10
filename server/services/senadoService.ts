@@ -628,7 +628,7 @@ export async function fetchSenadoComisionProyectosLive(
     cache.delete(cacheKey);
   }
 
-  return cache.getOrSet(cacheKey, async () => {
+  return cache.wrap(cacheKey, 15 * 60 * 1000, async () => {
     try {
       const url = `https://tramitacion.senado.cl/appsenado/index.php?mo=tramitacion&ac=boletin_x_fecha&comiid=${senadoId}&titulo=${encodeURIComponent("Senado: Com. " + comisionNombre)}`;
       const res = await fetch(url, {
@@ -709,7 +709,7 @@ export async function fetchSenadoComisionProyectosLive(
       console.warn(`[SenadoService] Could not fetch live projects for comision ${senadoId}:`, err.message);
       return [];
     }
-  }, 900); // 15 minutes TTL
+  });
 }
 
 /**
@@ -725,7 +725,7 @@ export async function fetchSenadoCitacionesLive(forceRefresh = false): Promise<{
     cache.delete(cacheKey);
   }
 
-  return cache.getOrSet(cacheKey, async () => {
+  return cache.wrap(cacheKey, 5 * 60 * 1000, async () => {
     try {
       const url = "https://web-back.senado.cl/api/commissions_citations?limit=100";
       const res = await fetch(url, {
@@ -807,7 +807,7 @@ export async function fetchSenadoCitacionesLive(forceRefresh = false): Promise<{
       console.warn("[SenadoService] Could not fetch live Senate citaciones:", err.message);
       return { citaciones: [], porComision: {}, porDia: [] };
     }
-  }, 300); // 5 minutes TTL for real-time fresh synchronization
+  });
 }
 
 
