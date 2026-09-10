@@ -67,10 +67,11 @@ import {
 import { 
   getSernapescaCatalog 
 } from "../services/sernapescaService";
-import { 
-  generarContenidoUniversalIA, 
-  responderCopilotoLegislativo, 
-  getAIProvidersStatus 
+import {
+  generarContenidoUniversalIA,
+  responderCopilotoLegislativo,
+  getAIProvidersStatus,
+  AIProviderAttempt
 } from "../services/aiService";
 import { cache } from "../services/cacheService";
 
@@ -1163,8 +1164,9 @@ PÁGINA 3:
 🔗 *Documento oficial vinculado a la sesión audiovisual (${videoTitle || "Canal Oficial del Congreso"})*`;
 
   let reportPages: string[] = [];
+  const aiAttempts: AIProviderAttempt[] = [];
   try {
-    const reportText = await generarContenidoUniversalIA(prompt, 3500);
+    const reportText = await generarContenidoUniversalIA(prompt, 3500, aiAttempts);
     if (reportText) {
       if (reportText.includes("===PAGINA===")) {
         reportPages = reportText.split("===PAGINA===").map((p: string) => p.trim()).filter(Boolean);
@@ -1225,7 +1227,10 @@ Los acuerdos de esta sesión no pudieron sintetizarse automáticamente. Consulta
     success: true,
     documento: documentObj,
     reportContent: reportPages,
-    transcriptAvailable: !!transcript
+    transcriptAvailable: !!transcript,
+    // Diagnóstico de qué proveedor de IA se usó (o por qué falló cada uno). Nunca
+    // incluye claves ni contenido del prompt, solo mensajes de error.
+    aiDiagnostics: aiAttempts
   });
 });
 

@@ -189130,30 +189130,54 @@ async function generarConOpenRouter(prompt, maxTokens = 1500) {
   }
   throw new Error(lastError || "OpenRouter no devolvi\xF3 contenido");
 }
-async function generarContenidoUniversalIA(prompt, maxTokens = 2e3) {
-  if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY") {
+async function generarContenidoUniversalIA(prompt, maxTokens = 2e3, attempts) {
+  const geminiConfigured = !!(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY");
+  if (geminiConfigured) {
     try {
       const text = await generarConGemini(prompt, maxTokens);
-      if (text) return text;
+      if (text) {
+        attempts?.push({ provider: "gemini", configured: true });
+        return text;
+      }
+      attempts?.push({ provider: "gemini", configured: true, error: "respuesta vac\xEDa" });
     } catch (e) {
       console.log(`[Gemini Free Info]: ${e?.message || e}`);
+      attempts?.push({ provider: "gemini", configured: true, error: e?.message || String(e) });
     }
+  } else {
+    attempts?.push({ provider: "gemini", configured: false });
   }
-  if (process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== "MY_GROQ_API_KEY") {
+  const groqConfigured = !!(process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== "MY_GROQ_API_KEY");
+  if (groqConfigured) {
     try {
       const text = await generarConGroq(prompt, maxTokens);
-      if (text) return text;
+      if (text) {
+        attempts?.push({ provider: "groq", configured: true });
+        return text;
+      }
+      attempts?.push({ provider: "groq", configured: true, error: "respuesta vac\xEDa" });
     } catch (e) {
       console.log(`[Groq Free Info]: ${e?.message || e}`);
+      attempts?.push({ provider: "groq", configured: true, error: e?.message || String(e) });
     }
+  } else {
+    attempts?.push({ provider: "groq", configured: false });
   }
-  if (process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY !== "MY_OPENROUTER_API_KEY") {
+  const openrouterConfigured = !!(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY !== "MY_OPENROUTER_API_KEY");
+  if (openrouterConfigured) {
     try {
       const text = await generarConOpenRouter(prompt, maxTokens);
-      if (text) return text;
+      if (text) {
+        attempts?.push({ provider: "openrouter", configured: true });
+        return text;
+      }
+      attempts?.push({ provider: "openrouter", configured: true, error: "respuesta vac\xEDa" });
     } catch (e) {
       console.log(`[OpenRouter Info]: ${e?.message || e}`);
+      attempts?.push({ provider: "openrouter", configured: true, error: e?.message || String(e) });
     }
+  } else {
+    attempts?.push({ provider: "openrouter", configured: false });
   }
   const claude = getClaudeClient();
   if (claude) {
@@ -189164,10 +189188,17 @@ async function generarContenidoUniversalIA(prompt, maxTokens = 2e3) {
         messages: [{ role: "user", content: prompt }]
       });
       const text = resp.content[0].type === "text" ? resp.content[0].text : "";
-      if (text) return text;
+      if (text) {
+        attempts?.push({ provider: "claude", configured: true });
+        return text;
+      }
+      attempts?.push({ provider: "claude", configured: true, error: "respuesta vac\xEDa" });
     } catch (err) {
       handleClaudeError("Claude Universal", err);
+      attempts?.push({ provider: "claude", configured: true, error: err?.message || String(err) });
     }
+  } else {
+    attempts?.push({ provider: "claude", configured: !!process.env.ANTHROPIC_API_KEY });
   }
   return null;
 }
@@ -192813,8 +192844,9 @@ P\xC1GINA 3:
 (Siguiente tr\xE1mite constitucional, citaciones subsiguientes o paso a Sala)
 \u{1F517} *Documento oficial vinculado a la sesi\xF3n audiovisual (${videoTitle || "Canal Oficial del Congreso"})*`;
   let reportPages = [];
+  const aiAttempts = [];
   try {
-    const reportText = await generarContenidoUniversalIA(prompt, 3500);
+    const reportText = await generarContenidoUniversalIA(prompt, 3500, aiAttempts);
     if (reportText) {
       if (reportText.includes("===PAGINA===")) {
         reportPages = reportText.split("===PAGINA===").map((p) => p.trim()).filter(Boolean);
@@ -192861,7 +192893,10 @@ Los acuerdos de esta sesi\xF3n no pudieron sintetizarse autom\xE1ticamente. Cons
     success: true,
     documento: documentObj,
     reportContent: reportPages,
-    transcriptAvailable: !!transcript
+    transcriptAvailable: !!transcript,
+    // Diagnóstico de qué proveedor de IA se usó (o por qué falló cada uno). Nunca
+    // incluye claves ni contenido del prompt, solo mensajes de error.
+    aiDiagnostics: aiAttempts
   });
 });
 apiRouter.post("/copiloto/chat", async (req, res) => {

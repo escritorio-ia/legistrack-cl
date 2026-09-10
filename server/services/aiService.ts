@@ -197,35 +197,72 @@ export async function generarConOpenRouter(prompt: string, maxTokens = 1500): Pr
   throw new Error(lastError || "OpenRouter no devolvió contenido");
 }
 
-export async function generarContenidoUniversalIA(prompt: string, maxTokens = 2000): Promise<string | null> {
+export interface AIProviderAttempt {
+  provider: string;
+  configured: boolean;
+  error?: string;
+}
+
+/**
+ * `attempts`, si se entrega, se rellena con el resultado de cada proveedor
+ * probado (configurado o no, y el error si falló). Existe porque el visor de
+ * Runtime Logs de Vercel no muestra el stdout/stderr de una función en
+ * respuestas 200 -- sin esto, diagnosticar por qué la generación cae al
+ * respaldo en producción requería adivinar a ciegas.
+ */
+export async function generarContenidoUniversalIA(prompt: string, maxTokens = 2000, attempts?: AIProviderAttempt[]): Promise<string | null> {
   // 1. Google Gemini (100% Gratis - Google AI Studio)
-  if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY") {
+  const geminiConfigured = !!(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY");
+  if (geminiConfigured) {
     try {
       const text = await generarConGemini(prompt, maxTokens);
-      if (text) return text;
+      if (text) {
+        attempts?.push({ provider: "gemini", configured: true });
+        return text;
+      }
+      attempts?.push({ provider: "gemini", configured: true, error: "respuesta vacía" });
     } catch (e: any) {
       console.log(`[Gemini Free Info]: ${e?.message || e}`);
+      attempts?.push({ provider: "gemini", configured: true, error: e?.message || String(e) });
     }
+  } else {
+    attempts?.push({ provider: "gemini", configured: false });
   }
 
   // 2. Groq Cloud (100% Gratis - Llama 3.3 70B)
-  if (process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== "MY_GROQ_API_KEY") {
+  const groqConfigured = !!(process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== "MY_GROQ_API_KEY");
+  if (groqConfigured) {
     try {
       const text = await generarConGroq(prompt, maxTokens);
-      if (text) return text;
+      if (text) {
+        attempts?.push({ provider: "groq", configured: true });
+        return text;
+      }
+      attempts?.push({ provider: "groq", configured: true, error: "respuesta vacía" });
     } catch (e: any) {
       console.log(`[Groq Free Info]: ${e?.message || e}`);
+      attempts?.push({ provider: "groq", configured: true, error: e?.message || String(e) });
     }
+  } else {
+    attempts?.push({ provider: "groq", configured: false });
   }
 
   // 3. OpenRouter (Modelos gratuitos y estándar)
-  if (process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY !== "MY_OPENROUTER_API_KEY") {
+  const openrouterConfigured = !!(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY !== "MY_OPENROUTER_API_KEY");
+  if (openrouterConfigured) {
     try {
       const text = await generarConOpenRouter(prompt, maxTokens);
-      if (text) return text;
+      if (text) {
+        attempts?.push({ provider: "openrouter", configured: true });
+        return text;
+      }
+      attempts?.push({ provider: "openrouter", configured: true, error: "respuesta vacía" });
     } catch (e: any) {
       console.log(`[OpenRouter Info]: ${e?.message || e}`);
+      attempts?.push({ provider: "openrouter", configured: true, error: e?.message || String(e) });
     }
+  } else {
+    attempts?.push({ provider: "openrouter", configured: false });
   }
 
   // 4. Anthropic Claude
@@ -238,10 +275,17 @@ export async function generarContenidoUniversalIA(prompt: string, maxTokens = 20
         messages: [{ role: "user", content: prompt }]
       });
       const text = resp.content[0].type === "text" ? resp.content[0].text : "";
-      if (text) return text;
+      if (text) {
+        attempts?.push({ provider: "claude", configured: true });
+        return text;
+      }
+      attempts?.push({ provider: "claude", configured: true, error: "respuesta vacía" });
     } catch (err: any) {
       handleClaudeError("Claude Universal", err);
+      attempts?.push({ provider: "claude", configured: true, error: err?.message || String(err) });
     }
+  } else {
+    attempts?.push({ provider: "claude", configured: !!process.env.ANTHROPIC_API_KEY });
   }
 
   return null;
