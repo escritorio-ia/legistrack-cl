@@ -10,7 +10,7 @@ import {
 } from "../../src/data/comisionesData";
 import { performUnifiedSearch } from "../../src/utils/searchEngine";
 import { resolveProyecto, getAllMasterProyectos } from "../../src/utils/proyectosResolver";
-import { compareSesionesDesc, isSessionDatePassed } from "../../src/utils/dateUtils";
+import { compareSesionesDesc, isSessionDatePassed, mergeSesionesDuplicadas } from "../../src/utils/dateUtils";
 import { 
   fetchProyectoFromSenado, 
   fetchProyectosListadoFromSenado, 
@@ -772,9 +772,12 @@ apiRouter.get("/comision/:id", async (req: Request, res: Response) => {
     // fecha ya pasó se considera realizada, aunque haya llegado marcada como
     // completada: false por defecto. Evita que "Sesiones y Actas" mezcle sesiones
     // agendadas/futuras con las efectivamente realizadas y grabadas.
-    fullComision.sesiones = fullComision.sesiones
-      .map((s: any) => (isSessionDatePassed(s.fecha) ? { ...s, completada: true } : s))
-      .sort(compareSesionesDesc);
+    // Fusionar duplicados: la citación en vivo y la sesión curada del catálogo
+    // oficial suelen ser la MISMA sesión real el mismo día con IDs distintos
+    // (p. ej. "ses-semana-live-1" y "ses-agri-08sep2026").
+    fullComision.sesiones = mergeSesionesDuplicadas(
+      fullComision.sesiones.map((s: any) => (isSessionDatePassed(s.fecha) ? { ...s, completada: true } : s))
+    ).sort(compareSesionesDesc);
 
     return res.json(fullComision);
   }

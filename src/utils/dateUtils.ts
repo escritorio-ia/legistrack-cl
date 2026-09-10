@@ -69,3 +69,90 @@ export function getDaysRemaining(fechaStr?: string): string {
 export function isSesionRealizada(ses: { completada?: boolean; fecha?: string }): boolean {
   return !!ses.completada || isSessionDatePassed(ses.fecha);
 }
+
+interface SesionLike {
+  id?: string;
+  fecha?: string;
+  hora?: string;
+  lugar?: string;
+  tipo?: string;
+  materia?: string;
+  invitados?: string;
+  citacionNumero?: string;
+  acuerdosCount?: number;
+  acuerdosTexto?: string[];
+  actaTexto?: string;
+  tabla?: string[];
+  videoUrl?: string;
+  completada?: boolean;
+}
+
+/**
+ * Cuánta información aporta una sesión: se usa para elegir cuál de dos entradas
+ * "duplicadas" del mismo día conservar como base al fusionarlas.
+ */
+function riquezaSesion(s: SesionLike): number {
+  let score = 0;
+  if (s.completada) score += 4;
+  if (s.actaTexto) score += 3;
+  if (s.videoUrl) score += 3;
+  if (s.acuerdosTexto && s.acuerdosTexto.length > 0) score += 2;
+  if (s.tabla && s.tabla.length > 0) score += 1;
+  if (s.materia) score += Math.min(s.materia.length / 100, 2);
+  return score;
+}
+
+/**
+ * Fusiona sesiones duplicadas que caen en el mismo día. La app combina, para una
+ * misma comisión, citaciones en vivo (agenda semanal desde el sitio oficial) con
+ * un catálogo curado de sesiones ya realizadas; ambas fuentes usan IDs distintos
+ * para la MISMA sesión real, así que un dedup por `id` no las reconoce como
+ * duplicadas y terminan mostrándose dos veces en "Sesiones y Actas". Aquí se
+ * agrupan por fecha real (no por el string de fecha, que puede venir en formatos
+ * distintos) y, dentro de cada grupo, se conserva la entrada más completa
+ * rellenando los campos que le falten con los de las demás.
+ */
+export function mergeSesionesDuplicadas<T extends SesionLike>(sesiones: T[]): T[] {
+  const grupos = new Map<string, T[]>();
+  const ordenGrupos: string[] = [];
+
+  sesiones.forEach((s, idx) => {
+    const d = parseFechaSesion(s.fecha);
+    const key = d ? `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}` : `__sin_fecha_${s.id || idx}`;
+    if (!grupos.has(key)) {
+      grupos.set(key, []);
+      ordenGrupos.push(key);
+    }
+    grupos.get(key)!.push(s);
+  });
+
+  const resultado: T[] = [];
+  for (const key of ordenGrupos) {
+    const items = grupos.get(key)!;
+    if (items.length === 1) {
+      resultado.push(items[0]);
+      continue;
+    }
+
+    const [base, ...resto] = [...items].sort((a, b) => riquezaSesion(b) - riquezaSesion(a));
+    const merged: T = { ...base };
+    for (const otra of resto) {
+      if (!merged.hora && otra.hora) merged.hora = otra.hora;
+      if (!merged.lugar && otra.lugar) merged.lugar = otra.lugar;
+      if (!merged.invitados && otra.invitados) merged.invitados = otra.invitados;
+      if (!merged.citacionNumero && otra.citacionNumero) merged.citacionNumero = otra.citacionNumero;
+      if (!merged.actaTexto && otra.actaTexto) merged.actaTexto = otra.actaTexto;
+      if (!merged.videoUrl && otra.videoUrl) merged.videoUrl = otra.videoUrl;
+      if ((!merged.acuerdosTexto || merged.acuerdosTexto.length === 0) && otra.acuerdosTexto?.length) {
+        merged.acuerdosTexto = otra.acuerdosTexto;
+      }
+      if ((!merged.tabla || merged.tabla.length === 0) && otra.tabla?.length) {
+        merged.tabla = otra.tabla;
+      }
+      if (!merged.completada && otra.completada) merged.completada = true;
+      if ((merged.acuerdosCount || 0) < (otra.acuerdosCount || 0)) merged.acuerdosCount = otra.acuerdosCount;
+    }
+    resultado.push(merged);
+  }
+  return resultado;
+}

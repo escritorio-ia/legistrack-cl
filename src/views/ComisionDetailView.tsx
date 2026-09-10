@@ -61,7 +61,8 @@ import {
   isSessionDatePassed,
   getDaysRemaining,
   compareSesionesDesc,
-  isSesionRealizada
+  isSesionRealizada,
+  mergeSesionesDuplicadas
 } from "../utils/dateUtils";
 import { 
   saveInformeToFirestore, 
@@ -761,9 +762,13 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
     // servidor) la haya marcado como completada: false por defecto. Esto evita que
     // "Sesiones y Actas" mezcle sesiones futuras/agendadas con las efectivamente
     // realizadas.
-    data.sesiones = data.sesiones
-      .map(s => (isSessionDatePassed(s.fecha) ? { ...s, completada: true } : s))
-      .sort(compareSesionesDesc);
+    // 7. Fusionar duplicados: la citación en vivo y la sesión curada del catálogo
+    // oficial suelen ser la MISMA sesión real cayendo el mismo día con IDs
+    // distintos (p. ej. "ses-semana-live-1" y "ses-agri-08sep2026"), lo que sin
+    // este merge se mostraba dos veces en el historial.
+    data.sesiones = mergeSesionesDuplicadas(
+      data.sesiones.map(s => (isSessionDatePassed(s.fecha) ? { ...s, completada: true } : s))
+    ).sort(compareSesionesDesc);
 
     setComision(data);
     if (data.periodo) {
