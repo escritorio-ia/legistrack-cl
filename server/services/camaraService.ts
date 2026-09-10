@@ -232,82 +232,154 @@ export async function fetchComisionesCamaraReal(): Promise<ComisionReal[]> {
   });
 }
 
-export async function searchCamaraYouTubeVideos(query: string, fecha?: string): Promise<any[]> {
-  const cacheKey = `yt_camara_search_${query}_${fecha || ""}`;
+// Canales oficiales de YouTube donde se transmiten las sesiones de comisión.
+// La búsqueda debe acotarse a ESTE canal según la cámara de la comisión: buscar en
+// todo YouTube sin filtro de canal puede traer videos de terceros (prensa, cortes,
+// resúmenes) que no son la transmisión oficial de la sesión, o directamente no
+// encontrar nada relacionado con la comisión buscada.
+const CANAL_OFICIAL_YOUTUBE: Record<"senado" | "diputados", string> = {
+  senado: "TVSENADOCHILE",
+  diputados: "diputadasydiputadosdechile"
+};
+
+function extraerFechaBusqueda(fecha?: string): string {
+  let cleanFecha = (fecha || "septiembre 2026").trim();
+
+  // Si la fecha viene en formato DD/MM/YYYY o DD-MM-YYYY, convertirla a formato legible (ej. 8 septiembre 2026)
+  const dmY = cleanFecha.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (dmY) {
+    const d = parseInt(dmY[1], 10);
+    const m = parseInt(dmY[2], 10);
+    const y = dmY[3];
+    const meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+    const mesNom = meses[m - 1] || "septiembre";
+    return `${d} ${mesNom} ${y}`;
+  }
+  return cleanFecha
+    .replace(/,\s*/g, " ")
+    .replace(/\bde\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extraerVideosDeYtInitialData(html: string): any[] {
+  const startIdx = html.indexOf("ytInitialData = {");
+  if (startIdx === -1) return [];
+  const jsonStart = startIdx + "ytInitialData = ".length;
+  const scriptEnd = html.indexOf(";</script>", jsonStart);
+  if (scriptEnd === -1) return [];
+
+  let data: any;
+  try {
+    data = JSON.parse(html.slice(jsonStart, scriptEnd));
+  } catch {
+    return [];
+  }
+
+  const videos: any[] = [];
+  function extract(obj: any) {
+    if (!obj || typeof obj !== "object") return;
+    if (obj.videoId && (obj.title?.runs || obj.title?.simpleText)) {
+      const title = obj.title.runs ? obj.title.runs.map((r: any) => r.text).join("") : obj.title.simpleText;
+      const desc = obj.detailedMetadataSnippets?.[0]?.snippetText?.runs?.map((r: any) => r.text).join("") || obj.descriptionSnippet?.runs?.map((r: any) => r.text).join("") || "";
+      const published = obj.publishedTimeText?.simpleText || "";
+      const length = obj.lengthText?.simpleText || "";
+      videos.push({
+        id: obj.videoId,
+        videoId: obj.videoId,
+        title,
+        published,
+        length,
+        desc,
+        url: `https://www.youtube.com/watch?v=${obj.videoId}`
+      });
+    }
+    for (const k of Object.keys(obj)) {
+      extract(obj[k]);
+    }
+  }
+  extract(data);
+
+  const seen = new Set();
+  const unique: any[] = [];
+  for (const v of videos) {
+    if (!seen.has(v.id)) {
+      seen.add(v.id);
+      unique.push(v);
+    }
+  }
+  return unique;
+}
+
+function normalizarTexto(s: string): string {
+  return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+}
+
+/**
+ * Reordena los videos encontrados en el canal para que las transmisiones de la
+ * sesión de LA comisión buscada aparezcan primero. El canal oficial también sube
+ * boletines diarios genéricos ("Cámara Informa") y sesiones de OTRAS comisiones el
+ * mismo día, así que sin este reordenamiento la selección automática del primer
+ * resultado (videos[0]) podía terminar eligiendo un video que no es de la comisión.
+ */
+function priorizarVideosDeLaComision(videos: any[], cleanQuery: string): any[] {
+  const primeraPalabra = cleanQuery.split(/[,\s]+/)[0] || cleanQuery;
+  const keyword = normalizarTexto(primeraPalabra);
+  if (!keyword) return videos;
+
+  const scored = videos.map((v, idx) => {
+    const titulo = normalizarTexto(v.title || "");
+    let score = 0;
+    if (titulo.includes("comision de") && titulo.includes(keyword)) score = 2;
+    else if (titulo.includes(keyword)) score = 1;
+    return { v, score, idx };
+  });
+  scored.sort((a, b) => (b.score - a.score) || (a.idx - b.idx));
+  return scored.map(s => s.v);
+}
+
+export async function searchCamaraYouTubeVideos(query: string, fecha?: string, camara: "senado" | "diputados" = "diputados"): Promise<any[]> {
+  const cacheKey = `yt_camara_search_${camara}_${query}_${fecha || ""}`;
   return cache.wrap(cacheKey, 10 * 60 * 1000, async () => {
+    const cleanQuery = query.replace(/^(comisi[oó]n\s+de\s+|comisi[oó]n\s+)/i, "").trim();
+    const cleanFecha = extraerFechaBusqueda(fecha);
+    const canal = CANAL_OFICIAL_YOUTUBE[camara];
+    const headers = {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "Accept-Language": "es-419,es;q=0.9"
+    };
+
+    // 1. Buscar directamente dentro del canal oficial de la cámara correspondiente
+    // (Senado -> @TVSENADOCHILE, Cámara -> @diputadasydiputadosdechile). Esto es lo
+    // que garantiza que la transmisión encontrada sea efectivamente de la sesión de
+    // la comisión, y no un video de terceros que solo menciona el mismo término.
     try {
-      const cleanQuery = query.replace(/^(comisi[oó]n\s+de\s+|comisi[oó]n\s+)/i, "").trim();
-      
-      let cleanFecha = (fecha || "septiembre 2026").trim();
-      
-      // Si la fecha viene en formato DD/MM/YYYY o DD-MM-YYYY, convertirla a formato legible (ej. 8 septiembre 2026)
-      const dmY = cleanFecha.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
-      if (dmY) {
-        const d = parseInt(dmY[1], 10);
-        const m = parseInt(dmY[2], 10);
-        const y = dmY[3];
-        const meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
-        const mesNom = meses[m - 1] || "septiembre";
-        cleanFecha = `${d} ${mesNom} ${y}`;
-      } else {
-        cleanFecha = cleanFecha
-          .replace(/,\s*/g, " ")
-          .replace(/\bde\b/gi, "")
-          .replace(/\s+/g, " ")
-          .trim();
+      const canalSearchTerm = `Comisión de ${cleanQuery} ${cleanFecha}`;
+      const resCanal = await fetch(`https://www.youtube.com/@${canal}/search?query=${encodeURIComponent(canalSearchTerm)}`, {
+        headers,
+        signal: AbortSignal.timeout(8000)
+      });
+      if (resCanal.ok) {
+        const htmlCanal = await resCanal.text();
+        const videosCanal = extraerVideosDeYtInitialData(htmlCanal);
+        if (videosCanal.length > 0) return priorizarVideosDeLaComision(videosCanal, cleanQuery).slice(0, 10);
       }
-      
-      // Estructura idéntica al canal oficial: "Comisión de [Nombre] - [Día/Fecha]"
-      const searchTerm = `Comisión de ${cleanQuery} ${cleanFecha}`;
+    } catch (err) {
+      console.warn(`Could not search YouTube channel @${canal}:`, err);
+    }
+
+    // 2. Fallback: búsqueda general en YouTube, pero incluyendo el nombre del canal
+    // oficial en el término de búsqueda para sesgar los resultados hacia él.
+    try {
+      const canalNombre = camara === "senado" ? "TV Senado" : "Cámara de Diputadas y Diputados de Chile";
+      const searchTerm = `${canalNombre} Comisión de ${cleanQuery} ${cleanFecha}`;
       const res = await fetch(`https://www.youtube.com/results?search_query=${encodeURIComponent(searchTerm)}`, {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          "Accept-Language": "es-419,es;q=0.9"
-        },
+        headers,
         signal: AbortSignal.timeout(8000)
       });
       if (!res.ok) return [];
       const html = await res.text();
-      const startIdx = html.indexOf("ytInitialData = {");
-      if (startIdx === -1) return [];
-      const jsonStart = startIdx + "ytInitialData = ".length;
-      const scriptEnd = html.indexOf(";</script>", jsonStart);
-      if (scriptEnd === -1) return [];
-      const data = JSON.parse(html.slice(jsonStart, scriptEnd));
-
-      const videos: any[] = [];
-      function extract(obj: any) {
-        if (!obj || typeof obj !== "object") return;
-        if (obj.videoId && (obj.title?.runs || obj.title?.simpleText)) {
-          const title = obj.title.runs ? obj.title.runs.map((r: any) => r.text).join("") : obj.title.simpleText;
-          const desc = obj.detailedMetadataSnippets?.[0]?.snippetText?.runs?.map((r: any) => r.text).join("") || obj.descriptionSnippet?.runs?.map((r: any) => r.text).join("") || "";
-          const published = obj.publishedTimeText?.simpleText || "";
-          const length = obj.lengthText?.simpleText || "";
-          videos.push({
-            id: obj.videoId,
-            videoId: obj.videoId,
-            title,
-            published,
-            length,
-            desc,
-            url: `https://www.youtube.com/watch?v=${obj.videoId}`
-          });
-        }
-        for (const k of Object.keys(obj)) {
-          extract(obj[k]);
-        }
-      }
-      extract(data);
-
-      const seen = new Set();
-      const unique: any[] = [];
-      for (const v of videos) {
-        if (!seen.has(v.id)) {
-          seen.add(v.id);
-          unique.push(v);
-        }
-      }
-      return unique.slice(0, 10);
+      return priorizarVideosDeLaComision(extraerVideosDeYtInitialData(html), cleanQuery).slice(0, 10);
     } catch (err) {
       console.warn("Could not search YouTube videos:", err);
       return [];

@@ -10,6 +10,7 @@ import {
 } from "../../src/data/comisionesData";
 import { performUnifiedSearch } from "../../src/utils/searchEngine";
 import { resolveProyecto, getAllMasterProyectos } from "../../src/utils/proyectosResolver";
+import { compareSesionesDesc, isSessionDatePassed } from "../../src/utils/dateUtils";
 import { 
   fetchProyectoFromSenado, 
   fetchProyectosListadoFromSenado, 
@@ -760,12 +761,20 @@ apiRouter.get("/comision/:id", async (req: Request, res: Response) => {
             }
           }
         }
-        // Ordenar cronológicamente descendente (las más recientes primero)
-        fullComision.sesiones.sort((a: any, b: any) => {
-          return (b.id || "").localeCompare(a.id || "");
-        });
+        // Ordenar cronológicamente descendente (las más recientes primero), por fecha
+        // real y no por comparación lexicográfica de IDs (que ordenaba mal entre
+        // sesiones de distintos meses, p. ej. "16jun2026" después de "04ago2026").
+        fullComision.sesiones.sort(compareSesionesDesc);
       }
     }
+
+    // Normalizar "completada": cualquier sesión de la citación semanal en vivo cuya
+    // fecha ya pasó se considera realizada, aunque haya llegado marcada como
+    // completada: false por defecto. Evita que "Sesiones y Actas" mezcle sesiones
+    // agendadas/futuras con las efectivamente realizadas y grabadas.
+    fullComision.sesiones = fullComision.sesiones
+      .map((s: any) => (isSessionDatePassed(s.fecha) ? { ...s, completada: true } : s))
+      .sort(compareSesionesDesc);
 
     return res.json(fullComision);
   }
@@ -1035,7 +1044,8 @@ apiRouter.get("/comisiones/sesion/youtube-search", async (req: Request, res: Res
   try {
     const query = String(req.query.query || "Agricultura");
     const fecha = req.query.fecha ? String(req.query.fecha) : undefined;
-    const videos = await searchCamaraYouTubeVideos(query, fecha);
+    const camara = req.query.camara === "senado" ? "senado" : "diputados";
+    const videos = await searchCamaraYouTubeVideos(query, fecha, camara);
     res.json({ success: true, videos });
   } catch (err: any) {
     console.error("Error in /comisiones/sesion/youtube-search:", err);

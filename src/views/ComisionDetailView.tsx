@@ -50,12 +50,19 @@ import {
   MessageSquare
 } from "lucide-react";
 import { Comision, SesionItem, Proyecto, Integrante } from "../types";
-import { 
-  findComisionMetaById, 
-  generateFullComisionData, 
+import {
+  findComisionMetaById,
+  generateFullComisionData,
   getProyectosForComision,
-  TODAS_COMISIONES_DETALLE 
+  TODAS_COMISIONES_DETALLE
 } from "../data/comisionesData";
+import {
+  parseFechaSesion,
+  isSessionDatePassed,
+  getDaysRemaining,
+  compareSesionesDesc,
+  isSesionRealizada
+} from "../utils/dateUtils";
 import { 
   saveInformeToFirestore, 
   getInformeFromFirestore, 
@@ -66,47 +73,11 @@ import YouTubeTranscriptModal from "../components/YouTubeTranscriptModal";
 import ParlamentariosMatrix from "../components/ParlamentariosMatrix";
 import NotasColaborativasDrawer from "../components/NotasColaborativasDrawer";
 
-export function parseFechaSesion(fechaStr?: string): Date | null {
-  if (!fechaStr) return null;
-  const isoMatch = fechaStr.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
-  if (isoMatch) {
-    return new Date(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3]), 23, 59, 59);
-  }
-  const meses: Record<string, number> = {
-    enero: 0, febrero: 1, marzo: 2, abril: 3, mayo: 4, junio: 5,
-    julio: 6, agosto: 7, septiembre: 8, octubre: 9, noviembre: 10, diciembre: 11
-  };
-  const match = fechaStr.match(/(\d{1,2})\s+de\s+([a-zA-ZáéíóúÁÉÍÓÚ]+)\s+de\s+(\d{4})/i);
-  if (match) {
-    const day = Number(match[1]);
-    const monthStr = match[2].toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    const year = Number(match[3]);
-    const month = meses[monthStr] ?? 0;
-    return new Date(year, month, day, 23, 59, 59);
-  }
-  return null;
-}
-
-export function isSessionDatePassed(fechaStr?: string): boolean {
-  const d = parseFechaSesion(fechaStr);
-  if (!d) return false;
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-  return d.getTime() < today.getTime();
-}
-
-export function getDaysRemaining(fechaStr?: string): string {
-  const d = parseFechaSesion(fechaStr);
-  if (!d) return "Convocada";
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-  const diffMs = d.getTime() - today.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  if (diffDays === 0) return "🔴 Sesiona Hoy";
-  if (diffDays === 1) return "⏳ Convocada para Mañana";
-  if (diffDays > 1) return `📅 En ${diffDays} días`;
-  return "Sesión Realizada";
-}
+// parseFechaSesion, isSessionDatePassed, getDaysRemaining, compareSesionesDesc e
+// isSesionRealizada viven en ../utils/dateUtils (compartidas con el servidor) para
+// evitar que el historial de sesiones se ordene por comparacion lexicografica de
+// IDs, lo que producia un orden cronologico incorrecto entre sesiones de distintos
+// meses (p. ej. "16jun2026" ordenaba despues de "04ago2026").
 
 export function getPartyBadgeStyle(partido?: string): { bg: string; text: string; border: string } {
   const p = (partido || "").toLowerCase();
@@ -780,10 +751,19 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
         }
       }
       
-      // Ordenar cronológicamente descendente
-      data.sesiones.sort((a, b) => (b.id || "").localeCompare(a.id || ""));
+      // Ordenar cronológicamente descendente (por fecha real, no por comparación de IDs)
+      data.sesiones.sort(compareSesionesDesc);
       data.sesionesRealizadas = Math.max(data.sesionesRealizadas, data.sesiones.length);
     }
+
+    // 6. Normalizar el estado "completada": cualquier sesión cuya fecha ya pasó se
+    // considera realizada aunque la fuente (p. ej. citaciones en vivo desde el
+    // servidor) la haya marcado como completada: false por defecto. Esto evita que
+    // "Sesiones y Actas" mezcle sesiones futuras/agendadas con las efectivamente
+    // realizadas.
+    data.sesiones = data.sesiones
+      .map(s => (isSessionDatePassed(s.fecha) ? { ...s, completada: true } : s))
+      .sort(compareSesionesDesc);
 
     setComision(data);
     if (data.periodo) {
@@ -1322,6 +1302,14 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
   };
 
   const handleOpenReportModal = async (ses: SesionItem) => {
+    // El Informe IA se redacta a partir de la transmisión grabada en YouTube de una
+    // sesión ya realizada. Una citación agendada/futura todavía no tiene grabación,
+    // así que buscar un video y "generar" un informe en ese caso solo fabricaría
+    // contenido sobre una sesión que no ha ocurrido.
+    if (!isSesionRealizada(ses)) {
+      showToast("Esta sesión aún no se ha realizado. El Informe IA solo puede generarse a partir de la transmisión grabada en YouTube de una sesión ya realizada.");
+      return;
+    }
     setSelectedSesionForReport(ses);
     const query = `Sesión ${comision?.nombre || "Comisión"} ${ses.fecha}`;
     setSearchQuery(query);
@@ -2156,7 +2144,7 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {(comision.sesiones || []).map((ses, idx) => {
+              {(comision.sesiones || []).filter(isSesionRealizada).map((ses, idx) => {
                 const hasSummary = !!customSummaries[ses.id];
                 return (
                   <div 
@@ -2381,7 +2369,7 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
               <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
                 activeTab === "sesiones" ? "bg-blue-800 text-blue-100" : "bg-slate-200 text-slate-700"
               }`}>
-                {comision.sesiones?.length || 0}
+                {(comision.sesiones || []).filter(isSesionRealizada).length}
               </span>
             </button>
 
@@ -2555,13 +2543,9 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
                             <Tv className="w-3.5 h-3.5 text-rose-200" />
                             <span>Transcripción & Citas</span>
                           </button>
-                          <button
-                            onClick={() => handleOpenReportModal(comision.proximaSesion!)}
-                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-xl text-xs transition-all cursor-pointer text-center shadow-md flex items-center justify-center gap-1.5"
-                          >
-                            <Sparkles className="w-3.5 h-3.5 text-blue-200" />
-                            <span>Informe IA</span>
-                          </button>
+                          {/* No hay "Informe IA" para la próxima citación: al ser una sesión
+                              agendada y aún no realizada, todavía no existe transmisión
+                              grabada en YouTube de la cual generar el informe. */}
                         </div>
                       </div>
                     </div>
@@ -2748,13 +2732,13 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
                     onClick={() => setActiveTab("sesiones")}
                     className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-0.5 cursor-pointer"
                   >
-                    <span>Ver historial ({comision.sesiones?.length || 0})</span>
+                    <span>Ver historial ({(comision.sesiones || []).filter(isSesionRealizada).length})</span>
                     <ChevronRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {(comision.sesiones || []).slice(0, 2).map((ses) => (
+                  {(comision.sesiones || []).filter(isSesionRealizada).slice(0, 2).map((ses) => (
                     <div key={ses.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col justify-between gap-3">
                       <div>
                         <div className="flex items-center justify-between gap-2 mb-1.5">
@@ -2952,9 +2936,11 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
                 </div>
               </div>
 
-              {/* Sessions Grid */}
+              {/* Sessions Grid: solo sesiones efectivamente realizadas (completadas o con
+                  fecha ya pasada) — las citaciones agendadas/futuras se muestran en la
+                  Citación Destacada del Resumen Ejecutivo, no en el historial de Actas. */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {(comision.sesiones || []).filter(s => {
+                {(comision.sesiones || []).filter(isSesionRealizada).filter(s => {
                   if (!sessionSearch) return true;
                   const q = sessionSearch.toLowerCase();
                   return s.materia.toLowerCase().includes(q) || (s.invitados && s.invitados.toLowerCase().includes(q)) || s.fecha.toLowerCase().includes(q);
