@@ -1,9 +1,11 @@
 name: Deploy to GitHub Pages
 
+# Desactivado: el sitio se sirve ahora desde Vercel (legistrack-cl.vercel.app),
+# que si puede correr el backend (server/ vía api/[...all].ts). GitHub Pages solo
+# sirve estatico y nunca pudo exponer /api/*, asi que se dejo de usar para evitar
+# confusion sobre cual URL es la real. Se deja "workflow_dispatch" por si se
+# necesita volver a activar manualmente en el futuro.
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 permissions:
