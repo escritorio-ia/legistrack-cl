@@ -387,6 +387,109 @@ export async function searchCamaraYouTubeVideos(query: string, fecha?: string, c
   });
 }
 
+interface TranscriptResult {
+  text: string;
+  language: string;
+  auto: boolean;
+  truncated: boolean;
+}
+
+function decodeHtmlEntities(s: string): string {
+  return s
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\n/g, " ");
+}
+
+/**
+ * Obtiene la transcripción (subtítulos, generalmente auto-generados por YouTube)
+ * de un video de una sesión de comisión, para poder redactar un informe con
+ * contenido real (intervenciones, citas textuales) en vez de relleno genérico.
+ * No hay una API oficial pública para esto sin credenciales de Google Cloud, así
+ * que se replica la técnica estándar: extraer las pistas de subtítulos desde
+ * `ytInitialPlayerResponse` en el HTML de la página del video, y descargar la
+ * pista en español (o la primera disponible) como XML de texto con marcas de tiempo.
+ */
+export async function fetchYouTubeVideoTranscript(videoId: string): Promise<TranscriptResult | null> {
+  if (!videoId) return null;
+  const cacheKey = `yt_transcript_${videoId}`;
+  return cache.wrap(cacheKey, 24 * 60 * 60 * 1000, async () => {
+    try {
+      const headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept-Language": "es-419,es;q=0.9"
+      };
+      const pageRes = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
+        headers,
+        signal: AbortSignal.timeout(8000)
+      });
+      if (!pageRes.ok) return null;
+      const html = await pageRes.text();
+
+      const marker = "ytInitialPlayerResponse = ";
+      const startIdx = html.indexOf(marker);
+      if (startIdx === -1) return null;
+      const jsonStart = startIdx + marker.length;
+      const scriptEnd = html.indexOf(";var meta", jsonStart);
+      const fallbackEnd = html.indexOf(";</script>", jsonStart);
+      const end = scriptEnd !== -1 && scriptEnd < (fallbackEnd === -1 ? Infinity : fallbackEnd) ? scriptEnd : fallbackEnd;
+      if (end === -1) return null;
+
+      let playerResponse: any;
+      try {
+        playerResponse = JSON.parse(html.slice(jsonStart, end));
+      } catch {
+        return null;
+      }
+
+      const tracks = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+      if (!Array.isArray(tracks) || tracks.length === 0) return null;
+
+      const track =
+        tracks.find((t: any) => (t.languageCode || "").startsWith("es") && t.kind !== "asr") ||
+        tracks.find((t: any) => (t.languageCode || "").startsWith("es")) ||
+        tracks.find((t: any) => t.kind !== "asr") ||
+        tracks[0];
+      if (!track?.baseUrl) return null;
+
+      const trackRes = await fetch(track.baseUrl, { headers, signal: AbortSignal.timeout(8000) });
+      if (!trackRes.ok) return null;
+      const xml = await trackRes.text();
+
+      const segments: string[] = [];
+      const regex = /<text start="([\d.]+)"[^>]*>([\s\S]*?)<\/text>/g;
+      let m: RegExpExecArray | null;
+      while ((m = regex.exec(xml)) !== null) {
+        const startSec = Math.round(Number(m[1]));
+        const mm = String(Math.floor(startSec / 60)).padStart(2, "0");
+        const ss = String(startSec % 60).padStart(2, "0");
+        const content = decodeHtmlEntities(m[2]).trim();
+        if (content) segments.push(`[${mm}:${ss}] ${content}`);
+      }
+      if (segments.length === 0) return null;
+
+      const maxChars = 14000;
+      const full = segments.join("\n");
+      const truncated = full.length > maxChars;
+      const text = truncated ? full.slice(0, maxChars) + "\n[...transcripción truncada por extensión...]" : full;
+
+      return {
+        text,
+        language: track.languageCode || "es",
+        auto: track.kind === "asr",
+        truncated
+      };
+    } catch (err) {
+      console.warn(`Could not fetch YouTube transcript for video ${videoId}:`, err);
+      return null;
+    }
+  });
+}
+
 export async function getTodasComisiones(): Promise<ComisionReal[]> {
   const camaraLive = await fetchComisionesCamaraReal();
   const byId = new Map<string, ComisionReal>();

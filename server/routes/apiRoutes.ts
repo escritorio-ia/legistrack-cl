@@ -23,11 +23,12 @@ import {
   estimarFichaTecnica,
   estimarOrigenDetalle
 } from "../services/senadoService";
-import { 
-  getTodasComisiones, 
+import {
+  getTodasComisiones,
   fetchComisionesCamaraReal,
   fetchCamaraCitacionesSemanalesLive,
   searchCamaraYouTubeVideos,
+  fetchYouTubeVideoTranscript,
   SENADO_COMISIONES_REALES,
   DIPUTADOS_COMISIONES_REALES
 } from "../services/camaraService";
@@ -1057,27 +1058,75 @@ apiRouter.get("/comisiones/sesion/youtube-search", async (req: Request, res: Res
 });
 
 apiRouter.post("/comisiones/sesion/generar-informe", async (req: Request, res: Response) => {
-  const { 
-    comisionNombre = "Comisión Parlamentaria", 
-    sesionMateria = "Materia en discusión", 
-    sesionFecha = "Fecha no informada", 
+  const {
+    comisionNombre = "Comisión Parlamentaria",
+    sesionMateria = "Materia en discusión",
+    sesionFecha = "Fecha no informada",
     boletinId = "S/B",
     videoId = "",
-    videoTitle = ""
+    videoTitle = "",
+    invitados = "",
+    tabla = [],
+    acuerdosTexto = [],
+    actaTexto = ""
   } = req.body;
-  
+
   const videoContext = videoTitle ? `\n- Video / Transmisión Oficial de la Sesión: "${videoTitle}" (YouTube ID: ${videoId})` : "";
 
-  const prompt = `Actúa como un analista legislativo experto de la Biblioteca del Congreso Nacional de Chile. 
+  // Contenido curado y verificado de la sesión (invitados, tabla de la citación,
+  // acuerdos y acta) que ya existe en el catálogo de la comisión. Antes esta ruta
+  // NUNCA recibía estos campos desde el cliente -- solo la materia general -- por
+  // lo que tanto la IA como el respaldo sin IA terminaban rellenando el informe
+  // con generalidades sin sustancia ("Ministros de Estado del Ramo: Presentación
+  // de antecedentes técnicos...") en vez de contenido real de la sesión.
+  const invitadosList: string = typeof invitados === "string" ? invitados : "";
+  const tablaList: string[] = Array.isArray(tabla) ? tabla : [];
+  const acuerdosList: string[] = Array.isArray(acuerdosTexto) ? acuerdosTexto : [];
+  const actaTextoStr: string = typeof actaTexto === "string" ? actaTexto : "";
+
+  const curatedParts: string[] = [];
+  if (invitadosList) curatedParts.push(`Invitados y expositores convocados a la sesión: ${invitadosList}`);
+  if (tablaList.length > 0) curatedParts.push(`Puntos de la tabla / pauta de la sesión:\n${tablaList.map((t, i) => `${i + 1}. ${t}`).join("\n")}`);
+  if (actaTextoStr) curatedParts.push(`Resumen oficial del acta de la sesión: ${actaTextoStr}`);
+  if (acuerdosList.length > 0) curatedParts.push(`Acuerdos efectivamente adoptados en la sesión:\n${acuerdosList.map((a, i) => `${i + 1}. ${a}`).join("\n")}`);
+  const curatedBlock = curatedParts.length > 0
+    ? `\n\nContenido verificado de la sesión (usa esto como fuente principal para las intervenciones, el debate y los acuerdos; no lo sustituyas por generalidades):\n${curatedParts.join("\n\n")}`
+    : "";
+
+  // Traer la transcripción real (subtítulos, normalmente auto-generados) del video
+  // de la sesión como capa adicional, cuando esté disponible. YouTube bloquea la
+  // mayoría de las peticiones de subtítulos hechas desde servidor (sin sesión de
+  // navegador), así que esto suele fallar -- por eso el contenido curado de arriba
+  // es la fuente principal y no depende de que esto funcione.
+  let transcript: Awaited<ReturnType<typeof fetchYouTubeVideoTranscript>> = null;
+  if (videoId) {
+    try {
+      transcript = await fetchYouTubeVideoTranscript(videoId);
+    } catch (err) {
+      console.warn("Could not fetch YouTube transcript for informe:", err);
+    }
+  }
+
+  const transcriptBlock = transcript
+    ? `\n\nTranscripción real de la sesión (subtítulos ${transcript.auto ? "auto-generados" : "oficiales"} de YouTube, con marcas de tiempo [MM:SS]${transcript.truncated ? ", truncada por extensión" : ""}):\n"""\n${transcript.text}\n"""\n\nÚsala como fuente principal para citas textuales de intervenciones, con su marca de tiempo entre paréntesis.`
+    : "";
+
+  const fuentesDisponibles = curatedParts.length > 0 || transcript;
+
+  const prompt = `Actúa como un analista legislativo experto de la Biblioteca del Congreso Nacional de Chile.
 Redacta un informe técnico, exhaustivo y fidedigno de 3 secciones/páginas de la sesión parlamentaria para ser publicado en el expediente del proyecto de ley.
 
 Información de la Sesión:
 - Comisión: ${comisionNombre}
 - Fecha de la Sesión: ${sesionFecha}
 - Boletín de Ley Asociado: ${boletinId}
-- Materia/Tabla en Discusión: ${sesionMateria}${videoContext}
+- Materia/Tabla en Discusión: ${sesionMateria}${videoContext}${curatedBlock}${transcriptBlock}
 
 Instrucciones:
+${fuentesDisponibles
+    ? `Redacta un informe con intervenciones y contenido concreto, basado ESTRICTAMENTE en la información verificada de la sesión (invitados, tabla, acta y acuerdos) y en la transcripción cuando esté disponible. Para cada invitado o expositor listado, desarrolla su probable planteamiento técnico según su cargo/institución y la materia tratada, dejando explícito que es una reconstrucción analítica del debate a partir del acta y la tabla oficiales -- no cites textualmente a nadie salvo que la transcripción entregada lo respalde. No inventes nombres de personas que no estén en la lista de invitados.`
+    : `No hay transcripción ni contenido curado disponible para esta sesión más allá de la materia general. Redacta el informe sobre la base técnica y normativa de la materia en discusión, e indica explícitamente en la PÁGINA 2 que el detalle de las intervenciones debe verificarse contra la transmisión oficial, ya que no hay fuente verificada de lo dicho en sala. NO inventes citas ni nombres de expositores.`}
+
 Separa el documento en 3 páginas utilizando el delimitador "===PAGINA===" entre cada página:
 
 PÁGINA 1:
@@ -1086,17 +1135,17 @@ PÁGINA 1:
 **Fecha:** ${sesionFecha}
 **Boletín:** ${boletinId}
 ## I. OBJETO Y MATERIA DE LA CONVOCATORIA
-(Detalle técnico del proyecto, contexto y fundamentación)
+(Detalle técnico del proyecto, contexto y fundamentación, basado en la tabla y el acta de la sesión)
 ## II. AUTORIDADES, MINISTROS Y EXPOSITORES CONVOCADOS
-(Ministros de Estado, autoridades sectoriales y expertos participantes)
+(Nombres y cargos de los invitados entregados; agrupa por tipo de institución)
 
 ===PAGINA===
 
 PÁGINA 2:
 # FOCO DEL DEBATE PARLAMENTARIO Y AUDIENCIAS
-## III. PRINCIPALES EJES DE LA DISCUSIÓN
-* **Puntos Críticos y Diagnóstico:** (Aspectos normativos, impacto presupuestario y estándares legales analizados)
-* **Intervenciones de las Autoridades:** (Planteamientos del Ejecutivo y gremios)
+## III. INTERVENCIONES Y PRINCIPALES EJES DE LA DISCUSIÓN
+* **Intervenciones y planteamientos:** (Para cada invitado o grupo de invitados relevante, desarrolla su planteamiento probable según su cargo y la materia, o cita la transcripción si está disponible)
+* **Puntos Críticos y Diagnóstico:** (Aspectos normativos, impacto presupuestario y estándares legales efectivamente planteados en la sesión, según el acta y la tabla)
 * **Observaciones y Cuestionamientos de los Parlamentarios:** (Debate particular de los diputados/senadores)
 
 ===PAGINA===
@@ -1104,14 +1153,14 @@ PÁGINA 2:
 PÁGINA 3:
 # RESOLUCIONES, ACUERDOS Y ESTADO DE TRAMITACIÓN
 ## IV. ACUERDOS ADOPTADOS POR LA COMISIÓN
-* (Lista de acuerdos, solicitudes de oficios, plazos de indicaciones o votaciones realizadas)
+* (Transcribe y desarrolla cada acuerdo entregado; si no hay acuerdos verificados, indícalo explícitamente en vez de inventarlos)
 ## V. PRÓXIMOS PASOS EN EL PROCESO LEGISLATIVO
 (Siguiente trámite constitucional, citaciones subsiguientes o paso a Sala)
 🔗 *Documento oficial vinculado a la sesión audiovisual (${videoTitle || "Canal Oficial del Congreso"})*`;
 
   let reportPages: string[] = [];
   try {
-    const reportText = await generarContenidoUniversalIA(prompt, 2500);
+    const reportText = await generarContenidoUniversalIA(prompt, 3500);
     if (reportText && reportText.includes("===PAGINA===")) {
       reportPages = reportText.split("===PAGINA===").map((p: string) => p.trim()).filter(Boolean);
     } else if (reportText) {
@@ -1122,43 +1171,31 @@ PÁGINA 3:
   }
 
   if (reportPages.length === 0) {
+    // Ningún proveedor de IA respondió (sin claves configuradas, cuota agotada, o
+    // error de red). En vez de simular un informe con contenido genérico que
+    // aparenta describir una sesión real sin serlo, se deja explícito que el
+    // informe no pudo generarse y qué se puede revisar manualmente mientras tanto.
     const p1 = `# SÍNTESIS LEGISLATIVA Y ANTECEDENTES GENERALES
 **Comisión:** ${comisionNombre}
 **Fecha:** ${sesionFecha}
 **Boletín:** ${boletinId}
 ${videoTitle ? `**Transmisión Oficial:** ${videoTitle}` : ""}
 
-## I. OBJETO Y MATERIA DE LA CONVOCATORIA
-La Comisión se abocó al análisis técnico, estudio de antecedentes y recepción de audiencias públicas correspondientes a la materia:
+## ⚠️ Informe no disponible
+No fue posible generar el informe con inteligencia artificial en este momento (proveedor de IA no configurado, sin cuota disponible, o error de red).
+
+**Materia de la sesión:**
 > "${sesionMateria}"
 
-## II. AUTORIDADES Y EXPOSITORES CONVOCADOS
-* **Ministros de Estado del Ramo:** Presentación de antecedentes técnicos, justificación reglamentaria e impacto sectorial.
-* **Jefaturas de Servicio y Asesores:** Evaluación de pertinencia presupuestaria y fiscalización.
-* **Organizaciones Técnicas y Gremiales:** Entrega de minutas y observaciones sobre la aplicabilidad práctica.`;
+Vuelve a intentarlo en unos minutos. Mientras tanto, puedes revisar la transmisión oficial${videoTitle ? ` ("${videoTitle}")` : ""} directamente en el canal de YouTube del Congreso.`;
 
     const p2 = `# FOCO DEL DEBATE PARLAMENTARIO Y AUDIENCIAS
-## III. PRINCIPALES EJES DE LA DISCUSIÓN TÉCNICA
-
-* **Marco Normativo y Compatibilidad Legal:** Revisión de la armonización entre las normas vigentes y las modificaciones propuestas en el articulado.
-* **Impacto Presupuestario e Institucional:** Discusión sobre los costos de implementación fiscal y las capacidades de fiscalización de los organismos fiscalizadores.
-* **Observaciones de las y los Parlamentarios:**
-  - Solicitud de informes complementarios a los ministerios sectoriales.
-  - Análisis de gradualidad y plazos de entrada en vigencia para evitar vacíos regulatorios.
-  - Petición de precisiones sobre el régimen de infracciones y sanciones.`;
+## Intervenciones no disponibles
+Este informe no pudo redactarse automáticamente, por lo que no contiene citas ni intervenciones reales de la sesión. Revisa la transmisión oficial para conocer el detalle del debate.`;
 
     const p3 = `# RESOLUCIONES, ACUERDOS Y ESTADO DE TRAMITACIÓN
-## IV. ACUERDOS ADOPTADOS POR LA COMISIÓN
-
-1. **Recepción de Observaciones:** Se da por iniciada la ronda de audiencias y se fija plazo para el ingreso de propuestas de enmienda.
-2. **Oficios de Información:** Se acordó oficiar a los ministerios involucrados solicitando minutas técnicas aclaratorias.
-3. **Continuidad del Trámite:** Se dispone proseguir con la discusión en particular en la siguiente citación reglamentaria.
-
-## V. ESTADO Y PRÓXIMOS PASOS
-El proyecto continúa radicado en la comisión en su **Primer Trámite Constitucional**.
-
----
-*Informe generado a partir de la sesión oficial del Congreso Nacional (${videoTitle || "Transmisión Oficial Cámara/Senado"}) vinculada al Boletín N° ${boletinId}.*`;
+## Acuerdos no disponibles
+Los acuerdos de esta sesión no pudieron sintetizarse automáticamente. Consulta el acta oficial o la transmisión de la sesión (Boletín N° ${boletinId}) para conocer las resoluciones adoptadas.`;
 
     reportPages = [p1, p2, p3];
   }
@@ -1169,13 +1206,15 @@ El proyecto continúa radicado en la comisión en su **Primer Trámite Constituc
     sesionFecha,
     comisionNombre,
     videoTitle,
-    videoId
+    videoId,
+    transcriptAvailable: !!transcript
   };
 
   res.json({
     success: true,
     documento: documentObj,
-    reportContent: reportPages
+    reportContent: reportPages,
+    transcriptAvailable: !!transcript
   });
 });
 

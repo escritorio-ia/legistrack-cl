@@ -188892,6 +188892,72 @@ async function searchCamaraYouTubeVideos(query, fecha, camara = "diputados") {
     }
   });
 }
+function decodeHtmlEntities(s) {
+  return s.replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n))).replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\n/g, " ");
+}
+async function fetchYouTubeVideoTranscript(videoId) {
+  if (!videoId) return null;
+  const cacheKey = `yt_transcript_${videoId}`;
+  return cache.wrap(cacheKey, 24 * 60 * 60 * 1e3, async () => {
+    try {
+      const headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept-Language": "es-419,es;q=0.9"
+      };
+      const pageRes = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
+        headers,
+        signal: AbortSignal.timeout(8e3)
+      });
+      if (!pageRes.ok) return null;
+      const html = await pageRes.text();
+      const marker = "ytInitialPlayerResponse = ";
+      const startIdx = html.indexOf(marker);
+      if (startIdx === -1) return null;
+      const jsonStart = startIdx + marker.length;
+      const scriptEnd = html.indexOf(";var meta", jsonStart);
+      const fallbackEnd = html.indexOf(";</script>", jsonStart);
+      const end = scriptEnd !== -1 && scriptEnd < (fallbackEnd === -1 ? Infinity : fallbackEnd) ? scriptEnd : fallbackEnd;
+      if (end === -1) return null;
+      let playerResponse;
+      try {
+        playerResponse = JSON.parse(html.slice(jsonStart, end));
+      } catch {
+        return null;
+      }
+      const tracks = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+      if (!Array.isArray(tracks) || tracks.length === 0) return null;
+      const track = tracks.find((t) => (t.languageCode || "").startsWith("es") && t.kind !== "asr") || tracks.find((t) => (t.languageCode || "").startsWith("es")) || tracks.find((t) => t.kind !== "asr") || tracks[0];
+      if (!track?.baseUrl) return null;
+      const trackRes = await fetch(track.baseUrl, { headers, signal: AbortSignal.timeout(8e3) });
+      if (!trackRes.ok) return null;
+      const xml = await trackRes.text();
+      const segments = [];
+      const regex = /<text start="([\d.]+)"[^>]*>([\s\S]*?)<\/text>/g;
+      let m;
+      while ((m = regex.exec(xml)) !== null) {
+        const startSec = Math.round(Number(m[1]));
+        const mm = String(Math.floor(startSec / 60)).padStart(2, "0");
+        const ss = String(startSec % 60).padStart(2, "0");
+        const content = decodeHtmlEntities(m[2]).trim();
+        if (content) segments.push(`[${mm}:${ss}] ${content}`);
+      }
+      if (segments.length === 0) return null;
+      const maxChars = 14e3;
+      const full = segments.join("\n");
+      const truncated = full.length > maxChars;
+      const text = truncated ? full.slice(0, maxChars) + "\n[...transcripci\xF3n truncada por extensi\xF3n...]" : full;
+      return {
+        text,
+        language: track.languageCode || "es",
+        auto: track.kind === "asr",
+        truncated
+      };
+    } catch (err) {
+      console.warn(`Could not fetch YouTube transcript for video ${videoId}:`, err);
+      return null;
+    }
+  });
+}
 async function getTodasComisiones() {
   const camaraLive = await fetchComisionesCamaraReal();
   const byId = /* @__PURE__ */ new Map();
@@ -189024,12 +189090,10 @@ async function generarConOpenRouter(prompt, maxTokens = 1500) {
   const configuredModel = process.env.OPENROUTER_MODEL;
   const models = [
     configuredModel && !configuredModel.includes("claude-3.5-haiku") ? configuredModel : void 0,
-    "google/gemini-2.0-flash-exp:free",
-    "meta-llama/llama-3.3-70b-instruct:free",
-    "deepseek/deepseek-r1:free",
-    "mistralai/mistral-7b-instruct:free",
-    "anthropic/claude-3.5-haiku-20241022",
-    "google/gemini-2.0-flash-001"
+    "liquid/lfm-2.5-2.6b:free",
+    "nvidia/nemotron-3-ultra-550b-a55b:free",
+    "google/gemma-4-31b-it:free",
+    "google/gemma-4-26b-a4b-it:free"
   ].filter((m) => Boolean(m));
   let lastError = "";
   for (const model of models) {
@@ -192659,20 +192723,58 @@ apiRouter.post("/comisiones/sesion/generar-informe", async (req, res) => {
     sesionFecha = "Fecha no informada",
     boletinId = "S/B",
     videoId = "",
-    videoTitle = ""
+    videoTitle = "",
+    invitados = "",
+    tabla = [],
+    acuerdosTexto = [],
+    actaTexto = ""
   } = req.body;
   const videoContext = videoTitle ? `
 - Video / Transmisi\xF3n Oficial de la Sesi\xF3n: "${videoTitle}" (YouTube ID: ${videoId})` : "";
-  const prompt = `Act\xFAa como un analista legislativo experto de la Biblioteca del Congreso Nacional de Chile. 
+  const invitadosList = typeof invitados === "string" ? invitados : "";
+  const tablaList = Array.isArray(tabla) ? tabla : [];
+  const acuerdosList = Array.isArray(acuerdosTexto) ? acuerdosTexto : [];
+  const actaTextoStr = typeof actaTexto === "string" ? actaTexto : "";
+  const curatedParts = [];
+  if (invitadosList) curatedParts.push(`Invitados y expositores convocados a la sesi\xF3n: ${invitadosList}`);
+  if (tablaList.length > 0) curatedParts.push(`Puntos de la tabla / pauta de la sesi\xF3n:
+${tablaList.map((t, i) => `${i + 1}. ${t}`).join("\n")}`);
+  if (actaTextoStr) curatedParts.push(`Resumen oficial del acta de la sesi\xF3n: ${actaTextoStr}`);
+  if (acuerdosList.length > 0) curatedParts.push(`Acuerdos efectivamente adoptados en la sesi\xF3n:
+${acuerdosList.map((a, i) => `${i + 1}. ${a}`).join("\n")}`);
+  const curatedBlock = curatedParts.length > 0 ? `
+
+Contenido verificado de la sesi\xF3n (usa esto como fuente principal para las intervenciones, el debate y los acuerdos; no lo sustituyas por generalidades):
+${curatedParts.join("\n\n")}` : "";
+  let transcript = null;
+  if (videoId) {
+    try {
+      transcript = await fetchYouTubeVideoTranscript(videoId);
+    } catch (err) {
+      console.warn("Could not fetch YouTube transcript for informe:", err);
+    }
+  }
+  const transcriptBlock = transcript ? `
+
+Transcripci\xF3n real de la sesi\xF3n (subt\xEDtulos ${transcript.auto ? "auto-generados" : "oficiales"} de YouTube, con marcas de tiempo [MM:SS]${transcript.truncated ? ", truncada por extensi\xF3n" : ""}):
+"""
+${transcript.text}
+"""
+
+\xDAsala como fuente principal para citas textuales de intervenciones, con su marca de tiempo entre par\xE9ntesis.` : "";
+  const fuentesDisponibles = curatedParts.length > 0 || transcript;
+  const prompt = `Act\xFAa como un analista legislativo experto de la Biblioteca del Congreso Nacional de Chile.
 Redacta un informe t\xE9cnico, exhaustivo y fidedigno de 3 secciones/p\xE1ginas de la sesi\xF3n parlamentaria para ser publicado en el expediente del proyecto de ley.
 
 Informaci\xF3n de la Sesi\xF3n:
 - Comisi\xF3n: ${comisionNombre}
 - Fecha de la Sesi\xF3n: ${sesionFecha}
 - Bolet\xEDn de Ley Asociado: ${boletinId}
-- Materia/Tabla en Discusi\xF3n: ${sesionMateria}${videoContext}
+- Materia/Tabla en Discusi\xF3n: ${sesionMateria}${videoContext}${curatedBlock}${transcriptBlock}
 
 Instrucciones:
+${fuentesDisponibles ? `Redacta un informe con intervenciones y contenido concreto, basado ESTRICTAMENTE en la informaci\xF3n verificada de la sesi\xF3n (invitados, tabla, acta y acuerdos) y en la transcripci\xF3n cuando est\xE9 disponible. Para cada invitado o expositor listado, desarrolla su probable planteamiento t\xE9cnico seg\xFAn su cargo/instituci\xF3n y la materia tratada, dejando expl\xEDcito que es una reconstrucci\xF3n anal\xEDtica del debate a partir del acta y la tabla oficiales -- no cites textualmente a nadie salvo que la transcripci\xF3n entregada lo respalde. No inventes nombres de personas que no est\xE9n en la lista de invitados.` : `No hay transcripci\xF3n ni contenido curado disponible para esta sesi\xF3n m\xE1s all\xE1 de la materia general. Redacta el informe sobre la base t\xE9cnica y normativa de la materia en discusi\xF3n, e indica expl\xEDcitamente en la P\xC1GINA 2 que el detalle de las intervenciones debe verificarse contra la transmisi\xF3n oficial, ya que no hay fuente verificada de lo dicho en sala. NO inventes citas ni nombres de expositores.`}
+
 Separa el documento en 3 p\xE1ginas utilizando el delimitador "===PAGINA===" entre cada p\xE1gina:
 
 P\xC1GINA 1:
@@ -192681,17 +192783,17 @@ P\xC1GINA 1:
 **Fecha:** ${sesionFecha}
 **Bolet\xEDn:** ${boletinId}
 ## I. OBJETO Y MATERIA DE LA CONVOCATORIA
-(Detalle t\xE9cnico del proyecto, contexto y fundamentaci\xF3n)
+(Detalle t\xE9cnico del proyecto, contexto y fundamentaci\xF3n, basado en la tabla y el acta de la sesi\xF3n)
 ## II. AUTORIDADES, MINISTROS Y EXPOSITORES CONVOCADOS
-(Ministros de Estado, autoridades sectoriales y expertos participantes)
+(Nombres y cargos de los invitados entregados; agrupa por tipo de instituci\xF3n)
 
 ===PAGINA===
 
 P\xC1GINA 2:
 # FOCO DEL DEBATE PARLAMENTARIO Y AUDIENCIAS
-## III. PRINCIPALES EJES DE LA DISCUSI\xD3N
-* **Puntos Cr\xEDticos y Diagn\xF3stico:** (Aspectos normativos, impacto presupuestario y est\xE1ndares legales analizados)
-* **Intervenciones de las Autoridades:** (Planteamientos del Ejecutivo y gremios)
+## III. INTERVENCIONES Y PRINCIPALES EJES DE LA DISCUSI\xD3N
+* **Intervenciones y planteamientos:** (Para cada invitado o grupo de invitados relevante, desarrolla su planteamiento probable seg\xFAn su cargo y la materia, o cita la transcripci\xF3n si est\xE1 disponible)
+* **Puntos Cr\xEDticos y Diagn\xF3stico:** (Aspectos normativos, impacto presupuestario y est\xE1ndares legales efectivamente planteados en la sesi\xF3n, seg\xFAn el acta y la tabla)
 * **Observaciones y Cuestionamientos de los Parlamentarios:** (Debate particular de los diputados/senadores)
 
 ===PAGINA===
@@ -192699,13 +192801,13 @@ P\xC1GINA 2:
 P\xC1GINA 3:
 # RESOLUCIONES, ACUERDOS Y ESTADO DE TRAMITACI\xD3N
 ## IV. ACUERDOS ADOPTADOS POR LA COMISI\xD3N
-* (Lista de acuerdos, solicitudes de oficios, plazos de indicaciones o votaciones realizadas)
+* (Transcribe y desarrolla cada acuerdo entregado; si no hay acuerdos verificados, ind\xEDcalo expl\xEDcitamente en vez de inventarlos)
 ## V. PR\xD3XIMOS PASOS EN EL PROCESO LEGISLATIVO
 (Siguiente tr\xE1mite constitucional, citaciones subsiguientes o paso a Sala)
 \u{1F517} *Documento oficial vinculado a la sesi\xF3n audiovisual (${videoTitle || "Canal Oficial del Congreso"})*`;
   let reportPages = [];
   try {
-    const reportText = await generarContenidoUniversalIA(prompt, 2500);
+    const reportText = await generarContenidoUniversalIA(prompt, 3500);
     if (reportText && reportText.includes("===PAGINA===")) {
       reportPages = reportText.split("===PAGINA===").map((p) => p.trim()).filter(Boolean);
     } else if (reportText) {
@@ -192721,35 +192823,19 @@ P\xC1GINA 3:
 **Bolet\xEDn:** ${boletinId}
 ${videoTitle ? `**Transmisi\xF3n Oficial:** ${videoTitle}` : ""}
 
-## I. OBJETO Y MATERIA DE LA CONVOCATORIA
-La Comisi\xF3n se aboc\xF3 al an\xE1lisis t\xE9cnico, estudio de antecedentes y recepci\xF3n de audiencias p\xFAblicas correspondientes a la materia:
+## \u26A0\uFE0F Informe no disponible
+No fue posible generar el informe con inteligencia artificial en este momento (proveedor de IA no configurado, sin cuota disponible, o error de red).
+
+**Materia de la sesi\xF3n:**
 > "${sesionMateria}"
 
-## II. AUTORIDADES Y EXPOSITORES CONVOCADOS
-* **Ministros de Estado del Ramo:** Presentaci\xF3n de antecedentes t\xE9cnicos, justificaci\xF3n reglamentaria e impacto sectorial.
-* **Jefaturas de Servicio y Asesores:** Evaluaci\xF3n de pertinencia presupuestaria y fiscalizaci\xF3n.
-* **Organizaciones T\xE9cnicas y Gremiales:** Entrega de minutas y observaciones sobre la aplicabilidad pr\xE1ctica.`;
+Vuelve a intentarlo en unos minutos. Mientras tanto, puedes revisar la transmisi\xF3n oficial${videoTitle ? ` ("${videoTitle}")` : ""} directamente en el canal de YouTube del Congreso.`;
     const p2 = `# FOCO DEL DEBATE PARLAMENTARIO Y AUDIENCIAS
-## III. PRINCIPALES EJES DE LA DISCUSI\xD3N T\xC9CNICA
-
-* **Marco Normativo y Compatibilidad Legal:** Revisi\xF3n de la armonizaci\xF3n entre las normas vigentes y las modificaciones propuestas en el articulado.
-* **Impacto Presupuestario e Institucional:** Discusi\xF3n sobre los costos de implementaci\xF3n fiscal y las capacidades de fiscalizaci\xF3n de los organismos fiscalizadores.
-* **Observaciones de las y los Parlamentarios:**
-  - Solicitud de informes complementarios a los ministerios sectoriales.
-  - An\xE1lisis de gradualidad y plazos de entrada en vigencia para evitar vac\xEDos regulatorios.
-  - Petici\xF3n de precisiones sobre el r\xE9gimen de infracciones y sanciones.`;
+## Intervenciones no disponibles
+Este informe no pudo redactarse autom\xE1ticamente, por lo que no contiene citas ni intervenciones reales de la sesi\xF3n. Revisa la transmisi\xF3n oficial para conocer el detalle del debate.`;
     const p3 = `# RESOLUCIONES, ACUERDOS Y ESTADO DE TRAMITACI\xD3N
-## IV. ACUERDOS ADOPTADOS POR LA COMISI\xD3N
-
-1. **Recepci\xF3n de Observaciones:** Se da por iniciada la ronda de audiencias y se fija plazo para el ingreso de propuestas de enmienda.
-2. **Oficios de Informaci\xF3n:** Se acord\xF3 oficiar a los ministerios involucrados solicitando minutas t\xE9cnicas aclaratorias.
-3. **Continuidad del Tr\xE1mite:** Se dispone proseguir con la discusi\xF3n en particular en la siguiente citaci\xF3n reglamentaria.
-
-## V. ESTADO Y PR\xD3XIMOS PASOS
-El proyecto contin\xFAa radicado en la comisi\xF3n en su **Primer Tr\xE1mite Constitucional**.
-
----
-*Informe generado a partir de la sesi\xF3n oficial del Congreso Nacional (${videoTitle || "Transmisi\xF3n Oficial C\xE1mara/Senado"}) vinculada al Bolet\xEDn N\xB0 ${boletinId}.*`;
+## Acuerdos no disponibles
+Los acuerdos de esta sesi\xF3n no pudieron sintetizarse autom\xE1ticamente. Consulta el acta oficial o la transmisi\xF3n de la sesi\xF3n (Bolet\xEDn N\xB0 ${boletinId}) para conocer las resoluciones adoptadas.`;
     reportPages = [p1, p2, p3];
   }
   const documentObj = {
@@ -192758,12 +192844,14 @@ El proyecto contin\xFAa radicado en la comisi\xF3n en su **Primer Tr\xE1mite Con
     sesionFecha,
     comisionNombre,
     videoTitle,
-    videoId
+    videoId,
+    transcriptAvailable: !!transcript
   };
   res.json({
     success: true,
     documento: documentObj,
-    reportContent: reportPages
+    reportContent: reportPages,
+    transcriptAvailable: !!transcript
   });
 });
 apiRouter.post("/copiloto/chat", async (req, res) => {

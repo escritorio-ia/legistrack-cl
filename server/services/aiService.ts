@@ -145,15 +145,18 @@ export async function generarConOpenRouter(prompt: string, maxTokens = 1500): Pr
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey || apiKey === "MY_OPENROUTER_API_KEY") throw new Error("OPENROUTER_API_KEY no configurada");
 
+  // OpenRouter descontinúa/renombra sus modelos gratuitos con frecuencia (varios de
+  // los que estaban aquí antes ya devuelven 404 "No endpoints found"), así que esta
+  // lista requiere revisión periódica. Se prueban varios en orden hasta que uno
+  // responda; si todos fallan (p. ej. otra vez por deprecación), el error de
+  // OpenRouter no bloquea la generación: el llamador sigue con Claude directo.
   const configuredModel = process.env.OPENROUTER_MODEL;
   const models = [
     configuredModel && !configuredModel.includes("claude-3.5-haiku") ? configuredModel : undefined,
-    "google/gemini-2.0-flash-exp:free",
-    "meta-llama/llama-3.3-70b-instruct:free",
-    "deepseek/deepseek-r1:free",
-    "mistralai/mistral-7b-instruct:free",
-    "anthropic/claude-3.5-haiku-20241022",
-    "google/gemini-2.0-flash-001"
+    "liquid/lfm-2.5-2.6b:free",
+    "nvidia/nemotron-3-ultra-550b-a55b:free",
+    "google/gemma-4-31b-it:free",
+    "google/gemma-4-26b-a4b-it:free"
   ].filter((m): m is string => Boolean(m));
 
   let lastError = "";

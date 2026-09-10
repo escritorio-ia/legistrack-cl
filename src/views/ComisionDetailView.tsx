@@ -1117,7 +1117,11 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
         sesionFecha: ses.fecha,
         boletinId: targetBoletin,
         videoId: "",
-        videoTitle: ""
+        videoTitle: "",
+        invitados: ses.invitados,
+        tabla: ses.tabla,
+        acuerdosTexto: ses.acuerdosTexto,
+        actaTexto: ses.actaTexto
       })
     })
       .then(async res => {
@@ -1274,7 +1278,11 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
         sesionFecha: selectedSesionForSummary.fecha,
         boletinId: targetBoletin,
         videoId: "",
-        videoTitle: ""
+        videoTitle: "",
+        invitados: selectedSesionForSummary.invitados,
+        tabla: selectedSesionForSummary.tabla,
+        acuerdosTexto: selectedSesionForSummary.acuerdosTexto,
+        actaTexto: selectedSesionForSummary.actaTexto
       })
     })
       .then(async res => {
@@ -1449,7 +1457,11 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
             sesionFecha: ses.fecha,
             boletinId: finalBoletinId,
             videoId: video.id,
-            videoTitle: video.title
+            videoTitle: video.title,
+            invitados: ses.invitados,
+            tabla: ses.tabla,
+            acuerdosTexto: ses.acuerdosTexto,
+            actaTexto: ses.actaTexto
           })
         });
 
@@ -1574,7 +1586,11 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
         sesionFecha: selectedSesionForReport.fecha,
         boletinId: finalBoletinId,
         videoId: selectedVideo.id,
-        videoTitle: selectedVideo.title
+        videoTitle: selectedVideo.title,
+        invitados: selectedSesionForReport.invitados,
+        tabla: selectedSesionForReport.tabla,
+        acuerdosTexto: selectedSesionForReport.acuerdosTexto,
+        actaTexto: selectedSesionForReport.actaTexto
       })
     })
       .then(async res => {
