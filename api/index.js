@@ -189038,7 +189038,7 @@ function safeJsonParse(text) {
 async function generarConGemini(prompt, maxTokens = 2e3) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey || apiKey === "MY_GEMINI_API_KEY") throw new Error("GEMINI_API_KEY no configurada");
-  const model = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+  const model = process.env.GEMINI_MODEL || "gemini-3.6-flash";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
   const res = await fetch(url, {
     method: "POST",
@@ -189047,7 +189047,10 @@ async function generarConGemini(prompt, maxTokens = 2e3) {
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: { maxOutputTokens: maxTokens }
     }),
-    signal: AbortSignal.timeout(15e3)
+    // Los modelos "thinking" de Gemini pueden tardar bastante más que un modelo
+    // simple en prompts largos (como el del informe de sesión); 15s los cortaba
+    // a mitad de generación.
+    signal: AbortSignal.timeout(45e3)
   });
   if (!res.ok) {
     const err = await res.text().catch(() => "");
@@ -192775,7 +192778,11 @@ Informaci\xF3n de la Sesi\xF3n:
 Instrucciones:
 ${fuentesDisponibles ? `Redacta un informe con intervenciones y contenido concreto, basado ESTRICTAMENTE en la informaci\xF3n verificada de la sesi\xF3n (invitados, tabla, acta y acuerdos) y en la transcripci\xF3n cuando est\xE9 disponible. Para cada invitado o expositor listado, desarrolla su probable planteamiento t\xE9cnico seg\xFAn su cargo/instituci\xF3n y la materia tratada, dejando expl\xEDcito que es una reconstrucci\xF3n anal\xEDtica del debate a partir del acta y la tabla oficiales -- no cites textualmente a nadie salvo que la transcripci\xF3n entregada lo respalde. No inventes nombres de personas que no est\xE9n en la lista de invitados.` : `No hay transcripci\xF3n ni contenido curado disponible para esta sesi\xF3n m\xE1s all\xE1 de la materia general. Redacta el informe sobre la base t\xE9cnica y normativa de la materia en discusi\xF3n, e indica expl\xEDcitamente en la P\xC1GINA 2 que el detalle de las intervenciones debe verificarse contra la transmisi\xF3n oficial, ya que no hay fuente verificada de lo dicho en sala. NO inventes citas ni nombres de expositores.`}
 
-Separa el documento en 3 p\xE1ginas utilizando el delimitador "===PAGINA===" entre cada p\xE1gina:
+FORMATO DE SALIDA (muy importante, resp\xE9talo exactamente):
+- No agregues ning\xFAn t\xEDtulo, encabezado ni texto introductorio antes de "P\xC1GINA 1".
+- Separa el documento en exactamente 3 p\xE1ginas usando el delimitador "===PAGINA===" en su propia l\xEDnea, SIN encabezados markdown ("##") para separar p\xE1ginas -- solo ese delimitador literal.
+- Tu respuesta debe tener exactamente 2 apariciones de "===PAGINA===" (despu\xE9s de la p\xE1gina 1 y despu\xE9s de la p\xE1gina 2), ni m\xE1s ni menos.
+- Usa la siguiente estructura como plantilla de contenido, no como texto literal a copiar:
 
 P\xC1GINA 1:
 # S\xCDNTESIS LEGISLATIVA Y ANTECEDENTES GENERALES
@@ -192808,10 +192815,13 @@ P\xC1GINA 3:
   let reportPages = [];
   try {
     const reportText = await generarContenidoUniversalIA(prompt, 3500);
-    if (reportText && reportText.includes("===PAGINA===")) {
-      reportPages = reportText.split("===PAGINA===").map((p) => p.trim()).filter(Boolean);
-    } else if (reportText) {
-      reportPages = [reportText, "## II. AN\xC1LISIS T\xC9CNICO CONTINUACI\xD3N\n\nDetalle de audiencias y debate sectorial.", "## III. ACUERDOS Y TR\xC1MITE\n\nAcuerdos de votaci\xF3n y pr\xF3rrogas aprobadas."];
+    if (reportText) {
+      if (reportText.includes("===PAGINA===")) {
+        reportPages = reportText.split("===PAGINA===").map((p) => p.trim()).filter(Boolean);
+      } else {
+        const porEncabezado = reportText.split(/\n#{1,3}\s*P[ÁA]GINA\s*\d\s*\n?/i).map((p) => p.trim()).filter(Boolean);
+        reportPages = porEncabezado.length >= 2 ? porEncabezado : [reportText];
+      }
     }
   } catch (err) {
     console.warn("Could not generate AI report with LLM:", err);

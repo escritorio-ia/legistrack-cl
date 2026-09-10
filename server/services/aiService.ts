@@ -93,7 +93,7 @@ export function safeJsonParse<T>(text: string): T {
 export async function generarConGemini(prompt: string, maxTokens = 2000): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey || apiKey === "MY_GEMINI_API_KEY") throw new Error("GEMINI_API_KEY no configurada");
-  const model = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+  const model = process.env.GEMINI_MODEL || "gemini-3.6-flash";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
   const res = await fetch(url, {
     method: "POST",
@@ -102,7 +102,10 @@ export async function generarConGemini(prompt: string, maxTokens = 2000): Promis
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: { maxOutputTokens: maxTokens }
     }),
-    signal: AbortSignal.timeout(15000)
+    // Los modelos "thinking" de Gemini pueden tardar bastante más que un modelo
+    // simple en prompts largos (como el del informe de sesión); 15s los cortaba
+    // a mitad de generación.
+    signal: AbortSignal.timeout(45000)
   });
   if (!res.ok) {
     const err = await res.text().catch(() => "");

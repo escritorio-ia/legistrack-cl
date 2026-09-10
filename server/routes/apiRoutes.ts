@@ -1127,7 +1127,11 @@ ${fuentesDisponibles
     ? `Redacta un informe con intervenciones y contenido concreto, basado ESTRICTAMENTE en la información verificada de la sesión (invitados, tabla, acta y acuerdos) y en la transcripción cuando esté disponible. Para cada invitado o expositor listado, desarrolla su probable planteamiento técnico según su cargo/institución y la materia tratada, dejando explícito que es una reconstrucción analítica del debate a partir del acta y la tabla oficiales -- no cites textualmente a nadie salvo que la transcripción entregada lo respalde. No inventes nombres de personas que no estén en la lista de invitados.`
     : `No hay transcripción ni contenido curado disponible para esta sesión más allá de la materia general. Redacta el informe sobre la base técnica y normativa de la materia en discusión, e indica explícitamente en la PÁGINA 2 que el detalle de las intervenciones debe verificarse contra la transmisión oficial, ya que no hay fuente verificada de lo dicho en sala. NO inventes citas ni nombres de expositores.`}
 
-Separa el documento en 3 páginas utilizando el delimitador "===PAGINA===" entre cada página:
+FORMATO DE SALIDA (muy importante, respétalo exactamente):
+- No agregues ningún título, encabezado ni texto introductorio antes de "PÁGINA 1".
+- Separa el documento en exactamente 3 páginas usando el delimitador "===PAGINA===" en su propia línea, SIN encabezados markdown ("##") para separar páginas -- solo ese delimitador literal.
+- Tu respuesta debe tener exactamente 2 apariciones de "===PAGINA===" (después de la página 1 y después de la página 2), ni más ni menos.
+- Usa la siguiente estructura como plantilla de contenido, no como texto literal a copiar:
 
 PÁGINA 1:
 # SÍNTESIS LEGISLATIVA Y ANTECEDENTES GENERALES
@@ -1161,10 +1165,17 @@ PÁGINA 3:
   let reportPages: string[] = [];
   try {
     const reportText = await generarContenidoUniversalIA(prompt, 3500);
-    if (reportText && reportText.includes("===PAGINA===")) {
-      reportPages = reportText.split("===PAGINA===").map((p: string) => p.trim()).filter(Boolean);
-    } else if (reportText) {
-      reportPages = [reportText, "## II. ANÁLISIS TÉCNICO CONTINUACIÓN\n\nDetalle de audiencias y debate sectorial.", "## III. ACUERDOS Y TRÁMITE\n\nAcuerdos de votación y prórrogas aprobadas."];
+    if (reportText) {
+      if (reportText.includes("===PAGINA===")) {
+        reportPages = reportText.split("===PAGINA===").map((p: string) => p.trim()).filter(Boolean);
+      } else {
+        // El modelo no usó el delimitador literal pedido (a veces lo reemplaza por
+        // encabezados markdown "## PÁGINA N"); se intenta dividir por esos
+        // encabezados en vez de fabricar páginas de relleno que no reflejarían el
+        // contenido real ya generado.
+        const porEncabezado = reportText.split(/\n#{1,3}\s*P[ÁA]GINA\s*\d\s*\n?/i).map((p: string) => p.trim()).filter(Boolean);
+        reportPages = porEncabezado.length >= 2 ? porEncabezado : [reportText];
+      }
     }
   } catch (err) {
     console.warn("Could not generate AI report with LLM:", err);
