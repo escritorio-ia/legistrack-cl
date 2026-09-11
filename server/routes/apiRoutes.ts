@@ -11,14 +11,15 @@ import {
 import { performUnifiedSearch } from "../../src/utils/searchEngine";
 import { resolveProyecto, getAllMasterProyectos } from "../../src/utils/proyectosResolver";
 import { compareSesionesDesc, isSessionDatePassed, mergeSesionesDuplicadas } from "../../src/utils/dateUtils";
-import { 
-  fetchProyectoFromSenado, 
-  fetchProyectosListadoFromSenado, 
-  listadoToProyecto, 
-  cleanBulletinNumber, 
+import {
+  fetchProyectoFromSenado,
+  fetchProyectosListadoFromSenado,
+  listadoToProyecto,
+  cleanBulletinNumber,
   fetchSenadoComisionesIntegrantesLive,
   fetchSenadoComisionProyectosLive,
   fetchSenadoCitacionesLive,
+  fetchTextoInformeDocx,
   estimarQuorum,
   estimarFichaTecnica,
   estimarOrigenDetalle
@@ -71,6 +72,7 @@ import {
   generarContenidoUniversalIA,
   responderCopilotoLegislativo,
   getAIProvidersStatus,
+  safeJsonParse,
   AIProviderAttempt
 } from "../services/aiService";
 import { cache } from "../services/cacheService";
@@ -301,6 +303,100 @@ apiRouter.get("/proyecto/:id", async (req: Request, res: Response) => {
   }
 
   res.json(proyecto);
+});
+
+// Tabla comparativa real (texto original vs. modificaciones) a partir del
+// informe de comisión efectivamente publicado, en vez del texto de ejemplo
+// fabricado que se usaba antes. Requiere que exista un informe .docx real
+// para la comisión pedida; si no existe, se informa explícitamente en vez de
+// simular contenido.
+apiRouter.get("/proyecto/:id/comparado", async (req: Request, res: Response) => {
+  const idParam = req.params.id;
+  const comisionNombre = String(req.query.comision || "").trim();
+  const possibleBoletinMatch = idParam.split("-")[0].replace(/[^0-9]/g, "");
+
+  if (possibleBoletinMatch.length < 4 || possibleBoletinMatch.length > 6) {
+    return res.status(400).json({ disponible: false, razon: "Identificador de boletín inválido." });
+  }
+
+  const proyecto = await fetchProyectoFromSenado(possibleBoletinMatch);
+  if (!proyecto) {
+    return res.json({ disponible: false, razon: "No se pudo obtener la ficha oficial del proyecto." });
+  }
+
+  const normComision = comisionNombre.toLowerCase().replace(/^comisi[oó]n\s+de\s+/i, "");
+  const informes = (proyecto.documentos || [])
+    .filter(d => d.tipo === "Informe" && d.url && (!normComision || d.titulo.toLowerCase().includes(normComision)))
+    .sort((a, b) => (b.fecha || "").localeCompare(a.fecha || ""));
+
+  if (informes.length === 0) {
+    return res.json({
+      disponible: false,
+      razon: comisionNombre
+        ? `Aún no hay un informe de comisión publicado para "${comisionNombre}" en el expediente de este proyecto.`
+        : "Aún no hay informes de comisión publicados en el expediente de este proyecto."
+    });
+  }
+
+  const informe = informes[0];
+  const texto = await fetchTextoInformeDocx(informe.url!);
+  if (!texto) {
+    return res.json({
+      disponible: false,
+      razon: "El informe de comisión existe pero no se pudo descargar o leer su contenido.",
+      informeUrl: informe.url
+    });
+  }
+
+  // Los informes de comisión son documentos largos (a veces >1 millón de
+  // caracteres) donde el detalle artículo por artículo suele vivir en la
+  // sección de "discusión particular", muy lejos del inicio (asistencia,
+  // antecedentes generales). Tomar solo los primeros N caracteres deja fuera
+  // justo el contenido que se necesita -- se busca esa sección y se centra
+  // la ventana ahí; si no aparece, se cae al inicio del documento.
+  const maxChars = 16000;
+  const textoLower = texto.toLowerCase();
+  const marcador = ["discusión particular", "discusion particular", "análisis de las indicaciones", "modificaciones introducidas"]
+    .map(m => textoLower.indexOf(m))
+    .find(idx => idx !== -1);
+  const inicio = marcador !== undefined ? Math.max(0, marcador - 500) : 0;
+  const textoTruncado = texto.length > maxChars
+    ? (inicio > 0 ? "[...inicio del documento omitido...] " : "") + texto.slice(inicio, inicio + maxChars) + " [...documento truncado por extensión...]"
+    : texto;
+
+  const prompt = `Actúa como un analista legislativo de la Biblioteca del Congreso Nacional de Chile. A continuación se entrega el TEXTO REAL del informe de comisión "${informe.titulo}" del proyecto de ley Boletín N° ${proyecto.id} ("${proyecto.titulo}").
+
+Texto del informe:
+"""
+${textoTruncado}
+"""
+
+Identifica entre 3 y 6 modificaciones o disposiciones concretas que este informe introduce o discute sobre el texto del proyecto (artículos, indicaciones aprobadas, votaciones particulares). Responde ÚNICAMENTE con un arreglo JSON válido, compacto, sin texto adicional, con este esquema exacto:
+[{"articulo":"Identificación del artículo o disposición tal como aparece en el informe","textoOriginal":"Cita o resumen fiel del texto/planteamiento original según el informe","textoModificado":"Cita o resumen fiel de la modificación, indicación o acuerdo adoptado según el informe","explicacion":"Explicación breve y fiel al informe de qué cambia y por qué"}]
+
+Usa EXCLUSIVAMENTE información que esté efectivamente en el texto entregado. Si el informe no permite identificar modificaciones concretas artículo por artículo, responde con un arreglo vacío [].`;
+
+  const aiAttempts: AIProviderAttempt[] = [];
+  let comparaciones: any[] = [];
+  try {
+    const aiResponse = await generarContenidoUniversalIA(prompt, 3000, aiAttempts);
+    if (aiResponse) {
+      const parsed = safeJsonParse<any[]>(aiResponse);
+      if (Array.isArray(parsed)) comparaciones = parsed;
+    }
+  } catch (err) {
+    console.warn(`Could not generate comparado for boletín ${proyecto.id}:`, err);
+  }
+
+  res.json({
+    disponible: comparaciones.length > 0,
+    razon: comparaciones.length === 0 ? "La IA no pudo identificar modificaciones concretas en el texto del informe disponible." : undefined,
+    informeUrl: informe.url,
+    informeTitulo: informe.titulo,
+    informeFecha: informe.fecha,
+    comparaciones,
+    aiDiagnostics: aiAttempts
+  });
 });
 
 // ============================================================================

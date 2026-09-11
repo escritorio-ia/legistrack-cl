@@ -265,6 +265,13 @@ export async function fetchProyectoFromSenado(boletinId: string): Promise<Proyec
 
       if (!xml.includes("<proyecto>")) return null;
 
+      // Los <LINK_*> del XML vienen con entidades HTML sin decodificar (ej.
+      // "...&amp;ac=getDocto&amp;iddocto=26409...") -- una URL asi es invalida
+      // para fetch(), aunque en un <a href> el navegador la decodifique solo
+      // y el problema pase desapercibido. extractTagUrl la decodifica.
+      const decodeXmlEntities = (s: string): string =>
+        s.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+
       const extractTag = (source: string, tag: string): string => {
         const match = source.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, "i"));
         return match ? match[1].trim() : "";
@@ -275,6 +282,8 @@ export async function fetchProyectoFromSenado(boletinId: string): Promise<Proyec
         const matches = source.match(regex) || [];
         return matches.map(m => m.replace(new RegExp(`^<${parentTag}>|</${parentTag}>$`, "gi"), "").trim());
       };
+
+      const extractTagUrl = (source: string, tag: string): string => decodeXmlEntities(extractTag(source, tag));
 
       const descBlock = extractTag(xml, "descripcion");
       if (!descBlock) return null;
@@ -299,7 +308,7 @@ export async function fetchProyectoFromSenado(boletinId: string): Promise<Proyec
       const etapa = extractTag(descBlock, "etapa") || "En discusión";
       const subetapa = extractTag(descBlock, "subetapa") || "";
       const estado = extractTag(descBlock, "estado") || "En discusión";
-      const linkMocion = extractTag(descBlock, "link_mensaje_mocion") || `https://tramitacion.senado.cl/wspublico/tramitacion.php?boletin=${digits}`;
+      const linkMocion = extractTagUrl(descBlock, "link_mensaje_mocion") || `https://tramitacion.senado.cl/wspublico/tramitacion.php?boletin=${digits}`;
 
       const autoresBlock = extractTag(xml, "autores");
       const autoresList = extractAll(autoresBlock, "autor").map(a => extractTag(a, "PARLAMENTARIO")).filter(Boolean);
@@ -367,7 +376,7 @@ export async function fetchProyectoFromSenado(boletinId: string): Promise<Proyec
       const informesBlock = extractTag(xml, "informes");
       if (informesBlock) {
         extractAll(informesBlock, "informe").forEach((inf, idx) => {
-          const link = extractTag(inf, "LINK_INFORME");
+          const link = extractTagUrl(inf, "LINK_INFORME");
           const tramite = extractTag(inf, "TRAMITE") || "Informe";
           const etapa = extractTag(inf, "ETAPA") || "";
           const fecha = extractTag(inf, "FECHAINFORME") || fechaIngreso;
@@ -385,7 +394,7 @@ export async function fetchProyectoFromSenado(boletinId: string): Promise<Proyec
       if (oficiosBlock) {
         const oficiosList = extractAll(oficiosBlock, "oficio");
         oficiosList.forEach((of, idx) => {
-          const link = extractTag(of, "LINK_OFICIO");
+          const link = extractTagUrl(of, "LINK_OFICIO");
           const tipoDoc = extractTag(of, "TIPO") || "Oficio";
           const fecha = extractTag(of, "FECHA") || fechaIngreso;
           const descripcion = extractTag(of, "DESCRIPCION");
@@ -857,6 +866,42 @@ export async function fetchSenadoCitacionesLive(forceRefresh = false): Promise<{
     } catch (err: any) {
       console.warn("[SenadoService] Could not fetch live Senate citaciones:", err.message);
       return { citaciones: [], porComision: {}, porDia: [] };
+    }
+  });
+}
+
+/**
+ * Descarga y extrae el texto plano de un informe de comisión real (los links
+ * <LINK_INFORME> de la ficha de tramitación resuelven a documentos .docx de
+ * Word, no PDF). Usa mammoth para leer el .docx sin depender de binarios
+ * nativos, para que funcione dentro de una función serverless.
+ */
+export async function fetchTextoInformeDocx(url: string): Promise<string | null> {
+  if (!url) return null;
+  const cacheKey = `informe_docx_texto_${url}`;
+  return cache.wrap(cacheKey, 24 * 60 * 60 * 1000, async () => {
+    try {
+      const res = await fetch(url, {
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
+        signal: AbortSignal.timeout(15000)
+      });
+      if (!res.ok) return null;
+      const contentType = res.headers.get("content-type") || "";
+      const buffer = Buffer.from(await res.arrayBuffer());
+
+      if (contentType.includes("wordprocessingml") || url.toLowerCase().endsWith(".docx")) {
+        const mammoth = await import("mammoth");
+        const result = await mammoth.extractRawText({ buffer });
+        const texto = (result.value || "").replace(/\s+/g, " ").trim();
+        return texto.length > 200 ? texto : null;
+      }
+
+      // Respaldo: si no es .docx, intentar tratarlo como texto/HTML plano.
+      const texto = buffer.toString("utf-8").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+      return texto.length > 200 ? texto : null;
+    } catch (err) {
+      console.warn(`Could not fetch/extract informe docx from ${url}:`, err);
+      return null;
     }
   });
 }

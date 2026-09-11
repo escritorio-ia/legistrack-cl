@@ -188211,6 +188211,7 @@ async function fetchProyectoFromSenado(boletinId) {
       if (!response.ok) return null;
       const xml = await response.text();
       if (!xml.includes("<proyecto>")) return null;
+      const decodeXmlEntities = (s) => s.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'");
       const extractTag = (source, tag) => {
         const match = source.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, "i"));
         return match ? match[1].trim() : "";
@@ -188220,6 +188221,7 @@ async function fetchProyectoFromSenado(boletinId) {
         const matches = source.match(regex) || [];
         return matches.map((m) => m.replace(new RegExp(`^<${parentTag}>|</${parentTag}>$`, "gi"), "").trim());
       };
+      const extractTagUrl = (source, tag) => decodeXmlEntities(extractTag(source, tag));
       const descBlock = extractTag(xml, "descripcion");
       if (!descBlock) return null;
       const boletin = extractTag(descBlock, "boletin");
@@ -188238,7 +188240,7 @@ async function fetchProyectoFromSenado(boletinId) {
       const etapa = extractTag(descBlock, "etapa") || "En discusi\xF3n";
       const subetapa = extractTag(descBlock, "subetapa") || "";
       const estado = extractTag(descBlock, "estado") || "En discusi\xF3n";
-      const linkMocion = extractTag(descBlock, "link_mensaje_mocion") || `https://tramitacion.senado.cl/wspublico/tramitacion.php?boletin=${digits}`;
+      const linkMocion = extractTagUrl(descBlock, "link_mensaje_mocion") || `https://tramitacion.senado.cl/wspublico/tramitacion.php?boletin=${digits}`;
       const autoresBlock = extractTag(xml, "autores");
       const autoresList = extractAll(autoresBlock, "autor").map((a) => extractTag(a, "PARLAMENTARIO")).filter(Boolean);
       const autores = autoresList.join(", ");
@@ -188292,7 +188294,7 @@ async function fetchProyectoFromSenado(boletinId) {
       const informesBlock = extractTag(xml, "informes");
       if (informesBlock) {
         extractAll(informesBlock, "informe").forEach((inf, idx) => {
-          const link = extractTag(inf, "LINK_INFORME");
+          const link = extractTagUrl(inf, "LINK_INFORME");
           const tramite = extractTag(inf, "TRAMITE") || "Informe";
           const etapa2 = extractTag(inf, "ETAPA") || "";
           const fecha = extractTag(inf, "FECHAINFORME") || fechaIngreso;
@@ -188309,7 +188311,7 @@ async function fetchProyectoFromSenado(boletinId) {
       if (oficiosBlock) {
         const oficiosList = extractAll(oficiosBlock, "oficio");
         oficiosList.forEach((of, idx) => {
-          const link = extractTag(of, "LINK_OFICIO");
+          const link = extractTagUrl(of, "LINK_OFICIO");
           const tipoDoc = extractTag(of, "TIPO") || "Oficio";
           const fecha = extractTag(of, "FECHA") || fechaIngreso;
           const descripcion = extractTag(of, "DESCRIPCION");
@@ -188612,6 +188614,32 @@ async function fetchSenadoCitacionesLive(forceRefresh = false) {
     } catch (err) {
       console.warn("[SenadoService] Could not fetch live Senate citaciones:", err.message);
       return { citaciones: [], porComision: {}, porDia: [] };
+    }
+  });
+}
+async function fetchTextoInformeDocx(url) {
+  if (!url) return null;
+  const cacheKey = `informe_docx_texto_${url}`;
+  return cache.wrap(cacheKey, 24 * 60 * 60 * 1e3, async () => {
+    try {
+      const res = await fetch(url, {
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
+        signal: AbortSignal.timeout(15e3)
+      });
+      if (!res.ok) return null;
+      const contentType = res.headers.get("content-type") || "";
+      const buffer = Buffer.from(await res.arrayBuffer());
+      if (contentType.includes("wordprocessingml") || url.toLowerCase().endsWith(".docx")) {
+        const mammoth = await import("mammoth");
+        const result = await mammoth.extractRawText({ buffer });
+        const texto2 = (result.value || "").replace(/\s+/g, " ").trim();
+        return texto2.length > 200 ? texto2 : null;
+      }
+      const texto = buffer.toString("utf-8").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+      return texto.length > 200 ? texto : null;
+    } catch (err) {
+      console.warn(`Could not fetch/extract informe docx from ${url}:`, err);
+      return null;
     }
   });
 }
@@ -192110,6 +192138,71 @@ apiRouter.get("/proyecto/:id", async (req, res) => {
     proyecto = resolveProyecto(idParam);
   }
   res.json(proyecto);
+});
+apiRouter.get("/proyecto/:id/comparado", async (req, res) => {
+  const idParam = req.params.id;
+  const comisionNombre = String(req.query.comision || "").trim();
+  const possibleBoletinMatch = idParam.split("-")[0].replace(/[^0-9]/g, "");
+  if (possibleBoletinMatch.length < 4 || possibleBoletinMatch.length > 6) {
+    return res.status(400).json({ disponible: false, razon: "Identificador de bolet\xEDn inv\xE1lido." });
+  }
+  const proyecto = await fetchProyectoFromSenado(possibleBoletinMatch);
+  if (!proyecto) {
+    return res.json({ disponible: false, razon: "No se pudo obtener la ficha oficial del proyecto." });
+  }
+  const normComision = comisionNombre.toLowerCase().replace(/^comisi[oó]n\s+de\s+/i, "");
+  const informes = (proyecto.documentos || []).filter((d) => d.tipo === "Informe" && d.url && (!normComision || d.titulo.toLowerCase().includes(normComision))).sort((a, b) => (b.fecha || "").localeCompare(a.fecha || ""));
+  if (informes.length === 0) {
+    return res.json({
+      disponible: false,
+      razon: comisionNombre ? `A\xFAn no hay un informe de comisi\xF3n publicado para "${comisionNombre}" en el expediente de este proyecto.` : "A\xFAn no hay informes de comisi\xF3n publicados en el expediente de este proyecto."
+    });
+  }
+  const informe = informes[0];
+  const texto = await fetchTextoInformeDocx(informe.url);
+  if (!texto) {
+    return res.json({
+      disponible: false,
+      razon: "El informe de comisi\xF3n existe pero no se pudo descargar o leer su contenido.",
+      informeUrl: informe.url
+    });
+  }
+  const maxChars = 16e3;
+  const textoLower = texto.toLowerCase();
+  const marcador = ["discusi\xF3n particular", "discusion particular", "an\xE1lisis de las indicaciones", "modificaciones introducidas"].map((m) => textoLower.indexOf(m)).find((idx) => idx !== -1);
+  const inicio = marcador !== void 0 ? Math.max(0, marcador - 500) : 0;
+  const textoTruncado = texto.length > maxChars ? (inicio > 0 ? "[...inicio del documento omitido...] " : "") + texto.slice(inicio, inicio + maxChars) + " [...documento truncado por extensi\xF3n...]" : texto;
+  const prompt = `Act\xFAa como un analista legislativo de la Biblioteca del Congreso Nacional de Chile. A continuaci\xF3n se entrega el TEXTO REAL del informe de comisi\xF3n "${informe.titulo}" del proyecto de ley Bolet\xEDn N\xB0 ${proyecto.id} ("${proyecto.titulo}").
+
+Texto del informe:
+"""
+${textoTruncado}
+"""
+
+Identifica entre 3 y 6 modificaciones o disposiciones concretas que este informe introduce o discute sobre el texto del proyecto (art\xEDculos, indicaciones aprobadas, votaciones particulares). Responde \xDANICAMENTE con un arreglo JSON v\xE1lido, compacto, sin texto adicional, con este esquema exacto:
+[{"articulo":"Identificaci\xF3n del art\xEDculo o disposici\xF3n tal como aparece en el informe","textoOriginal":"Cita o resumen fiel del texto/planteamiento original seg\xFAn el informe","textoModificado":"Cita o resumen fiel de la modificaci\xF3n, indicaci\xF3n o acuerdo adoptado seg\xFAn el informe","explicacion":"Explicaci\xF3n breve y fiel al informe de qu\xE9 cambia y por qu\xE9"}]
+
+Usa EXCLUSIVAMENTE informaci\xF3n que est\xE9 efectivamente en el texto entregado. Si el informe no permite identificar modificaciones concretas art\xEDculo por art\xEDculo, responde con un arreglo vac\xEDo [].`;
+  const aiAttempts = [];
+  let comparaciones = [];
+  try {
+    const aiResponse = await generarContenidoUniversalIA(prompt, 3e3, aiAttempts);
+    if (aiResponse) {
+      const parsed = safeJsonParse(aiResponse);
+      if (Array.isArray(parsed)) comparaciones = parsed;
+    }
+  } catch (err) {
+    console.warn(`Could not generate comparado for bolet\xEDn ${proyecto.id}:`, err);
+  }
+  res.json({
+    disponible: comparaciones.length > 0,
+    razon: comparaciones.length === 0 ? "La IA no pudo identificar modificaciones concretas en el texto del informe disponible." : void 0,
+    informeUrl: informe.url,
+    informeTitulo: informe.titulo,
+    informeFecha: informe.fecha,
+    comparaciones,
+    aiDiagnostics: aiAttempts
+  });
 });
 apiRouter.get("/comisiones/autocomplete", async (req, res) => {
   const q = req.query.q ? String(req.query.q).trim() : "";
