@@ -304,23 +304,37 @@ Responde ÚNICAMENTE con un arreglo JSON válido, compacto (sin saltos de línea
 
 Manten cada "descripcion" concisa (maximo 3-4 lineas por punto) para que el JSON completo no exceda el limite de salida.`;
 
-  try {
-    const aiResponse = await generarContenidoUniversalIA(prompt, 4000, attempts);
-    if (aiResponse) {
-      try {
-        const parsed = safeJsonParse<ResultadoComparado[]>(aiResponse);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map((item) => ({
-            ...item,
-            tipo: item.tipo || inferirTipoNorma(item.titulo || ""),
-            relevancia: item.relevancia || relevanciaPorCoincidencia(query, item)
-          }));
-        }
-      } catch (parseErr: any) {
-        console.warn("[Derecho Comparado IA] La respuesta del modelo no es JSON válido:", parseErr.message, "-- inicio de la respuesta:", aiResponse.slice(0, 300));
-        attempts?.push({ provider: "json-parse", configured: true, error: parseErr.message });
+  const intentarUnaVez = async (p: string): Promise<ResultadoComparado[] | null> => {
+    const aiResponse = await generarContenidoUniversalIA(p, 4000, attempts);
+    if (!aiResponse) return null;
+    try {
+      const parsed = safeJsonParse<ResultadoComparado[]>(aiResponse);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.map((item) => ({
+          ...item,
+          tipo: item.tipo || inferirTipoNorma(item.titulo || ""),
+          relevancia: item.relevancia || relevanciaPorCoincidencia(query, item)
+        }));
       }
+      return null;
+    } catch (parseErr: any) {
+      console.warn("[Derecho Comparado IA] La respuesta del modelo no es JSON válido:", parseErr.message, "-- inicio de la respuesta:", aiResponse.slice(0, 300));
+      attempts?.push({ provider: "json-parse", configured: true, error: parseErr.message });
+      return null;
     }
+  };
+
+  try {
+    const primerIntento = await intentarUnaVez(prompt);
+    if (primerIntento) return primerIntento;
+
+    // El modelo a veces "conversa" en vez de responder solo el JSON pedido
+    // (variación normal de un LLM, no un fallo de la llamada en sí). Antes de
+    // caer al respaldo genérico, se reintenta una vez con una instrucción de
+    // formato más estricta -- suele bastar para corregirlo.
+    const promptEstricto = `${prompt}\n\nIMPORTANTE: tu respuesta anterior no cumplió el formato. Responde EXCLUSIVAMENTE con el arreglo JSON solicitado, empezando en "[" y terminando en "]", sin ningún texto, explicación ni markdown antes o después.`;
+    const segundoIntento = await intentarUnaVez(promptEstricto);
+    if (segundoIntento) return segundoIntento;
   } catch (err: any) {
     console.warn("[Derecho Comparado IA] Error al consultar modelo de IA:", err.message);
   }

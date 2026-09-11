@@ -189559,23 +189559,33 @@ Responde \xDANICAMENTE con un arreglo JSON v\xE1lido, compacto (sin saltos de l\
 [{"pais":"Nombre del pa\xEDs o entidad","fuente":"Nombre del repositorio oficial (ej: EUR-Lex, BOE, Congress.gov)","titulo":"T\xEDtulo formal y n\xFAmero REAL de la ley o reglamento (no inventes un t\xEDtulo gen\xE9rico)","tituloOriginal":"T\xEDtulo original en idioma nativo si no es espa\xF1ol","fecha":"A\xF1o de aprobaci\xF3n o entrada en vigencia","url":"Enlace oficial real o portal gubernamental de referencia","tipo":"Ley | Reglamento | Directiva | Jurisprudencia","descripcion":"\u{1F3AF} Objeto & \xC1mbito: s\xEDntesis breve.\\n\u2699\uFE0F Mecanismos Clave: deberes e instrumentos.\\n\u2696\uFE0F Fiscalizaci\xF3n & Sanciones: \xF3rgano y sanciones.\\n\u{1F4A1} Lecci\xF3n para Chile: aporte concreto.","relevancia":95}]
 
 Manten cada "descripcion" concisa (maximo 3-4 lineas por punto) para que el JSON completo no exceda el limite de salida.`;
-  try {
-    const aiResponse = await generarContenidoUniversalIA(prompt, 4e3, attempts);
-    if (aiResponse) {
-      try {
-        const parsed = safeJsonParse(aiResponse);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map((item) => ({
-            ...item,
-            tipo: item.tipo || inferirTipoNorma(item.titulo || ""),
-            relevancia: item.relevancia || relevanciaPorCoincidencia(query, item)
-          }));
-        }
-      } catch (parseErr) {
-        console.warn("[Derecho Comparado IA] La respuesta del modelo no es JSON v\xE1lido:", parseErr.message, "-- inicio de la respuesta:", aiResponse.slice(0, 300));
-        attempts?.push({ provider: "json-parse", configured: true, error: parseErr.message });
+  const intentarUnaVez = async (p) => {
+    const aiResponse = await generarContenidoUniversalIA(p, 4e3, attempts);
+    if (!aiResponse) return null;
+    try {
+      const parsed = safeJsonParse(aiResponse);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.map((item) => ({
+          ...item,
+          tipo: item.tipo || inferirTipoNorma(item.titulo || ""),
+          relevancia: item.relevancia || relevanciaPorCoincidencia(query, item)
+        }));
       }
+      return null;
+    } catch (parseErr) {
+      console.warn("[Derecho Comparado IA] La respuesta del modelo no es JSON v\xE1lido:", parseErr.message, "-- inicio de la respuesta:", aiResponse.slice(0, 300));
+      attempts?.push({ provider: "json-parse", configured: true, error: parseErr.message });
+      return null;
     }
+  };
+  try {
+    const primerIntento = await intentarUnaVez(prompt);
+    if (primerIntento) return primerIntento;
+    const promptEstricto = `${prompt}
+
+IMPORTANTE: tu respuesta anterior no cumpli\xF3 el formato. Responde EXCLUSIVAMENTE con el arreglo JSON solicitado, empezando en "[" y terminando en "]", sin ning\xFAn texto, explicaci\xF3n ni markdown antes o despu\xE9s.`;
+    const segundoIntento = await intentarUnaVez(promptEstricto);
+    if (segundoIntento) return segundoIntento;
   } catch (err) {
     console.warn("[Derecho Comparado IA] Error al consultar modelo de IA:", err.message);
   }
