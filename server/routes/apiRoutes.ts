@@ -264,7 +264,11 @@ apiRouter.get("/proyecto/:id", async (req: Request, res: Response) => {
   let proyecto: Proyecto | undefined = liveDiscoveredProyectos.find(p => cleanBulletinNumber(p.id) === idClean);
 
   if (!proyecto || forceSync) {
-    const possibleBoletinMatch = idParam.replace(/[^0-9]/g, "");
+    // Tomar solo el número de boletín antes del guión (p. ej. "17006" de
+    // "17.006-01"), no el ID completo sin puntos: incluir el sufijo de 2
+    // dígitos del boletín hacía que IDs normales (con sufijo) quedaran en 7
+    // dígitos y nunca pasaran este filtro, saltándose siempre la ficha real.
+    const possibleBoletinMatch = idParam.split("-")[0].replace(/[^0-9]/g, "");
     if (possibleBoletinMatch.length >= 4 && possibleBoletinMatch.length <= 6) {
       if (forceSync) {
         cache.delete(`senado_proyecto_${possibleBoletinMatch}`);

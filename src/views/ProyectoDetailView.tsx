@@ -1559,6 +1559,32 @@ export default function ProyectoDetailView({
                           )}
                         </div>
 
+                        {/* Días reales en esta comisión, calculados desde la ficha oficial de
+                            tramitación (fechas de "Pasa a Comisión de X" reales, no estimadas). */}
+                        {(() => {
+                          const pasos = (proyecto.pasosComision || []).filter(p =>
+                            commName.toLowerCase().includes(p.comisionNombre.toLowerCase()) ||
+                            p.comisionNombre.toLowerCase().includes(commName.toLowerCase())
+                          );
+                          if (pasos.length === 0) return null;
+                          return (
+                            <div className="flex flex-wrap gap-2">
+                              {pasos.map((p, i) => (
+                                <span
+                                  key={i}
+                                  title={`Del ${p.fechaEntrada} ${p.fechaSalida ? `al ${p.fechaSalida}` : "(actualmente en esta comisión)"}`}
+                                  className="inline-flex items-center gap-1.5 text-[10.5px] font-bold bg-amber-50 border border-amber-200 text-amber-800 px-2.5 py-1 rounded-lg"
+                                >
+                                  <Clock className="w-3 h-3" />
+                                  {p.diasEnComision ?? "?"} días en comisión
+                                  {!p.fechaSalida && " (en curso)"}
+                                  <span className="font-normal text-amber-700/80">· {p.fechaEntrada}{p.fechaSalida ? ` – ${p.fechaSalida}` : ""}</span>
+                                </span>
+                              ))}
+                            </div>
+                          );
+                        })()}
+
                         {/* Real Informes de Comisión, pulled from the project's actual documentos */}
                         {(() => {
                           const informes = (proyecto.documentos || []).filter(d =>

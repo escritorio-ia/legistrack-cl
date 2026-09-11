@@ -12,6 +12,13 @@ export interface ActivityItem {
   boletinId?: string;
 }
 
+export interface PasoComision {
+  comisionNombre: string;
+  fechaEntrada: string; // DD/MM/YYYY, formato de la ficha oficial
+  fechaSalida: string | null; // null = sigue actualmente en esta comisión
+  diasEnComision?: number;
+}
+
 export interface DocumentoItem {
   id: string;
   titulo: string;
@@ -49,6 +56,12 @@ export interface Proyecto {
   autores?: string;
   comisionActual: string;
   comisionesHistoricas?: string[];
+  /**
+   * Historial real de paso por comisiones, calculado a partir de la ficha
+   * oficial de tramitación (fechas y descripciones de trámite reales, no
+   * inferidas). fechaSalida es null mientras el proyecto sigue en esa comisión.
+   */
+  pasosComision?: PasoComision[];
   timeline: ActivityItem[];
   documentos: DocumentoItem[];
   votaciones: VotacionItem[];

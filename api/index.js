@@ -188026,6 +188026,38 @@ var CacheService = class {
 var cache = new CacheService();
 
 // server/services/senadoService.ts
+function parseFechaDDMMYYYY(fecha) {
+  const m = fecha.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (!m) return null;
+  return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+}
+function diffDias(desde, hasta) {
+  return Math.max(0, Math.round((hasta.getTime() - desde.getTime()) / (1e3 * 60 * 60 * 24)));
+}
+function computePasosComision(timeline) {
+  const regex = /pasa a (?:la )?comisi[oó]n de ([^.(\n]+?)(?:\s*\(|\.|$)/i;
+  const transiciones = [];
+  for (const t of timeline) {
+    const m = (t.descripcion || "").match(regex);
+    if (m) {
+      const nombre = m[1].trim().replace(/\s+/g, " ");
+      if (nombre) transiciones.push({ comisionNombre: nombre, fecha: t.fecha });
+    }
+  }
+  if (transiciones.length === 0) return [];
+  const hoy = /* @__PURE__ */ new Date();
+  return transiciones.map((tr, idx) => {
+    const entrada = parseFechaDDMMYYYY(tr.fecha);
+    const siguiente = transiciones[idx + 1];
+    const salida = siguiente ? parseFechaDDMMYYYY(siguiente.fecha) : null;
+    return {
+      comisionNombre: tr.comisionNombre,
+      fechaEntrada: tr.fecha,
+      fechaSalida: siguiente ? siguiente.fecha : null,
+      diasEnComision: entrada ? diffDias(entrada, salida || hoy) : void 0
+    };
+  });
+}
 function formatBoletin(boletin) {
   const clean = boletin.replace(/[\s\.]/g, "").trim();
   const parts = clean.split("-");
@@ -188335,6 +188367,7 @@ async function fetchProyectoFromSenado(boletinId) {
         patrocinantes,
         comisionActual,
         comisionesHistoricas: [comisionActual],
+        pasosComision: computePasosComision(timeline),
         siguienteSesion,
         quorum: estimarQuorum(titulo, materia),
         fichaTecnica: estimarFichaTecnica(titulo, materia),
@@ -192044,7 +192077,7 @@ apiRouter.get("/proyecto/:id", async (req, res) => {
   const idClean = cleanBulletinNumber(idParam);
   let proyecto = liveDiscoveredProyectos.find((p) => cleanBulletinNumber(p.id) === idClean);
   if (!proyecto || forceSync) {
-    const possibleBoletinMatch = idParam.replace(/[^0-9]/g, "");
+    const possibleBoletinMatch = idParam.split("-")[0].replace(/[^0-9]/g, "");
     if (possibleBoletinMatch.length >= 4 && possibleBoletinMatch.length <= 6) {
       if (forceSync) {
         cache.delete(`senado_proyecto_${possibleBoletinMatch}`);

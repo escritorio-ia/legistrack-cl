@@ -1,4 +1,4 @@
-import { Proyecto, ActivityItem, VotacionItem } from "../../src/types";
+import { Proyecto, ActivityItem, VotacionItem, PasoComision } from "../../src/types";
 import { cache } from "./cacheService";
 
 export interface ProyectoListado {
@@ -19,6 +19,50 @@ export interface SenadoComisionParsed {
   titulo: string;
   integrantes: IntegranteLive[];
   secretario?: string;
+}
+
+function parseFechaDDMMYYYY(fecha: string): Date | null {
+  const m = fecha.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (!m) return null;
+  return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+}
+
+function diffDias(desde: Date, hasta: Date): number {
+  return Math.max(0, Math.round((hasta.getTime() - desde.getTime()) / (1000 * 60 * 60 * 24)));
+}
+
+/**
+ * Calcula el historial real de paso por comisiones a partir de la línea de
+ * tiempo oficial de tramitación (server/services/senadoService.ts la trae de
+ * tramitacion.senado.cl). Cada vez que un trámite dice "Pasa a Comisión de
+ * X" se registra la fecha de entrada; la fecha de salida de un paso es la
+ * fecha de entrada del siguiente (o null si sigue actualmente ahí).
+ */
+export function computePasosComision(timeline: ActivityItem[]): PasoComision[] {
+  const regex = /pasa a (?:la )?comisi[oó]n de ([^.(\n]+?)(?:\s*\(|\.|$)/i;
+  const transiciones: { comisionNombre: string; fecha: string }[] = [];
+
+  for (const t of timeline) {
+    const m = (t.descripcion || "").match(regex);
+    if (m) {
+      const nombre = m[1].trim().replace(/\s+/g, " ");
+      if (nombre) transiciones.push({ comisionNombre: nombre, fecha: t.fecha });
+    }
+  }
+  if (transiciones.length === 0) return [];
+
+  const hoy = new Date();
+  return transiciones.map((tr, idx) => {
+    const entrada = parseFechaDDMMYYYY(tr.fecha);
+    const siguiente = transiciones[idx + 1];
+    const salida = siguiente ? parseFechaDDMMYYYY(siguiente.fecha) : null;
+    return {
+      comisionNombre: tr.comisionNombre,
+      fechaEntrada: tr.fecha,
+      fechaSalida: siguiente ? siguiente.fecha : null,
+      diasEnComision: entrada ? diffDias(entrada, salida || hoy) : undefined
+    };
+  });
 }
 
 export function formatBoletin(boletin: string): string {
@@ -397,6 +441,7 @@ export async function fetchProyectoFromSenado(boletinId: string): Promise<Proyec
         patrocinantes,
         comisionActual,
         comisionesHistoricas: [comisionActual],
+        pasosComision: computePasosComision(timeline),
         siguienteSesion,
         quorum: estimarQuorum(titulo, materia),
         fichaTecnica: estimarFichaTecnica(titulo, materia),
