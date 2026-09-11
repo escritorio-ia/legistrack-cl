@@ -191967,7 +191967,13 @@ apiRouter.get("/health", async (req, res) => {
       bcnLeyChile: leychileOk ? "operativo (API Autenticada)" : "latencia/degradado"
     },
     aiProviders: aiStatus,
-    cache: cacheStats
+    cache: cacheStats,
+    // Diagnostico temporal: nombres de variables de entorno relevantes que
+    // realmente llegan a la funcion en runtime (nunca sus valores), para
+    // descartar un problema de nombre/scope al configurarlas en Vercel.
+    envVarNames: Object.keys(process.env).filter(
+      (k) => /API_KEY|GEMINI|GROQ|OPENROUTER|ANTHROPIC/i.test(k)
+    ).sort()
   });
 });
 apiRouter.get("/proyectos", async (req, res) => {
