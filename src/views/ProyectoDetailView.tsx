@@ -37,7 +37,8 @@ import {
   CheckCircle2,
   ExternalLink,
   Compass,
-  Sparkles
+  Sparkles,
+  Video
 } from "lucide-react";
 import { Proyecto, ActivityItem, VotacionItem } from "../types";
 import { resolveProyecto } from "../utils/proyectosResolver";
@@ -48,6 +49,7 @@ import FichaEjecutivaPrint from "../components/FichaEjecutivaPrint";
 import MinutaEjecutivaModal from "../components/MinutaEjecutivaModal";
 import TerritorialImpactPanel from "../components/TerritorialImpactPanel";
 import NotasColaborativasDrawer from "../components/NotasColaborativasDrawer";
+import { getSesionesVinculadasDeProyecto, SesionVinculadaProyecto } from "../services/firebaseService";
 
 interface ProyectoDetailViewProps {
   proyectoId: string;
@@ -251,6 +253,13 @@ export default function ProyectoDetailView({
   const [syncError, setSyncError] = useState("");
   const [syncSuccess, setSyncSuccess] = useState(false);
   const [selectedComisionComparador, setSelectedComisionComparador] = useState<string>("");
+  const [sesionesVinculadas, setSesionesVinculadas] = useState<SesionVinculadaProyecto[]>([]);
+
+  useEffect(() => {
+    getSesionesVinculadasDeProyecto(proyectoId)
+      .then(setSesionesVinculadas)
+      .catch(() => setSesionesVinculadas([]));
+  }, [proyectoId]);
 
   useEffect(() => {
     const localProy = resolveProyecto(proyectoId);
@@ -1633,6 +1642,54 @@ export default function ProyectoDetailView({
                     );
                   })}
                 </div>
+
+                {/* Sesiones vinculadas: indexadas automáticamente cada vez que se
+                    genera un informe o se encuentra la transmisión de una sesión
+                    donde este proyecto apareció en tabla. Duración real = largo
+                    efectivo del video de YouTube encontrado, no un horario agendado. */}
+                {sesionesVinculadas.length > 0 && (
+                  <div className="space-y-3 pt-2">
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-1">Sesiones Donde se Trató este Proyecto</h3>
+                      <p className="text-xs text-slate-500">Expositores, temas y duración real de la transmisión, indexados automáticamente desde las sesiones de comisión.</p>
+                    </div>
+                    <div className="space-y-3">
+                      {[...sesionesVinculadas]
+                        .sort((a, b) => (b.fecha || "").localeCompare(a.fecha || ""))
+                        .map((s) => (
+                        <div key={s.sesionId} className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs space-y-2">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="text-xs font-bold text-slate-800">{s.fecha} · {s.comisionNombre}</span>
+                            {s.duracionReal && (
+                              <span className="inline-flex items-center gap-1 text-[10.5px] font-bold bg-slate-900 text-white px-2 py-0.5 rounded-md">
+                                <Video className="w-3 h-3" /> {s.duracionReal} (duración real del video)
+                              </span>
+                            )}
+                          </div>
+                          {s.temasVistos && (
+                            <p className="text-xs text-slate-600 leading-snug">{s.temasVistos}</p>
+                          )}
+                          {s.expositores && (
+                            <p className="text-[11px] text-slate-500">
+                              <Users className="w-3 h-3 inline -mt-0.5 mr-1" />
+                              <strong className="text-slate-600">Expositores:</strong> {s.expositores}
+                            </p>
+                          )}
+                          {s.acuerdos && s.acuerdos.length > 0 && (
+                            <ul className="text-[11px] text-slate-600 list-disc list-inside space-y-0.5">
+                              {s.acuerdos.map((a, i) => <li key={i}>{a}</li>)}
+                            </ul>
+                          )}
+                          {s.videoUrl && (
+                            <a href={s.videoUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[10.5px] font-bold text-blue-600 hover:underline">
+                              <ExternalLink className="w-3 h-3" /> Ver transmisión
+                            </a>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

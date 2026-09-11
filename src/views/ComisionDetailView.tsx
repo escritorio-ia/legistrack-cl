@@ -64,11 +64,12 @@ import {
   isSesionRealizada,
   mergeSesionesDuplicadas
 } from "../utils/dateUtils";
-import { 
-  saveInformeToFirestore, 
-  getInformeFromFirestore, 
-  saveSesionCompletadaToFirestore, 
-  getSesionesCompletadasFromFirestore 
+import {
+  saveInformeToFirestore,
+  getInformeFromFirestore,
+  saveSesionCompletadaToFirestore,
+  getSesionesCompletadasFromFirestore,
+  saveSesionVinculadaAProyecto
 } from "../services/firebaseService";
 import YouTubeTranscriptModal from "../components/YouTubeTranscriptModal";
 import ParlamentariosMatrix from "../components/ParlamentariosMatrix";
@@ -993,6 +994,42 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
     return match ? match[0] : "";
   };
 
+  /** Igual que extractBoletinId pero devuelve TODOS los boletines mencionados
+   * (una sesión puede tratar varios proyectos en su tabla), para indexar la
+   * sesión contra cada uno en el historial de tramitación. */
+  const extractAllBoletines = (texts: (string | undefined)[]): string[] => {
+    const found = new Set<string>();
+    for (const text of texts) {
+      if (!text) continue;
+      const matches = text.match(/\d{1,5}\.?\d{0,3}-\d{1,2}\b/g) || [];
+      matches.forEach(m => found.add(m));
+    }
+    return Array.from(found);
+  };
+
+  /** Vincula automáticamente una sesión (con su video/duración real) a cada
+   * proyecto de ley mencionado en su tabla, para poblar el historial de
+   * tramitación de cada boletín. No requiere trabajo manual: se llama al
+   * encontrar la transmisión de una sesión. */
+  const indexarSesionEnProyectos = (ses: SesionItem, video: { id?: string; url?: string; length?: string } | null, boletinPrincipal?: string) => {
+    const boletines = extractAllBoletines([ses.materia, ...(ses.tabla || []), boletinPrincipal]);
+    if (boletines.length === 0) return;
+    for (const boletinId of boletines) {
+      saveSesionVinculadaAProyecto(boletinId, {
+        sesionId: ses.id,
+        fecha: ses.fecha,
+        comisionId,
+        comisionNombre: comision?.nombre || "Comisión",
+        expositores: ses.invitados,
+        temasVistos: ses.materia,
+        duracionReal: video?.length,
+        videoUrl: video?.url || (video?.id ? `https://www.youtube.com/watch?v=${video.id}` : undefined),
+        videoId: video?.id,
+        acuerdos: ses.acuerdosTexto
+      }).catch(err => console.warn(`No se pudo indexar la sesión ${ses.id} en el proyecto ${boletinId}:`, err));
+    }
+  };
+
   const handleSaveSubpageSummary = (ses: SesionItem) => {
     const summaryTrimmed = subpageSummaryText.trim();
     
@@ -1444,6 +1481,7 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
       if (videos.length > 0) {
         const video = videos[0];
         setSelectedVideo(video);
+        indexarSesionEnProyectos(ses, video, finalBoletinId);
 
         // 3. Automatically perform summary generation/report
         const genRes = await fetch("/api/comisiones/sesion/generar-informe", {
@@ -1575,6 +1613,7 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
     }
 
     setGeneratingReport(true);
+    indexarSesionEnProyectos(selectedSesionForReport, selectedVideo, finalBoletinId);
     fetch("/api/comisiones/sesion/generar-informe", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

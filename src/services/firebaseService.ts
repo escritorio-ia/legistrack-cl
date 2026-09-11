@@ -45,7 +45,8 @@ export const COLLECTIONS = {
   SESIONES_COMPLETADAS: "sesiones_completadas",
   CITACIONES_CUSTOM: "citaciones_custom",
   ALERTAS_LEGISLATIVAS: "alertas_legislativas",
-  NOTAS_COLABORATIVAS: "notas_colaborativas"
+  NOTAS_COLABORATIVAS: "notas_colaborativas",
+  HISTORIAL_PROYECTOS: "historial_proyectos"
 };
 
 export interface NotaColaborativa {
@@ -195,6 +196,67 @@ export async function getSesionesCompletadasFromFirestore(comisionId: string): P
     return sesiones;
   } catch (err) {
     console.warn(`Error fetching completed sessions for ${comisionId} from Firestore:`, err);
+    return [];
+  }
+}
+
+export interface SesionVinculadaProyecto {
+  sesionId: string;
+  fecha: string;
+  comisionId: string;
+  comisionNombre: string;
+  expositores?: string;
+  temasVistos?: string;
+  duracionReal?: string; // largo real del video de YouTube, p. ej. "1:46:36"
+  videoUrl?: string;
+  videoId?: string;
+  acuerdos?: string[];
+}
+
+/**
+ * Vincula una sesión (con su duración real, expositores y temas ya curados) al
+ * historial de tramitación de un proyecto de ley, indexado por boletín. Se
+ * llama automáticamente cada vez que se genera un informe o se encuentra la
+ * transmisión de una sesión — no requiere trabajo manual. Hace merge por
+ * sesionId para no duplicar si la misma sesión se vuelve a indexar.
+ */
+export async function saveSesionVinculadaAProyecto(boletinId: string, sesion: SesionVinculadaProyecto): Promise<boolean> {
+  if (!db || !boletinId || !sesion.sesionId) return false;
+  try {
+    const docRef = doc(db, COLLECTIONS.HISTORIAL_PROYECTOS, boletinId);
+    const snap = await getDoc(docRef);
+    const existentes: SesionVinculadaProyecto[] = snap.exists() ? (snap.data().sesionesVinculadas || []) : [];
+    const idx = existentes.findIndex(s => s.sesionId === sesion.sesionId);
+    if (idx >= 0) {
+      existentes[idx] = { ...existentes[idx], ...sesion };
+    } else {
+      existentes.push(sesion);
+    }
+    await setDoc(docRef, {
+      boletinId,
+      sesionesVinculadas: existentes,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+    return true;
+  } catch (err) {
+    console.warn(`Error linking session to proyecto ${boletinId} in Firestore:`, err);
+    return false;
+  }
+}
+
+/**
+ * Obtiene las sesiones de comisión vinculadas a un proyecto de ley (boletín),
+ * indexadas automáticamente desde las sesiones donde apareció en tabla.
+ */
+export async function getSesionesVinculadasDeProyecto(boletinId: string): Promise<SesionVinculadaProyecto[]> {
+  if (!db || !boletinId) return [];
+  try {
+    const docRef = doc(db, COLLECTIONS.HISTORIAL_PROYECTOS, boletinId);
+    const snap = await getDoc(docRef);
+    if (!snap.exists()) return [];
+    return snap.data().sesionesVinculadas || [];
+  } catch (err) {
+    console.warn(`Error fetching linked sessions for proyecto ${boletinId} from Firestore:`, err);
     return [];
   }
 }
