@@ -192890,7 +192890,7 @@ P\xC1GINA 3:
       if (reportText.includes("===PAGINA===")) {
         reportPages = reportText.split("===PAGINA===").map((p) => p.trim()).filter(Boolean);
       } else {
-        const porEncabezado = reportText.split(/\n#{1,3}\s*P[ÁA]GINA\s*\d\s*\n?/i).map((p) => p.trim()).filter(Boolean);
+        const porEncabezado = reportText.split(/\n#{0,3}\s*P[ÁA]GINA\s*\d\s*:?\s*\n?/i).map((p) => p.trim()).filter(Boolean);
         reportPages = porEncabezado.length >= 2 ? porEncabezado : [reportText];
       }
     }

@@ -1181,11 +1181,12 @@ PÁGINA 3:
       if (reportText.includes("===PAGINA===")) {
         reportPages = reportText.split("===PAGINA===").map((p: string) => p.trim()).filter(Boolean);
       } else {
-        // El modelo no usó el delimitador literal pedido (a veces lo reemplaza por
-        // encabezados markdown "## PÁGINA N"); se intenta dividir por esos
-        // encabezados en vez de fabricar páginas de relleno que no reflejarían el
-        // contenido real ya generado.
-        const porEncabezado = reportText.split(/\n#{1,3}\s*P[ÁA]GINA\s*\d\s*\n?/i).map((p: string) => p.trim()).filter(Boolean);
+        // El modelo no usó el delimitador literal pedido -- a veces lo reemplaza
+        // por un encabezado markdown ("## PÁGINA N") y otras veces por texto
+        // plano sin "#" ("PÁGINA N:"). Se intenta dividir por cualquiera de los
+        // dos patrones en vez de fabricar páginas de relleno que no
+        // reflejarían el contenido real ya generado.
+        const porEncabezado = reportText.split(/\n#{0,3}\s*P[ÁA]GINA\s*\d\s*:?\s*\n?/i).map((p: string) => p.trim()).filter(Boolean);
         reportPages = porEncabezado.length >= 2 ? porEncabezado : [reportText];
       }
     }
