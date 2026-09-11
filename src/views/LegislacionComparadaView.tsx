@@ -9,7 +9,7 @@ import {
   CheckCircle, Sparkles, Layers, Shield, Building2, ExternalLink, Download, 
   RefreshCw, Filter, BookMarked, Bookmark, Plus, Check, X, Copy, 
   SlidersHorizontal, ChevronRight, ChevronDown, ChevronUp, Tag, Share2, HelpCircle, Eye, Info,
-  FileSpreadsheet, Printer, FileDown, CheckCheck, Target, ShieldAlert, Wrench
+  FileSpreadsheet, Printer, FileDown, CheckCheck, Target, ShieldAlert, Wrench, AlertTriangle
 } from "lucide-react";
 import MatrizComparadaTable, { MatrizColumna, MatrizComparadaData, TODAS_LAS_MATRICES } from "../components/MatrizComparadaTable";
 import { normalizeSearchText } from "../utils/textUtils";
@@ -1655,7 +1655,24 @@ export default function LegislacionComparadaView() {
       {/* TAB 1: BÚSQUEDA EN VIVO INTERNACIONAL (19 FUENTES) */}
       {activeTab === "live" && (
         <div className="flex flex-col gap-6 animate-fade-in">
-          
+
+          {/* Aviso honesto: cuando el motor de IA no pudo responder (saturado,
+              rate-limited, o clave invalida), la busqueda cae a una base de
+              conocimiento de referencia generica en vez de fallar por completo
+              -- pero eso NO es lo mismo que un resultado verificado por IA en
+              vivo, y no debe presentarse como si lo fuera. */}
+          {!liveLoading && liveResultados.length > 0 && liveFuentesFallidas.length > 0 && (
+            <div className="bg-amber-50 border border-amber-300 text-amber-900 rounded-xl px-4 py-3 flex items-start gap-2.5 text-xs">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold">Resultado de referencia, no verificado por IA en este momento</p>
+                <p className="text-amber-800/90 mt-0.5">
+                  El motor de IA no respondió (saturación temporal o límite de cuota). Estos resultados provienen de una base de conocimiento general de referencia, no de una consulta en vivo verificada — trátalos como punto de partida, no como cita definitiva. Vuelve a intentar la búsqueda en unos minutos.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Summary bar */}
           <div className="bg-slate-50 border-l-4 border-blue-700 p-5 rounded-r-2xl border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex flex-col gap-1">

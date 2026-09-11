@@ -544,7 +544,15 @@ export async function buscarDerechoComparado(q: string): Promise<{
   aiDiagnostics: AIProviderAttempt[];
 }> {
   const cacheKey = `derecho_comparado_ia_${normalizarTexto(q)}`;
-  return cache.wrap(cacheKey, 15 * 60 * 1000, async () => {
+  const cached = cache.get<{
+    resultados: ResultadoComparado[];
+    fuentesConsultadas: string[];
+    fuentesFallidas: string[];
+    aiDiagnostics: AIProviderAttempt[];
+  }>(cacheKey);
+  if (cached) return cached;
+
+  const resultado = await (async () => {
     const fuentesConsultadas: string[] = [
       "Chile (LeyChile — Biblioteca del Congreso Nacional)",
       "Unión Europea (EUR-Lex — Diario Oficial de la UE)",
@@ -622,7 +630,16 @@ export async function buscarDerechoComparado(q: string): Promise<{
       fuentesFallidas,
       aiDiagnostics: aiAttempts
     };
-  });
+  })();
+
+  // Solo se cachean resultados con IA real (fuentesFallidas vacío): un
+  // resultado de respaldo genérico no debe quedar "pegado" 15 minutos para
+  // cualquiera que pregunte lo mismo mientras tanto -- el siguiente intento
+  // merece la chance de tener éxito con la IA.
+  if (resultado.fuentesFallidas.length === 0) {
+    cache.set(cacheKey, resultado, 15 * 60 * 1000);
+  }
+  return resultado;
 }
 
 export function extraerPuntosHeuristicos(query: string, resultado: ResultadoComparado, texto?: string | null): string[] {

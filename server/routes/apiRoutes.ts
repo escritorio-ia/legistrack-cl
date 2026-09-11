@@ -72,6 +72,7 @@ import {
   generarContenidoUniversalIA,
   responderCopilotoLegislativo,
   getAIProvidersStatus,
+  testearProveedoresIAReal,
   safeJsonParse,
   AIProviderAttempt
 } from "../services/aiService";
@@ -86,7 +87,12 @@ const liveDiscoveredProyectos: Proyecto[] = [];
 // 1. HEALTH & CONNECTIVITY MONITOR
 // ============================================================================
 apiRouter.get("/health", async (req: Request, res: Response) => {
-  const aiStatus = getAIProvidersStatus();
+  // getAIProvidersStatus solo mira si la variable de entorno existe y no es
+  // el placeholder de .env.example -- una clave puede "verse" configurada y
+  // aun asi ser invalida (401 real de la API). ?real=true hace una llamada
+  // minima real a cada proveedor para confirmarlo (mas lento, se deja opt-in
+  // para no encarecer/demorar cada chequeo rutinario de salud).
+  const aiStatus = req.query.real === "true" ? await testearProveedoresIAReal() : getAIProvidersStatus();
   const cacheStats = cache.getStats();
 
   let senadoOk = false;

@@ -189097,10 +189097,7 @@ function safeJsonParse(text) {
   }
   throw new Error(`Could not find valid JSON boundaries in response text.`);
 }
-async function generarConGemini(prompt, maxTokens = 2e3) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey || apiKey === "MY_GEMINI_API_KEY") throw new Error("GEMINI_API_KEY no configurada");
-  const model = process.env.GEMINI_MODEL || "gemini-3.6-flash";
+async function generarConGeminiUnaVez(prompt, maxTokens, apiKey, model, timeoutMs) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
   const res = await fetch(url, {
     method: "POST",
@@ -189109,10 +189106,7 @@ async function generarConGemini(prompt, maxTokens = 2e3) {
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: { maxOutputTokens: maxTokens }
     }),
-    // Los modelos "thinking" de Gemini pueden tardar bastante más que un modelo
-    // simple en prompts largos (como el del informe de sesión); 15s los cortaba
-    // a mitad de generación.
-    signal: AbortSignal.timeout(45e3)
+    signal: AbortSignal.timeout(timeoutMs)
   });
   if (!res.ok) {
     const err = await res.text().catch(() => "");
@@ -189122,6 +189116,26 @@ async function generarConGemini(prompt, maxTokens = 2e3) {
   const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!text) throw new Error("Gemini no devolvi\xF3 texto");
   return String(text).trim();
+}
+async function generarConGemini(prompt, maxTokens = 2e3) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || apiKey === "MY_GEMINI_API_KEY") throw new Error("GEMINI_API_KEY no configurada");
+  const model = process.env.GEMINI_MODEL || "gemini-3.6-flash";
+  let lastErr;
+  for (let intento = 1; intento <= 2; intento++) {
+    try {
+      return await generarConGeminiUnaVez(prompt, maxTokens, apiKey, model, 25e3);
+    } catch (err) {
+      lastErr = err;
+      const esSaturacion = /HTTP 503|HTTP 429/.test(err?.message || "");
+      if (intento < 2 && esSaturacion) {
+        await new Promise((r) => setTimeout(r, 1200));
+        continue;
+      }
+      break;
+    }
+  }
+  throw lastErr;
 }
 async function generarConGroq(prompt, maxTokens = 2e3) {
   const apiKey = process.env.GROQ_API_KEY;
@@ -189192,76 +189206,72 @@ async function generarConOpenRouter(prompt, maxTokens = 1500) {
   }
   throw new Error(lastError || "OpenRouter no devolvi\xF3 contenido");
 }
-async function generarContenidoUniversalIA(prompt, maxTokens = 2e3, attempts) {
-  const geminiConfigured = !!(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY");
-  if (geminiConfigured) {
-    try {
-      const text = await generarConGemini(prompt, maxTokens);
-      if (text) {
-        attempts?.push({ provider: "gemini", configured: true });
-        return text;
-      }
-      attempts?.push({ provider: "gemini", configured: true, error: "respuesta vac\xEDa" });
-    } catch (e) {
-      console.log(`[Gemini Free Info]: ${e?.message || e}`);
-      attempts?.push({ provider: "gemini", configured: true, error: e?.message || String(e) });
-    }
-  } else {
-    attempts?.push({ provider: "gemini", configured: false });
+async function intentarGemini(prompt, maxTokens) {
+  const configured = !!(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY");
+  if (!configured) return { provider: "gemini", configured };
+  try {
+    const text = await generarConGemini(prompt, maxTokens);
+    return text ? { provider: "gemini", configured, text } : { provider: "gemini", configured, error: "respuesta vac\xEDa" };
+  } catch (e) {
+    console.log(`[Gemini Free Info]: ${e?.message || e}`);
+    return { provider: "gemini", configured, error: e?.message || String(e) };
   }
-  const groqConfigured = !!(process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== "MY_GROQ_API_KEY");
-  if (groqConfigured) {
-    try {
-      const text = await generarConGroq(prompt, maxTokens);
-      if (text) {
-        attempts?.push({ provider: "groq", configured: true });
-        return text;
-      }
-      attempts?.push({ provider: "groq", configured: true, error: "respuesta vac\xEDa" });
-    } catch (e) {
-      console.log(`[Groq Free Info]: ${e?.message || e}`);
-      attempts?.push({ provider: "groq", configured: true, error: e?.message || String(e) });
-    }
-  } else {
-    attempts?.push({ provider: "groq", configured: false });
+}
+async function intentarOpenRouter(prompt, maxTokens) {
+  const configured = !!(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY !== "MY_OPENROUTER_API_KEY");
+  if (!configured) return { provider: "openrouter", configured };
+  try {
+    const text = await generarConOpenRouter(prompt, maxTokens);
+    return text ? { provider: "openrouter", configured, text } : { provider: "openrouter", configured, error: "respuesta vac\xEDa" };
+  } catch (e) {
+    console.log(`[OpenRouter Info]: ${e?.message || e}`);
+    return { provider: "openrouter", configured, error: e?.message || String(e) };
   }
-  const openrouterConfigured = !!(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY !== "MY_OPENROUTER_API_KEY");
-  if (openrouterConfigured) {
-    try {
-      const text = await generarConOpenRouter(prompt, maxTokens);
-      if (text) {
-        attempts?.push({ provider: "openrouter", configured: true });
-        return text;
-      }
-      attempts?.push({ provider: "openrouter", configured: true, error: "respuesta vac\xEDa" });
-    } catch (e) {
-      console.log(`[OpenRouter Info]: ${e?.message || e}`);
-      attempts?.push({ provider: "openrouter", configured: true, error: e?.message || String(e) });
-    }
-  } else {
-    attempts?.push({ provider: "openrouter", configured: false });
+}
+async function intentarGroq(prompt, maxTokens) {
+  const configured = !!(process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== "MY_GROQ_API_KEY");
+  if (!configured) return { provider: "groq", configured };
+  try {
+    const text = await generarConGroq(prompt, maxTokens);
+    return text ? { provider: "groq", configured, text } : { provider: "groq", configured, error: "respuesta vac\xEDa" };
+  } catch (e) {
+    console.log(`[Groq Free Info]: ${e?.message || e}`);
+    return { provider: "groq", configured, error: e?.message || String(e) };
   }
+}
+async function intentarClaude(prompt, maxTokens) {
   const claude = getClaudeClient();
-  if (claude) {
-    try {
-      const resp = await claude.messages.create({
-        model: "claude-3-5-haiku-20241022",
-        max_tokens: maxTokens,
-        messages: [{ role: "user", content: prompt }]
-      });
-      const text = resp.content[0].type === "text" ? resp.content[0].text : "";
-      if (text) {
-        attempts?.push({ provider: "claude", configured: true });
-        return text;
-      }
-      attempts?.push({ provider: "claude", configured: true, error: "respuesta vac\xEDa" });
-    } catch (err) {
-      handleClaudeError("Claude Universal", err);
-      attempts?.push({ provider: "claude", configured: true, error: err?.message || String(err) });
-    }
-  } else {
-    attempts?.push({ provider: "claude", configured: !!process.env.ANTHROPIC_API_KEY });
+  if (!claude) return { provider: "claude", configured: !!process.env.ANTHROPIC_API_KEY };
+  try {
+    const resp = await claude.messages.create({
+      model: "claude-3-5-haiku-20241022",
+      max_tokens: maxTokens,
+      messages: [{ role: "user", content: prompt }]
+    });
+    const text = resp.content[0].type === "text" ? resp.content[0].text : "";
+    return text ? { provider: "claude", configured: true, text } : { provider: "claude", configured: true, error: "respuesta vac\xEDa" };
+  } catch (err) {
+    handleClaudeError("Claude Universal", err);
+    return { provider: "claude", configured: true, error: err?.message || String(err) };
   }
+}
+async function generarContenidoUniversalIA(prompt, maxTokens = 2e3, attempts) {
+  const [geminiRes, openrouterRes] = await Promise.all([
+    intentarGemini(prompt, maxTokens),
+    intentarOpenRouter(prompt, maxTokens)
+  ]);
+  const primeraRonda = [geminiRes, openrouterRes];
+  for (const r of primeraRonda) {
+    attempts?.push({ provider: r.provider, configured: r.configured, error: r.error });
+  }
+  const exitoPrimeraRonda = primeraRonda.find((r) => r.text);
+  if (exitoPrimeraRonda) return exitoPrimeraRonda.text;
+  const groqRes = await intentarGroq(prompt, maxTokens);
+  attempts?.push({ provider: groqRes.provider, configured: groqRes.configured, error: groqRes.error });
+  if (groqRes.text) return groqRes.text;
+  const claudeRes = await intentarClaude(prompt, maxTokens);
+  attempts?.push({ provider: claudeRes.provider, configured: claudeRes.configured, error: claudeRes.error });
+  if (claudeRes.text) return claudeRes.text;
   return null;
 }
 async function responderCopilotoLegislativo(params) {
@@ -189318,6 +189328,22 @@ function getAIProvidersStatus() {
     openrouter: Boolean(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY !== "MY_OPENROUTER_API_KEY"),
     claude: Boolean(process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_API_KEY !== "MY_ANTHROPIC_API_KEY" && !isClaudeQuotaExceeded),
     claudeQuotaExceeded: isClaudeQuotaExceeded
+  };
+}
+async function testearProveedoresIAReal() {
+  const promptTrivial = 'Responde solo con: {"ok":true}';
+  const [gemini, openrouter, groq, claude] = await Promise.all([
+    intentarGemini(promptTrivial, 30),
+    intentarOpenRouter(promptTrivial, 30),
+    intentarGroq(promptTrivial, 30),
+    intentarClaude(promptTrivial, 30)
+  ]);
+  const toResult = (r) => ({ configured: r.configured, ok: !!r.text, error: r.error });
+  return {
+    gemini: toResult(gemini),
+    openrouter: toResult(openrouter),
+    groq: toResult(groq),
+    claude: toResult(claude)
   };
 }
 
@@ -189765,7 +189791,9 @@ function generarFallbackOntologicoComparado(query) {
 }
 async function buscarDerechoComparado(q) {
   const cacheKey = `derecho_comparado_ia_${normalizarTexto2(q)}`;
-  return cache.wrap(cacheKey, 15 * 60 * 1e3, async () => {
+  const cached = cache.get(cacheKey);
+  if (cached) return cached;
+  const resultado = await (async () => {
     const fuentesConsultadas = [
       "Chile (LeyChile \u2014 Biblioteca del Congreso Nacional)",
       "Uni\xF3n Europea (EUR-Lex \u2014 Diario Oficial de la UE)",
@@ -189826,7 +189854,11 @@ async function buscarDerechoComparado(q) {
       fuentesFallidas,
       aiDiagnostics: aiAttempts
     };
-  });
+  })();
+  if (resultado.fuentesFallidas.length === 0) {
+    cache.set(cacheKey, resultado, 15 * 60 * 1e3);
+  }
+  return resultado;
 }
 function extraerPuntosHeuristicos(query, resultado, texto) {
   const puntos = [];
@@ -191958,7 +191990,7 @@ var apiRouter = Router();
 var ALERTA_ITEMS = [];
 var liveDiscoveredProyectos = [];
 apiRouter.get("/health", async (req, res) => {
-  const aiStatus = getAIProvidersStatus();
+  const aiStatus = req.query.real === "true" ? await testearProveedoresIAReal() : getAIProvidersStatus();
   const cacheStats = cache.getStats();
   let senadoOk = false;
   let camaraOk = false;
