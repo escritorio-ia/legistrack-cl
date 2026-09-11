@@ -359,16 +359,21 @@ export async function fetchProyectoFromSenado(boletinId: string): Promise<Proyec
         });
       }
 
+      // Nombres de tag reales del XML (verificados contra la respuesta real del
+      // servicio): <LINK_INFORME>, <TRAMITE>, <FECHAINFORME> para informes;
+      // <LINK_OFICIO>, <TIPO>, <FECHA> para oficios. Los nombres usados antes
+      // (LINK, TIPODOC, FECHADEVOLUCION) no existen en la respuesta real, asi
+      // que "url" siempre quedaba vacio y estos documentos eran inutilizables.
       const informesBlock = extractTag(xml, "informes");
       if (informesBlock) {
-        const informesList = extractAll(informesBlock, "informe");
-        informesList.forEach((inf, idx) => {
-          const link = extractTag(inf, "LINK");
-          const tipoDoc = extractTag(inf, "TIPODOC") || "Informe";
-          const fecha = extractTag(inf, "FECHADEVOLUCION") || fechaIngreso;
+        extractAll(informesBlock, "informe").forEach((inf, idx) => {
+          const link = extractTag(inf, "LINK_INFORME");
+          const tramite = extractTag(inf, "TRAMITE") || "Informe";
+          const etapa = extractTag(inf, "ETAPA") || "";
+          const fecha = extractTag(inf, "FECHAINFORME") || fechaIngreso;
           documentos.push({
             id: `doc-${digits}-inf-${idx}`,
-            titulo: `${tipoDoc} de Comisión`,
+            titulo: `${tramite}${etapa ? ` (${etapa})` : ""}`,
             tipo: "Informe",
             fecha,
             url: link
@@ -380,12 +385,13 @@ export async function fetchProyectoFromSenado(boletinId: string): Promise<Proyec
       if (oficiosBlock) {
         const oficiosList = extractAll(oficiosBlock, "oficio");
         oficiosList.forEach((of, idx) => {
-          const link = extractTag(of, "LINK");
-          const tipoDoc = extractTag(of, "TIPODOC") || "Oficio";
-          const fecha = extractTag(of, "FECHADEVOLUCION") || fechaIngreso;
+          const link = extractTag(of, "LINK_OFICIO");
+          const tipoDoc = extractTag(of, "TIPO") || "Oficio";
+          const fecha = extractTag(of, "FECHA") || fechaIngreso;
+          const descripcion = extractTag(of, "DESCRIPCION");
           documentos.push({
             id: `doc-${digits}-of-${idx}`,
-            titulo: `${tipoDoc} de Trámite`,
+            titulo: descripcion ? `${tipoDoc}: ${descripcion.slice(0, 80)}` : `${tipoDoc} de Trámite`,
             tipo: "Oficio",
             fecha,
             url: link

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { generarContenidoUniversalIA, safeJsonParse } from "./aiService";
+import { generarContenidoUniversalIA, safeJsonParse, AIProviderAttempt } from "./aiService";
 import { cache } from "./cacheService";
 
 export const LEYCHILE_API_KEY = process.env.LEYCHILE_API_KEY || "qW5yv690wb8WIEq1wN08HsHZur4MyrSSrhLgcXdstNZwtJ3Fihfu3baz4y3uYlCb";
@@ -285,11 +285,11 @@ export async function buscarLeyChilePorNumero(numLey: string): Promise<Resultado
 /**
  * Motor de IA para identificar legislación comparada internacional precisa
  */
-export async function buscarComparadoConIA(query: string): Promise<ResultadoComparado[]> {
+export async function buscarComparadoConIA(query: string, attempts?: AIProviderAttempt[]): Promise<ResultadoComparado[]> {
   const prompt = `Actúa como un analista experto en Derecho Comparado y Asesoría Técnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile (BCN).
-Para la materia, concepto o ámbito regulatorio: "${query}", identifica entre 6 y 10 marcos normativos e iniciativas legales REALES, VIGENTES O EN TRÁMITE en ordenamientos jurídicos comparados internacionales (NO incluyas a Chile, pues Chile se consulta por separado).
+Para la materia, concepto o ámbito regulatorio: "${query}", identifica entre 5 y 7 marcos normativos e iniciativas legales REALES, VIGENTES O EN TRÁMITE en ordenamientos jurídicos comparados internacionales (NO incluyas a Chile, pues Chile se consulta por separado).
 
-Debes cubrir diversas jurisdicciones de referencia técnica parlamentaria:
+Cubre distintas jurisdicciones de referencia técnica parlamentaria (elige las 5 a 7 más pertinentes a la materia, no listes todas):
 - Unión Europea (Directivas, Reglamentos EUR-Lex)
 - España (Leyes Orgánicas, Reales Decretos BOE)
 - Estados Unidos (Federal Acts, Code of Federal Regulations, Executive Orders)
@@ -299,38 +299,35 @@ Debes cubrir diversas jurisdicciones de referencia técnica parlamentaria:
 - Iberoamérica (Colombia, México, Uruguay, Argentina o Brasil)
 - OCDE / Asia-Pacífico (Japón, Australia o Canadá)
 
-Para CADA país, responde ÚNICAMENTE con un arreglo JSON válido sin texto adicional, donde cada objeto tenga este esquema exacto:
-[
-  {
-    "pais": "Nombre del país o entidad (ej: Unión Europea, España, Estados Unidos, Alemania, Francia, Reino Unido, Colombia)",
-    "fuente": "Nombre del repositorio oficial (ej: EUR-Lex — Diario Oficial de la UE, BOE — Boletín Oficial del Estado, Congress.gov — U.S. Code)",
-    "titulo": "Título formal y número de la ley o reglamento",
-    "tituloOriginal": "Título original en idioma nativo (opcional si es español)",
-    "fecha": "Año de aprobación o entrada en vigencia (ej: 2024)",
-    "url": "Enlace oficial o portal gubernamental de referencia",
-    "tipo": "Ley | Reglamento | Directiva | Jurisprudencia",
-    "descripcion": "🎯 Objeto & Ámbito: Breve síntesis del objetivo principal.\\n⚙️ Mecanismos Clave: Principales deberes e instrumentos regulatorios.\\n⚖️ Fiscalización & Sanciones: Órgano a cargo y tipo de sanciones.\\n💡 Lección para Chile: Aporte concreto para el debate legislativo en el Congreso Nacional.",
-    "relevancia": 95
-  }
-]`;
+Responde ÚNICAMENTE con un arreglo JSON válido, compacto (sin saltos de línea ni indentación innecesarios) y SIN texto adicional antes ni después, donde cada objeto tenga este esquema exacto:
+[{"pais":"Nombre del país o entidad","fuente":"Nombre del repositorio oficial (ej: EUR-Lex, BOE, Congress.gov)","titulo":"Título formal y número REAL de la ley o reglamento (no inventes un título genérico)","tituloOriginal":"Título original en idioma nativo si no es español","fecha":"Año de aprobación o entrada en vigencia","url":"Enlace oficial real o portal gubernamental de referencia","tipo":"Ley | Reglamento | Directiva | Jurisprudencia","descripcion":"🎯 Objeto & Ámbito: síntesis breve.\\n⚙️ Mecanismos Clave: deberes e instrumentos.\\n⚖️ Fiscalización & Sanciones: órgano y sanciones.\\n💡 Lección para Chile: aporte concreto.","relevancia":95}]
+
+Manten cada "descripcion" concisa (maximo 3-4 lineas por punto) para que el JSON completo no exceda el limite de salida.`;
 
   try {
-    const aiResponse = await generarContenidoUniversalIA(prompt, 2500);
+    const aiResponse = await generarContenidoUniversalIA(prompt, 4000, attempts);
     if (aiResponse) {
-      const parsed = safeJsonParse<ResultadoComparado[]>(aiResponse);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.map((item) => ({
-          ...item,
-          tipo: item.tipo || inferirTipoNorma(item.titulo || ""),
-          relevancia: item.relevancia || relevanciaPorCoincidencia(query, item)
-        }));
+      try {
+        const parsed = safeJsonParse<ResultadoComparado[]>(aiResponse);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((item) => ({
+            ...item,
+            tipo: item.tipo || inferirTipoNorma(item.titulo || ""),
+            relevancia: item.relevancia || relevanciaPorCoincidencia(query, item)
+          }));
+        }
+      } catch (parseErr: any) {
+        console.warn("[Derecho Comparado IA] La respuesta del modelo no es JSON válido:", parseErr.message, "-- inicio de la respuesta:", aiResponse.slice(0, 300));
+        attempts?.push({ provider: "json-parse", configured: true, error: parseErr.message });
       }
     }
   } catch (err: any) {
     console.warn("[Derecho Comparado IA] Error al consultar modelo de IA:", err.message);
   }
 
-  // Si la IA falla o no está disponible, utilizamos el sintetizador de ontología legal comparada
+  // Si la IA falla, no responde JSON valido, o no esta disponible, usamos el
+  // sintetizador de ontologia legal comparada como ultimo recurso.
+  attempts?.push({ provider: "fallback-ontologico", configured: true });
   return generarFallbackOntologicoComparado(query);
 }
 
@@ -544,6 +541,7 @@ export async function buscarDerechoComparado(q: string): Promise<{
   resultados: ResultadoComparado[];
   fuentesConsultadas: string[];
   fuentesFallidas: string[];
+  aiDiagnostics: AIProviderAttempt[];
 }> {
   const cacheKey = `derecho_comparado_ia_${normalizarTexto(q)}`;
   return cache.wrap(cacheKey, 15 * 60 * 1000, async () => {
@@ -559,13 +557,14 @@ export async function buscarDerechoComparado(q: string): Promise<{
       "OCDE / Global (Asesoría Técnica Parlamentaria BCN)"
     ];
     const fuentesFallidas: string[] = [];
+    const aiAttempts: AIProviderAttempt[] = [];
 
     // Ejecutamos en paralelo:
     // 1. Consulta oficial en LeyChile (Chile)
     // 2. Motor de IA comparada internacional (Unión Europea, España, EE.UU., Alemania, Francia, etc.)
     const [chileResult, iaResult] = await Promise.allSettled([
       buscarChile(q),
-      buscarComparadoConIA(q)
+      buscarComparadoConIA(q, aiAttempts)
     ]);
 
     const resultados: ResultadoComparado[] = [];
@@ -587,9 +586,17 @@ export async function buscarDerechoComparado(q: string): Promise<{
       });
     }
 
-    // 2. Incorporar resultados internacionales con IA
+    // 2. Incorporar resultados internacionales con IA. buscarComparadoConIA ya
+    // devuelve un arreglo no-vacío incluso cuando usa su propio respaldo
+    // ontológico (para no romper la UI), así que la única forma confiable de
+    // saber si fue un resultado REAL de IA es revisar aiAttempts en vez de
+    // solo comprobar que el arreglo no esté vacío.
+    const usoRespaldoOntologico = aiAttempts.some(a => a.provider === "fallback-ontologico");
     if (iaResult.status === "fulfilled" && iaResult.value.length > 0) {
       resultados.push(...iaResult.value);
+      if (usoRespaldoOntologico) {
+        fuentesFallidas.push("Motor de IA (usando base de conocimiento de respaldo)");
+      }
     } else {
       fuentesFallidas.push("Filtro AI temporal");
       resultados.push(...generarFallbackOntologicoComparado(q));
@@ -612,7 +619,8 @@ export async function buscarDerechoComparado(q: string): Promise<{
     return {
       resultados,
       fuentesConsultadas,
-      fuentesFallidas
+      fuentesFallidas,
+      aiDiagnostics: aiAttempts
     };
   });
 }

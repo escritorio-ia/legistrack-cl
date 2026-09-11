@@ -188291,14 +188291,14 @@ async function fetchProyectoFromSenado(boletinId) {
       }
       const informesBlock = extractTag(xml, "informes");
       if (informesBlock) {
-        const informesList = extractAll(informesBlock, "informe");
-        informesList.forEach((inf, idx) => {
-          const link = extractTag(inf, "LINK");
-          const tipoDoc = extractTag(inf, "TIPODOC") || "Informe";
-          const fecha = extractTag(inf, "FECHADEVOLUCION") || fechaIngreso;
+        extractAll(informesBlock, "informe").forEach((inf, idx) => {
+          const link = extractTag(inf, "LINK_INFORME");
+          const tramite = extractTag(inf, "TRAMITE") || "Informe";
+          const etapa2 = extractTag(inf, "ETAPA") || "";
+          const fecha = extractTag(inf, "FECHAINFORME") || fechaIngreso;
           documentos.push({
             id: `doc-${digits}-inf-${idx}`,
-            titulo: `${tipoDoc} de Comisi\xF3n`,
+            titulo: `${tramite}${etapa2 ? ` (${etapa2})` : ""}`,
             tipo: "Informe",
             fecha,
             url: link
@@ -188309,12 +188309,13 @@ async function fetchProyectoFromSenado(boletinId) {
       if (oficiosBlock) {
         const oficiosList = extractAll(oficiosBlock, "oficio");
         oficiosList.forEach((of, idx) => {
-          const link = extractTag(of, "LINK");
-          const tipoDoc = extractTag(of, "TIPODOC") || "Oficio";
-          const fecha = extractTag(of, "FECHADEVOLUCION") || fechaIngreso;
+          const link = extractTag(of, "LINK_OFICIO");
+          const tipoDoc = extractTag(of, "TIPO") || "Oficio";
+          const fecha = extractTag(of, "FECHA") || fechaIngreso;
+          const descripcion = extractTag(of, "DESCRIPCION");
           documentos.push({
             id: `doc-${digits}-of-${idx}`,
-            titulo: `${tipoDoc} de Tr\xE1mite`,
+            titulo: descripcion ? `${tipoDoc}: ${descripcion.slice(0, 80)}` : `${tipoDoc} de Tr\xE1mite`,
             tipo: "Oficio",
             fecha,
             url: link
@@ -189486,11 +189487,11 @@ async function buscarLeyChilePorNumero(numLey) {
     return null;
   }
 }
-async function buscarComparadoConIA(query) {
+async function buscarComparadoConIA(query, attempts) {
   const prompt = `Act\xFAa como un analista experto en Derecho Comparado y Asesor\xEDa T\xE9cnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile (BCN).
-Para la materia, concepto o \xE1mbito regulatorio: "${query}", identifica entre 6 y 10 marcos normativos e iniciativas legales REALES, VIGENTES O EN TR\xC1MITE en ordenamientos jur\xEDdicos comparados internacionales (NO incluyas a Chile, pues Chile se consulta por separado).
+Para la materia, concepto o \xE1mbito regulatorio: "${query}", identifica entre 5 y 7 marcos normativos e iniciativas legales REALES, VIGENTES O EN TR\xC1MITE en ordenamientos jur\xEDdicos comparados internacionales (NO incluyas a Chile, pues Chile se consulta por separado).
 
-Debes cubrir diversas jurisdicciones de referencia t\xE9cnica parlamentaria:
+Cubre distintas jurisdicciones de referencia t\xE9cnica parlamentaria (elige las 5 a 7 m\xE1s pertinentes a la materia, no listes todas):
 - Uni\xF3n Europea (Directivas, Reglamentos EUR-Lex)
 - Espa\xF1a (Leyes Org\xE1nicas, Reales Decretos BOE)
 - Estados Unidos (Federal Acts, Code of Federal Regulations, Executive Orders)
@@ -189500,35 +189501,31 @@ Debes cubrir diversas jurisdicciones de referencia t\xE9cnica parlamentaria:
 - Iberoam\xE9rica (Colombia, M\xE9xico, Uruguay, Argentina o Brasil)
 - OCDE / Asia-Pac\xEDfico (Jap\xF3n, Australia o Canad\xE1)
 
-Para CADA pa\xEDs, responde \xDANICAMENTE con un arreglo JSON v\xE1lido sin texto adicional, donde cada objeto tenga este esquema exacto:
-[
-  {
-    "pais": "Nombre del pa\xEDs o entidad (ej: Uni\xF3n Europea, Espa\xF1a, Estados Unidos, Alemania, Francia, Reino Unido, Colombia)",
-    "fuente": "Nombre del repositorio oficial (ej: EUR-Lex \u2014 Diario Oficial de la UE, BOE \u2014 Bolet\xEDn Oficial del Estado, Congress.gov \u2014 U.S. Code)",
-    "titulo": "T\xEDtulo formal y n\xFAmero de la ley o reglamento",
-    "tituloOriginal": "T\xEDtulo original en idioma nativo (opcional si es espa\xF1ol)",
-    "fecha": "A\xF1o de aprobaci\xF3n o entrada en vigencia (ej: 2024)",
-    "url": "Enlace oficial o portal gubernamental de referencia",
-    "tipo": "Ley | Reglamento | Directiva | Jurisprudencia",
-    "descripcion": "\u{1F3AF} Objeto & \xC1mbito: Breve s\xEDntesis del objetivo principal.\\n\u2699\uFE0F Mecanismos Clave: Principales deberes e instrumentos regulatorios.\\n\u2696\uFE0F Fiscalizaci\xF3n & Sanciones: \xD3rgano a cargo y tipo de sanciones.\\n\u{1F4A1} Lecci\xF3n para Chile: Aporte concreto para el debate legislativo en el Congreso Nacional.",
-    "relevancia": 95
-  }
-]`;
+Responde \xDANICAMENTE con un arreglo JSON v\xE1lido, compacto (sin saltos de l\xEDnea ni indentaci\xF3n innecesarios) y SIN texto adicional antes ni despu\xE9s, donde cada objeto tenga este esquema exacto:
+[{"pais":"Nombre del pa\xEDs o entidad","fuente":"Nombre del repositorio oficial (ej: EUR-Lex, BOE, Congress.gov)","titulo":"T\xEDtulo formal y n\xFAmero REAL de la ley o reglamento (no inventes un t\xEDtulo gen\xE9rico)","tituloOriginal":"T\xEDtulo original en idioma nativo si no es espa\xF1ol","fecha":"A\xF1o de aprobaci\xF3n o entrada en vigencia","url":"Enlace oficial real o portal gubernamental de referencia","tipo":"Ley | Reglamento | Directiva | Jurisprudencia","descripcion":"\u{1F3AF} Objeto & \xC1mbito: s\xEDntesis breve.\\n\u2699\uFE0F Mecanismos Clave: deberes e instrumentos.\\n\u2696\uFE0F Fiscalizaci\xF3n & Sanciones: \xF3rgano y sanciones.\\n\u{1F4A1} Lecci\xF3n para Chile: aporte concreto.","relevancia":95}]
+
+Manten cada "descripcion" concisa (maximo 3-4 lineas por punto) para que el JSON completo no exceda el limite de salida.`;
   try {
-    const aiResponse = await generarContenidoUniversalIA(prompt, 2500);
+    const aiResponse = await generarContenidoUniversalIA(prompt, 4e3, attempts);
     if (aiResponse) {
-      const parsed = safeJsonParse(aiResponse);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.map((item) => ({
-          ...item,
-          tipo: item.tipo || inferirTipoNorma(item.titulo || ""),
-          relevancia: item.relevancia || relevanciaPorCoincidencia(query, item)
-        }));
+      try {
+        const parsed = safeJsonParse(aiResponse);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((item) => ({
+            ...item,
+            tipo: item.tipo || inferirTipoNorma(item.titulo || ""),
+            relevancia: item.relevancia || relevanciaPorCoincidencia(query, item)
+          }));
+        }
+      } catch (parseErr) {
+        console.warn("[Derecho Comparado IA] La respuesta del modelo no es JSON v\xE1lido:", parseErr.message, "-- inicio de la respuesta:", aiResponse.slice(0, 300));
+        attempts?.push({ provider: "json-parse", configured: true, error: parseErr.message });
       }
     }
   } catch (err) {
     console.warn("[Derecho Comparado IA] Error al consultar modelo de IA:", err.message);
   }
+  attempts?.push({ provider: "fallback-ontologico", configured: true });
   return generarFallbackOntologicoComparado(query);
 }
 function generarFallbackOntologicoComparado(query) {
@@ -189753,9 +189750,10 @@ async function buscarDerechoComparado(q) {
       "OCDE / Global (Asesor\xEDa T\xE9cnica Parlamentaria BCN)"
     ];
     const fuentesFallidas = [];
+    const aiAttempts = [];
     const [chileResult, iaResult] = await Promise.allSettled([
       buscarChile(q),
-      buscarComparadoConIA(q)
+      buscarComparadoConIA(q, aiAttempts)
     ]);
     const resultados = [];
     if (chileResult.status === "fulfilled" && chileResult.value.length > 0) {
@@ -189774,8 +189772,12 @@ async function buscarDerechoComparado(q) {
         relevancia: 99
       });
     }
+    const usoRespaldoOntologico = aiAttempts.some((a) => a.provider === "fallback-ontologico");
     if (iaResult.status === "fulfilled" && iaResult.value.length > 0) {
       resultados.push(...iaResult.value);
+      if (usoRespaldoOntologico) {
+        fuentesFallidas.push("Motor de IA (usando base de conocimiento de respaldo)");
+      }
     } else {
       fuentesFallidas.push("Filtro AI temporal");
       resultados.push(...generarFallbackOntologicoComparado(q));
@@ -189793,7 +189795,8 @@ async function buscarDerechoComparado(q) {
     return {
       resultados,
       fuentesConsultadas,
-      fuentesFallidas
+      fuentesFallidas,
+      aiDiagnostics: aiAttempts
     };
   });
 }
