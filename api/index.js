@@ -189421,13 +189421,11 @@ function sintetizarResumenNorma(titulo, pais, tipo) {
 }
 function inferirTipoNorma(titulo) {
   const t = titulo.toLowerCase();
-  if (/ordenanza|ordinance|bylaw|by-law|satzung/.test(t)) return "Ordenanza";
-  if (/reglamento|regulation|verordnung|règlement/.test(t)) return "Reglamento";
-  if (/sentencia|jurisprudencia|fallo|ruling|judgment|arrêt/.test(t)) return "Jurisprudencia";
-  if (/decreto|resolución|resolucion|resolution|orden administrativa|directive|directiva/.test(t)) return "Directiva";
-  if (/proyecto de ley|bill\b/.test(t)) return "Proyecto de Ley";
-  if (/^ley\b|^lei\b|^loi\b|^act\b| ley | acta /.test(t) || /\bley\b|\bact\b/.test(t)) return "Ley";
-  return "Normativa";
+  if (/sentencia|jurisprudencia|fallo\b|ruling|judgment|arrêt|corte (suprema|constitucional)|tribunal/.test(t)) return "Jurisprudencia";
+  if (/proyecto de ley|^ley\b|^lei\b|^loi\b|^act\b| ley | acta |\bley\b|\bact\b|estatuto federal|ley org[aá]nica|ley marco/.test(t)) return "Ley";
+  if (/reglamento|regulation|verordnung|règlement|regulations\b/.test(t)) return "Reglamento";
+  if (/ordenanza|ordinance|bylaw|by-law|satzung|decreto|resoluci[oó]n|resolution|orden administrativa|directiva|directive|circular|instructivo/.test(t)) return "Administrativo";
+  return "Documento";
 }
 function relevanciaPorCoincidencia(q, r) {
   const normQ = normalizarTexto2(q);
@@ -189558,10 +189556,15 @@ Cubre distintas jurisdicciones de referencia t\xE9cnica parlamentaria (elige las
 - OCDE / Asia-Pac\xEDfico (Jap\xF3n, Australia o Canad\xE1)
 
 Responde \xDANICAMENTE con un arreglo JSON v\xE1lido, compacto (sin saltos de l\xEDnea ni indentaci\xF3n innecesarios) y SIN texto adicional antes ni despu\xE9s, donde cada objeto tenga este esquema exacto:
-[{"pais":"Nombre del pa\xEDs o entidad","fuente":"Nombre del repositorio oficial (ej: EUR-Lex, BOE, Congress.gov)","titulo":"T\xEDtulo formal y n\xFAmero REAL de la ley o reglamento (no inventes un t\xEDtulo gen\xE9rico)","tituloOriginal":"T\xEDtulo original en idioma nativo si no es espa\xF1ol","fecha":"A\xF1o de aprobaci\xF3n o entrada en vigencia","url":"Enlace oficial real o portal gubernamental de referencia","tipo":"Ley | Reglamento | Directiva | Ordenanza | Jurisprudencia | Proyecto de Ley","descripcion":"\u{1F3AF} Objeto & \xC1mbito: s\xEDntesis breve.\\n\u2699\uFE0F Mecanismos Clave: deberes e instrumentos.\\n\u2696\uFE0F Fiscalizaci\xF3n & Sanciones: \xF3rgano y sanciones.\\n\u{1F4A1} Lecci\xF3n para Chile: aporte concreto.","relevancia":95}]
+[{"pais":"Nombre del pa\xEDs o entidad","fuente":"Nombre del repositorio oficial (ej: EUR-Lex, BOE, Congress.gov)","titulo":"T\xEDtulo formal y n\xFAmero REAL de la norma (no inventes un t\xEDtulo gen\xE9rico)","tituloOriginal":"T\xEDtulo original en idioma nativo si no es espa\xF1ol","fecha":"A\xF1o de aprobaci\xF3n o entrada en vigencia","url":"Enlace oficial real o portal gubernamental de referencia","tipo":"Ley | Reglamento | Jurisprudencia | Administrativo | Documento","descripcion":"\u{1F3AF} Objeto & \xC1mbito: s\xEDntesis breve.\\n\u2699\uFE0F Mecanismos Clave: deberes e instrumentos.\\n\u2696\uFE0F Fiscalizaci\xF3n & Sanciones: \xF3rgano y sanciones.\\n\u{1F4A1} Lecci\xF3n para Chile: aporte concreto.","relevancia":95}]
 
 Manten cada "descripcion" concisa (maximo 3-4 lineas por punto) para que el JSON completo no exceda el limite de salida.
-IMPORTANTE: clasifica el campo "tipo" con precisi\xF3n seg\xFAn la jerarqu\xEDa normativa real \u2014 una ordenanza municipal/local NO es una "Ley"; usa "Ordenanza" para normas de gobiernos locales o municipales, "Reglamento" para normas administrativas de ejecuci\xF3n, "Directiva" para normas de la UE u orientaciones administrativas, y "Ley" \xFAnicamente para normas aprobadas por el Congreso/Parlamento nacional.`;
+IMPORTANTE: clasifica el campo "tipo" usando EXCLUSIVAMENTE una de estas 5 categor\xEDas, seg\xFAn la jerarqu\xEDa normativa real:
+- "Ley": norma aprobada por el Congreso/Parlamento nacional o su equivalente estatal (leyes org\xE1nicas, actos, estatutos federales).
+- "Reglamento": norma de ejecuci\xF3n o desarrollo de una ley, de alcance general (reglamentos, regulations).
+- "Jurisprudencia": sentencias, fallos o resoluciones de tribunales.
+- "Administrativo": decretos, resoluciones, ordenanzas municipales/locales, directivas de organismos administrativos y circulares. Una ordenanza municipal NUNCA es "Ley".
+- "Documento": informes, minutas, estudios t\xE9cnicos u otro texto de referencia sin fuerza normativa vinculante propia.`;
   const intentarUnaVez = async (p) => {
     const aiResponse = await generarContenidoUniversalIA(p, 4e3, attempts);
     if (!aiResponse) return null;
@@ -189605,7 +189608,7 @@ function generarFallbackOntologicoComparado(query) {
         titulo: "Directiva (UE) 2024/1788 relativa a normas comunes para los mercados del gas natural y del hidr\xF3geno",
         fecha: "2024",
         url: "https://eur-lex.europa.eu/eli/dir/2024/1788/oj",
-        tipo: "Directiva",
+        tipo: "Administrativo",
         descripcion: "\u{1F3AF} Objeto & \xC1mbito: Establece el marco regulatorio del mercado interior de hidr\xF3geno renovable y gases descarbonizados en toda la UE.\n\u2699\uFE0F Mecanismos Clave: Certificaci\xF3n de hidr\xF3geno verde (RFNBO), acceso de terceros a gasoductos y tarifas no discriminatorias.\n\u2696\uFE0F Fiscalizaci\xF3n & Sanciones: Supervisado por la Agencia de Cooperaci\xF3n de los Reguladores de la Energ\xEDa (ACER).\n\u{1F4A1} Lecci\xF3n para Chile: Fundamental para regular el transporte por ductos y plantas desaladoras en Antofagasta y Magallanes.",
         relevancia: 98
       },
@@ -189728,7 +189731,7 @@ function generarFallbackOntologicoComparado(query) {
       titulo: `Directiva y Marco Regulatorio Armonizado sobre ${conceptoMayus}`,
       fecha: "2024",
       url: "https://eur-lex.europa.eu/homepage.html",
-      tipo: "Directiva",
+      tipo: "Administrativo",
       descripcion: `\u{1F3AF} Objeto & \xC1mbito: Directiva comunitaria que armoniza los est\xE1ndares m\xEDnimos, licencias de operaci\xF3n y principios de precauci\xF3n en torno a ${conceptoLimpio}.
 \u2699\uFE0F Mecanismos Clave: Obligaci\xF3n de evaluaci\xF3n de riesgos previa, registros p\xFAblicos unificados y protocolos de transparencia.
 \u2696\uFE0F Fiscalizaci\xF3n & Sanciones: Comit\xE9 Europeo de Supervisi\xF3n y autoridades nacionales competentes con sanciones administrativas disuasorias.

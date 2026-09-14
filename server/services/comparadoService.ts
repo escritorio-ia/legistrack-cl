@@ -137,15 +137,27 @@ export function sintetizarResumenNorma(titulo: string, pais: string, tipo?: stri
   return `🎯 Objeto & Ámbito: ${tipoNorma} de ${pais} que regula el marco jurídico relativo a ${materia.toLowerCase()}.\n⚙️ Mecanismos Clave: Dispone directrices operativas y deberes de cumplimiento institucional.\n⚖️ Fiscalización & Cumplimiento: Supervisado bajo los órganos competentes de ${pais}.\n💡 Lección para Chile: Referente útil para el debate y técnica legislativa en comisiones del Congreso.`;
 }
 
-export function inferirTipoNorma(titulo: string): string {
+/**
+ * Taxonomía estándar de tipos de norma usada en toda la sección de Derecho
+ * Comparado: Ley | Reglamento | Jurisprudencia | Administrativo | Documento.
+ * Cualquier variante más específica (ordenanza, directiva, decreto, etc.) se
+ * mapea a una de estas 5 categorías para que el filtro de la UI sea consistente.
+ */
+export const TIPOS_NORMA = ["Ley", "Reglamento", "Jurisprudencia", "Administrativo", "Documento"] as const;
+export type TipoNorma = typeof TIPOS_NORMA[number];
+
+export function inferirTipoNorma(titulo: string): TipoNorma {
   const t = titulo.toLowerCase();
-  if (/ordenanza|ordinance|bylaw|by-law|satzung/.test(t)) return "Ordenanza";
-  if (/reglamento|regulation|verordnung|règlement/.test(t)) return "Reglamento";
-  if (/sentencia|jurisprudencia|fallo|ruling|judgment|arrêt/.test(t)) return "Jurisprudencia";
-  if (/decreto|resolución|resolucion|resolution|orden administrativa|directive|directiva/.test(t)) return "Directiva";
-  if (/proyecto de ley|bill\b/.test(t)) return "Proyecto de Ley";
-  if (/^ley\b|^lei\b|^loi\b|^act\b| ley | acta /.test(t) || /\bley\b|\bact\b/.test(t)) return "Ley";
-  return "Normativa";
+  // Jurisprudencia: fallos y sentencias de tribunales
+  if (/sentencia|jurisprudencia|fallo\b|ruling|judgment|arrêt|corte (suprema|constitucional)|tribunal/.test(t)) return "Jurisprudencia";
+  // Ley: normas aprobadas por el Congreso/Parlamento nacional (o su equivalente estatal)
+  if (/proyecto de ley|^ley\b|^lei\b|^loi\b|^act\b| ley | acta |\bley\b|\bact\b|estatuto federal|ley org[aá]nica|ley marco/.test(t)) return "Ley";
+  // Reglamento: normas de ejecución/desarrollo de una ley, de alcance general
+  if (/reglamento|regulation|verordnung|règlement|regulations\b/.test(t)) return "Reglamento";
+  // Administrativo: ordenanzas, decretos, resoluciones, directivas y demás actos de la administración
+  if (/ordenanza|ordinance|bylaw|by-law|satzung|decreto|resoluci[oó]n|resolution|orden administrativa|directiva|directive|circular|instructivo/.test(t)) return "Administrativo";
+  // Documento: informes, minutas, estudios y cualquier otro texto que no sea norma con fuerza vinculante propia
+  return "Documento";
 }
 
 export function relevanciaPorCoincidencia(q: string, r: ResultadoComparado): number {
@@ -302,10 +314,15 @@ Cubre distintas jurisdicciones de referencia técnica parlamentaria (elige las 5
 - OCDE / Asia-Pacífico (Japón, Australia o Canadá)
 
 Responde ÚNICAMENTE con un arreglo JSON válido, compacto (sin saltos de línea ni indentación innecesarios) y SIN texto adicional antes ni después, donde cada objeto tenga este esquema exacto:
-[{"pais":"Nombre del país o entidad","fuente":"Nombre del repositorio oficial (ej: EUR-Lex, BOE, Congress.gov)","titulo":"Título formal y número REAL de la ley o reglamento (no inventes un título genérico)","tituloOriginal":"Título original en idioma nativo si no es español","fecha":"Año de aprobación o entrada en vigencia","url":"Enlace oficial real o portal gubernamental de referencia","tipo":"Ley | Reglamento | Directiva | Ordenanza | Jurisprudencia | Proyecto de Ley","descripcion":"🎯 Objeto & Ámbito: síntesis breve.\\n⚙️ Mecanismos Clave: deberes e instrumentos.\\n⚖️ Fiscalización & Sanciones: órgano y sanciones.\\n💡 Lección para Chile: aporte concreto.","relevancia":95}]
+[{"pais":"Nombre del país o entidad","fuente":"Nombre del repositorio oficial (ej: EUR-Lex, BOE, Congress.gov)","titulo":"Título formal y número REAL de la norma (no inventes un título genérico)","tituloOriginal":"Título original en idioma nativo si no es español","fecha":"Año de aprobación o entrada en vigencia","url":"Enlace oficial real o portal gubernamental de referencia","tipo":"Ley | Reglamento | Jurisprudencia | Administrativo | Documento","descripcion":"🎯 Objeto & Ámbito: síntesis breve.\\n⚙️ Mecanismos Clave: deberes e instrumentos.\\n⚖️ Fiscalización & Sanciones: órgano y sanciones.\\n💡 Lección para Chile: aporte concreto.","relevancia":95}]
 
 Manten cada "descripcion" concisa (maximo 3-4 lineas por punto) para que el JSON completo no exceda el limite de salida.
-IMPORTANTE: clasifica el campo "tipo" con precisión según la jerarquía normativa real — una ordenanza municipal/local NO es una "Ley"; usa "Ordenanza" para normas de gobiernos locales o municipales, "Reglamento" para normas administrativas de ejecución, "Directiva" para normas de la UE u orientaciones administrativas, y "Ley" únicamente para normas aprobadas por el Congreso/Parlamento nacional.`;
+IMPORTANTE: clasifica el campo "tipo" usando EXCLUSIVAMENTE una de estas 5 categorías, según la jerarquía normativa real:
+- "Ley": norma aprobada por el Congreso/Parlamento nacional o su equivalente estatal (leyes orgánicas, actos, estatutos federales).
+- "Reglamento": norma de ejecución o desarrollo de una ley, de alcance general (reglamentos, regulations).
+- "Jurisprudencia": sentencias, fallos o resoluciones de tribunales.
+- "Administrativo": decretos, resoluciones, ordenanzas municipales/locales, directivas de organismos administrativos y circulares. Una ordenanza municipal NUNCA es "Ley".
+- "Documento": informes, minutas, estudios técnicos u otro texto de referencia sin fuerza normativa vinculante propia.`;
 
   const intentarUnaVez = async (p: string): Promise<ResultadoComparado[] | null> => {
     const aiResponse = await generarContenidoUniversalIA(p, 4000, attempts);
@@ -363,7 +380,7 @@ function generarFallbackOntologicoComparado(query: string): ResultadoComparado[]
         titulo: "Directiva (UE) 2024/1788 relativa a normas comunes para los mercados del gas natural y del hidrógeno",
         fecha: "2024",
         url: "https://eur-lex.europa.eu/eli/dir/2024/1788/oj",
-        tipo: "Directiva",
+        tipo: "Administrativo",
         descripcion: "🎯 Objeto & Ámbito: Establece el marco regulatorio del mercado interior de hidrógeno renovable y gases descarbonizados en toda la UE.\n⚙️ Mecanismos Clave: Certificación de hidrógeno verde (RFNBO), acceso de terceros a gasoductos y tarifas no discriminatorias.\n⚖️ Fiscalización & Sanciones: Supervisado por la Agencia de Cooperación de los Reguladores de la Energía (ACER).\n💡 Lección para Chile: Fundamental para regular el transporte por ductos y plantas desaladoras en Antofagasta y Magallanes.",
         relevancia: 98
       },
@@ -493,7 +510,7 @@ function generarFallbackOntologicoComparado(query: string): ResultadoComparado[]
       titulo: `Directiva y Marco Regulatorio Armonizado sobre ${conceptoMayus}`,
       fecha: "2024",
       url: "https://eur-lex.europa.eu/homepage.html",
-      tipo: "Directiva",
+      tipo: "Administrativo",
       descripcion: `🎯 Objeto & Ámbito: Directiva comunitaria que armoniza los estándares mínimos, licencias de operación y principios de precaución en torno a ${conceptoLimpio}.\n⚙️ Mecanismos Clave: Obligación de evaluación de riesgos previa, registros públicos unificados y protocolos de transparencia.\n⚖️ Fiscalización & Sanciones: Comité Europeo de Supervisión y autoridades nacionales competentes con sanciones administrativas disuasorias.\n💡 Lección para Chile: Permite adoptar estándares internacionales alineados con los compromisos del Acuerdo Marco Chile-UE.`,
       relevancia: 96
     },
