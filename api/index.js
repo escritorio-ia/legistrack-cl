@@ -189138,6 +189138,7 @@ async function generarConGemini(prompt, maxTokens = 2e3) {
   throw lastErr;
 }
 var GROQ_MODELOS_CANDIDATOS = [
+  "openai/gpt-oss-120b",
   "llama-3.3-70b-versatile",
   "llama-3.1-8b-instant",
   "llama3-70b-8192",
@@ -189154,9 +189155,12 @@ async function llamarGroqConModelo(prompt, maxTokens, apiKey, model) {
     body: JSON.stringify({
       model,
       messages: [{ role: "user", content: prompt }],
-      max_tokens: maxTokens
+      // Los modelos "openai/gpt-oss-*" servidos por Groq exigen max_completion_tokens
+      // en vez de (o además de) max_tokens; se envían ambos por compatibilidad.
+      max_tokens: maxTokens,
+      max_completion_tokens: maxTokens
     }),
-    signal: AbortSignal.timeout(15e3)
+    signal: AbortSignal.timeout(2e4)
   });
   if (!res.ok) {
     const err = await res.text().catch(() => "");
