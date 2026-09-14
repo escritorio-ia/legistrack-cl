@@ -1407,20 +1407,6 @@ export default function LegislacionComparadaView() {
           <Globe className="w-96 h-96 text-blue-400" />
         </div>
         <div className="z-10 flex flex-col gap-2 max-w-3xl">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="bg-gradient-to-r from-indigo-500 to-blue-600 text-white font-extrabold px-3 py-1 text-2xs uppercase tracking-wider rounded-full font-mono flex items-center gap-1.5 shadow-md">
-              <Sparkles className="w-3 h-3" /> DERECHO COMPARADO++
-            </span>
-            <span className="bg-blue-700 text-white font-bold px-3 py-1 text-[10px] uppercase tracking-wider rounded-full font-mono flex items-center gap-1.5 shadow-xs">
-              <Scale className="w-3.5 h-3.5" /> Biblioteca del Congreso Nacional de Chile
-            </span>
-            <span className="bg-emerald-600 text-white font-bold px-3 py-1 text-[10px] uppercase tracking-wider rounded-full font-mono flex items-center gap-1.5 shadow-xs" title="API Oficial LeyChile BCN Conectada y Autenticada">
-              <Shield className="w-3.5 h-3.5" /> API Oficial LeyChile (BCN)
-            </span>
-            <span className="bg-slate-800 text-slate-300 font-bold px-3 py-1 text-[10px] uppercase tracking-wider rounded-full font-mono border border-slate-700">
-              Asesoría Técnica Parlamentaria
-            </span>
-          </div>
           <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-white">
             Derecho Comparado & Legislación Internacional
           </h1>
