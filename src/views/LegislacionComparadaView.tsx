@@ -2652,19 +2652,6 @@ export default function LegislacionComparadaView() {
         </div>
       )}
 
-      {/* Methodology Footer */}
-      <div className="bg-slate-50 border border-slate-200 p-6 rounded-2xl flex items-center gap-4 text-slate-600 mt-4">
-        <div className="w-12 h-12 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center shrink-0 font-bold text-lg font-mono">
-          BCN
-        </div>
-        <div className="flex flex-col gap-1">
-          <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Nota Aclaratoria Institucional</h4>
-          <p className="text-xs text-slate-500 leading-relaxed">
-            La Asesoría Técnica Parlamentaria apoya el trabajo de las Comisiones Legislativas del Congreso Nacional de Chile, proveyendo análisis normativo comparado y acceso verificado a fuentes legislativas oficiales internacionales (Creative Commons Atribución 3.0 CL).
-          </p>
-        </div>
-      </div>
-
     </div>
   );
 }
