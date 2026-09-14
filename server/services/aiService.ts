@@ -164,7 +164,11 @@ async function llamarGroqConModelo(prompt: string, maxTokens: number, apiKey: st
       // Los modelos "openai/gpt-oss-*" servidos por Groq exigen max_completion_tokens
       // en vez de (o además de) max_tokens; se envían ambos por compatibilidad.
       max_tokens: maxTokens,
-      max_completion_tokens: maxTokens
+      max_completion_tokens: maxTokens,
+      // gpt-oss-* son modelos de razonamiento: sin esto gastan el presupuesto de
+      // tokens en su "pensamiento" interno y devuelven contenido final vacío,
+      // sobre todo con maxTokens bajos (health checks, prompts cortos).
+      ...(model.startsWith("openai/gpt-oss") ? { reasoning_effort: "low" } : {})
     }),
     signal: AbortSignal.timeout(20000)
   });
@@ -442,7 +446,9 @@ export async function testearProveedoresIAReal(): Promise<Record<string, { confi
   const [gemini, openrouter, groq, claude] = await Promise.all([
     intentarGemini(promptTrivial, 30),
     intentarOpenRouter(promptTrivial, 30),
-    intentarGroq(promptTrivial, 30),
+    // Groq: se le da más presupuesto porque el modelo por defecto (gpt-oss, de
+    // razonamiento) puede consumir tokens en pensar antes de responder.
+    intentarGroq(promptTrivial, 200),
     intentarClaude(promptTrivial, 30)
   ]);
   const toResult = (r: ProviderRunResult) => ({ configured: r.configured, ok: !!r.text, error: r.error });
