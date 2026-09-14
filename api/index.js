@@ -189421,11 +189421,13 @@ function sintetizarResumenNorma(titulo, pais, tipo) {
 }
 function inferirTipoNorma(titulo) {
   const t = titulo.toLowerCase();
+  if (/ordenanza|ordinance|bylaw|by-law|satzung/.test(t)) return "Ordenanza";
   if (/reglamento|regulation|verordnung|règlement/.test(t)) return "Reglamento";
   if (/sentencia|jurisprudencia|fallo|ruling|judgment|arrêt/.test(t)) return "Jurisprudencia";
   if (/decreto|resolución|resolucion|resolution|orden administrativa|directive|directiva/.test(t)) return "Directiva";
-  if (/^ley\b|^lei\b|^loi\b|^act\b|^bill\b| ley | acta /.test(t) || /\bley\b|\bact\b/.test(t)) return "Ley";
-  return "Ley";
+  if (/proyecto de ley|bill\b/.test(t)) return "Proyecto de Ley";
+  if (/^ley\b|^lei\b|^loi\b|^act\b| ley | acta /.test(t) || /\bley\b|\bact\b/.test(t)) return "Ley";
+  return "Normativa";
 }
 function relevanciaPorCoincidencia(q, r) {
   const normQ = normalizarTexto2(q);
@@ -189556,9 +189558,10 @@ Cubre distintas jurisdicciones de referencia t\xE9cnica parlamentaria (elige las
 - OCDE / Asia-Pac\xEDfico (Jap\xF3n, Australia o Canad\xE1)
 
 Responde \xDANICAMENTE con un arreglo JSON v\xE1lido, compacto (sin saltos de l\xEDnea ni indentaci\xF3n innecesarios) y SIN texto adicional antes ni despu\xE9s, donde cada objeto tenga este esquema exacto:
-[{"pais":"Nombre del pa\xEDs o entidad","fuente":"Nombre del repositorio oficial (ej: EUR-Lex, BOE, Congress.gov)","titulo":"T\xEDtulo formal y n\xFAmero REAL de la ley o reglamento (no inventes un t\xEDtulo gen\xE9rico)","tituloOriginal":"T\xEDtulo original en idioma nativo si no es espa\xF1ol","fecha":"A\xF1o de aprobaci\xF3n o entrada en vigencia","url":"Enlace oficial real o portal gubernamental de referencia","tipo":"Ley | Reglamento | Directiva | Jurisprudencia","descripcion":"\u{1F3AF} Objeto & \xC1mbito: s\xEDntesis breve.\\n\u2699\uFE0F Mecanismos Clave: deberes e instrumentos.\\n\u2696\uFE0F Fiscalizaci\xF3n & Sanciones: \xF3rgano y sanciones.\\n\u{1F4A1} Lecci\xF3n para Chile: aporte concreto.","relevancia":95}]
+[{"pais":"Nombre del pa\xEDs o entidad","fuente":"Nombre del repositorio oficial (ej: EUR-Lex, BOE, Congress.gov)","titulo":"T\xEDtulo formal y n\xFAmero REAL de la ley o reglamento (no inventes un t\xEDtulo gen\xE9rico)","tituloOriginal":"T\xEDtulo original en idioma nativo si no es espa\xF1ol","fecha":"A\xF1o de aprobaci\xF3n o entrada en vigencia","url":"Enlace oficial real o portal gubernamental de referencia","tipo":"Ley | Reglamento | Directiva | Ordenanza | Jurisprudencia | Proyecto de Ley","descripcion":"\u{1F3AF} Objeto & \xC1mbito: s\xEDntesis breve.\\n\u2699\uFE0F Mecanismos Clave: deberes e instrumentos.\\n\u2696\uFE0F Fiscalizaci\xF3n & Sanciones: \xF3rgano y sanciones.\\n\u{1F4A1} Lecci\xF3n para Chile: aporte concreto.","relevancia":95}]
 
-Manten cada "descripcion" concisa (maximo 3-4 lineas por punto) para que el JSON completo no exceda el limite de salida.`;
+Manten cada "descripcion" concisa (maximo 3-4 lineas por punto) para que el JSON completo no exceda el limite de salida.
+IMPORTANTE: clasifica el campo "tipo" con precisi\xF3n seg\xFAn la jerarqu\xEDa normativa real \u2014 una ordenanza municipal/local NO es una "Ley"; usa "Ordenanza" para normas de gobiernos locales o municipales, "Reglamento" para normas administrativas de ejecuci\xF3n, "Directiva" para normas de la UE u orientaciones administrativas, y "Ley" \xFAnicamente para normas aprobadas por el Congreso/Parlamento nacional.`;
   const intentarUnaVez = async (p) => {
     const aiResponse = await generarContenidoUniversalIA(p, 4e3, attempts);
     if (!aiResponse) return null;

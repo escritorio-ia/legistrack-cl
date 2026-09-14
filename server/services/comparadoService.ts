@@ -139,11 +139,13 @@ export function sintetizarResumenNorma(titulo: string, pais: string, tipo?: stri
 
 export function inferirTipoNorma(titulo: string): string {
   const t = titulo.toLowerCase();
+  if (/ordenanza|ordinance|bylaw|by-law|satzung/.test(t)) return "Ordenanza";
   if (/reglamento|regulation|verordnung|règlement/.test(t)) return "Reglamento";
   if (/sentencia|jurisprudencia|fallo|ruling|judgment|arrêt/.test(t)) return "Jurisprudencia";
   if (/decreto|resolución|resolucion|resolution|orden administrativa|directive|directiva/.test(t)) return "Directiva";
-  if (/^ley\b|^lei\b|^loi\b|^act\b|^bill\b| ley | acta /.test(t) || /\bley\b|\bact\b/.test(t)) return "Ley";
-  return "Ley";
+  if (/proyecto de ley|bill\b/.test(t)) return "Proyecto de Ley";
+  if (/^ley\b|^lei\b|^loi\b|^act\b| ley | acta /.test(t) || /\bley\b|\bact\b/.test(t)) return "Ley";
+  return "Normativa";
 }
 
 export function relevanciaPorCoincidencia(q: string, r: ResultadoComparado): number {
@@ -300,9 +302,10 @@ Cubre distintas jurisdicciones de referencia técnica parlamentaria (elige las 5
 - OCDE / Asia-Pacífico (Japón, Australia o Canadá)
 
 Responde ÚNICAMENTE con un arreglo JSON válido, compacto (sin saltos de línea ni indentación innecesarios) y SIN texto adicional antes ni después, donde cada objeto tenga este esquema exacto:
-[{"pais":"Nombre del país o entidad","fuente":"Nombre del repositorio oficial (ej: EUR-Lex, BOE, Congress.gov)","titulo":"Título formal y número REAL de la ley o reglamento (no inventes un título genérico)","tituloOriginal":"Título original en idioma nativo si no es español","fecha":"Año de aprobación o entrada en vigencia","url":"Enlace oficial real o portal gubernamental de referencia","tipo":"Ley | Reglamento | Directiva | Jurisprudencia","descripcion":"🎯 Objeto & Ámbito: síntesis breve.\\n⚙️ Mecanismos Clave: deberes e instrumentos.\\n⚖️ Fiscalización & Sanciones: órgano y sanciones.\\n💡 Lección para Chile: aporte concreto.","relevancia":95}]
+[{"pais":"Nombre del país o entidad","fuente":"Nombre del repositorio oficial (ej: EUR-Lex, BOE, Congress.gov)","titulo":"Título formal y número REAL de la ley o reglamento (no inventes un título genérico)","tituloOriginal":"Título original en idioma nativo si no es español","fecha":"Año de aprobación o entrada en vigencia","url":"Enlace oficial real o portal gubernamental de referencia","tipo":"Ley | Reglamento | Directiva | Ordenanza | Jurisprudencia | Proyecto de Ley","descripcion":"🎯 Objeto & Ámbito: síntesis breve.\\n⚙️ Mecanismos Clave: deberes e instrumentos.\\n⚖️ Fiscalización & Sanciones: órgano y sanciones.\\n💡 Lección para Chile: aporte concreto.","relevancia":95}]
 
-Manten cada "descripcion" concisa (maximo 3-4 lineas por punto) para que el JSON completo no exceda el limite de salida.`;
+Manten cada "descripcion" concisa (maximo 3-4 lineas por punto) para que el JSON completo no exceda el limite de salida.
+IMPORTANTE: clasifica el campo "tipo" con precisión según la jerarquía normativa real — una ordenanza municipal/local NO es una "Ley"; usa "Ordenanza" para normas de gobiernos locales o municipales, "Reglamento" para normas administrativas de ejecución, "Directiva" para normas de la UE u orientaciones administrativas, y "Ley" únicamente para normas aprobadas por el Congreso/Parlamento nacional.`;
 
   const intentarUnaVez = async (p: string): Promise<ResultadoComparado[] | null> => {
     const aiResponse = await generarContenidoUniversalIA(p, 4000, attempts);
