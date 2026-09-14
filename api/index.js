@@ -193011,9 +193011,10 @@ ${transcript.text}
 """
 
 \xDAsala como fuente principal para citas textuales de intervenciones, con su marca de tiempo entre par\xE9ntesis.` : "";
+  const hayContenidoRealDeIntervenciones = !!transcript || !!actaTextoStr || acuerdosList.length > 0;
   const fuentesDisponibles = curatedParts.length > 0 || transcript;
   const prompt = `Act\xFAa como un analista legislativo experto de la Biblioteca del Congreso Nacional de Chile.
-Redacta un informe t\xE9cnico, exhaustivo y fidedigno de 3 secciones/p\xE1ginas de la sesi\xF3n parlamentaria para ser publicado en el expediente del proyecto de ley.
+Redacta un informe t\xE9cnico de 3 secciones/p\xE1ginas de la sesi\xF3n parlamentaria para ser publicado en el expediente del proyecto de ley.
 
 Informaci\xF3n de la Sesi\xF3n:
 - Comisi\xF3n: ${comisionNombre}
@@ -193021,8 +193022,11 @@ Informaci\xF3n de la Sesi\xF3n:
 - Bolet\xEDn de Ley Asociado: ${boletinId}
 - Materia/Tabla en Discusi\xF3n: ${sesionMateria}${videoContext}${curatedBlock}${transcriptBlock}
 
+REGLA M\xC1S IMPORTANTE DE TODO EL INFORME: este documento debe reflejar EXCLUSIVAMENTE lo que efectivamente se plante\xF3/dijo en la sesi\xF3n seg\xFAn las fuentes entregadas arriba (transcripci\xF3n, acta, acuerdos y tabla). Queda PROHIBIDO inventar, suponer o "reconstruir" lo que un expositor probablemente habr\xEDa dicho seg\xFAn su cargo o instituci\xF3n -- eso no es informaci\xF3n real de la sesi\xF3n, es una interpretaci\xF3n tuya, y no se puede publicar como si fuera lo ocurrido.
+
 Instrucciones:
-${fuentesDisponibles ? `Redacta un informe con intervenciones y contenido concreto, basado ESTRICTAMENTE en la informaci\xF3n verificada de la sesi\xF3n (invitados, tabla, acta y acuerdos) y en la transcripci\xF3n cuando est\xE9 disponible. Para cada invitado o expositor listado, desarrolla su probable planteamiento t\xE9cnico seg\xFAn su cargo/instituci\xF3n y la materia tratada, dejando expl\xEDcito que es una reconstrucci\xF3n anal\xEDtica del debate a partir del acta y la tabla oficiales -- no cites textualmente a nadie salvo que la transcripci\xF3n entregada lo respalde. No inventes nombres de personas que no est\xE9n en la lista de invitados.` : `No hay transcripci\xF3n ni contenido curado disponible para esta sesi\xF3n m\xE1s all\xE1 de la materia general. Redacta el informe sobre la base t\xE9cnica y normativa de la materia en discusi\xF3n, e indica expl\xEDcitamente en la P\xC1GINA 2 que el detalle de las intervenciones debe verificarse contra la transmisi\xF3n oficial, ya que no hay fuente verificada de lo dicho en sala. NO inventes citas ni nombres de expositores.`}
+${hayContenidoRealDeIntervenciones ? `Hay contenido verificado sobre lo ocurrido en la sesi\xF3n (transcripci\xF3n y/o acta y/o acuerdos). Para la secci\xF3n de intervenciones (P\xC1GINA 2), redacta \xDANICAMENTE lo que esas fuentes efectivamente registran: qu\xE9 plante\xF3, se\xF1al\xF3 o expuso cada persona o instituci\xF3n, citando o parafraseando de cerca el contenido real (usa comillas y marca de tiempo [MM:SS] cuando cites literalmente la transcripci\xF3n). Si el acta/transcripci\xF3n no registra el planteamiento de alguno de los invitados listados, dilo expl\xEDcitamente ("no hay registro verificado de su intervenci\xF3n en el acta ni en la transcripci\xF3n disponible") en vez de suponerlo. No agregues ning\xFAn expositor, cita o postura que no est\xE9 respaldada por el contenido verificado entregado.` : `Solo se dispone de la lista de invitados y la tabla/materia de la sesi\xF3n -- NO hay transcripci\xF3n, acta ni acuerdos con contenido real de lo dicho en sala. En la P\xC1GINA 2, NO redactes planteamientos, posturas ni intervenciones de los invitados (ni siquiera como "probables" o "esperables"): lim\xEDtate a listar qui\xE9nes fueron convocados y sobre qu\xE9 materia, e indica expl\xEDcitamente que el detalle de lo efectivamente planteado por cada uno debe verificarse contra el acta oficial o la transmisi\xF3n, ya que no hay fuente verificada de lo dicho en sala disponible para este informe.`}
+No inventes nombres de personas que no est\xE9n en la lista de invitados entregada.
 
 FORMATO DE SALIDA (muy importante, resp\xE9talo exactamente):
 - No agregues ning\xFAn t\xEDtulo, encabezado ni texto introductorio antes de "P\xC1GINA 1".
@@ -193045,9 +193049,9 @@ P\xC1GINA 1:
 P\xC1GINA 2:
 # FOCO DEL DEBATE PARLAMENTARIO Y AUDIENCIAS
 ## III. INTERVENCIONES Y PRINCIPALES EJES DE LA DISCUSI\xD3N
-* **Intervenciones y planteamientos:** (Para cada invitado o grupo de invitados relevante, desarrolla su planteamiento probable seg\xFAn su cargo y la materia, o cita la transcripci\xF3n si est\xE1 disponible)
-* **Puntos Cr\xEDticos y Diagn\xF3stico:** (Aspectos normativos, impacto presupuestario y est\xE1ndares legales efectivamente planteados en la sesi\xF3n, seg\xFAn el acta y la tabla)
-* **Observaciones y Cuestionamientos de los Parlamentarios:** (Debate particular de los diputados/senadores)
+* **Planteamientos efectivamente registrados:** (Para cada invitado del que el acta, los acuerdos o la transcripci\xF3n registren contenido real, resume lo que efectivamente plante\xF3/se\xF1al\xF3, citando de cerca la fuente; si no hay registro verificado de un invitado, dilo expl\xEDcitamente en vez de suponerlo)
+* **Puntos Cr\xEDticos y Diagn\xF3stico:** (Aspectos normativos, impacto presupuestario y est\xE1ndares legales efectivamente planteados en la sesi\xF3n, seg\xFAn el acta y los acuerdos -- no seg\xFAn supuestos)
+* **Observaciones y Cuestionamientos de los Parlamentarios:** (Solo si est\xE1n registrados en el acta/acuerdos entregados; si no hay registro, ind\xEDcalo)
 
 ===PAGINA===
 

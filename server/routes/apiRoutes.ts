@@ -1224,10 +1224,14 @@ apiRouter.post("/comisiones/sesion/generar-informe", async (req: Request, res: R
     ? `\n\nTranscripción real de la sesión (subtítulos ${transcript.auto ? "auto-generados" : "oficiales"} de YouTube, con marcas de tiempo [MM:SS]${transcript.truncated ? ", truncada por extensión" : ""}):\n"""\n${transcript.text}\n"""\n\nÚsala como fuente principal para citas textuales de intervenciones, con su marca de tiempo entre paréntesis.`
     : "";
 
+  // Solo hay CONTENIDO REAL de lo dicho en sala si existe transcripción de la
+  // transmisión o un acta/acuerdos con texto sustantivo (no basta con la sola
+  // lista de invitados o la tabla, que no dicen qué planteó cada uno).
+  const hayContenidoRealDeIntervenciones = !!transcript || !!actaTextoStr || acuerdosList.length > 0;
   const fuentesDisponibles = curatedParts.length > 0 || transcript;
 
   const prompt = `Actúa como un analista legislativo experto de la Biblioteca del Congreso Nacional de Chile.
-Redacta un informe técnico, exhaustivo y fidedigno de 3 secciones/páginas de la sesión parlamentaria para ser publicado en el expediente del proyecto de ley.
+Redacta un informe técnico de 3 secciones/páginas de la sesión parlamentaria para ser publicado en el expediente del proyecto de ley.
 
 Información de la Sesión:
 - Comisión: ${comisionNombre}
@@ -1235,10 +1239,13 @@ Información de la Sesión:
 - Boletín de Ley Asociado: ${boletinId}
 - Materia/Tabla en Discusión: ${sesionMateria}${videoContext}${curatedBlock}${transcriptBlock}
 
+REGLA MÁS IMPORTANTE DE TODO EL INFORME: este documento debe reflejar EXCLUSIVAMENTE lo que efectivamente se planteó/dijo en la sesión según las fuentes entregadas arriba (transcripción, acta, acuerdos y tabla). Queda PROHIBIDO inventar, suponer o "reconstruir" lo que un expositor probablemente habría dicho según su cargo o institución -- eso no es información real de la sesión, es una interpretación tuya, y no se puede publicar como si fuera lo ocurrido.
+
 Instrucciones:
-${fuentesDisponibles
-    ? `Redacta un informe con intervenciones y contenido concreto, basado ESTRICTAMENTE en la información verificada de la sesión (invitados, tabla, acta y acuerdos) y en la transcripción cuando esté disponible. Para cada invitado o expositor listado, desarrolla su probable planteamiento técnico según su cargo/institución y la materia tratada, dejando explícito que es una reconstrucción analítica del debate a partir del acta y la tabla oficiales -- no cites textualmente a nadie salvo que la transcripción entregada lo respalde. No inventes nombres de personas que no estén en la lista de invitados.`
-    : `No hay transcripción ni contenido curado disponible para esta sesión más allá de la materia general. Redacta el informe sobre la base técnica y normativa de la materia en discusión, e indica explícitamente en la PÁGINA 2 que el detalle de las intervenciones debe verificarse contra la transmisión oficial, ya que no hay fuente verificada de lo dicho en sala. NO inventes citas ni nombres de expositores.`}
+${hayContenidoRealDeIntervenciones
+    ? `Hay contenido verificado sobre lo ocurrido en la sesión (transcripción y/o acta y/o acuerdos). Para la sección de intervenciones (PÁGINA 2), redacta ÚNICAMENTE lo que esas fuentes efectivamente registran: qué planteó, señaló o expuso cada persona o institución, citando o parafraseando de cerca el contenido real (usa comillas y marca de tiempo [MM:SS] cuando cites literalmente la transcripción). Si el acta/transcripción no registra el planteamiento de alguno de los invitados listados, dilo explícitamente ("no hay registro verificado de su intervención en el acta ni en la transcripción disponible") en vez de suponerlo. No agregues ningún expositor, cita o postura que no esté respaldada por el contenido verificado entregado.`
+    : `Solo se dispone de la lista de invitados y la tabla/materia de la sesión -- NO hay transcripción, acta ni acuerdos con contenido real de lo dicho en sala. En la PÁGINA 2, NO redactes planteamientos, posturas ni intervenciones de los invitados (ni siquiera como "probables" o "esperables"): limítate a listar quiénes fueron convocados y sobre qué materia, e indica explícitamente que el detalle de lo efectivamente planteado por cada uno debe verificarse contra el acta oficial o la transmisión, ya que no hay fuente verificada de lo dicho en sala disponible para este informe.`}
+No inventes nombres de personas que no estén en la lista de invitados entregada.
 
 FORMATO DE SALIDA (muy importante, respétalo exactamente):
 - No agregues ningún título, encabezado ni texto introductorio antes de "PÁGINA 1".
@@ -1261,9 +1268,9 @@ PÁGINA 1:
 PÁGINA 2:
 # FOCO DEL DEBATE PARLAMENTARIO Y AUDIENCIAS
 ## III. INTERVENCIONES Y PRINCIPALES EJES DE LA DISCUSIÓN
-* **Intervenciones y planteamientos:** (Para cada invitado o grupo de invitados relevante, desarrolla su planteamiento probable según su cargo y la materia, o cita la transcripción si está disponible)
-* **Puntos Críticos y Diagnóstico:** (Aspectos normativos, impacto presupuestario y estándares legales efectivamente planteados en la sesión, según el acta y la tabla)
-* **Observaciones y Cuestionamientos de los Parlamentarios:** (Debate particular de los diputados/senadores)
+* **Planteamientos efectivamente registrados:** (Para cada invitado del que el acta, los acuerdos o la transcripción registren contenido real, resume lo que efectivamente planteó/señaló, citando de cerca la fuente; si no hay registro verificado de un invitado, dilo explícitamente en vez de suponerlo)
+* **Puntos Críticos y Diagnóstico:** (Aspectos normativos, impacto presupuestario y estándares legales efectivamente planteados en la sesión, según el acta y los acuerdos -- no según supuestos)
+* **Observaciones y Cuestionamientos de los Parlamentarios:** (Solo si están registrados en el acta/acuerdos entregados; si no hay registro, indícalo)
 
 ===PAGINA===
 
