@@ -2603,9 +2603,21 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
                             <Tv className="w-3.5 h-3.5 text-rose-200" />
                             <span>Transcripción & Citas</span>
                           </button>
-                          {/* No hay "Informe IA" para la próxima citación: al ser una sesión
-                              agendada y aún no realizada, todavía no existe transmisión
-                              grabada en YouTube de la cual generar el informe. */}
+                          {/* La "próxima citación" es solo el nombre de este bloque de la UI --
+                              si el usuario le puso una fecha que ya pasó (p. ej. corrigió la
+                              citación con la fecha real en que se realizó la sesión), sí debe
+                              poder generar el Informe IA como cualquier otra sesión realizada.
+                              handleOpenReportModal ya valida isSesionRealizada internamente. */}
+                          {comision.proximaSesion && isSesionRealizada(comision.proximaSesion) && (
+                            <button
+                              onClick={() => handleOpenReportModal(comision.proximaSesion!)}
+                              className="bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 px-3 rounded-xl text-xs transition-all cursor-pointer text-center shadow-md flex items-center justify-center gap-1.5"
+                              title="Informe generado por IA con transmisión YouTube"
+                            >
+                              <Tv className="w-3.5 h-3.5 text-blue-300" />
+                              <span>Informe IA</span>
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
