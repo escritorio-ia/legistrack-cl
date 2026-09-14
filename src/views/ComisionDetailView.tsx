@@ -1545,7 +1545,9 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
         }
         if (activeReportSessionIdRef.current !== ses.id) return; // el usuario ya abrió otra sesión mientras la IA generaba el informe
 
-        const reportDoc = genData.documento || genData;
+        // transcriptAvailable viaja al mismo nivel que "documento" en la respuesta,
+        // no dentro de él -- hay que copiarlo aparte o se pierde silenciosamente.
+        const reportDoc = { ...(genData.documento || genData), transcriptAvailable: !!genData.transcriptAvailable };
         setGeneratedReport(reportDoc);
         const pages = reportDoc.reportContent || [];
         setEditableReportPages(pages);
@@ -1688,7 +1690,7 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
           setGeneratingReport(false);
           return; // el usuario ya abrió otra sesión mientras la IA generaba este informe
         }
-        const reportDoc = data.documento || data;
+        const reportDoc = { ...(data.documento || data), transcriptAvailable: !!data.transcriptAvailable };
         setGeneratedReport(reportDoc);
         const pages = reportDoc.reportContent || [];
         setEditableReportPages(pages);
@@ -3960,6 +3962,20 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
                       Ir al Boletín N° {customBoletin ? customReportBoletinId : reportBoletinId}
                     </button>
                   </div>
+
+                  {/* Aviso: YouTube bloquea la descarga de subtítulos desde el servidor casi
+                      siempre, así que en la práctica el informe NO se genera leyendo/transcribiendo
+                      el video -- se redacta a partir del acta, la tabla y los acuerdos oficiales
+                      cargados para la sesión. Se muestra explícito para que no se asuma que el
+                      contenido fue verificado contra lo dicho en la transmisión. */}
+                  {!generatedReport.transcriptAvailable && (
+                    <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl p-3.5 flex items-start gap-2.5 text-xs">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div>
+                        <strong className="font-bold">No se pudo leer la transcripción real del video.</strong> Este informe fue redactado a partir del acta, la tabla y los acuerdos oficiales cargados para la sesión, no a partir de un análisis del contenido audiovisual. Verifica contra la transmisión si necesitas certeza sobre lo dicho literalmente en sala.
+                      </div>
+                    </div>
+                  )}
 
                   {/* Viewer Controls */}
                   <div className="w-full bg-white p-3.5 rounded-xl border border-slate-200 flex flex-col md:flex-row gap-3 justify-between items-center shadow-xs select-none">
