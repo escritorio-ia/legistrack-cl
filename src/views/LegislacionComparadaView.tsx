@@ -1064,7 +1064,7 @@ export default function LegislacionComparadaView() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Live federated search state
-  const [liveQuery, setLiveQuery] = useState<string>("Inteligencia Artificial y Ciberseguridad");
+  const [liveQuery, setLiveQuery] = useState<string>("");
   const [liveLoading, setLiveLoading] = useState(false);
   const [liveResultados, setLiveResultados] = useState<ResultadoComparado[]>([]);
   const [liveFuentesConsultadas, setLiveFuentesConsultadas] = useState<string[]>([]);
@@ -1181,13 +1181,6 @@ export default function LegislacionComparadaView() {
       setLiveLoading(false);
     }
   };
-
-  // Run initial search on mount if empty
-  useEffect(() => {
-    if (liveResultados.length === 0 && !liveLoading) {
-      handleBuscarRegulacion("Inteligencia Artificial", false);
-    }
-  }, []);
 
   // Filter and sort live results
   const paisesDisponibles = useMemo(() => {
@@ -1823,6 +1816,14 @@ export default function LegislacionComparadaView() {
                   Conectando con LeyChile, BOE (España), CELLAR EUR-Lex (UE), Dados Abertos (Brasil), Legislation.gov.uk, Oireachtas (Irlanda), Stortinget (Noruega) y 12 fuentes más.
                 </p>
               </div>
+            </div>
+          ) : !liveQuery ? (
+            <div className="bg-white p-12 rounded-2xl border border-slate-200 text-center flex flex-col items-center justify-center gap-3">
+              <Search className="w-8 h-8 text-slate-300" />
+              <h3 className="text-sm font-bold text-slate-800">Ingrese un concepto para iniciar la búsqueda</h3>
+              <p className="text-xs text-slate-500 max-w-md">
+                Escriba una materia, ley internacional o número de boletín (ej. hidrógeno verde, neuroderechos, teletrabajo, ciberseguridad) y presione Enter o el botón de búsqueda.
+              </p>
             </div>
           ) : liveResultadosFiltrados.length === 0 ? (
             <div className="bg-white p-12 rounded-2xl border border-slate-200 text-center flex flex-col items-center justify-center gap-3">
