@@ -189137,10 +189137,14 @@ async function generarConGemini(prompt, maxTokens = 2e3) {
   }
   throw lastErr;
 }
-async function generarConGroq(prompt, maxTokens = 2e3) {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey || apiKey === "MY_GROQ_API_KEY") throw new Error("GROQ_API_KEY no configurada");
-  const model = process.env.GROQ_MODEL || "llama-3.1-8b-instant";
+var GROQ_MODELOS_CANDIDATOS = [
+  "llama-3.3-70b-versatile",
+  "llama-3.1-8b-instant",
+  "llama3-70b-8192",
+  "llama3-8b-8192",
+  "gemma2-9b-it"
+];
+async function llamarGroqConModelo(prompt, maxTokens, apiKey, model) {
   const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -189162,6 +189166,24 @@ async function generarConGroq(prompt, maxTokens = 2e3) {
   const text = data?.choices?.[0]?.message?.content;
   if (!text) throw new Error("Groq no devolvi\xF3 texto");
   return String(text).trim();
+}
+async function generarConGroq(prompt, maxTokens = 2e3) {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey || apiKey === "MY_GROQ_API_KEY") throw new Error("GROQ_API_KEY no configurada");
+  const modeloFijado = process.env.GROQ_MODEL;
+  if (modeloFijado) return llamarGroqConModelo(prompt, maxTokens, apiKey, modeloFijado);
+  let lastErr;
+  for (const model of GROQ_MODELOS_CANDIDATOS) {
+    try {
+      return await llamarGroqConModelo(prompt, maxTokens, apiKey, model);
+    } catch (e) {
+      lastErr = e;
+      if (!/model.*(not exist|does not exist|no access|invalid_request_error|decommissioned)/i.test(e.message)) {
+        throw e;
+      }
+    }
+  }
+  throw lastErr;
 }
 async function generarConOpenRouter(prompt, maxTokens = 1500) {
   const apiKey = process.env.OPENROUTER_API_KEY;

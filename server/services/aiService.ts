@@ -138,10 +138,19 @@ export async function generarConGemini(prompt: string, maxTokens = 2000): Promis
   throw lastErr;
 }
 
-export async function generarConGroq(prompt: string, maxTokens = 2000): Promise<string> {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey || apiKey === "MY_GROQ_API_KEY") throw new Error("GROQ_API_KEY no configurada");
-  const model = process.env.GROQ_MODEL || "llama-3.1-8b-instant";
+// Groq cambia/retira nombres de modelo con frecuencia (y no todas las cuentas
+// tienen acceso a los mismos modelos "preview"). En vez de fallar por completo
+// si el modelo por defecto ya no existe para esta cuenta, se prueba una lista
+// de candidatos vigentes en orden hasta que uno responda.
+const GROQ_MODELOS_CANDIDATOS = [
+  "llama-3.3-70b-versatile",
+  "llama-3.1-8b-instant",
+  "llama3-70b-8192",
+  "llama3-8b-8192",
+  "gemma2-9b-it"
+];
+
+async function llamarGroqConModelo(prompt: string, maxTokens: number, apiKey: string, model: string): Promise<string> {
   const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -163,6 +172,30 @@ export async function generarConGroq(prompt: string, maxTokens = 2000): Promise<
   const text = data?.choices?.[0]?.message?.content;
   if (!text) throw new Error("Groq no devolvió texto");
   return String(text).trim();
+}
+
+export async function generarConGroq(prompt: string, maxTokens = 2000): Promise<string> {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey || apiKey === "MY_GROQ_API_KEY") throw new Error("GROQ_API_KEY no configurada");
+
+  // Si se fija GROQ_MODEL explícitamente, se respeta ese único modelo (sin fallback).
+  const modeloFijado = process.env.GROQ_MODEL;
+  if (modeloFijado) return llamarGroqConModelo(prompt, maxTokens, apiKey, modeloFijado);
+
+  let lastErr: any;
+  for (const model of GROQ_MODELOS_CANDIDATOS) {
+    try {
+      return await llamarGroqConModelo(prompt, maxTokens, apiKey, model);
+    } catch (e: any) {
+      lastErr = e;
+      // Solo seguimos probando el siguiente modelo si el error es "modelo no
+      // encontrado/sin acceso"; otros errores (auth, rate limit) se propagan de inmediato.
+      if (!/model.*(not exist|does not exist|no access|invalid_request_error|decommissioned)/i.test(e.message)) {
+        throw e;
+      }
+    }
+  }
+  throw lastErr;
 }
 
 export async function generarConOpenRouter(prompt: string, maxTokens = 1500): Promise<string> {
