@@ -141,7 +141,7 @@ export async function generarConGemini(prompt: string, maxTokens = 2000): Promis
 export async function generarConGroq(prompt: string, maxTokens = 2000): Promise<string> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey || apiKey === "MY_GROQ_API_KEY") throw new Error("GROQ_API_KEY no configurada");
-  const model = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+  const model = process.env.GROQ_MODEL || "llama-3.1-8b-instant";
   const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: {
