@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "motion/react";
 import { 
   Users, 
@@ -1352,6 +1352,10 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
     setActiveTab(tab);
   };
 
+  // Sesión para la que la búsqueda/generación de Informe IA está actualmente en
+  // curso o vigente. Ver comentario en handleOpenReportModal para el porqué.
+  const activeReportSessionIdRef = useRef<string | null>(null);
+
   // Agrupa una lista de sesiones (ya filtrada a solo realizadas y ya ordenada
   // cronológicamente descendente por compareSesionesDesc) en bloques por mes,
   // para que "Sesiones y Actas" se lea como un historial mes a mes en vez de
@@ -1383,6 +1387,13 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
       showToast("Esta sesión aún no se ha realizado. El Informe IA solo puede generarse a partir de la transmisión grabada en YouTube de una sesión ya realizada.");
       return;
     }
+    // Si el usuario cierra este modal y abre el de OTRA sesión mientras la
+    // búsqueda/generación anterior todavía está en curso (la IA puede tardar
+    // 5-12s), la respuesta tardía no debe pisar el contenido de la sesión que
+    // está abierta ahora -- por eso se marca cuál sesión es "la vigente" y cada
+    // callback async de más abajo comprueba que sigue siéndolo antes de aplicar
+    // sus resultados al estado compartido (generatedReport, selectedVideo, etc.).
+    activeReportSessionIdRef.current = ses.id;
     setSelectedSesionForReport(ses);
     const query = `Sesión ${comision?.nombre || "Comisión"} ${ses.fecha}`;
     setSearchQuery(query);
@@ -1470,6 +1481,7 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
     // 1.5 Check if report is stored in Firebase Cloud Firestore
     try {
       const cloudReport = await getInformeFromFirestore(ses.id);
+      if (activeReportSessionIdRef.current !== ses.id) return; // el usuario ya abrió otra sesión mientras esto cargaba
       if (cloudReport && cloudReport.reportContent && cloudReport.reportContent.length > 0) {
         setGeneratedReport(cloudReport);
         setEditableReportPages(cloudReport.reportContent);
@@ -1497,6 +1509,7 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
       // 2. Automatically search YouTube video
       const ytRes = await fetch(`/api/comisiones/sesion/youtube-search?query=${encodeURIComponent(comision?.nombre || "Comisión")}&fecha=${encodeURIComponent(ses.fecha)}&camara=${isSenado ? 'senado' : 'diputados'}`);
       const ytData = await ytRes.json();
+      if (activeReportSessionIdRef.current !== ses.id) return; // el usuario ya abrió otra sesión mientras esto buscaba el video
       const videos = ytData.videos || [];
       setSearchResults(videos);
       setSearchLoading(false);
@@ -1530,6 +1543,7 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
         if (!genRes.ok) {
           throw new Error(genData.error || "Fallo en la generación");
         }
+        if (activeReportSessionIdRef.current !== ses.id) return; // el usuario ya abrió otra sesión mientras la IA generaba el informe
 
         const reportDoc = genData.documento || genData;
         setGeneratedReport(reportDoc);
@@ -1635,6 +1649,13 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
       return;
     }
 
+    // Se fija cuál es "la sesión vigente" para este pedido de generación, igual que
+    // en handleOpenReportModal -- si el usuario abre el modal de otra sesión antes
+    // de que la IA termine de responder, esta respuesta tardía se descarta en vez
+    // de pisar el contenido de la sesión que está viendo ahora.
+    const targetSesionId = selectedSesionForReport.id;
+    activeReportSessionIdRef.current = targetSesionId;
+
     setGeneratingReport(true);
     indexarSesionEnProyectos(selectedSesionForReport, selectedVideo, finalBoletinId);
     fetch("/api/comisiones/sesion/generar-informe", {
@@ -1663,6 +1684,10 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
         return data;
       })
       .then(data => {
+        if (activeReportSessionIdRef.current !== targetSesionId) {
+          setGeneratingReport(false);
+          return; // el usuario ya abrió otra sesión mientras la IA generaba este informe
+        }
         const reportDoc = data.documento || data;
         setGeneratedReport(reportDoc);
         const pages = reportDoc.reportContent || [];
@@ -1737,7 +1762,7 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
     const updatedReportEntry = {
       id: generatedReport.id || `rep_${Date.now()}`,
       sesionId: selectedSesionForReport?.id || "ses_general",
-      fecha: selectedSesionForReport?.fecha || "01 de septiembre de 2026",
+      fecha: selectedSesionForReport?.fecha || "",
       comision: comision?.nombre || "Comisión",
       boletinId: finalBoletinId,
       videoUrl: selectedVideo?.url || `https://www.youtube.com/watch?v=${selectedVideo?.id || ''}`,
@@ -3663,7 +3688,7 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
                 </h2>
               </div>
               <button 
-                onClick={() => setSelectedSesionForReport(null)}
+                onClick={() => { activeReportSessionIdRef.current = null; setSelectedSesionForReport(null); }}
                 className="text-slate-200 hover:text-white bg-white/10 hover:bg-white/20 p-1.5 rounded-full transition-colors cursor-pointer"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
@@ -3927,6 +3952,7 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
                         const bid = customBoletin ? customReportBoletinId : reportBoletinId;
                         setSelectedProyectoId(bid);
                         setView("proyecto-detail");
+                        activeReportSessionIdRef.current = null;
                         setSelectedSesionForReport(null);
                       }}
                       className="bg-[#003366] hover:bg-slate-900 text-white text-xs font-bold py-1.5 px-3 rounded-lg transition-colors cursor-pointer"
@@ -4128,7 +4154,7 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
             {/* Footer Controls */}
             <div className="bg-slate-50 border-t border-slate-150 p-4 shrink-0 flex justify-end gap-2.5">
               <button
-                onClick={() => setSelectedSesionForReport(null)}
+                onClick={() => { activeReportSessionIdRef.current = null; setSelectedSesionForReport(null); }}
                 className="bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-xs px-4 py-2 rounded-lg cursor-pointer transition-colors"
               >
                 Cerrar
