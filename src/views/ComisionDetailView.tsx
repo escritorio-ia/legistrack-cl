@@ -47,7 +47,8 @@ import {
   Zap,
   CheckCircle,
   Eye,
-  MessageSquare
+  MessageSquare,
+  RefreshCw
 } from "lucide-react";
 import { Comision, SesionItem, Proyecto, Integrante } from "../types";
 import {
@@ -1662,6 +1663,31 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
           createdAt: new Date().toISOString()
         });
         localStorage.setItem(storageKey, JSON.stringify(existingReports));
+
+        // También en localStorage por sesión (para que handleOpenReportModal encuentre
+        // esta versión nueva la próxima vez, en vez de un doc de Firestore desactualizado)
+        // y en Firestore, para que la regeneración reemplace el informe anterior en la nube.
+        localStorage.setItem(`report_sesion_${selectedSesionForReport.id}`, JSON.stringify({
+          id: `rep_${selectedSesionForReport.id}`,
+          fecha: selectedSesionForReport.fecha,
+          comision: comision?.nombre,
+          videoUrl: selectedVideo.url || `https://www.youtube.com/watch?v=${selectedVideo.id}`,
+          videoTitle: selectedVideo.title,
+          reportContent: pages,
+          createdAt: new Date().toISOString()
+        }));
+        saveInformeToFirestore({
+          id: `rep_${selectedSesionForReport.id}`,
+          sesionId: selectedSesionForReport.id,
+          fecha: selectedSesionForReport.fecha,
+          comision: comision?.nombre || "Comisión",
+          boletinId: bid,
+          videoUrl: selectedVideo.url || `https://www.youtube.com/watch?v=${selectedVideo.id}`,
+          videoTitle: selectedVideo.title,
+          reportContent: pages,
+          createdAt: new Date().toISOString()
+        }).catch(err => console.warn("Could not sync regenerated report to Firestore:", err));
+
         setReportSavedToBoletin(true);
         showToast(`¡Informe generado y guardado en el expediente del Boletín N° ${bid}!`);
       })
@@ -3883,11 +3909,43 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <button 
+                      <button
+                        onClick={() => {
+                          if (!selectedSesionForReport) return;
+                          if (!confirm("Esto va a reemplazar el informe actual por uno nuevo generado con IA (se pierde el contenido actual si no lo has guardado aparte). ¿Continuar?")) return;
+                          // Limpia el informe cacheado (localStorage por sesión y por boletín) para
+                          // que el próximo intento no vuelva a servir el contenido precargado/anterior.
+                          try {
+                            localStorage.removeItem(`report_sesion_${selectedSesionForReport.id}`);
+                            const bid = customBoletin ? customReportBoletinId.trim() : reportBoletinId;
+                            if (bid) {
+                              const key = `report_boletin_${bid}`;
+                              const existing = JSON.parse(localStorage.getItem(key) || "[]");
+                              if (Array.isArray(existing)) {
+                                const filtered = existing.filter((r: any) => r.fecha !== selectedSesionForReport.fecha && r.sesionId !== selectedSesionForReport.id);
+                                localStorage.setItem(key, JSON.stringify(filtered));
+                              }
+                            }
+                          } catch (e) {
+                            console.warn("Error limpiando caché local del informe:", e);
+                          }
+                          setGeneratedReport(null);
+                          setReportSavedToBoletin(false);
+                          handleGenerateReport();
+                        }}
+                        disabled={generatingReport}
+                        title="Descarta el informe actual y genera uno nuevo con IA a partir de la transmisión y los datos de la sesión"
+                        className="bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-bold text-xs px-3.5 py-1.5 rounded-lg transition-all inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${generatingReport ? "animate-spin" : ""}`} />
+                        <span>{generatingReport ? "Regenerando..." : "Regenerar con IA"}</span>
+                      </button>
+
+                      <button
                         onClick={() => setIsEditingReport(!isEditingReport)}
                         className={`font-bold text-xs px-3.5 py-1.5 rounded-lg transition-all inline-flex items-center gap-1.5 cursor-pointer shadow-xs ${
-                          isEditingReport 
-                            ? "bg-amber-500 hover:bg-amber-600 text-slate-950 font-black" 
+                          isEditingReport
+                            ? "bg-amber-500 hover:bg-amber-600 text-slate-950 font-black"
                             : "bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200"
                         }`}
                       >
