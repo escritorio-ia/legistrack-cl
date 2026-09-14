@@ -1352,6 +1352,28 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
     setActiveTab(tab);
   };
 
+  // Agrupa una lista de sesiones (ya filtrada a solo realizadas y ya ordenada
+  // cronológicamente descendente por compareSesionesDesc) en bloques por mes,
+  // para que "Sesiones y Actas" se lea como un historial mes a mes en vez de
+  // una lista plana -- más fácil de repasar y de notar meses sin sesiones
+  // realizadas (p. ej. porque las citaciones agendadas de ese mes aún no ocurren).
+  const MESES_LABEL = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+  function agruparSesionesPorMes<T extends { fecha: string }>(sesiones: T[]): { label: string; key: string; sesiones: T[] }[] {
+    const grupos: { label: string; key: string; sesiones: T[] }[] = [];
+    for (const ses of sesiones) {
+      const d = parseFechaSesion(ses.fecha);
+      const key = d ? `${d.getFullYear()}-${d.getMonth()}` : "sin-fecha";
+      const label = d ? `${MESES_LABEL[d.getMonth()][0].toUpperCase()}${MESES_LABEL[d.getMonth()].slice(1)} ${d.getFullYear()}` : "Sin fecha reconocida";
+      let grupo = grupos.find(g => g.key === key);
+      if (!grupo) {
+        grupo = { label, key, sesiones: [] };
+        grupos.push(grupo);
+      }
+      grupo.sesiones.push(ses);
+    }
+    return grupos;
+  }
+
   const handleOpenReportModal = async (ses: SesionItem) => {
     // El Informe IA se redacta a partir de la transmisión grabada en YouTube de una
     // sesión ya realizada. Una citación agendada/futura todavía no tiene grabación,
@@ -3034,18 +3056,45 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
                 </div>
               </div>
 
-              {/* Sessions Grid: solo sesiones efectivamente realizadas (completadas o con
-                  fecha ya pasada) — las citaciones agendadas/futuras se muestran en la
-                  Citación Destacada del Resumen Ejecutivo, no en el historial de Actas. */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {(comision.sesiones || []).filter(isSesionRealizada).filter(s => {
+              {/* Sesiones agrupadas por mes: solo sesiones efectivamente realizadas
+                  (completadas o con fecha ya pasada) — las citaciones agendadas/futuras
+                  se muestran en la Citación Destacada del Resumen Ejecutivo, no aquí.
+                  Se agrupan por mes (y no en una lista plana) porque las sesiones que
+                  todavía no se han realizado ya quedan fuera del filtro, así que los
+                  encabezados de mes ayudan a ver de un vistazo en qué meses sí hubo
+                  sesiones registradas y en cuáles no. */}
+              {(() => {
+                const sesionesRealizadas = (comision.sesiones || []).filter(isSesionRealizada).filter(s => {
                   if (!sessionSearch) return true;
                   const q = sessionSearch.toLowerCase();
                   return s.materia.toLowerCase().includes(q) || (s.invitados && s.invitados.toLowerCase().includes(q)) || s.fecha.toLowerCase().includes(q);
-                }).map((ses) => {
+                });
+                const gruposPorMes = agruparSesionesPorMes(sesionesRealizadas);
+                if (gruposPorMes.length === 0) {
+                  return (
+                    <div className="text-center py-10 text-xs text-slate-400 font-semibold">
+                      No hay sesiones realizadas que coincidan con la búsqueda.
+                    </div>
+                  );
+                }
+                return (
+                  <div className="flex flex-col gap-6">
+                    {gruposPorMes.map((grupo) => (
+                      <div key={grupo.key} className="flex flex-col gap-3">
+                        <div className="flex items-center gap-2.5">
+                          <span className="bg-slate-900 text-white text-[11px] font-extrabold uppercase tracking-wider px-3 py-1 rounded-lg">
+                            {grupo.label}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-bold">
+                            {grupo.sesiones.length} sesión{grupo.sesiones.length === 1 ? "" : "es"} realizada{grupo.sesiones.length === 1 ? "" : "s"}
+                          </span>
+                          <div className="flex-1 h-px bg-slate-100" />
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {grupo.sesiones.map((ses) => {
                   const hasSummary = !!customSummaries[ses.id];
                   return (
-                    <div 
+                    <div
                       key={ses.id}
                       className="bg-white p-5 rounded-2xl border border-slate-200 hover:border-blue-300 hover:shadow-md transition-all flex flex-col justify-between gap-4"
                     >
@@ -3137,8 +3186,13 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
                       </div>
                     </div>
                   );
-                })}
-              </div>
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
           )}
 
