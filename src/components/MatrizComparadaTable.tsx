@@ -486,9 +486,13 @@ export default function MatrizComparadaTable({ data, onSelectMatrix }: MatrizCom
   const [copied, setCopied] = useState(false);
   const [selectedTopicKey, setSelectedTopicKey] = useState<string>(data?.id || "ia-datos");
 
-  const activeData: MatrizComparadaData = (data && data.id === selectedTopicKey)
-    ? data
-    : (TODAS_LAS_MATRICES[selectedTopicKey] || data || MATRIZ_IA_DATOS);
+  // Cuando se entrega `data` (matriz real generada dinámicamente, ej. desde
+  // Comparador Lado a Lado), esa es SIEMPRE la que se muestra -- antes, si el
+  // usuario tocaba el selector "Dossier" de temas de ejemplo de más abajo, se
+  // reemplazaba en silencio la matriz real por una de las 5 matrices de
+  // demostración fijas, sin ninguna forma de volver a la real salvo repetir la
+  // búsqueda. El selector de ejemplos solo tiene sentido cuando no hay `data`.
+  const activeData: MatrizComparadaData = data || TODAS_LAS_MATRICES[selectedTopicKey] || MATRIZ_IA_DATOS;
 
   const handleCopyText = () => {
     const headerCols = activeData.columnas.map(c => c.nombre).join(" | ");
@@ -555,11 +559,17 @@ export default function MatrizComparadaTable({ data, onSelectMatrix }: MatrizCom
 
       {/* Selector & Actions Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-100/90 p-3 rounded-2xl border border-slate-200 shadow-2xs">
+        {/* Selector de matrices de EJEMPLO: solo tiene sentido cuando no se
+            entregó una matriz real generada dinámicamente (`data`) -- de lo
+            contrario, tocar un ejemplo reemplazaba en silencio el Informe
+            Técnico BCN real por datos de demostración sin relación con la
+            búsqueda, que es justo lo que se reportó como bug. */}
+        {!data && (
         <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
           <span className="text-xs font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-1 shrink-0 ml-1 font-mono">
             <Filter className="w-3.5 h-3.5 text-blue-700" /> Dossier:
           </span>
-          
+
           <button
             onClick={() => { setSelectedTopicKey("ia-datos"); if (onSelectMatrix) onSelectMatrix("ia-datos"); }}
             className={`text-xs font-bold px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
@@ -620,6 +630,7 @@ export default function MatrizComparadaTable({ data, onSelectMatrix }: MatrizCom
             <span>Tenencia Mascotas</span>
           </button>
         </div>
+        )}
 
         <div className="flex items-center gap-2 ml-auto shrink-0">
           <button
