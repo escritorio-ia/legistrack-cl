@@ -1106,13 +1106,22 @@ ${textoFuente}
 
 Responde en formato de lista, un punto por línea, cada uno iniciando con "- ".`;
 
-    const textoIA = await generarContenidoUniversalIA(prompt, 600);
+    // 600 tokens se quedaban cortos para un modelo de razonamiento (Groq gpt-oss-*),
+    // que gasta parte del presupuesto "pensando" antes de responder -- el resultado
+    // llegaba truncado a mitad de oración (ver nota en generarConGroq/aiService.ts).
+    const textoIA = await generarContenidoUniversalIA(prompt, 1200);
     if (textoIA) {
       const puntos = textoIA
         .split("\n")
         .map((l) => l.replace(/^[-•]\s*/, "").trim())
         .filter((l) => l.length > 0);
-      if (puntos.length > 0) {
+      // Si solo llegó un "punto" y no parece una oración completa (empieza en
+      // minúscula, como si le faltara la primera palabra -- señal de que el
+      // modelo respondió en prosa y se truncó a mitad de frase en vez de la
+      // lista pedida), se descarta y se usa el respaldo heurístico en vez de
+      // mostrar texto roto al usuario.
+      const pareceTruncado = puntos.length === 1 && /^[a-záéíóúñ]/.test(puntos[0]);
+      if (puntos.length > 0 && !pareceTruncado) {
         return res.json({ puntos, disponible: true });
       }
     }
