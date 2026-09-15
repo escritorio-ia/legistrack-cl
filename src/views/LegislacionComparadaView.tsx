@@ -1299,6 +1299,12 @@ export default function LegislacionComparadaView({ setSelectedProyectoId }: Legi
     setLiveLoading(true);
     setSearchError(null);
     setPaginaResultados(1);
+    // Cada búsqueda nueva parte de cero en la selección para comparar -- si no
+    // se limpiara, quedaban marcadas normativas de la búsqueda anterior (de
+    // otra materia) mezcladas con los resultados de la nueva en "Comparador
+    // Lado a Lado".
+    setSeleccionComparar([]);
+    setComparacionDetalle({});
     guardarEnHistorial(queryClean);
     if (autoSwitchTab && activeTab !== "live" && activeTab !== "documento") {
       setActiveTab("live");
@@ -1541,6 +1547,8 @@ export default function LegislacionComparadaView({ setSelectedProyectoId }: Legi
 
     setIsGenerating(true);
     setSearchError(null);
+    setSeleccionComparar([]);
+    setComparacionDetalle({});
     try {
       const res = await fetch(`/api/derecho-comparado?q=${encodeURIComponent(queryClean)}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
