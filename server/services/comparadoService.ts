@@ -205,7 +205,7 @@ async function fetchConTimeout(url: string, ms = 8000): Promise<Response> {
 export async function buscarChile(q: string): Promise<ResultadoComparado[]> {
   try {
     const keyParam = LEYCHILE_API_KEY ? `&key=${encodeURIComponent(LEYCHILE_API_KEY)}` : "";
-    const url = `https://www.leychile.cl/Consulta/obtxml?opt=61&cadena=${encodeURIComponent(q)}&cantidad=12${keyParam}`;
+    const url = `https://www.leychile.cl/Consulta/obtxml?opt=61&cadena=${encodeURIComponent(q)}&cantidad=10${keyParam}`;
     const res = await fetchConTimeout(url, 7000);
     if (!res.ok) return [];
     const xml = await res.text();
@@ -249,7 +249,16 @@ export async function buscarChile(q: string): Promise<ResultadoComparado[]> {
           tipo: inferirTipoNorma(tituloFinal)
         };
       })
-      .filter((r) => r.titulo && r.titulo !== "Norma sin título");
+      .filter((r) => r.titulo && r.titulo !== "Norma sin título")
+      // La búsqueda de texto libre de LeyChile es más permisiva que la lista
+      // curada que devuelve la IA para el resto de los países (5-7 resultados) --
+      // sin este recorte, Chile aparecía con muchos más resultados sueltos que
+      // cualquier otro país aunque varios fueran poco relevantes a la materia
+      // buscada. Se puntúa por relevancia real y se deja solo el top 6, igual de
+      // acotado que el resto.
+      .map((r) => ({ ...r, relevancia: relevanciaPorCoincidencia(q, r) }))
+      .sort((a, b) => (b.relevancia || 0) - (a.relevancia || 0))
+      .slice(0, 6);
   } catch {
     return [];
   }

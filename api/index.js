@@ -189496,7 +189496,7 @@ async function fetchConTimeout(url, ms = 8e3) {
 async function buscarChile(q) {
   try {
     const keyParam = LEYCHILE_API_KEY ? `&key=${encodeURIComponent(LEYCHILE_API_KEY)}` : "";
-    const url = `https://www.leychile.cl/Consulta/obtxml?opt=61&cadena=${encodeURIComponent(q)}&cantidad=12${keyParam}`;
+    const url = `https://www.leychile.cl/Consulta/obtxml?opt=61&cadena=${encodeURIComponent(q)}&cantidad=10${keyParam}`;
     const res = await fetchConTimeout(url, 7e3);
     if (!res.ok) return [];
     const xml = await res.text();
@@ -189532,7 +189532,7 @@ async function buscarChile(q) {
         descripcion: descripcionFinal,
         tipo: inferirTipoNorma(tituloFinal)
       };
-    }).filter((r) => r.titulo && r.titulo !== "Norma sin t\xEDtulo");
+    }).filter((r) => r.titulo && r.titulo !== "Norma sin t\xEDtulo").map((r) => ({ ...r, relevancia: relevanciaPorCoincidencia(q, r) })).sort((a, b) => (b.relevancia || 0) - (a.relevancia || 0)).slice(0, 6);
   } catch {
     return [];
   }

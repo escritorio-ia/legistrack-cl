@@ -8,9 +8,10 @@ import {
   getDocs, 
   query, 
   where, 
-  orderBy, 
-  limit, 
-  onSnapshot 
+  orderBy,
+  limit,
+  onSnapshot,
+  deleteDoc
 } from "firebase/firestore";
 
 // Exact Firebase Web Config for project legistrack-d75bc
@@ -46,7 +47,8 @@ export const COLLECTIONS = {
   CITACIONES_CUSTOM: "citaciones_custom",
   ALERTAS_LEGISLATIVAS: "alertas_legislativas",
   NOTAS_COLABORATIVAS: "notas_colaborativas",
-  HISTORIAL_PROYECTOS: "historial_proyectos"
+  HISTORIAL_PROYECTOS: "historial_proyectos",
+  DERECHO_COMPARADO_INFORMES: "derecho_comparado_informes"
 };
 
 export interface NotaColaborativa {
@@ -258,5 +260,80 @@ export async function getSesionesVinculadasDeProyecto(boletinId: string): Promis
   } catch (err) {
     console.warn(`Error fetching linked sessions for proyecto ${boletinId} from Firestore:`, err);
     return [];
+  }
+}
+
+/**
+ * Informes de Derecho Comparado (búsquedas guardadas). Antes solo vivían en
+ * localStorage: cada analista veía únicamente sus propias búsquedas guardadas,
+ * sin compartir el trabajo con el resto del equipo ni con otras sesiones del
+ * mismo navegador. Se guardan en Firestore para que el equipo los comparta, y
+ * opcionalmente quedan vinculados a un Boletín de ley chileno concreto.
+ */
+export interface InformeComparadoGuardado {
+  id: string;
+  query: string;
+  fecha: string;
+  resultados: any[];
+  fuentesConsultadas: string[];
+  fuentesFallidas: string[];
+  parrafoAuto: string;
+  redaccionIA?: string;
+  boletinVinculado?: string;
+  createdAt: string;
+}
+
+export async function saveInformeComparadoToFirestore(informe: InformeComparadoGuardado): Promise<boolean> {
+  if (!db) return false;
+  try {
+    const docRef = doc(db, COLLECTIONS.DERECHO_COMPARADO_INFORMES, informe.id);
+    await setDoc(docRef, informe, { merge: true });
+    return true;
+  } catch (err) {
+    console.warn("Error saving informe comparado to Firestore:", err);
+    return false;
+  }
+}
+
+/** Últimos informes de Derecho Comparado guardados por el equipo (todos los analistas). */
+export async function getInformesComparadoFromFirestore(maxResultados = 30): Promise<InformeComparadoGuardado[]> {
+  if (!db) return [];
+  try {
+    const colRef = collection(db, COLLECTIONS.DERECHO_COMPARADO_INFORMES);
+    const q = query(colRef, orderBy("createdAt", "desc"), limit(maxResultados));
+    const snap = await getDocs(q);
+    const informes: InformeComparadoGuardado[] = [];
+    snap.forEach((d) => informes.push(d.data() as InformeComparadoGuardado));
+    return informes;
+  } catch (err) {
+    console.warn("Error fetching informes comparados from Firestore:", err);
+    return [];
+  }
+}
+
+/** Informes de Derecho Comparado ya vinculados a un Boletín de ley chileno específico. */
+export async function getInformesComparadoByBoletin(boletinId: string): Promise<InformeComparadoGuardado[]> {
+  if (!db || !boletinId) return [];
+  try {
+    const colRef = collection(db, COLLECTIONS.DERECHO_COMPARADO_INFORMES);
+    const q = query(colRef, where("boletinVinculado", "==", boletinId));
+    const snap = await getDocs(q);
+    const informes: InformeComparadoGuardado[] = [];
+    snap.forEach((d) => informes.push(d.data() as InformeComparadoGuardado));
+    return informes;
+  } catch (err) {
+    console.warn(`Error fetching informes comparados for boletin ${boletinId} from Firestore:`, err);
+    return [];
+  }
+}
+
+export async function deleteInformeComparadoFromFirestore(id: string): Promise<boolean> {
+  if (!db) return false;
+  try {
+    await deleteDoc(doc(db, COLLECTIONS.DERECHO_COMPARADO_INFORMES, id));
+    return true;
+  } catch (err) {
+    console.warn("Error deleting informe comparado from Firestore:", err);
+    return false;
   }
 }

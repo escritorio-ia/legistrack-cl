@@ -9,10 +9,16 @@ import {
   CheckCircle, Sparkles, Layers, Shield, Building2, ExternalLink, Download, 
   RefreshCw, Filter, BookMarked, Bookmark, Plus, Check, X, Copy, 
   SlidersHorizontal, ChevronRight, ChevronDown, ChevronUp, Tag, Share2, HelpCircle, Eye, Info,
-  FileSpreadsheet, Printer, FileDown, CheckCheck, Target, ShieldAlert, Wrench, AlertTriangle
+  FileSpreadsheet, Printer, FileDown, CheckCheck, Target, ShieldAlert, Wrench, AlertTriangle, AlertCircle
 } from "lucide-react";
 import MatrizComparadaTable, { MatrizColumna, MatrizComparadaData, TODAS_LAS_MATRICES } from "../components/MatrizComparadaTable";
 import { normalizeSearchText } from "../utils/textUtils";
+import {
+  saveInformeComparadoToFirestore,
+  getInformesComparadoFromFirestore,
+  deleteInformeComparadoFromFirestore,
+  InformeComparadoGuardado
+} from "../services/firebaseService";
 
 export interface ComparativeTopic {
   id: string;
@@ -255,6 +261,12 @@ export interface ResultadoComparado {
   relevancia?: number;
 }
 
+interface AIProviderAttempt {
+  provider: string;
+  configured: boolean;
+  error?: string;
+}
+
 const CODIGO_PAIS: Record<string, string> = {
   "Chile": "CL", "España": "ES", "Unión Europea": "EU", "Estados Unidos": "US", "Brasil": "BR",
   "Argentina": "AR", "Uruguay": "UY", "Colombia": "CO", "Panamá": "PA", "Reino Unido": "GB",
@@ -296,6 +308,7 @@ interface LeySeleccionada {
 }
 
 interface CustomReport {
+  id?: string;
   query: string;
   fecha: string;
   resultados: ResultadoComparado[];
@@ -305,6 +318,8 @@ interface CustomReport {
   redaccionIA?: string;
   leySeleccionada?: LeySeleccionada;
   normasComparadas?: ResultadoComparado[];
+  boletinVinculado?: string;
+  compartidoEquipo?: boolean;
 }
 
 const SUGGESTED_SEARCHES = [
@@ -1004,6 +1019,18 @@ function ExportToolbar({
   );
 }
 
+// Detecta un número de Boletín de ley chileno (ej. "17.006-01") en los
+// resultados de Chile de una búsqueda de Derecho Comparado, para poder
+// vincular el informe generado directamente al proyecto de ley relacionado.
+function detectarBoletinChile(resultados: ResultadoComparado[]): string | null {
+  for (const r of resultados) {
+    if (r.pais !== "Chile") continue;
+    const m = r.titulo.match(/\b\d{1,2}\.\d{3}-\d{2}\b|\b\d{4,5}-\d{2}\b/);
+    if (m) return m[0];
+  }
+  return null;
+}
+
 // Chile siempre debe aparecer primero en cualquier columna/ficha comparativa,
 // sin importar el orden en que el usuario haya ido marcando las normativas.
 function ordenarChilePrimero<T extends { pais: string }>(items: T[]): T[] {
@@ -1117,14 +1144,56 @@ function generarMatrizDinamica(
   };
 }
 
-export default function LegislacionComparadaView() {
+interface LegislacionComparadaViewProps {
+  // Navega al detalle de un proyecto de ley por su Boletín -- permite vincular
+  // un informe de Derecho Comparado directamente al proyecto chileno relacionado.
+  setSelectedProyectoId?: (id: string) => void;
+}
+
+export default function LegislacionComparadaView({ setSelectedProyectoId }: LegislacionComparadaViewProps = {}) {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [selectedTopicId, setSelectedTopicId] = useState<string>(COMPARATIVE_TOPICS[0].id);
   const [customQuery, setCustomQuery] = useState<string>("");
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [savedReports, setSavedReports] = useState<CustomReport[]>([]);
+  const [cargandoCompartidos, setCargandoCompartidos] = useState<boolean>(false);
+
+  // Los informes guardados por CUALQUIER analista del equipo (Firestore), no
+  // solo los del navegador local -- antes cada persona veía únicamente sus
+  // propias búsquedas guardadas en localStorage.
+  useEffect(() => {
+    let cancelado = false;
+    setCargandoCompartidos(true);
+    getInformesComparadoFromFirestore(30)
+      .then((compartidos) => {
+        if (cancelado) return;
+        const mapeados: CustomReport[] = compartidos.map((c) => ({
+          id: c.id,
+          query: c.query,
+          fecha: c.fecha,
+          resultados: c.resultados,
+          fuentesConsultadas: c.fuentesConsultadas,
+          fuentesFallidas: c.fuentesFallidas,
+          parrafoAuto: c.parrafoAuto,
+          redaccionIA: c.redaccionIA,
+          boletinVinculado: c.boletinVinculado,
+          compartidoEquipo: true
+        }));
+        setSavedReports((prev) => {
+          const idsExistentes = new Set(prev.map((r) => r.id).filter(Boolean));
+          const nuevos = mapeados.filter((r) => !idsExistentes.has(r.id));
+          return [...nuevos, ...prev];
+        });
+      })
+      .finally(() => { if (!cancelado) setCargandoCompartidos(false); });
+    return () => { cancelado = true; };
+  }, []);
   const [materiasDestacadasAbiertas, setMateriasDestacadasAbiertas] = useState<boolean>(false);
   const [dossierEjemplosAbierto, setDossierEjemplosAbierto] = useState<boolean>(false);
+  // Diagnóstico técnico de qué proveedor de IA respondió (o falló y por qué) en
+  // la última búsqueda -- antes solo se podía ver llamando a la API por curl.
+  const [liveAiDiagnostics, setLiveAiDiagnostics] = useState<AIProviderAttempt[]>([]);
+  const [diagnosticoAbierto, setDiagnosticoAbierto] = useState<boolean>(false);
   // Informe Técnico BCN generado en vivo a partir del tema efectivamente buscado
   // (liveResultados), en vez de depender únicamente del catálogo estático
   // precargado de COMPARATIVE_TOPICS. Se genera al seleccionar/pedir el informe
@@ -1249,11 +1318,12 @@ export default function LegislacionComparadaView() {
     try {
       const res = await fetch(`/api/derecho-comparado?q=${encodeURIComponent(queryClean)}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: { resultados: ResultadoComparado[]; fuentesConsultadas: string[]; fuentesFallidas: string[] } = await res.json();
+      const data: { resultados: ResultadoComparado[]; fuentesConsultadas: string[]; fuentesFallidas: string[]; aiDiagnostics?: AIProviderAttempt[] } = await res.json();
       const resultados = data.resultados || [];
       setLiveResultados(resultados);
       setLiveFuentesConsultadas(data.fuentesConsultadas || []);
       setLiveFuentesFallidas(data.fuentesFallidas || []);
+      setLiveAiDiagnostics(data.aiDiagnostics || []);
 
       // Genera automáticamente el Informe Técnico BCN del tema efectivamente
       // buscado (no un dossier precargado desconectado) para que la pestaña
@@ -1404,7 +1474,9 @@ export default function LegislacionComparadaView() {
   const handleGuardarInformeBCN = () => {
     if (!liveQuery) return;
     const aGuardar = seleccionComparar.length > 0 ? seleccionComparar : liveResultados.slice(0, 8);
+    const boletinVinculado = detectarBoletinChile(aGuardar) || undefined;
     const newReport: CustomReport = {
+      id: `dc_${Date.now()}`,
       query: liveQuery,
       fecha: new Date().toLocaleDateString("es-CL", { day: '2-digit', month: '2-digit', year: 'numeric' }),
       resultados: aGuardar,
@@ -1413,10 +1485,27 @@ export default function LegislacionComparadaView() {
       parrafoAuto: buildParrafoAutomatico(liveQuery, aGuardar),
       leySeleccionada: leySeleccionada || undefined,
       normasComparadas: aGuardar,
+      boletinVinculado,
+      compartidoEquipo: true
     };
     setSavedReports((prev) => [newReport, ...prev]);
+    saveInformeComparadoToFirestore({
+      id: newReport.id!,
+      query: newReport.query,
+      fecha: newReport.fecha,
+      resultados: newReport.resultados,
+      fuentesConsultadas: newReport.fuentesConsultadas,
+      fuentesFallidas: newReport.fuentesFallidas,
+      parrafoAuto: newReport.parrafoAuto,
+      boletinVinculado,
+      createdAt: new Date().toISOString()
+    }).catch((err) => console.warn("Could not sync informe comparado to Firestore:", err));
     setActiveTab("guardados");
-    setSuccessMessage("Informe oficial tipo BCN generado y guardado.");
+    setSuccessMessage(
+      boletinVinculado
+        ? `Informe oficial tipo BCN generado, guardado y vinculado al Boletín N° ${boletinVinculado}.`
+        : "Informe oficial tipo BCN generado y guardado para todo el equipo."
+    );
     setTimeout(() => setSuccessMessage(null), 4000);
   };
 
@@ -1440,30 +1529,67 @@ export default function LegislacionComparadaView() {
     }
   };
 
+  // Antes este formulario duplicaba por completo la lógica del buscador
+  // principal (mismo fetch a /api/derecho-comparado, hecho por separado) --
+  // ahora reutiliza el mismo fetch que "Búsqueda en Vivo", con la única
+  // diferencia real de que además guarda el resultado como informe de equipo
+  // (Firestore) de inmediato, sin que el usuario tenga que hacerlo aparte.
   const handleGenerateCustomAI = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!customQuery.trim()) return;
+    const queryClean = customQuery.trim();
 
     setIsGenerating(true);
     setSearchError(null);
     try {
-      const res = await fetch(`/api/derecho-comparado?q=${encodeURIComponent(customQuery)}`);
+      const res = await fetch(`/api/derecho-comparado?q=${encodeURIComponent(queryClean)}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: { resultados: ResultadoComparado[]; fuentesConsultadas: string[]; fuentesFallidas: string[] } = await res.json();
+      const data: { resultados: ResultadoComparado[]; fuentesConsultadas: string[]; fuentesFallidas: string[]; aiDiagnostics?: AIProviderAttempt[] } = await res.json();
 
       const resultados = ordenarChilePrimero(data.resultados || []);
+      const parrafoAuto = buildParrafoAutomatico(queryClean, resultados);
+      const boletinVinculado = detectarBoletinChile(resultados) || undefined;
+
+      // También alimenta el resto de la vista (Búsqueda en Vivo, Informe
+      // Técnico BCN) con esta misma consulta, en vez de dejarla aislada.
+      setLiveQuery(queryClean);
+      setLiveResultados(resultados);
+      setLiveFuentesConsultadas(data.fuentesConsultadas || []);
+      setLiveFuentesFallidas(data.fuentesFallidas || []);
+      setLiveAiDiagnostics(data.aiDiagnostics || []);
+      guardarEnHistorial(queryClean);
+      if (resultados.length > 0) {
+        setInformeLiveMarkdown(buildInformeMarkdown(queryClean, resultados, parrafoAuto));
+        setInformeLiveQuery(queryClean);
+      }
+
       const newReport: CustomReport = {
-        query: customQuery,
+        id: `dc_${Date.now()}`,
+        query: queryClean,
         fecha: new Date().toLocaleDateString("es-CL", { day: '2-digit', month: '2-digit', year: 'numeric' }),
         resultados,
         fuentesConsultadas: data.fuentesConsultadas || [],
         fuentesFallidas: data.fuentesFallidas || [],
-        parrafoAuto: buildParrafoAutomatico(customQuery, resultados),
+        parrafoAuto,
+        boletinVinculado,
+        compartidoEquipo: true
       };
-      setSavedReports([newReport, ...savedReports]);
+      setSavedReports((prev) => [newReport, ...prev]);
+      saveInformeComparadoToFirestore({
+        id: newReport.id!,
+        query: newReport.query,
+        fecha: newReport.fecha,
+        resultados: newReport.resultados,
+        fuentesConsultadas: newReport.fuentesConsultadas,
+        fuentesFallidas: newReport.fuentesFallidas,
+        parrafoAuto: newReport.parrafoAuto,
+        boletinVinculado,
+        createdAt: new Date().toISOString()
+      }).catch((err) => console.warn("Could not sync informe comparado to Firestore:", err));
+
       setCustomQuery("");
       setActiveTab("guardados");
-      setSuccessMessage(`Búsqueda completada: ${newReport.resultados.length} resultado(s) de fuentes oficiales.`);
+      setSuccessMessage(`Búsqueda completada: ${newReport.resultados.length} resultado(s), guardado para todo el equipo.`);
       setTimeout(() => setSuccessMessage(null), 4000);
     } catch (err) {
       setSearchError("No fue posible consultar las fuentes de derecho comparado en este momento.");
@@ -1739,6 +1865,39 @@ export default function LegislacionComparadaView() {
                   El motor de IA no respondió (saturación temporal o límite de cuota). Estos resultados provienen de una base de conocimiento general de referencia, no de una consulta en vivo verificada — trátalos como punto de partida, no como cita definitiva. Vuelve a intentar la búsqueda en unos minutos.
                 </p>
               </div>
+            </div>
+          )}
+
+          {/* Diagnóstico técnico: qué proveedor de IA respondió (o por qué falló)
+              en esta búsqueda -- antes solo se podía ver llamando a la API directo. */}
+          {!liveLoading && liveAiDiagnostics.length > 0 && (
+            <div className="border border-slate-200 rounded-xl overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setDiagnosticoAbierto(v => !v)}
+                className="w-full flex items-center justify-between px-4 py-2 bg-slate-50 hover:bg-slate-100 text-[11px] font-bold text-slate-500 uppercase tracking-wider cursor-pointer"
+              >
+                <span className="flex items-center gap-1.5"><Info className="w-3.5 h-3.5" /> Diagnóstico técnico IA ({liveAiDiagnostics.length} intento{liveAiDiagnostics.length === 1 ? "" : "s"})</span>
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${diagnosticoAbierto ? "rotate-180" : ""}`} />
+              </button>
+              {diagnosticoAbierto && (
+                <div className="px-4 py-3 bg-white flex flex-col gap-1.5">
+                  {liveAiDiagnostics.map((a, i) => (
+                    <div key={i} className="flex items-start gap-2 text-[11px] font-mono">
+                      {a.error ? (
+                        <AlertCircle className="w-3.5 h-3.5 text-rose-500 shrink-0 mt-0.5" />
+                      ) : (
+                        <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                      )}
+                      <span>
+                        <strong className="text-slate-800">{a.provider}</strong>
+                        {!a.configured && <span className="text-slate-400"> (no configurado)</span>}
+                        {a.error ? <span className="text-rose-700"> — {a.error}</span> : !a.error && a.configured ? <span className="text-emerald-700"> — respondió correctamente</span> : null}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -2137,6 +2296,40 @@ export default function LegislacionComparadaView() {
                   <X className="w-4 h-4" />
                 </button>
               </div>
+
+              {/* Vínculo directo al Boletín de ley chileno relacionado (si se
+                  detectó uno entre los resultados) y acceso rápido para
+                  guardarlo como informe compartido del equipo. */}
+              {(() => {
+                const boletin = detectarBoletinChile(liveResultados);
+                return (
+                  <div className="bg-slate-50 border-b border-slate-200 px-6 py-2.5 flex flex-wrap items-center gap-2">
+                    {boletin ? (
+                      setSelectedProyectoId ? (
+                        <button
+                          onClick={() => setSelectedProyectoId(boletin)}
+                          className="text-[11px] font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-1 rounded-full flex items-center gap-1.5 hover:bg-indigo-100 cursor-pointer"
+                        >
+                          <BookMarked className="w-3 h-3" /> Ver Boletín N° {boletin} vinculado
+                        </button>
+                      ) : (
+                        <span className="text-[11px] font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-1 rounded-full flex items-center gap-1.5">
+                          <BookMarked className="w-3 h-3" /> Detectado: Boletín N° {boletin}
+                        </span>
+                      )
+                    ) : (
+                      <span className="text-[11px] text-slate-400 font-medium">No se detectó un Boletín chileno en los resultados de esta búsqueda.</span>
+                    )}
+                    <button
+                      onClick={handleGuardarInformeBCN}
+                      className="text-[11px] font-bold text-blue-700 hover:text-blue-900 flex items-center gap-1.5 ml-auto cursor-pointer"
+                    >
+                      <Bookmark className="w-3.5 h-3.5" /> Guardar como informe del equipo
+                    </button>
+                  </div>
+                );
+              })()}
+
               <div className="p-6 md:p-8">
                 {renderInformeMarkdown(informeLiveMarkdown)}
               </div>
@@ -2557,7 +2750,7 @@ export default function LegislacionComparadaView() {
             <div>
               <h3 className="text-base font-extrabold text-slate-900">Generador Analítico de Derecho Comparado</h3>
               <p className="text-xs text-slate-500">
-                Consulte y sintetice en vivo marcos normativos internacionales a partir de cualquier consulta específica.
+                Igual que el buscador principal, pero el resultado queda guardado automáticamente en &quot;Informes Guardados&quot; para todo el equipo (y vinculado al Boletín chileno si se detecta uno).
               </p>
             </div>
           </div>
@@ -2611,7 +2804,7 @@ export default function LegislacionComparadaView() {
               <Bookmark className="w-4 h-4 text-blue-700" /> Informes y Minutas Guardadas ({savedReports.length})
             </h3>
             <span className="text-xs text-slate-500 font-medium">
-              Almacenados localmente para su uso en comisiones parlamentarias
+              {cargandoCompartidos ? "Sincronizando informes del equipo…" : "Compartidos con todo el equipo (Firestore) para uso en comisiones parlamentarias"}
             </span>
           </div>
 
@@ -2628,11 +2821,23 @@ export default function LegislacionComparadaView() {
           ) : (
             <div className="grid grid-cols-1 gap-4">
               {savedReports.map((rep, idx) => (
-                <div key={idx} className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs flex flex-col gap-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-mono font-bold bg-blue-50 text-blue-800 px-2.5 py-1 rounded border border-blue-100">
-                      {rep.fecha}
-                    </span>
+                <div key={rep.id || idx} className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs flex flex-col gap-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-mono font-bold bg-blue-50 text-blue-800 px-2.5 py-1 rounded border border-blue-100">
+                        {rep.fecha}
+                      </span>
+                      {rep.compartidoEquipo && (
+                        <span className="text-[9px] font-extrabold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-1 rounded-full flex items-center gap-1">
+                          <Share2 className="w-3 h-3" /> Compartido con el equipo
+                        </span>
+                      )}
+                      {rep.boletinVinculado && (
+                        <span className="text-[9px] font-extrabold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-1 rounded-full flex items-center gap-1">
+                          <BookMarked className="w-3 h-3" /> Boletín N° {rep.boletinVinculado}
+                        </span>
+                      )}
+                    </div>
                     <span className="text-xs font-bold text-slate-400">
                       {rep.resultados.length} resultado(s) · {rep.fuentesConsultadas.length} fuente(s) consultada(s)
                     </span>

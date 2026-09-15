@@ -765,7 +765,7 @@ export default function App() {
         )}
 
         {view === "legislacion-comparada" && (
-          <LegislacionComparadaView />
+          <LegislacionComparadaView setSelectedProyectoId={(id) => navigateView("proyecto-detail", id)} />
         )}
 
         {view === "search-results" && (
