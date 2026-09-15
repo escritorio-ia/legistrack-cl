@@ -786,16 +786,6 @@ export default function ProyectoDetailView({
         </div>
       </div>
 
-      {syncSuccess && (
-        <div className="bg-emerald-50 border border-emerald-100 text-emerald-800 text-[11px] px-4 py-3 rounded-xl flex items-center justify-between shadow-xs animate-fade-in-down">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
-            <span className="font-semibold">¡Sincronizado con éxito con la Biblioteca del Congreso Nacional (BCN) y Datos Abiertos! Los datos se encuentran 100% actualizados hoy.</span>
-          </div>
-          <span className="text-[9px] font-bold text-emerald-600 bg-emerald-100/50 px-2 py-0.5 rounded-full uppercase tracking-wider">ONLINE</span>
-        </div>
-      )}
-
       {syncError && (
         <div className="bg-rose-50 border border-rose-100 text-rose-800 text-[11px] px-4 py-3 rounded-xl flex items-center justify-between shadow-xs animate-fade-in-down">
           <span className="font-semibold">{syncError}</span>
