@@ -670,17 +670,21 @@ export default function ProyectoDetailView({
         <span className="text-slate-600">{proyecto.id}</span>
       </div>
 
-      {/* Main Title & Action header */}
-      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4" id="project-detail-header">
-        <div className="flex-1 min-w-0">
+      {/* Main Title & Action header. El título va SIEMPRE en su propia fila a
+          ancho completo (no comparte fila con los botones): con flex-row los
+          botones (shrink-0, muchos y no siempre necesitan ajustarse a una
+          segunda línea) le dejaban al título una columna angosta de verdad,
+          partiendo cada palabra -- no era solo un cálculo de flexbox. */}
+      <div className="flex flex-col gap-3" id="project-detail-header">
+        <div>
           <span className="text-xs font-extrabold text-blue-700 uppercase tracking-wider">
             Boletín {proyecto.id}
           </span>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight leading-snug mt-1 break-words" id="project-title-heading">
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight leading-snug mt-1" id="project-title-heading">
             {proyecto.titulo}
           </h1>
         </div>
-        <div className="flex flex-wrap gap-2 shrink-0">
+        <div className="flex flex-wrap gap-2">
           <button 
             onClick={() => setIsFichaModalOpen(true)}
             className="flex items-center gap-1.5 font-bold text-xs px-3.5 py-2 rounded-xl bg-slate-900 text-white hover:bg-slate-800 shadow-2xs transition-all cursor-pointer"
