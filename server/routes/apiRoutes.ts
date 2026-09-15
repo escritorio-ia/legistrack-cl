@@ -405,13 +405,33 @@ Usa EXCLUSIVAMENTE información que esté efectivamente en el texto entregado. S
     console.warn(`Could not generate comparado for boletín ${proyecto.id}:`, err);
   }
 
+  // Resguardo: si el título del proyecto no dice explícitamente "modifica..."
+  // (hay títulos como "Dicta normas para asegurar..." que en la práctica sí
+  // modifican una ley/código, pero no lo dicen con esa palabra), se busca la
+  // ley o código de referencia más citado en los artículos que la IA ya
+  // identificó a partir del texto real del informe.
+  let leyModificadaFinal = leyModificada;
+  if (!leyModificadaFinal && comparaciones.length > 0) {
+    const menciones: Record<string, number> = {};
+    for (const c of comparaciones) {
+      const texto = `${c.articulo || ""} ${c.textoOriginal || ""}`;
+      const m = texto.match(/\b(código\s+[a-záéíóúñ]+(?:\s+[a-záéíóúñ]+)?|ley\s*n[°º]?\s*[\d.]+)/i);
+      if (m) {
+        const key = m[0].trim().replace(/\s+/g, " ");
+        menciones[key] = (menciones[key] || 0) + 1;
+      }
+    }
+    const masCitada = Object.entries(menciones).sort((a, b) => b[1] - a[1])[0];
+    if (masCitada && masCitada[1] >= 2) leyModificadaFinal = masCitada[0];
+  }
+
   res.json({
     disponible: comparaciones.length > 0,
     razon: comparaciones.length === 0 ? "La IA no pudo identificar modificaciones concretas en el texto del informe disponible." : undefined,
     informeUrl: informe.url,
     informeTitulo: informe.titulo,
     informeFecha: informe.fecha,
-    leyModificada,
+    leyModificada: leyModificadaFinal,
     comparaciones,
     aiDiagnostics: aiAttempts
   });

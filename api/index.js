@@ -192232,13 +192232,27 @@ Usa EXCLUSIVAMENTE informaci\xF3n que est\xE9 efectivamente en el texto entregad
   } catch (err) {
     console.warn(`Could not generate comparado for bolet\xEDn ${proyecto.id}:`, err);
   }
+  let leyModificadaFinal = leyModificada;
+  if (!leyModificadaFinal && comparaciones.length > 0) {
+    const menciones = {};
+    for (const c of comparaciones) {
+      const texto2 = `${c.articulo || ""} ${c.textoOriginal || ""}`;
+      const m = texto2.match(/\b(código\s+[a-záéíóúñ]+(?:\s+[a-záéíóúñ]+)?|ley\s*n[°º]?\s*[\d.]+)/i);
+      if (m) {
+        const key = m[0].trim().replace(/\s+/g, " ");
+        menciones[key] = (menciones[key] || 0) + 1;
+      }
+    }
+    const masCitada = Object.entries(menciones).sort((a, b) => b[1] - a[1])[0];
+    if (masCitada && masCitada[1] >= 2) leyModificadaFinal = masCitada[0];
+  }
   res.json({
     disponible: comparaciones.length > 0,
     razon: comparaciones.length === 0 ? "La IA no pudo identificar modificaciones concretas en el texto del informe disponible." : void 0,
     informeUrl: informe.url,
     informeTitulo: informe.titulo,
     informeFecha: informe.fecha,
-    leyModificada,
+    leyModificada: leyModificadaFinal,
     comparaciones,
     aiDiagnostics: aiAttempts
   });
