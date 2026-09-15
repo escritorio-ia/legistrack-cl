@@ -1756,22 +1756,27 @@ export default function ProyectoDetailView({
                             </p>
                           </div>
                         </div>
-                        <button 
+                        <button
                           onClick={() => {
                             if (doc.isReport && doc.reportContent) {
                               setSelectedReportForViewer(doc);
                               setViewerCurrentPage(1);
+                            } else if (doc.url) {
+                              window.open(doc.url, "_blank", "noopener,noreferrer");
                             } else {
-                              alert(`Visualizando PDF oficial para: ${doc.titulo}`);
+                              alert("No hay un enlace oficial disponible todavía para este documento. Revísalo en Cámara.cl o Senado.cl.");
                             }
                           }}
-                          className={`px-3 py-1 text-[10px] font-bold rounded-lg cursor-pointer transition-all ${
-                            doc.isReport 
-                              ? "bg-blue-600 hover:bg-blue-700 text-white border border-blue-600" 
-                              : "border border-slate-200 hover:border-slate-400 text-slate-700"
+                          disabled={!doc.isReport && !doc.url}
+                          className={`px-3 py-1 text-[10px] font-bold rounded-lg transition-all ${
+                            !doc.isReport && !doc.url
+                              ? "border border-slate-100 text-slate-300 cursor-not-allowed"
+                              : doc.isReport
+                              ? "bg-blue-600 hover:bg-blue-700 text-white border border-blue-600 cursor-pointer"
+                              : "border border-slate-200 hover:border-slate-400 text-slate-700 cursor-pointer"
                           }`}
                         >
-                          {doc.isReport ? "Ver Informe (3 Págs)" : "Ver PDF"}
+                          {doc.isReport ? "Ver Informe (3 Págs)" : doc.url ? "Ver PDF" : "Sin enlace"}
                         </button>
                       </div>
                     ))}
