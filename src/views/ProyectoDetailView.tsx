@@ -38,7 +38,8 @@ import {
   ExternalLink,
   Compass,
   Sparkles,
-  Video
+  Video,
+  ChevronDown
 } from "lucide-react";
 import { Proyecto, ActivityItem, VotacionItem } from "../types";
 import { resolveProyecto } from "../utils/proyectosResolver";
@@ -252,6 +253,7 @@ export default function ProyectoDetailView({
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState("");
   const [syncSuccess, setSyncSuccess] = useState(false);
+  const [showAutoresPopover, setShowAutoresPopover] = useState(false);
   const [selectedComisionComparador, setSelectedComisionComparador] = useState<string>("");
   const [sesionesVinculadas, setSesionesVinculadas] = useState<SesionVinculadaProyecto[]>([]);
 
@@ -851,11 +853,46 @@ export default function ProyectoDetailView({
           </span>
         </div>
         {/* Metric 6 */}
-        <div className="bg-white rounded-xl border border-slate-200 p-4 font-sans text-center flex flex-col justify-center items-center gap-1 shadow-sm">
+        <div className="relative bg-white rounded-xl border border-slate-200 p-4 font-sans text-center flex flex-col justify-center items-center gap-1 shadow-sm">
           <p className="text-[9px] uppercase font-bold tracking-wider text-slate-400 font-mono">INICIATIVA</p>
-          <span className="text-xs font-bold text-slate-900">
-            {proyecto.iniciativa === "Mensaje" ? "S.E. el Presidente" : `${proyecto.patrocinantes || 5} parlamentarios`}
-          </span>
+          {proyecto.iniciativa === "Mensaje" ? (
+            <span className="text-xs font-bold text-slate-900" title="Presentado por el Ejecutivo (S.E. el Presidente de la República)">
+              Mensaje
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowAutoresPopover(v => !v)}
+              className="text-xs font-bold text-slate-900 hover:text-blue-700 cursor-pointer inline-flex items-center gap-1"
+              title="Ver listado de autores"
+            >
+              <span>Moción</span>
+              <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform ${showAutoresPopover ? "rotate-180" : ""}`} />
+            </button>
+          )}
+
+          {showAutoresPopover && proyecto.iniciativa !== "Mensaje" && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setShowAutoresPopover(false)} />
+              <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 z-50 w-64 bg-white border border-slate-200 rounded-xl shadow-lg p-3.5 text-left animate-fade-in">
+                <p className="text-[9px] uppercase font-extrabold tracking-wider text-slate-400 mb-2">
+                  Autores de la Moción ({proyecto.patrocinantes || (proyecto.autores ? proyecto.autores.split(",").length : 0) || 0} parlamentario{(proyecto.patrocinantes || 0) === 1 ? "" : "s"})
+                </p>
+                {proyecto.autores ? (
+                  <ul className="flex flex-col gap-1.5">
+                    {proyecto.autores.split(",").map((nombre, i) => (
+                      <li key={i} className="text-xs font-semibold text-slate-800 flex items-start gap-1.5">
+                        <span className="text-blue-500 shrink-0">•</span>
+                        <span>{nombre.trim()}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-slate-500">No hay listado nominal de autores disponible para este proyecto todavía.</p>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </div>
 
