@@ -377,6 +377,67 @@ function buildInformeMarkdown(
   return lines.join("\n");
 }
 
+function renderTextoConNegrita(text: string) {
+  const parts = text.split(/\*\*([\s\S]*?)\*\*/);
+  return parts.map((part, index) => (index % 2 === 1 ? <strong key={index} className="font-extrabold text-slate-900">{part}</strong> : part));
+}
+
+// Renderer de markdown liviano (encabezados, listas, negrita y tablas) para
+// mostrar el Informe Técnico BCN generado en vivo -- misma lógica que se
+// duplica en otras vistas del proyecto (ComisionDetailView, ProyectoDetailView).
+function renderInformeMarkdown(markdown: string) {
+  if (!markdown) return null;
+  const lines = markdown.split("\n");
+  const blocks: React.ReactNode[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    const raw = lines[i];
+    const text = raw.trim();
+
+    if (text.startsWith("|")) {
+      const tableLines: string[] = [];
+      while (i < lines.length && lines[i].trim().startsWith("|")) {
+        tableLines.push(lines[i].trim());
+        i++;
+      }
+      const rows = tableLines.filter(l => !/^\|[\s:|-]+\|$/.test(l)).map(l => l.slice(1, -1).split("|").map(c => c.trim()));
+      const [header, ...body] = rows;
+      blocks.push(
+        <div key={`table-${i}`} className="overflow-x-auto my-3 rounded-lg border border-slate-200">
+          <table className="w-full text-[11px] border-collapse">
+            {header && (
+              <thead>
+                <tr className="bg-slate-100">
+                  {header.map((h, hi) => <th key={hi} className="text-left font-extrabold text-slate-700 px-3 py-2 border-b border-slate-200">{h}</th>)}
+                </tr>
+              </thead>
+            )}
+            <tbody>
+              {body.map((row, ri) => (
+                <tr key={ri} className={ri % 2 === 0 ? "bg-white" : "bg-slate-50/60"}>
+                  {row.map((cell, ci) => <td key={ci} className="align-top px-3 py-2 border-b border-slate-100 text-slate-600">{renderTextoConNegrita(cell)}</td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+      continue;
+    }
+
+    if (text === "") { blocks.push(<div key={i} className="h-2" />); i++; continue; }
+    if (text === "---") { blocks.push(<hr key={i} className="my-3 border-t border-slate-200" />); i++; continue; }
+    if (text.startsWith("# ")) { blocks.push(<h1 key={i} className="text-base font-extrabold text-slate-900 tracking-tight mt-4 mb-2">{text.slice(2)}</h1>); i++; continue; }
+    if (text.startsWith("### ")) { blocks.push(<h3 key={i} className="text-xs font-bold text-slate-700 uppercase tracking-wide mt-3 mb-1">{text.slice(4)}</h3>); i++; continue; }
+    if (text.startsWith("## ")) { blocks.push(<h2 key={i} className="text-sm font-extrabold text-slate-800 mt-3 mb-1.5">{text.slice(3)}</h2>); i++; continue; }
+    if (text.startsWith("* ") || text.startsWith("- ")) { blocks.push(<li key={i} className="ml-4 list-disc text-xs text-slate-600 leading-relaxed py-0.5">{renderTextoConNegrita(text.slice(2))}</li>); i++; continue; }
+
+    blocks.push(<p key={i} className="text-xs text-slate-600 leading-relaxed my-1">{renderTextoConNegrita(text)}</p>);
+    i++;
+  }
+  return blocks;
+}
+
 function exportarAWord(
   query: string, 
   resultados: ResultadoComparado[], 
@@ -943,11 +1004,22 @@ function ExportToolbar({
   );
 }
 
+// Chile siempre debe aparecer primero en cualquier columna/ficha comparativa,
+// sin importar el orden en que el usuario haya ido marcando las normativas.
+function ordenarChilePrimero<T extends { pais: string }>(items: T[]): T[] {
+  return [...items].sort((a, b) => {
+    if (a.pais === "Chile" && b.pais !== "Chile") return -1;
+    if (b.pais === "Chile" && a.pais !== "Chile") return 1;
+    return 0;
+  });
+}
+
 function generarMatrizDinamica(
-  query: string, 
-  seleccion: ResultadoComparado[], 
+  query: string,
+  seleccionSinOrdenar: ResultadoComparado[],
   detalles: Record<string, LeySeleccionada>
 ): MatrizComparadaData {
+  const seleccion = ordenarChilePrimero(seleccionSinOrdenar);
   const columnas: MatrizColumna[] = seleccion.map((r, i) => ({
     key: `col_${i}`,
     nombre: r.pais,
@@ -1051,15 +1123,21 @@ export default function LegislacionComparadaView() {
   const [customQuery, setCustomQuery] = useState<string>("");
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [savedReports, setSavedReports] = useState<CustomReport[]>([]);
+  const [materiasDestacadasAbiertas, setMateriasDestacadasAbiertas] = useState<boolean>(false);
+  // Informe Técnico BCN generado en vivo a partir del tema efectivamente buscado
+  // (liveResultados), en vez de depender únicamente del catálogo estático
+  // precargado de COMPARATIVE_TOPICS. Se genera al seleccionar/pedir el informe
+  // desde la pestaña de Búsqueda en Vivo.
+  const [informeLiveMarkdown, setInformeLiveMarkdown] = useState<string | null>(null);
+  const [informeLiveQuery, setInformeLiveQuery] = useState<string>("");
   
   // Navigation tabs:
   // "live": Búsqueda en vivo internacional (19 fuentes)
   // "documento": Informe oficial BCN (Estructura formal)
-  // "matriz": Matriz comparada multidimensional
-  // "comparador": Comparador lado a lado de leyes seleccionadas
+  // "comparador": Comparador lado a lado / matriz dinámica de leyes seleccionadas
   // "ia": Generador y redactor de minutas
   // "guardados": Informes guardados
-  const [activeTab, setActiveTab] = useState<"live" | "documento" | "matriz" | "comparador" | "ia" | "guardados">("live");
+  const [activeTab, setActiveTab] = useState<"live" | "documento" | "comparador" | "ia" | "guardados">("live");
   const [vistaComparador, setVistaComparador] = useState<"matriz" | "fichas">("matriz");
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -1152,7 +1230,7 @@ export default function LegislacionComparadaView() {
     setSearchError(null);
     setPaginaResultados(1);
     guardarEnHistorial(queryClean);
-    if (autoSwitchTab && activeTab !== "live" && activeTab !== "documento" && activeTab !== "matriz") {
+    if (autoSwitchTab && activeTab !== "live" && activeTab !== "documento") {
       setActiveTab("live");
     }
 
@@ -1359,7 +1437,7 @@ export default function LegislacionComparadaView() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: { resultados: ResultadoComparado[]; fuentesConsultadas: string[]; fuentesFallidas: string[] } = await res.json();
 
-      const resultados = data.resultados || [];
+      const resultados = ordenarChilePrimero(data.resultados || []);
       const newReport: CustomReport = {
         query: customQuery,
         fecha: new Date().toLocaleDateString("es-CL", { day: '2-digit', month: '2-digit', year: 'numeric' }),
@@ -1495,30 +1573,38 @@ export default function LegislacionComparadaView() {
           </button>
         </div>
 
-        {/* Quick Topics & Suggestions */}
+        {/* Quick Topics & Suggestions (plegable para no ocupar espacio de forma permanente) */}
         <div className="flex flex-col gap-2 pt-2 border-t border-slate-100">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 mr-1">
-              <Sparkles className="w-3.5 h-3.5 text-amber-500" /> Materias destacadas:
-            </span>
-            {SUGGESTED_SEARCHES.map((item) => (
-              <button
-                key={item.term}
-                onClick={() => {
-                  setSearchTerm(item.term);
-                  handleBuscarRegulacion(item.term);
-                }}
-                className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all cursor-pointer flex items-center gap-1.5 ${
-                  liveQuery.toLowerCase() === item.term.toLowerCase()
-                    ? "bg-blue-50 text-blue-800 border-blue-300 shadow-xs font-bold"
-                    : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 hover:text-slate-900"
-                }`}
-              >
-                <span>{item.term}</span>
-                <span className="text-[9px] text-slate-400 font-mono">({item.cat})</span>
-              </button>
-            ))}
-          </div>
+          <button
+            type="button"
+            onClick={() => setMateriasDestacadasAbiertas(v => !v)}
+            className="flex items-center gap-1 mr-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider cursor-pointer hover:text-slate-600 w-fit"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+            <span>Materias destacadas</span>
+            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${materiasDestacadasAbiertas ? "rotate-180" : ""}`} />
+          </button>
+          {materiasDestacadasAbiertas && (
+            <div className="flex flex-wrap items-center gap-2 animate-fade-in">
+              {SUGGESTED_SEARCHES.map((item) => (
+                <button
+                  key={item.term}
+                  onClick={() => {
+                    setSearchTerm(item.term);
+                    handleBuscarRegulacion(item.term);
+                  }}
+                  className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all cursor-pointer flex items-center gap-1.5 ${
+                    liveQuery.toLowerCase() === item.term.toLowerCase()
+                      ? "bg-blue-50 text-blue-800 border-blue-300 shadow-xs font-bold"
+                      : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 hover:text-slate-900"
+                  }`}
+                >
+                  <span>{item.term}</span>
+                  <span className="text-[9px] text-slate-400 font-mono">({item.cat})</span>
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Search History */}
           {historial.length > 0 && (
@@ -1580,18 +1666,6 @@ export default function LegislacionComparadaView() {
         >
           <FileText className="w-4 h-4" />
           <span>Informe Técnico BCN ({currentTopic.titulo.slice(0, 35)}...)</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab("matriz")}
-          className={`text-xs font-bold px-4 py-2.5 rounded-xl transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
-            activeTab === "matriz" 
-              ? "bg-blue-700 text-white shadow-xs" 
-              : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
-          }`}
-        >
-          <Layers className="w-4 h-4" />
-          <span>Matriz Comparada Multidimensional</span>
         </button>
 
         <button
@@ -1969,6 +2043,37 @@ export default function LegislacionComparadaView() {
             </div>
           )}
 
+          {/* CTA: generar el Informe Técnico BCN real a partir de los resultados
+              efectivamente encontrados para el tema buscado (en vez de un
+              dossier precargado desconectado de la búsqueda). */}
+          {!liveLoading && liveResultadosFiltrados.length > 0 && (
+            <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-blue-700 text-white flex items-center justify-center shrink-0">
+                  <FileText className="w-4.5 h-4.5" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-extrabold text-blue-900">Generar Informe Técnico BCN de este tema</h4>
+                  <p className="text-[11px] text-blue-800/80 mt-0.5 max-w-lg">
+                    Redacta el informe formal a partir de los {liveResultadosFiltrados.length} resultados encontrados para &quot;{liveQuery}&quot;, con la matriz comparativa por país.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  const md = buildInformeMarkdown(liveQuery, ordenarChilePrimero(liveResultadosFiltrados), buildParrafoAutomatico(liveQuery, liveResultadosFiltrados), undefined, comparacionDetalle);
+                  setInformeLiveMarkdown(md);
+                  setInformeLiveQuery(liveQuery);
+                  setActiveTab("documento");
+                }}
+                className="bg-blue-700 hover:bg-blue-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl cursor-pointer shadow-xs flex items-center gap-2 shrink-0"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>Generar Informe Técnico BCN</span>
+              </button>
+            </div>
+          )}
+
           {/* Pagination */}
           {totalPaginasResultados > 1 && !liveLoading && (
             <div className="flex items-center justify-center gap-2 pt-4">
@@ -2004,12 +2109,30 @@ export default function LegislacionComparadaView() {
 
       {/* TAB 2: INFORME OFICIAL BCN (ESTRUCTURA TÉCNICA PARLAMENTARIA) */}
       {activeTab === "documento" && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col animate-fade-in font-sans">
-          
+        <div className="flex flex-col gap-6 animate-fade-in">
+          {/* Informe Técnico BCN generado EN VIVO a partir de la búsqueda real
+              (no del catálogo estático de ejemplo de más abajo). Solo se muestra
+              si corresponde a la consulta actualmente activa. */}
+          {informeLiveMarkdown && informeLiveQuery === liveQuery && (
+            <div className="bg-white rounded-2xl border-2 border-blue-200 shadow-sm overflow-hidden">
+              <div className="bg-blue-700 text-white px-6 py-3 flex items-center justify-between text-xs font-mono font-bold tracking-wider">
+                <span className="flex items-center gap-2"><Sparkles className="w-4 h-4" /> INFORME TÉCNICO BCN — GENERADO EN VIVO PARA &quot;{liveQuery.toUpperCase()}&quot;</span>
+                <button onClick={() => setInformeLiveMarkdown(null)} className="hover:text-blue-200 cursor-pointer" title="Cerrar">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="p-6 md:p-8">
+                {renderInformeMarkdown(informeLiveMarkdown)}
+              </div>
+            </div>
+          )}
+
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col font-sans">
+
           {/* Topic Selector Pills */}
           <div className="bg-slate-50 p-4 border-b border-slate-200 flex flex-wrap items-center gap-2">
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-2">
-              Dossiers Oficiales BCN:
+              Dossiers Oficiales BCN (Ejemplos Precargados):
             </span>
             {COMPARATIVE_TOPICS.map((topic) => {
               const isSelected = topic.id === currentTopic.id;
@@ -2225,28 +2348,13 @@ export default function LegislacionComparadaView() {
 
           </div>
         </div>
-      )}
-
-      {/* TAB 3: MATRICES COMPARADAS */}
-      {activeTab === "matriz" && (
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm animate-fade-in flex flex-col gap-6">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-4">
-            <div>
-              <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-                <Layers className="w-5 h-5 text-blue-700" />
-                Matriz Comparada Multidimensional de Estándares Internacionales
-              </h3>
-              <p className="text-xs text-slate-500 mt-1">
-                Estructura de comparación jurídica en dimensiones institucionales clave (España, Reino Unido, Canadá, México y Chile).
-              </p>
-            </div>
-          </div>
-
-          <MatrizComparadaTable />
         </div>
       )}
 
-      {/* TAB 4: COMPARADOR MULTIPAÍS LADO A LADO */}
+      {/* TAB 4: COMPARADOR MULTIPAÍS LADO A LADO (incluye vista de matriz dinámica
+          real y fichas lado a lado -- reemplaza a la antigua pestaña "Matriz
+          Comparada Multidimensional", que solo mostraba datos de ejemplo fijos
+          sin relación con la búsqueda ni la selección del usuario). */}
       {activeTab === "comparador" && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col gap-6 animate-fade-in">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
@@ -2336,7 +2444,7 @@ export default function LegislacionComparadaView() {
               className="grid gap-4" 
               style={{ gridTemplateColumns: `repeat(${Math.min(4, Math.max(1, seleccionComparar.length))}, minmax(0, 1fr))` }}
             >
-              {seleccionComparar.map((r) => {
+              {ordenarChilePrimero(seleccionComparar).map((r) => {
                 const detalle = comparacionDetalle[claveResultado(r)];
                 const bandera = BANDERA_PAIS[r.pais] || "🌐";
                 const tipo = r.tipo || "Documento";
