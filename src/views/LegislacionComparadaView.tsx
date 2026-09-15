@@ -1124,6 +1124,7 @@ export default function LegislacionComparadaView() {
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [savedReports, setSavedReports] = useState<CustomReport[]>([]);
   const [materiasDestacadasAbiertas, setMateriasDestacadasAbiertas] = useState<boolean>(false);
+  const [dossierEjemplosAbierto, setDossierEjemplosAbierto] = useState<boolean>(false);
   // Informe Técnico BCN generado en vivo a partir del tema efectivamente buscado
   // (liveResultados), en vez de depender únicamente del catálogo estático
   // precargado de COMPARATIVE_TOPICS. Se genera al seleccionar/pedir el informe
@@ -1249,9 +1250,22 @@ export default function LegislacionComparadaView() {
       const res = await fetch(`/api/derecho-comparado?q=${encodeURIComponent(queryClean)}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: { resultados: ResultadoComparado[]; fuentesConsultadas: string[]; fuentesFallidas: string[] } = await res.json();
-      setLiveResultados(data.resultados || []);
+      const resultados = data.resultados || [];
+      setLiveResultados(resultados);
       setLiveFuentesConsultadas(data.fuentesConsultadas || []);
       setLiveFuentesFallidas(data.fuentesFallidas || []);
+
+      // Genera automáticamente el Informe Técnico BCN del tema efectivamente
+      // buscado (no un dossier precargado desconectado) para que la pestaña
+      // esté lista al llegar, sin exigir un clic extra en "Generar Informe".
+      if (resultados.length > 0) {
+        const md = buildInformeMarkdown(queryClean, ordenarChilePrimero(resultados), buildParrafoAutomatico(queryClean, resultados));
+        setInformeLiveMarkdown(md);
+        setInformeLiveQuery(queryClean);
+      } else {
+        setInformeLiveMarkdown(null);
+        setInformeLiveQuery("");
+      }
     } catch (err) {
       setSearchError("No fue posible consultar algunas fuentes internacionales en tiempo real.");
       setLiveFuentesFallidas(["Reino Unido", "Brasil", "Suecia", "Nueva Zelanda"]);
@@ -1665,7 +1679,9 @@ export default function LegislacionComparadaView() {
           }`}
         >
           <FileText className="w-4 h-4" />
-          <span>Informe Técnico BCN ({currentTopic.titulo.slice(0, 35)}...)</span>
+          <span>
+            Informe Técnico BCN ({(informeLiveMarkdown && informeLiveQuery === liveQuery ? liveQuery : currentTopic.titulo).slice(0, 35)}...)
+          </span>
         </button>
 
         <button
@@ -2053,9 +2069,9 @@ export default function LegislacionComparadaView() {
                   <FileText className="w-4.5 h-4.5" />
                 </div>
                 <div>
-                  <h4 className="text-xs font-extrabold text-blue-900">Generar Informe Técnico BCN de este tema</h4>
+                  <h4 className="text-xs font-extrabold text-blue-900">Informe Técnico BCN de este tema</h4>
                   <p className="text-[11px] text-blue-800/80 mt-0.5 max-w-lg">
-                    Redacta el informe formal a partir de los {liveResultadosFiltrados.length} resultados encontrados para &quot;{liveQuery}&quot;, con la matriz comparativa por país.
+                    Ya generado a partir de los {liveResultadosFiltrados.length} resultados encontrados para &quot;{liveQuery}&quot;, con la matriz comparativa por país. Ábrelo, o regenéralo si acabas de analizar alguna norma con IA.
                   </p>
                 </div>
               </div>
@@ -2068,8 +2084,8 @@ export default function LegislacionComparadaView() {
                 }}
                 className="bg-blue-700 hover:bg-blue-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl cursor-pointer shadow-xs flex items-center gap-2 shrink-0"
               >
-                <Sparkles className="w-4 h-4" />
-                <span>Generar Informe Técnico BCN</span>
+                <FileText className="w-4 h-4" />
+                <span>Abrir Informe Técnico BCN</span>
               </button>
             </div>
           )}
@@ -2127,6 +2143,19 @@ export default function LegislacionComparadaView() {
             </div>
           )}
 
+        {/* El catálogo de ejemplos precargados es solo referencia ilustrativa, sin
+            relación con la búsqueda del usuario -- se pliega por defecto para no
+            competir en atención con el informe real generado arriba. */}
+        <button
+          type="button"
+          onClick={() => setDossierEjemplosAbierto(v => !v)}
+          className="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider hover:text-slate-600 cursor-pointer w-fit"
+        >
+          <span>Dossiers Oficiales BCN (Ejemplos Precargados)</span>
+          <ChevronDown className={`w-3.5 h-3.5 transition-transform ${dossierEjemplosAbierto ? "rotate-180" : ""}`} />
+        </button>
+
+        {dossierEjemplosAbierto && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col font-sans">
 
           {/* Topic Selector Pills */}
@@ -2348,6 +2377,7 @@ export default function LegislacionComparadaView() {
 
           </div>
         </div>
+        )}
         </div>
       )}
 
