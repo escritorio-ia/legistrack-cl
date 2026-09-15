@@ -89,6 +89,26 @@ export default function AlertasView({ followedProys = [], toggleFollowProy }: Al
 
   // Filter alert state
   const [typeFilter, setTypeFilter] = useState<"all" | "indicador" | "citacion" | "votacion">("all");
+  const [keywords, setKeywords] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem("alertas_keywords");
+      return saved ? JSON.parse(saved) : ["teletrabajo", "sala cuna", "inteligencia artificial", "impuesto", "seguridad ciudadana", "código de aguas", "subdivisiones rurales"];
+    } catch {
+      return ["teletrabajo", "sala cuna", "inteligencia artificial", "impuesto", "seguridad ciudadana", "código de aguas", "subdivisiones rurales"];
+    }
+  });
+  const guardarKeywords = (next: string[]) => {
+    setKeywords(next);
+    try { localStorage.setItem("alertas_keywords", JSON.stringify(next)); } catch {}
+  };
+  const [prefsAlertas, setPrefsAlertas] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem("alertas_preferencias");
+      return saved ? JSON.parse(saved) : { urgencias: true, indicaciones: true, citaciones: true, votaciones: true };
+    } catch {
+      return { urgencias: true, indicaciones: true, citaciones: true, votaciones: true };
+    }
+  });
 
   const fetchAlerts = () => {
     Promise.all([
@@ -389,11 +409,16 @@ export default function AlertasView({ followedProys = [], toggleFollowProy }: Al
                     </div>
                   </div>
 
-                  <button 
-                    onClick={() => alert(`Marcando alerta de Boletín ${alerta.boletinId} como leída.`)}
-                    className="p-1 px-3.5 text-[10px] font-semibold border border-slate-200 rounded-lg hover:border-slate-400 text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                  <button
+                    onClick={() => setAlertas(prev => prev.map(a => a.id === alerta.id ? { ...a, leida: true } : a))}
+                    disabled={alerta.leida}
+                    className={`p-1 px-3.5 text-[10px] font-semibold border rounded-lg transition-colors ${
+                      alerta.leida
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-700 cursor-default"
+                        : "border-slate-200 hover:border-slate-400 text-slate-700 hover:bg-slate-50 cursor-pointer"
+                    }`}
                   >
-                    Leída
+                    {alerta.leida ? "✓ Leída" : "Leída"}
                   </button>
                 </div>
               ))
@@ -429,7 +454,7 @@ export default function AlertasView({ followedProys = [], toggleFollowProy }: Al
                     <span className="text-[10px] text-slate-500 font-medium">Suma o Discusión Inmediata por el Ejecutivo</span>
                   </div>
                 </div>
-                <input type="checkbox" defaultChecked className="w-4 h-4 text-blue-600 rounded accent-blue-600 cursor-pointer" />
+                <input type="checkbox" checked={prefsAlertas.urgencias} onChange={(e) => setPrefsAlertas(p => ({ ...p, urgencias: e.target.checked }))} className="w-4 h-4 text-blue-600 rounded accent-blue-600 cursor-pointer" />
               </div>
 
               {/* Event Trigger 2 */}
@@ -443,7 +468,7 @@ export default function AlertasView({ followedProys = [], toggleFollowProy }: Al
                     <span className="text-[10px] text-slate-500 font-medium">Indicaciones sustitutivas en comisiones seguidas</span>
                   </div>
                 </div>
-                <input type="checkbox" defaultChecked className="w-4 h-4 text-blue-600 rounded accent-blue-600 cursor-pointer" />
+                <input type="checkbox" checked={prefsAlertas.indicaciones} onChange={(e) => setPrefsAlertas(p => ({ ...p, indicaciones: e.target.checked }))} className="w-4 h-4 text-blue-600 rounded accent-blue-600 cursor-pointer" />
               </div>
 
               {/* Event Trigger 3 */}
@@ -457,7 +482,7 @@ export default function AlertasView({ followedProys = [], toggleFollowProy }: Al
                     <span className="text-[10px] text-slate-500 font-medium">Tablas publicadas en Cámara y Senado</span>
                   </div>
                 </div>
-                <input type="checkbox" defaultChecked className="w-4 h-4 text-blue-600 rounded accent-blue-600 cursor-pointer" />
+                <input type="checkbox" checked={prefsAlertas.citaciones} onChange={(e) => setPrefsAlertas(p => ({ ...p, citaciones: e.target.checked }))} className="w-4 h-4 text-blue-600 rounded accent-blue-600 cursor-pointer" />
               </div>
 
               {/* Event Trigger 4 */}
@@ -471,12 +496,15 @@ export default function AlertasView({ followedProys = [], toggleFollowProy }: Al
                     <span className="text-[10px] text-slate-500 font-medium">Resultados y aprobación en general o particular</span>
                   </div>
                 </div>
-                <input type="checkbox" defaultChecked className="w-4 h-4 text-blue-600 rounded accent-blue-600 cursor-pointer" />
+                <input type="checkbox" checked={prefsAlertas.votaciones} onChange={(e) => setPrefsAlertas(p => ({ ...p, votaciones: e.target.checked }))} className="w-4 h-4 text-blue-600 rounded accent-blue-600 cursor-pointer" />
               </div>
             </div>
 
-            <button 
-              onClick={() => alert("✅ Preferencias de suscripción y avisos instantáneos guardadas correctamente.")}
+            <button
+              onClick={() => {
+                try { localStorage.setItem("alertas_preferencias", JSON.stringify(prefsAlertas)); } catch {}
+                alert("✅ Preferencias de suscripción y avisos instantáneos guardadas correctamente.");
+              }}
               className="w-full bg-slate-900 hover:bg-blue-600 text-white font-bold text-xs py-2.5 rounded-xl mt-4 text-center transition-all shadow-sm cursor-pointer"
             >
               Guardar Configuración de Alertas
@@ -491,18 +519,20 @@ export default function AlertasView({ followedProys = [], toggleFollowProy }: Al
             </h3>
 
             <div className="flex flex-wrap gap-1.5" id="keywords-badges-row">
-              {["teletrabajo", "sala cuna", "inteligencia artificial", "impuesto", "seguridad ciudadana", "código de aguas", "subdivisiones rurales"].map((kw, i) => (
-                <span 
+              {keywords.map((kw, i) => (
+                <span
                   key={i}
-                  className="p-1 px-3 bg-slate-50 border border-slate-200 text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 rounded-full text-[11px] font-bold cursor-pointer transition-colors"
+                  onClick={() => { if (confirm(`¿Quitar "#${kw}" del monitoreo?`)) guardarKeywords(keywords.filter((_, idx) => idx !== i)); }}
+                  title="Click para quitar"
+                  className="p-1 px-3 bg-slate-50 border border-slate-200 text-slate-700 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 rounded-full text-[11px] font-bold cursor-pointer transition-colors"
                 >
                   #{kw}
                 </span>
               ))}
-              <button 
+              <button
                 onClick={() => {
-                  const kw = prompt("Ingresa la palabra clave o término legislativo a monitorear:");
-                  if (kw) alert(`Palabra clave "#${kw}" añadida al radar de alertas.`);
+                  const kw = prompt("Ingresa la palabra clave o término legislativo a monitorear:")?.trim();
+                  if (kw && !keywords.includes(kw)) guardarKeywords([...keywords, kw]);
                 }}
                 className="p-1 px-3 bg-blue-50 text-blue-700 border border-blue-300 rounded-full text-[11px] font-bold cursor-pointer hover:bg-blue-600 hover:text-white transition-all"
               >

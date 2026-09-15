@@ -479,7 +479,6 @@ export default function DashboardView({
         <div 
           onClick={() => {
             setView("proyectos");
-            alert("Filtrado por votaciones y proyectos en sala...");
           }}
           className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 cursor-pointer hover:border-slate-350 hover:shadow-md transition-all group"
           id="stat-card-votaciones"
@@ -974,7 +973,6 @@ export default function DashboardView({
                 <button 
                   onClick={() => {
                     setView("proyectos");
-                    alert("Filtrado por votaciones y proyectos en sala...");
                   }}
                   className="w-full text-left bg-slate-800 hover:bg-slate-755 text-slate-205 transition-all rounded-lg px-4 py-2.5 text-xs font-semibold flex items-center gap-3 border border-slate-700/50 shadow-xs hover:text-white"
                 >

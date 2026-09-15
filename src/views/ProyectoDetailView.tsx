@@ -39,7 +39,8 @@ import {
   Compass,
   Sparkles,
   Video,
-  ChevronDown
+  ChevronDown,
+  Landmark
 } from "lucide-react";
 import { Proyecto, ActivityItem, VotacionItem } from "../types";
 import { resolveProyecto } from "../utils/proyectosResolver";
@@ -2130,29 +2131,29 @@ export default function ProyectoDetailView({
             </h3>
 
             <div className="space-y-3 text-xs" id="related-links-list">
-              <a 
-                href="#" 
-                onClick={(e) => { e.preventDefault(); alert("Navegando a boletín refundido asociado..."); }}
-                className="flex items-center gap-2 text-slate-600 hover:text-blue-600 transition-colors font-semibold"
-              >
-                <Link2 className="w-4 h-4 text-slate-400" />
-                <span>Boletín relacionado (2)</span>
-              </a>
-              <a 
-                href="#" 
-                onClick={(e) => { e.preventDefault(); alert("Cargando normativa y marcos correlacionados..."); }}
+              <a
+                href="#"
+                onClick={(e) => { e.preventDefault(); setActiveTab("comparado"); }}
                 className="flex items-center gap-2 text-slate-600 hover:text-blue-600 transition-colors font-semibold"
               >
                 <Gavel className="w-4 h-4 text-slate-400" />
-                <span>Normativa relacionada (1)</span>
+                <span>Normativa y legislación comparada</span>
               </a>
-              <a 
-                href="#" 
-                onClick={(e) => { e.preventDefault(); alert("Abriendo reportes y actas de comisiones asociadas..."); }}
+              <a
+                href="#"
+                onClick={(e) => { e.preventDefault(); setActiveTab("documentos"); }}
                 className="flex items-center gap-2 text-slate-600 hover:text-blue-600 transition-colors font-semibold"
               >
                 <FileText className="w-4 h-4 text-slate-400" />
-                <span>Informes relacionados (3)</span>
+                <span>Documentos e informes del expediente{proyecto.documentos.length > 0 ? ` (${proyecto.documentos.length})` : ""}</span>
+              </a>
+              <a
+                href="#"
+                onClick={(e) => { e.preventDefault(); setActiveTab("comisiones"); }}
+                className="flex items-center gap-2 text-slate-600 hover:text-blue-600 transition-colors font-semibold"
+              >
+                <Landmark className="w-4 h-4 text-slate-400" />
+                <span>Historial en comisiones</span>
               </a>
             </div>
           </div>
