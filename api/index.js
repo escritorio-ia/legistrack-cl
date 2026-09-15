@@ -187649,55 +187649,8 @@ function performUnifiedSearch(rawQuery) {
     }
   }
   const matchedAuthors = Array.from(authorsMap.values());
-  const sampleDocs = [
-    {
-      id: "doc-inf-01",
-      titulo: `Informe T\xE9cnico Constitucional sobre ${rawQuery}`,
-      tipo: "Informe de Asesor\xEDa T\xE9cnica BCN",
-      fecha: "Septiembre 2026",
-      comisionNombre: "Comisi\xF3n de Constituci\xF3n",
-      comisionId: "cd-constitucion"
-    },
-    {
-      id: "doc-inf-02",
-      titulo: `Minuta de Impacto Financiero y Presupuestario en ${rawQuery}`,
-      tipo: "Informe Financiero DIPRES",
-      fecha: "Agosto 2026",
-      comisionNombre: "Comisi\xF3n de Hacienda",
-      comisionId: "cd-hacienda"
-    },
-    {
-      id: "doc-inf-03",
-      titulo: `Acta Oficial de Sesi\xF3n y Audiencias P\xFAblicas sobre ${rawQuery}`,
-      tipo: "Acta de Sesi\xF3n Legislativa",
-      fecha: "Agosto 2026",
-      comisionNombre: "Comisi\xF3n de Trabajo y Previsi\xF3n Social",
-      comisionId: "cd-trabajo-y-prevision"
-    }
-  ];
-  const sampleComparada = [
-    {
-      id: "comp-01",
-      titulo: `Regulaci\xF3n comparada en materias de ${rawQuery} en Iberoam\xE9rica`,
-      pais: "Espa\xF1a",
-      fuente: "Bolet\xEDn Oficial del Estado (BOE)",
-      materia: rawQuery
-    },
-    {
-      id: "comp-02",
-      titulo: `Normativa federal y buenas pr\xE1cticas sobre ${rawQuery}`,
-      pais: "Alemania",
-      fuente: "Bundestag Documentaci\xF3n Jur\xEDdica",
-      materia: rawQuery
-    },
-    {
-      id: "comp-03",
-      titulo: `Tratados y est\xE1ndares de la OCDE en ${rawQuery}`,
-      pais: "OCDE",
-      fuente: "OECD Legal Instruments Database",
-      materia: rawQuery
-    }
-  ];
+  const sampleDocs = [];
+  const sampleComparada = [];
   const encodedQ = encodeURIComponent(rawQuery.trim());
   const encodedBoletin = encodeURIComponent(rawQuery.split("-")[0].trim());
   const qLower = normalizeSearchString(rawQuery);
@@ -192252,7 +192205,12 @@ apiRouter.get("/proyecto/:id/comparado", async (req, res) => {
   const marcador = ["discusi\xF3n particular", "discusion particular", "an\xE1lisis de las indicaciones", "modificaciones introducidas"].map((m) => textoLower.indexOf(m)).find((idx) => idx !== -1);
   const inicio = marcador !== void 0 ? Math.max(0, marcador - 500) : 0;
   const textoTruncado = texto.length > maxChars ? (inicio > 0 ? "[...inicio del documento omitido...] " : "") + texto.slice(inicio, inicio + maxChars) + " [...documento truncado por extensi\xF3n...]" : texto;
+  const modificaMatch = proyecto.titulo.match(/\b(?:modifica|introduce modificaciones a|deroga|sustituye|incorpora)\s+(?:la\s+|el\s+)?((?:ley\b|código\b|d\.?f\.?l\.?\b|decreto\s+ley\b)[^,.;]*)/i);
+  const leyModificada = modificaMatch ? modificaMatch[1].trim().replace(/\s+/g, " ") : void 0;
   const prompt = `Act\xFAa como un analista legislativo de la Biblioteca del Congreso Nacional de Chile. A continuaci\xF3n se entrega el TEXTO REAL del informe de comisi\xF3n "${informe.titulo}" del proyecto de ley Bolet\xEDn N\xB0 ${proyecto.id} ("${proyecto.titulo}").
+${leyModificada ? `
+IMPORTANTE: este proyecto MODIFICA la ${leyModificada}. Cuando el informe cite el texto vigente que se modifica, deja expl\xEDcito que corresponde a esa ley (no a un texto nuevo), tanto en "textoOriginal" como en "explicacion".
+` : ""}
 
 Texto del informe:
 """
@@ -192280,6 +192238,7 @@ Usa EXCLUSIVAMENTE informaci\xF3n que est\xE9 efectivamente en el texto entregad
     informeUrl: informe.url,
     informeTitulo: informe.titulo,
     informeFecha: informe.fecha,
+    leyModificada,
     comparaciones,
     aiDiagnostics: aiAttempts
   });

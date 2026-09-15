@@ -370,7 +370,18 @@ apiRouter.get("/proyecto/:id/comparado", async (req: Request, res: Response) => 
     ? (inicio > 0 ? "[...inicio del documento omitido...] " : "") + texto.slice(inicio, inicio + maxChars) + " [...documento truncado por extensión...]"
     : texto;
 
+  // Si el proyecto es una MODIFICACIÓN de una ley existente (el caso más
+  // común: "Modifica la ley N° X..."), el título oficial del proyecto ya lo
+  // dice explícitamente -- se extrae de ahí en vez de pedírselo a la IA, para
+  // no depender de que lo infiera bien y evitar que lo invente si no aplica.
+  // Cubre tanto leyes con número ("modifica la ley N° 19.628, sobre...") como
+  // leyes o códigos referidos por nombre sin número ("modifica el Código del
+  // Trabajo...", "modifica la Ley General de Urbanismo y Construcciones...").
+  const modificaMatch = proyecto.titulo.match(/\b(?:modifica|introduce modificaciones a|deroga|sustituye|incorpora)\s+(?:la\s+|el\s+)?((?:ley\b|código\b|d\.?f\.?l\.?\b|decreto\s+ley\b)[^,.;]*)/i);
+  const leyModificada = modificaMatch ? modificaMatch[1].trim().replace(/\s+/g, " ") : undefined;
+
   const prompt = `Actúa como un analista legislativo de la Biblioteca del Congreso Nacional de Chile. A continuación se entrega el TEXTO REAL del informe de comisión "${informe.titulo}" del proyecto de ley Boletín N° ${proyecto.id} ("${proyecto.titulo}").
+${leyModificada ? `\nIMPORTANTE: este proyecto MODIFICA la ${leyModificada}. Cuando el informe cite el texto vigente que se modifica, deja explícito que corresponde a esa ley (no a un texto nuevo), tanto en "textoOriginal" como en "explicacion".\n` : ""}
 
 Texto del informe:
 """
@@ -400,6 +411,7 @@ Usa EXCLUSIVAMENTE información que esté efectivamente en el texto entregado. S
     informeUrl: informe.url,
     informeTitulo: informe.titulo,
     informeFecha: informe.fecha,
+    leyModificada,
     comparaciones,
     aiDiagnostics: aiAttempts
   });

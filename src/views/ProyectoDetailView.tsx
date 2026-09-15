@@ -258,6 +258,41 @@ export default function ProyectoDetailView({
   const [selectedComisionComparador, setSelectedComisionComparador] = useState<string>("");
   const [sesionesVinculadas, setSesionesVinculadas] = useState<SesionVinculadaProyecto[]>([]);
 
+  // Comparado real (pestaña "Comparado"): extraído por IA del texto real del
+  // informe de comisión, en vez del comparador con datos precargados/fijos
+  // que había antes (getComparaciones), sin relación con el proyecto real.
+  const [comparadoReal, setComparadoReal] = useState<{
+    disponible: boolean;
+    razon?: string;
+    informeUrl?: string;
+    informeTitulo?: string;
+    informeFecha?: string;
+    leyModificada?: string;
+    comparaciones: ComparativaArticulo[];
+  } | null>(null);
+  const [comparadoLoading, setComparadoLoading] = useState(false);
+
+  const projectCommissionsForComparador = Array.from(new Set([
+    proyecto.comisionActual,
+    ...(proyecto.comisionesHistoricas || [])
+  ].filter(Boolean) as string[]));
+  const selectedComisionSafe = projectCommissionsForComparador.includes(selectedComisionComparador)
+    ? selectedComisionComparador
+    : (projectCommissionsForComparador[0] || "");
+
+  useEffect(() => {
+    if (activeTab !== "comparado" || !selectedComisionSafe) return;
+    let cancelado = false;
+    setComparadoLoading(true);
+    setComparadoReal(null);
+    fetch(`/api/proyecto/${encodeURIComponent(proyecto.id)}/comparado?comision=${encodeURIComponent(selectedComisionSafe)}`)
+      .then(res => res.json())
+      .then(data => { if (!cancelado) setComparadoReal(data); })
+      .catch(() => { if (!cancelado) setComparadoReal({ disponible: false, razon: "No fue posible consultar el comparado en este momento.", comparaciones: [] }); })
+      .finally(() => { if (!cancelado) setComparadoLoading(false); });
+    return () => { cancelado = true; };
+  }, [activeTab, proyecto.id, selectedComisionSafe]);
+
   useEffect(() => {
     getSesionesVinculadasDeProyecto(proyectoId)
       .then(setSesionesVinculadas)
@@ -1873,21 +1908,30 @@ export default function ProyectoDetailView({
                     </p>
                   </div>
                   
-                  <div className="bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl text-[10px] font-extrabold text-blue-800 flex items-center gap-1.5 self-start sm:self-auto uppercase tracking-wider font-sans">
-                    <span>Sincronizado</span>
-                  </div>
+                  {comparadoLoading ? (
+                    <div className="bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-[10px] font-extrabold text-slate-500 flex items-center gap-1.5 self-start sm:self-auto uppercase tracking-wider font-sans">
+                      <RefreshCw className="w-3 h-3 animate-spin" /> <span>Analizando informe...</span>
+                    </div>
+                  ) : comparadoReal?.disponible ? (
+                    <div className="bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl text-[10px] font-extrabold text-emerald-800 flex items-center gap-1.5 self-start sm:self-auto uppercase tracking-wider font-sans">
+                      <span>Generado con IA desde el informe real</span>
+                    </div>
+                  ) : null}
                 </div>
+
+                {/* Ley que este proyecto modifica, si corresponde (extraído del
+                    título oficial, no inventado por la IA). */}
+                {comparadoReal?.leyModificada && (
+                  <div className="bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-2.5 mb-4 text-xs text-indigo-900 flex items-center gap-2">
+                    <Gavel className="w-4 h-4 text-indigo-600 shrink-0" />
+                    <span><strong className="font-extrabold">Este proyecto modifica:</strong> {comparadoReal.leyModificada}</span>
+                  </div>
+                )}
 
                 {/* Directives / Tabs for all the commissions the project passes through */}
                 {(function() {
-                  const projectCommissions = Array.from(new Set([
-                    proyecto.comisionActual,
-                    ...(proyecto.comisionesHistoricas || [])
-                  ].filter(Boolean) as string[]));
-
-                  const safeSelected = projectCommissions.includes(selectedComisionComparador) 
-                    ? selectedComisionComparador 
-                    : (projectCommissions[0] || "");
+                  const projectCommissions = projectCommissionsForComparador;
+                  const safeSelected = selectedComisionSafe;
 
                   return (
                     <div className="flex flex-col gap-5">
@@ -1924,17 +1968,31 @@ export default function ProyectoDetailView({
                       </div>
 
                       {/* Comparison Columns Render Area */}
-                      {safeSelected ? (
+                      {comparadoLoading ? (
+                        <div className="text-center py-10 text-xs text-slate-400 font-bold flex flex-col items-center gap-2">
+                          <RefreshCw className="w-6 h-6 animate-spin text-blue-500" />
+                          <span>Leyendo el informe real de {safeSelected} y extrayendo las modificaciones con IA...</span>
+                        </div>
+                      ) : !comparadoReal?.disponible ? (
+                        <div className="text-center py-10 text-xs text-slate-400 font-bold max-w-md mx-auto">
+                          {comparadoReal?.razon || "No hay comparado disponible para esta comisión."}
+                          {comparadoReal?.informeUrl && (
+                            <a href={comparadoReal.informeUrl} target="_blank" rel="noopener noreferrer" className="block mt-2 text-blue-600 hover:underline font-semibold">
+                              Ver informe original
+                            </a>
+                          )}
+                        </div>
+                      ) : safeSelected ? (
                         <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-xs divide-y divide-slate-150">
-                          
+
                           {/* Column Headers */}
                           <div className="grid grid-cols-1 md:grid-cols-2 bg-slate-50 border-b border-slate-200 text-center uppercase tracking-wider text-[10px] font-black text-slate-500 divide-y md:divide-y-0 md:divide-x divide-slate-200 font-sans p-3">
                             <span className="py-1">Texto de Ley Vigente Original o Propuesta Base</span>
                             <span className="py-1">Modificaciones Promovidas por la Comisión</span>
                           </div>
-                          
+
                           {/* Comparison Rows */}
-                          {getComparaciones(proyecto.id, safeSelected).map((item, idx) => (
+                          {(comparadoReal.comparaciones || []).map((item, idx) => (
                             <div key={idx} className="flex flex-col border-b border-slate-150/65 last:border-b-0 hover:bg-slate-50/20 transition-colors">
                               
                               {/* Article title bar header */}
@@ -2365,103 +2423,4 @@ interface ComparativaArticulo {
   textoOriginal: string;
   textoModificado: string;
   explicacion?: string;
-}
-
-function getComparaciones(boletinId: string, comisionNombre: string): ComparativaArticulo[] {
-  const normCom = (comisionNombre || "").toLowerCase();
-  
-  if (boletinId === "16.621-13") {
-    if (normCom.includes("trabajo")) {
-      return [
-        {
-          articulo: "Artículo 152",
-          textoOriginal: '"En los contratos de servicios especiales, el empleador y el trabajador podrán libremente acordar cláusulas de exclusividad o de sujeción horaria rígida..."',
-          textoModificado: '"Artículo 152 modificado: Establézcase la obligatoriedad absoluta de adaptar las labores de cuidado primario de menores de 12 años o personas dependientes mediante medios remotos o virtuales regulados..."',
-          explicacion: "Introduce el derecho preferente al teletrabajo para cuidadores de niños pequeños o personas postradas sin alterar sus condiciones salariales."
-        },
-        {
-          articulo: "Artículo 152 bis",
-          textoOriginal: '"No contempla menciones explícitas de mutabilidad en el lugar de prestación del servicio por parte de cuidadores familiares."',
-          textoModificado: '"Artículo 152 bis incorporado: El trabajador cuidador podrá revocar de manera unilateral la modalidad de teletrabajo debiendo avisar al empleador con un mínimo de treinta días de anticipación de su retorno al puesto presencial."',
-          explicacion: "Regula el mecanismo de reversibilidad, protegiendo al trabajador de imposiciones rígidas a largo plazo."
-        }
-      ];
-    } else if (normCom.includes("hacienda")) {
-      return [
-        {
-          articulo: "Artículo Transitorio Único",
-          textoOriginal: '"Las adaptaciones del sector no afectarán erogaciones de capital directo de la administración central del Estado chileno."',
-          textoModificado: '"El mayor gasto fiscal neto y operativo de fiscalización por la Dirección del Trabajo resultante de la implementación de esta norma durante su primer año de vigencia se costeará con aportes del Tesoro Público o fondos soberanos residuales."',
-          explicacion: "Asegura los recursos presupuestarios para que la Dirección del Trabajo (DT) tenga presupuesto suficiente para supervisar e inspeccionar el cumplimiento de las jornadas de cuidado."
-        }
-      ];
-    }
-  }
-
-  if (boletinId === "14.868-13") {
-    if (normCom.includes("hacienda") || normCom.includes("tributaria")) {
-      return [
-        {
-          articulo: "Artículo Transitorio (Cotización Previsional)",
-          textoOriginal: '"Los trabajadores independientes de plataformas quedan exentos de cotizaciones previsionales obligatorias por los primeros 24 meses."',
-          textoModificado: '"Artículo transitorio modificado: La cotización para el seguro social y pensiones se retendrá y enterará por la empresa de plataforma digital de manera proporcional a las horas de efectiva conexión registrada."',
-          explicacion: "Asegura la integración gradual al régimen de seguridad social y previsión chileno."
-        }
-      ];
-    } else if (normCom.includes("trabajo")) {
-      return [
-        {
-          articulo: "Artículo 242 (Naturaleza del Contrato)",
-          textoOriginal: '"Los repartidores y conductores operarán exclusivamente bajo modalidad civil de prestación de servicios independientes sin relación laboral de subordinación."',
-          textoModificado: '"Artículo 242 incorporado: Se establecen dos modalidades contractuales: trabajador dependiente (con jornada y subordinación) e independiente (con libertad de conexión y derecho a 12 horas continuas de desconexión)."',
-          explicacion: "Regula de manera dual y explícita el vínculo jurídico de los operadores de aplicaciones móviles de transporte y reparto."
-        }
-      ];
-    }
-  }
-
-  if (boletinId === "15.431-11") {
-    if (normCom.includes("trabajo")) {
-      return [
-        {
-          articulo: "Artículo 21 (Jornada ordinaria semanal)",
-          textoOriginal: '"La duración de la jornada ordinaria de trabajo no excederá de cuarenta y cinco horas semanales."',
-          textoModificado: '"Artículo 21 modificado: La duración de la jornada ordinaria de trabajo no excederá de cuarenta horas semanales. Su aplicación se distribuirá en un máximo de seis días y un mínimo de cuatro días semanales."',
-          explicacion: "Disminuye la jornada legal agregando flexibilidad para el esquema de distribución laboral de 4x3."
-        },
-        {
-          articulo: "Artículo Transitorio Segundo",
-          textoOriginal: '"No incluye gradualidades o regímenes especiales de vigencia temporal para el comercio minorista."',
-          textoModificado: '"Artículo Transitorio Segundo incorporado: Las micro y pequeñas empresas que califiquen en los rangos de ventas anuales de la Ley N° 20.416 gozarán de un plazo de gradualidad de hasta cinco años contados desde la publicación..."',
-          explicacion: "Ofrece un colchón de tiempo a las pymes para adaptarse a costos operativos mayores ante la reducción de horas."
-        }
-      ];
-    } else if (normCom.includes("constitucion") || normCom.includes("justicia")) {
-      return [
-        {
-          articulo: "Artículo 33 (Multas y Amonestaciones)",
-          textoOriginal: '"Los inspectores del trabajo procederán a calificar la falta y cursar la multa correspondiente en conformidad a la escala de infracciones graves."',
-          textoModificado: '"Artículo 33 modificado: La Dirección del Trabajo adoptará un sistema de amonestaciones pedagógicas previas para microempresas, otorgando 30 días hábiles de subsanación tras la primera inspección antes de la imposición de multas pecuniarias."',
-          explicacion: "Evita el cierre abrupto de pequeños comercios ante faltas administrativas de distribución horaria."
-        }
-      ];
-    }
-  }
-
-  // Fallback for custom or synthesized bills
-  const simpleTopic = (boletinId || "").includes("16") ? "Regulación Sectorial" : "Modernización de Procesos";
-  return [
-    {
-      articulo: "Artículo 1 (Disposiciones Generales)",
-      textoOriginal: `"El objeto del presente proyecto de ley será consagrar normativas de carácter general para perfeccionar materias relacionadas con ${simpleTopic} ante las instancias competentes del país."`,
-      textoModificado: `"Artículo 1 modificado en ${comisionNombre}: Perfecciónase y amplíase el marco de aplicación general de la norma, obligando a los órganos públicos y privados de ${comisionNombre} a reportar bimestralmente sus avances de implementación legislativa."`,
-      explicacion: `Ajuste introducido por la ${/^comisi[oó]n/i.test(comisionNombre) ? comisionNombre : `Comisión de ${comisionNombre}`} para robustecer la rendición de cuentas operativa en las materias del proyecto.`
-    },
-    {
-      articulo: "Artículo Transitorio Financiero",
-      textoOriginal: '"La entrada en vigencia de las normas precedentes no requerirá erogación adicional presupuestaria de rango permanente."',
-      textoModificado: '"Las regulaciones transitorias se someterán a un fondo de fomento nacional que se distribuirá con recomendación unánime del comité técnico de la comisión."',
-      explicacion: "Establece criterios de control financiero para resguardar la adecuada implementación del proyecto de ley."
-    }
-  ];
 }
