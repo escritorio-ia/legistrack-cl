@@ -412,10 +412,16 @@ Usa EXCLUSIVAMENTE información que esté efectivamente en el texto entregado. S
   // identificó a partir del texto real del informe.
   let leyModificadaFinal = leyModificada;
   if (!leyModificadaFinal && comparaciones.length > 0) {
+    // Se busca SOLO en "articulo" (ej. "artículo 11 del Código Tributario"),
+    // no concatenado con "textoOriginal": el grupo opcional de la segunda
+    // palabra del código terminaba "comiéndose" la primera palabra del texto
+    // siguiente (ej. "Código Tributario Los", "Código Tributario Obligación"),
+    // generando una clave distinta cada vez en vez de agrupar las menciones
+    // reales de la misma ley/código bajo una sola clave.
     const menciones: Record<string, number> = {};
     for (const c of comparaciones) {
-      const texto = `${c.articulo || ""} ${c.textoOriginal || ""}`;
-      const m = texto.match(/\b(código\s+[a-záéíóúñ]+(?:\s+[a-záéíóúñ]+)?|ley\s*n[°º]?\s*[\d.]+)/i);
+      const texto = String(c.articulo || "");
+      const m = texto.match(/\b(código\s+[a-záéíóúñ]+|ley\s*n[°º]?\s*[\d.]+|decreto\s+(?:con\s+fuerza\s+de\s+)?ley\s*n[°º]?\s*[\d.]+)/i);
       if (m) {
         const key = m[0].trim().replace(/\s+/g, " ");
         menciones[key] = (menciones[key] || 0) + 1;

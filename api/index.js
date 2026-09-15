@@ -192236,8 +192236,8 @@ Usa EXCLUSIVAMENTE informaci\xF3n que est\xE9 efectivamente en el texto entregad
   if (!leyModificadaFinal && comparaciones.length > 0) {
     const menciones = {};
     for (const c of comparaciones) {
-      const texto2 = `${c.articulo || ""} ${c.textoOriginal || ""}`;
-      const m = texto2.match(/\b(código\s+[a-záéíóúñ]+(?:\s+[a-záéíóúñ]+)?|ley\s*n[°º]?\s*[\d.]+)/i);
+      const texto2 = String(c.articulo || "");
+      const m = texto2.match(/\b(código\s+[a-záéíóúñ]+|ley\s*n[°º]?\s*[\d.]+|decreto\s+(?:con\s+fuerza\s+de\s+)?ley\s*n[°º]?\s*[\d.]+)/i);
       if (m) {
         const key = m[0].trim().replace(/\s+/g, " ");
         menciones[key] = (menciones[key] || 0) + 1;
