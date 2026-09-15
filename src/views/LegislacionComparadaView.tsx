@@ -1104,7 +1104,7 @@ function generarMatrizDinamica(
 
   return {
     id: "live-matrix",
-    titulo: `Matriz Comparada Multidimensional: ${query.toUpperCase()}`,
+    titulo: `Matriz Comparada Multidimensional: ${query.charAt(0).toUpperCase()}${query.slice(1)}`,
     subtitulo: `Contraste analítico estructurado entre ${seleccion.map(s => s.pais).join(", ")}`,
     boletinReferencia: `Consulta Activa BCN`,
     columnas,
