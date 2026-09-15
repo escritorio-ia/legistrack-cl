@@ -1734,12 +1734,10 @@ export default function ProyectoDetailView({
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5" id="tabpanel-documentos">
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Repositorio de Oficinas y Documentación</h3>
-                  <button 
-                    onClick={() => alert("Descargando recopilación de todos los documentos legislativos asociados...")}
-                    className="text-[10px] font-bold text-blue-600 hover:underline inline-flex items-center gap-1 cursor-pointer"
-                  >
-                    <Download className="w-3.5 h-3.5" /> Descargar Todo (.ZIP)
-                  </button>
+                  {/* La descarga conjunta en .ZIP se quitó: no hay backend que
+                      genere ese paquete, y el botón solo mostraba un alert()
+                      simulándolo. Cada documento ya se puede abrir individualmente
+                      abajo si tiene un enlace oficial real. */}
                 </div>
 
                 {proyecto.documentos.length === 0 ? (

@@ -167,58 +167,18 @@ export function performUnifiedSearch(rawQuery: string): UnifiedSearchResult {
   }
   const matchedAuthors = Array.from(authorsMap.values());
 
-  // 4. Documents & Reports
-  const sampleDocs = [
-    {
-      id: "doc-inf-01",
-      titulo: `Informe Técnico Constitucional sobre ${rawQuery}`,
-      tipo: "Informe de Asesoría Técnica BCN",
-      fecha: "Septiembre 2026",
-      comisionNombre: "Comisión de Constitución",
-      comisionId: "cd-constitucion"
-    },
-    {
-      id: "doc-inf-02",
-      titulo: `Minuta de Impacto Financiero y Presupuestario en ${rawQuery}`,
-      tipo: "Informe Financiero DIPRES",
-      fecha: "Agosto 2026",
-      comisionNombre: "Comisión de Hacienda",
-      comisionId: "cd-hacienda"
-    },
-    {
-      id: "doc-inf-03",
-      titulo: `Acta Oficial de Sesión y Audiencias Públicas sobre ${rawQuery}`,
-      tipo: "Acta de Sesión Legislativa",
-      fecha: "Agosto 2026",
-      comisionNombre: "Comisión de Trabajo y Previsión Social",
-      comisionId: "cd-trabajo-y-prevision"
-    }
-  ];
+  // 4. Documents & Reports -- antes esto era una lista fija de "documentos"
+  // inventados (sampleDocs), con títulos armados pegando el término de
+  // búsqueda del usuario (ej. "Informe Técnico Constitucional sobre {query}")
+  // pero sin ningún documento real detrás -- se quita en vez de simular
+  // contenido que no existe. El botón "Ver Informe" no tenía a dónde llevar.
+  const sampleDocs: { id: string; titulo: string; tipo: string; fecha: string; comisionNombre: string; comisionId: string }[] = [];
 
-  // 5. Derecho Comparado
-  const sampleComparada = [
-    {
-      id: "comp-01",
-      titulo: `Regulación comparada en materias de ${rawQuery} en Iberoamérica`,
-      pais: "España",
-      fuente: "Boletín Oficial del Estado (BOE)",
-      materia: rawQuery
-    },
-    {
-      id: "comp-02",
-      titulo: `Normativa federal y buenas prácticas sobre ${rawQuery}`,
-      pais: "Alemania",
-      fuente: "Bundestag Documentación Jurídica",
-      materia: rawQuery
-    },
-    {
-      id: "comp-03",
-      titulo: `Tratados y estándares de la OCDE en ${rawQuery}`,
-      pais: "OCDE",
-      fuente: "OECD Legal Instruments Database",
-      materia: rawQuery
-    }
-  ];
+  // 5. Derecho Comparado -- mismo problema que sampleDocs: títulos inventados
+  // con el término de búsqueda insertado, sin fuente real. Se quita; la
+  // búsqueda real de Derecho Comparado ya existe como su propia sección
+  // (Legislación Comparada / Derecho Comparado++) con datos en vivo.
+  const sampleComparada: { id: string; titulo: string; pais: string; fuente: string; materia: string }[] = [];
 
   // 6. Direct Live Official Web Portals Links & Intelligent Data Sources
   const encodedQ = encodeURIComponent(rawQuery.trim());
