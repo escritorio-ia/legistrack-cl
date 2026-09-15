@@ -1260,12 +1260,20 @@ export default function CitacionesCamaraWidget({
   }, [allEnrichedCitaciones]);
 
   // Helper to test if a commission is followed
+  // Antes esta función comparaba por substring en ambas direcciones
+  // (normCard.includes(normF) || normF.includes(normCard)) -- un nombre
+  // seguido podía "colarse" como coincidencia de OTRA comisión sin relación
+  // real solo por compartir una palabra o ser más corto/largo, mezclando
+  // citaciones de comisiones distintas bajo "Mis Comisiones Seguidas" y
+  // llevando, al navegar, a una comisión distinta de la que se sigue de
+  // verdad. Ahora compara por igualdad exacta tras normalizar, igual que el
+  // resto de la app (App.tsx usa followedComs.includes(c.nombre) sin fuzzy match).
   const isCommissionFollowed = (comisionNombre: string): boolean => {
     if (!followedComs || followedComs.length === 0) return false;
     const normCard = comisionNombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/^comisi[oó]n (especial - |de )?/i, "").trim();
     return followedComs.some(f => {
       const normF = f.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/^comisi[oó]n (especial - |de )?/i, "").trim();
-      return normCard.includes(normF) || normF.includes(normCard);
+      return normCard === normF;
     });
   };
 
