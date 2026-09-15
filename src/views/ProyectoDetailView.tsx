@@ -929,15 +929,6 @@ export default function ProyectoDetailView({
               Comisiones
             </button>
             <button
-              onClick={() => setActiveTab("territorial")}
-              className={`pb-2.5 px-3 border-b-2 transition-colors cursor-pointer flex items-center gap-1 ${
-                activeTab === "territorial" ? "border-emerald-600 text-emerald-700 font-bold" : "border-transparent text-slate-500 hover:text-slate-800"
-              }`}
-            >
-              <Compass className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Impacto Territorial</span>
-            </button>
-            <button
               onClick={() => setActiveTab("documentos")}
               className={`pb-2.5 px-3 border-b-2 transition-colors cursor-pointer ${
                 activeTab === "documentos" ? "border-blue-600 text-blue-600 font-bold" : "border-transparent text-slate-500 hover:text-slate-800"
