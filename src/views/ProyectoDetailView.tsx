@@ -672,13 +672,13 @@ export default function ProyectoDetailView({
 
       {/* Main Title & Action header */}
       <div className="flex flex-col md:flex-row md:items-start justify-between gap-4" id="project-detail-header">
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight" id="project-title-heading">
-            Boletín {proyecto.id}: <span className="text-slate-700 font-semibold text-lg ml-1 block sm:inline">{proyecto.titulo}</span>
-          </h1>
-          <p className="text-xs text-slate-500 mt-1 leading-relaxed max-w-4xl font-semibold">
+        <div className="flex-1 min-w-0">
+          <span className="text-xs font-extrabold text-blue-700 uppercase tracking-wider">
+            Boletín {proyecto.id}
+          </span>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight leading-snug mt-1 break-words" id="project-title-heading">
             {proyecto.titulo}
-          </p>
+          </h1>
         </div>
         <div className="flex flex-wrap gap-2 shrink-0">
           <button 

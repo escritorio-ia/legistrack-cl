@@ -490,6 +490,234 @@ export async function fetchYouTubeVideoTranscript(videoId: string): Promise<Tran
   });
 }
 
+// ============================================================================
+// SESIONES REALES DE COMISIÓN (camara.cl) — citación, invitados, resultado
+// efectivo, votaciones y asistencia real, tal como quedaron registrados por la
+// Secretaría de la Cámara. Esto reemplaza el uso de contenido curado/inventado
+// a mano para el Informe IA: en vez de "reconstruir" lo que probablemente se
+// dijo, se usa lo que efectivamente ocurrió según el propio sitio oficial.
+// ============================================================================
+
+const CAMARA_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+
+async function fetchCamaraHtml(path: string, ms = 9000): Promise<string | null> {
+  try {
+    const res = await fetch(`https://www.camara.cl/legislacion/comisiones/${path}`, {
+      headers: { "User-Agent": CAMARA_UA, "Accept": "text/html,application/xhtml+xml,*/*;q=0.8" },
+      signal: AbortSignal.timeout(ms)
+    });
+    if (!res.ok) return null;
+    return await res.text();
+  } catch (err) {
+    console.warn(`Could not fetch camara.cl path ${path}:`, err);
+    return null;
+  }
+}
+
+// Convierte una celda HTML (con <br/> como separador real de línea) en texto
+// plano, preservando los saltos de línea en vez de colapsarlos a espacios --
+// a diferencia de decodeHtmlEntities() de más arriba, pensada para subtítulos.
+function celdaHtmlATexto(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&ntilde;/gi, "ñ")
+    .replace(/&aacute;/gi, "á")
+    .replace(/&eacute;/gi, "é")
+    .replace(/&iacute;/gi, "í")
+    .replace(/&oacute;/gi, "ó")
+    .replace(/&uacute;/gi, "ú")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+export interface SesionRealCamara {
+  numero: string;
+  fecha: string;
+  horaInicio: string;
+  horaTermino: string;
+  estado: string;
+  sesionId: string;
+  citada: boolean;
+  celebrada: boolean;
+  tieneResultado: boolean;
+  tieneVotacion: boolean;
+  actaDocId?: string;
+  videoUrl?: string;
+}
+
+/**
+ * Lista las sesiones reales de una comisión (Cámara) para un mes/año dado,
+ * con el `sesionId` numérico interno que usan el resto de los endpoints.
+ * prmIdTipo=2101 es el código fijo que usa camara.cl para "sesión de comisión".
+ */
+export async function fetchSesionesRealesCamara(comisionPrmId: string, mes?: number, anio?: number): Promise<SesionRealCamara[]> {
+  const cacheKey = `camara_sesiones_reales_${comisionPrmId}_${mes || "cur"}_${anio || "cur"}`;
+  return cache.wrap(cacheKey, 15 * 60 * 1000, async () => {
+    const qs = new URLSearchParams({ prmID: comisionPrmId, prmIdTipo: "2101" });
+    if (mes) qs.set("mes", String(mes).padStart(2, "0"));
+    if (anio) qs.set("anio", String(anio));
+    const html = await fetchCamaraHtml(`sesiones.aspx?${qs.toString()}`);
+    if (!html) return [];
+
+    const filas = html.match(/<tr>\s*<td><strong>[\s\S]*?<\/tr>/g) || [];
+    const sesiones: SesionRealCamara[] = [];
+    for (const fila of filas) {
+      const numero = (fila.match(/<strong>(\d+)<\/strong>/) || [, ""])[1];
+      const celdas = fila.match(/<td[^>]*>([\s\S]*?)<\/td>/g) || [];
+      if (celdas.length < 5) continue;
+      const fecha = celdaHtmlATexto(celdas[1]);
+      const horaInicio = celdaHtmlATexto(celdas[2]);
+      const horaTermino = celdaHtmlATexto(celdas[3]);
+      const estado = celdaHtmlATexto(celdas[4]);
+      const sesionIdMatch = fila.match(/prmIdSesion=(\d+)/);
+      if (!sesionIdMatch) continue;
+      const actaMatch = fila.match(/prmID=(\d+)&(?:amp;)?prmTipo=DOCUMENTO_COMISIONSESIONACTA/);
+      const videoMatch = fila.match(/href="([^"]*Reproductor\.aspx\?prmCpeid=\d+&(?:amp;)?prmSesId=\d+)"[^>]*title="Ver Video"[^>]*style="display: block"/);
+      sesiones.push({
+        numero,
+        fecha,
+        horaInicio,
+        horaTermino,
+        estado,
+        sesionId: sesionIdMatch[1],
+        citada: estado.toLowerCase().includes("citada"),
+        celebrada: estado.toLowerCase().includes("celebrada"),
+        tieneResultado: fila.includes("resultado_detalle.aspx"),
+        tieneVotacion: fila.includes("votaciones_sesion.aspx"),
+        actaDocId: actaMatch ? actaMatch[1] : undefined,
+        videoUrl: videoMatch ? `https://www.camara.cl/prensa/${videoMatch[1].replace(/^(\.\.\/)+/, "").replace(/^prensa\//, "")}` : undefined
+      });
+    }
+    return sesiones;
+  });
+}
+
+export interface PuntoTablaReal {
+  horario: string;
+  materia: string;
+  boletines: string[];
+  invitados: string;
+  resultado: string;
+}
+
+export interface AsistenciaReal {
+  asistentes: string[];
+  reemplazos: string;
+  otrosAsistentes: string;
+}
+
+export interface VotacionReal {
+  boletin: string;
+  materia: string;
+  tipo: string;
+  afirmativos: number;
+  negativos: number;
+  abstenciones: number;
+}
+
+export interface SesionComisionCompleta {
+  puntos: PuntoTablaReal[];
+  asistencia: AsistenciaReal;
+  votaciones: VotacionReal[];
+  boletinesVistos: string[];
+}
+
+// Extrae las filas <tr> de dos columnas (materia/citación | invitados o resultado)
+// que comparten estructura tanto citacion_detalle.aspx como resultado_detalle.aspx.
+function extraerFilasDosColumnas(html: string): { col1: string; col2: string }[] {
+  const filas = html.match(/<tr>\s*<td style="width: 50%;">[\s\S]*?<\/tr>/g) || [];
+  return filas.map(fila => {
+    const celdas = fila.match(/<td style="width: 50%;">([\s\S]*?)<\/td>/g) || [];
+    return {
+      col1: celdas[0] ? celdaHtmlATexto(celdas[0].replace(/^<td[^>]*>/, "").replace(/<\/td>$/, "")) : "",
+      col2: celdas[1] ? celdaHtmlATexto(celdas[1].replace(/^<td[^>]*>/, "").replace(/<\/td>$/, "")) : ""
+    };
+  });
+}
+
+const BOLETIN_REGEX = /\b\d{4,5}-\d{1,2}\b/g;
+
+/**
+ * Obtiene el contenido REAL de una sesión ya celebrada: por cada punto de la
+ * tabla, qué se citó a tratar, quiénes fueron invitados, y qué resultado
+ * efectivo tuvo (quién asistió/expuso realmente, qué se aprobó, etc.) — más la
+ * asistencia y las votaciones reales. Esto es lo que debe alimentar el Informe
+ * IA en vez de una reconstrucción "probable" de lo que se habría dicho.
+ */
+export async function fetchSesionComisionCompleta(comisionPrmId: string, sesionId: string): Promise<SesionComisionCompleta | null> {
+  const cacheKey = `camara_sesion_completa_${comisionPrmId}_${sesionId}`;
+  return cache.wrap(cacheKey, 60 * 60 * 1000, async () => {
+    const [citacionHtml, resultadoHtml, votacionesHtml, asistenciaHtml] = await Promise.all([
+      fetchCamaraHtml(`citacion_detalle.aspx?prmId=${comisionPrmId}&prmIdSesion=${sesionId}`),
+      fetchCamaraHtml(`resultado_detalle.aspx?prmId=${comisionPrmId}&prmIdSesion=${sesionId}`),
+      fetchCamaraHtml(`votaciones_sesion.aspx?prmId=${comisionPrmId}&prmIdSesion=${sesionId}`),
+      fetchCamaraHtml(`asistencia.aspx?prmId=${comisionPrmId}&prmIdSesion=${sesionId}`)
+    ]);
+
+    if (!citacionHtml && !resultadoHtml) return null;
+
+    const filasCitacion = citacionHtml ? extraerFilasDosColumnas(citacionHtml) : [];
+    const filasResultado = resultadoHtml ? extraerFilasDosColumnas(resultadoHtml) : [];
+
+    const puntos: PuntoTablaReal[] = filasCitacion.map((fc, idx) => {
+      const [horarioLinea, ...restoMateria] = fc.col1.split("\n").filter(Boolean);
+      const esHorario = /^De\s.*horas?:?$/i.test(horarioLinea || "");
+      const horario = esHorario ? horarioLinea : "";
+      const materia = (esHorario ? restoMateria.join(" ") : fc.col1).trim();
+      const boletines = Array.from(new Set(materia.match(BOLETIN_REGEX) || []));
+      const resultadoTexto = filasResultado[idx]?.col2 || "";
+      return {
+        horario,
+        materia,
+        boletines,
+        invitados: fc.col2.replace(/^Para este efecto se encuentran invitados:\s*/i, "").trim(),
+        resultado: resultadoTexto
+      };
+    });
+
+    // Asistencia: viene embebida como texto dentro de la última columna de
+    // resultado_detalle.aspx ("Diputados Asistentes: ...", "Reemplazos: ...",
+    // "Otros Diputados asistentes: ..."), agregada de todos los puntos.
+    const resultadoTextoCompleto = filasResultado.map(f => f.col2).join("\n\n");
+    const asistentesMatch = resultadoTextoCompleto.match(/Diputados? Asistentes?:\s*([^\n]+)/i);
+    const reemplazosMatch = resultadoTextoCompleto.match(/Reemplazos?:\s*([^\n]+)/i);
+    const otrosMatch = resultadoTextoCompleto.match(/Otros? Diputados? asistentes?:\s*([^\n]+)/i);
+    const asistencia: AsistenciaReal = {
+      asistentes: asistentesMatch ? asistentesMatch[1].split(";").map(s => s.trim()).filter(Boolean) : [],
+      reemplazos: reemplazosMatch ? reemplazosMatch[1].trim() : "",
+      otrosAsistentes: otrosMatch ? otrosMatch[1].trim() : ""
+    };
+    void asistenciaHtml; // reservado por si en el futuro se necesita el detalle completo de asistencia.aspx
+
+    const votaciones: VotacionReal[] = [];
+    if (votacionesHtml) {
+      const filasVot = votacionesHtml.match(/<tr>\s*<td align="center">\d{4,5}-\d{1,2}<\/td>[\s\S]*?<\/tr>/g) || [];
+      for (const fila of filasVot) {
+        const celdas = fila.match(/<td[^>]*>([\s\S]*?)<\/td>/g) || [];
+        if (celdas.length < 6) continue;
+        const clean = (c: string) => celdaHtmlATexto(c.replace(/^<td[^>]*>/, "").replace(/<\/td>$/, ""));
+        votaciones.push({
+          boletin: clean(celdas[0]),
+          materia: clean(celdas[1]),
+          tipo: clean(celdas[2]),
+          afirmativos: parseInt(clean(celdas[3]), 10) || 0,
+          negativos: parseInt(clean(celdas[4]), 10) || 0,
+          abstenciones: parseInt(clean(celdas[5]), 10) || 0
+        });
+      }
+    }
+
+    const boletinesVistos = Array.from(new Set(puntos.flatMap(p => p.boletines)));
+
+    return { puntos, asistencia, votaciones, boletinesVistos };
+  });
+}
+
 export async function getTodasComisiones(): Promise<ComisionReal[]> {
   const camaraLive = await fetchComisionesCamaraReal();
   const byId = new Map<string, ComisionReal>();
