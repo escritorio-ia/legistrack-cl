@@ -362,33 +362,44 @@ function buildInformeMarkdown(
   comparacionDetalle?: Record<string, { resultado: ResultadoComparado; puntos: string[]; disponible: boolean; mensaje?: string }>
 ): string {
   const fecha = new Date().toLocaleDateString("es-CL", { day: "2-digit", month: "long", year: "numeric" });
+  const tituloCase = query.charAt(0).toUpperCase() + query.slice(1);
+  const paises = Array.from(new Set(resultados.map(r => r.pais)));
+  const fuentes = Array.from(new Set(resultados.map(r => r.fuente).filter(Boolean)));
   const lines: string[] = [];
-  lines.push(`# MINUTA DE DERECHO COMPARADO: ${query.toUpperCase()}`);
-  lines.push(`**Biblioteca del Congreso Nacional de Chile — Asesoría Técnica Parlamentaria**`);
-  lines.push(`*Fecha de emisión: ${fecha}* | *Normas analizadas: ${resultados.length}*`);
+  lines.push(`# Legislación comparada: ${tituloCase}`);
+  lines.push(`**Asesoría Técnica Parlamentaria**`);
+  lines.push(`*Fecha de emisión: ${fecha}* | *Jurisdicciones consultadas: ${paises.length}* | *Normas analizadas: ${resultados.length}*`);
   lines.push("");
-  lines.push(`## 1. SÍNTESIS EJECUTIVA`);
+  lines.push(`## Introducción`);
+  lines.push(`De acuerdo a lo consultado, este documento analiza el tratamiento normativo de "${query}" en la experiencia comparada, a partir de registros obtenidos en tiempo real desde repositorios legislativos oficiales (${fuentes.join(", ") || "fuentes oficiales"}). El contenido y su nivel de detalle están delimitados por la información efectivamente disponible en esas fuentes al momento de la consulta. Este documento fue generado con asistencia de inteligencia artificial a partir de fuentes oficiales en tiempo real; no reemplaza el análisis de un informe elaborado por un asesor de la BCN y su contenido debe contrastarse con las fuentes originales antes de su uso.`);
+  lines.push("");
+  lines.push(`## 1. Síntesis`);
   lines.push(parrafoAuto);
   if (redaccionIA) {
     lines.push("");
-    lines.push(`### Análisis Analítico y Lecciones para Chile`);
+    lines.push(`### Análisis y lecciones para Chile`);
     lines.push(redaccionIA);
   }
   lines.push("");
-  lines.push(`## 2. MATRIZ COMPARATIVA POR PAÍS`);
+  lines.push(`## 2. Matriz comparativa por país`);
   lines.push(`| País | Normativa Oficial | Tipo | Fuente | Resumen / Puntos Clave | Enlace |`);
   lines.push(`| :--- | :--- | :--- | :--- | :--- | :--- |`);
   for (const r of resultados) {
     const detalle = comparacionDetalle ? comparacionDetalle[`${r.pais}|${r.titulo}`] : undefined;
-    const puntos = detalle?.puntos && detalle.puntos.length > 0 
-      ? detalle.puntos.join("; ") 
+    const puntos = detalle?.puntos && detalle.puntos.length > 0
+      ? detalle.puntos.join("; ")
       : (r.descripcion || "—");
     const link = r.url ? `[Ver Gaceta](${r.url})` : "—";
     lines.push(`| ${r.pais} | **${r.titulo.replace(/\|/g, "/")}** | ${r.tipo || "Ley"} | ${r.fuente} | ${puntos.replace(/\|/g, "/")} | ${link} |`);
   }
   lines.push("");
+  lines.push(`## 3. Fuentes consultadas`);
+  for (const r of resultados) {
+    lines.push(`- **[${r.pais}]** ${r.titulo}${r.url ? ` — [enlace oficial](${r.url})` : ""}`);
+  }
+  lines.push("");
   lines.push(`---`);
-  lines.push(`*Documento generado automáticamente por LegisTrack-CL para apoyo al trabajo de Comisiones del Congreso Nacional de Chile.*`);
+  lines.push(`*Nota: documento de trabajo generado con asistencia de IA por LegisTrack-CL a partir de fuentes legislativas oficiales, para apoyo al trabajo de Comisiones del Congreso Nacional de Chile. No constituye un informe oficial de la Biblioteca del Congreso Nacional.*`);
   return lines.join("\n");
 }
 
@@ -502,11 +513,11 @@ function exportarAWord(
     </head>
     <body>
       <div class="header">
-        <div class="bcn-title">Biblioteca del Congreso Nacional de Chile</div>
-        <div class="bcn-sub">Asesoría Técnica Parlamentaria — Minuta Oficial de Derecho Comparado</div>
+        <div class="bcn-title">LegisTrack-CL</div>
+        <div class="bcn-sub">Asesoría Técnica Parlamentaria — Minuta de Derecho Comparado (generada con IA)</div>
       </div>
 
-      <h1>MINUTA DE LEGISLACIÓN COMPARADA: ${query.toUpperCase()}</h1>
+      <h1>Legislación comparada: ${query.charAt(0).toUpperCase() + query.slice(1)}</h1>
       
       <div class="meta-box">
         <strong>Materia:</strong> ${query}<br>
@@ -539,7 +550,7 @@ function exportarAWord(
       <p>Este informe compila información extraída en tiempo real de los repositorios y gacetas legislativas oficiales de las jurisdicciones consultadas (incluyendo LeyChile de la BCN, Boletín Oficial del Estado de España, EUR-Lex CELLAR de la Unión Europea, Cámara y Senado de Brasil, Legislation.gov.uk del Reino Unido, entre otros). Provee una panorámica sistemática de las soluciones normativas adoptadas internacionalmente.</p>
 
       <div class="footer">
-        Documento de trabajo elaborado para el Congreso Nacional de Chile | LegisTrack-CL — Asesoría Legislativa
+        Documento de trabajo generado con asistencia de IA por LegisTrack-CL a partir de fuentes oficiales, para apoyo al trabajo de Comisiones del Congreso Nacional de Chile. No constituye un informe oficial de la Biblioteca del Congreso Nacional.
       </div>
     </body>
     </html>
@@ -663,15 +674,15 @@ function imprimirInformePDF(
 
       <div class="bcn-header">
         <div>
-          <div class="bcn-title">Biblioteca del Congreso Nacional de Chile</div>
-          <div class="bcn-sub">Asesoría Técnica Parlamentaria — Minuta de Derecho Comparado</div>
+          <div class="bcn-title">LegisTrack-CL</div>
+          <div class="bcn-sub">Asesoría Técnica Parlamentaria — Minuta de Derecho Comparado (generada con IA)</div>
         </div>
         <div style="text-align: right; font-weight: bold; color: #64748b; font-size: 10px;">
           ${fecha}
         </div>
       </div>
 
-      <h1>${query}</h1>
+      <h1>${query.charAt(0).toUpperCase() + query.slice(1)}</h1>
 
       <div class="meta-grid">
         <div><strong>Materia:</strong> ${query}</div>
@@ -701,7 +712,7 @@ function imprimirInformePDF(
       </table>
 
       <div class="footer">
-        Biblioteca del Congreso Nacional de Chile · Asesoría Técnica Parlamentaria · Documento de Trabajo para Comisiones Legislativas
+        Documento generado con asistencia de IA por LegisTrack-CL a partir de fuentes oficiales en tiempo real · No constituye un informe oficial de la Biblioteca del Congreso Nacional · Documento de Trabajo para Comisiones Legislativas
       </div>
     </body>
     </html>
@@ -711,8 +722,8 @@ function imprimirInformePDF(
 
 function buildInformeText(rep: CustomReport): string {
   const lines: string[] = [];
-  lines.push("BIBLIOTECA DEL CONGRESO NACIONAL DE CHILE");
-  lines.push("Asesoría Técnica Parlamentaria — Compilación de Derecho Comparado");
+  lines.push("LEGISTRACK-CL");
+  lines.push("Asesoría Técnica Parlamentaria — Compilación de Derecho Comparado (generada con IA)");
   lines.push("=".repeat(70));
   lines.push(`Materia consultada: ${rep.query}`);
   lines.push(`Fecha de generación: ${rep.fecha}`);

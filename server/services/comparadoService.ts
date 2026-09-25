@@ -134,7 +134,7 @@ export function sintetizarResumenNorma(titulo: string, pais: string, tipo?: stri
   const materia = clean.replace(/^(establece normas sobre|modifica|crea|aprueba|fija|regula|sobre)\s*/i, "").trim() || clean;
   const tipoNorma = tipo || "Normativa oficial";
 
-  return `🎯 Objeto & Ámbito: ${tipoNorma} de ${pais} que regula el marco jurídico relativo a ${materia.toLowerCase()}.\n⚙️ Mecanismos Clave: Dispone directrices operativas y deberes de cumplimiento institucional.\n⚖️ Fiscalización & Cumplimiento: Supervisado bajo los órganos competentes de ${pais}.\n💡 Lección para Chile: Referente útil para el debate y técnica legislativa en comisiones del Congreso.`;
+  return `Se trata de ${tipoNorma.toLowerCase()} de ${pais} que regula el marco jurídico relativo a ${materia.toLowerCase()}, disponiendo directrices operativas y deberes de cumplimiento para los sujetos obligados. Su fiscalización corresponde a los órganos competentes de ${pais}, y constituye un referente útil para el debate y la técnica legislativa en las comisiones del Congreso Nacional.`;
 }
 
 /**
@@ -323,9 +323,9 @@ Cubre distintas jurisdicciones de referencia técnica parlamentaria (elige las 5
 - OCDE / Asia-Pacífico (Japón, Australia o Canadá)
 
 Responde ÚNICAMENTE con un arreglo JSON válido, compacto (sin saltos de línea ni indentación innecesarios) y SIN texto adicional antes ni después, donde cada objeto tenga este esquema exacto:
-[{"pais":"Nombre del país o entidad","fuente":"Nombre del repositorio oficial (ej: EUR-Lex, BOE, Congress.gov)","titulo":"Título formal y número REAL de la norma (no inventes un título genérico)","tituloOriginal":"Título original en idioma nativo si no es español","fecha":"Año de aprobación o entrada en vigencia","url":"Enlace oficial real o portal gubernamental de referencia","tipo":"Ley | Reglamento | Jurisprudencia | Administrativo | Documento","descripcion":"🎯 Objeto & Ámbito: síntesis breve.\\n⚙️ Mecanismos Clave: deberes e instrumentos.\\n⚖️ Fiscalización & Sanciones: órgano y sanciones.\\n💡 Lección para Chile: aporte concreto.","relevancia":95}]
+[{"pais":"Nombre del país o entidad","fuente":"Nombre del repositorio oficial (ej: EUR-Lex, BOE, Congress.gov)","titulo":"Título formal y número REAL de la norma (no inventes un título genérico)","tituloOriginal":"Título original en idioma nativo si no es español","fecha":"Año de aprobación o entrada en vigencia","url":"Enlace oficial real o portal gubernamental de referencia","tipo":"Ley | Reglamento | Jurisprudencia | Administrativo | Documento","descripcion":"Párrafo único en prosa formal (sin viñetas ni emojis, estilo Asesoría Técnica Parlamentaria de la BCN) que explique el objeto y ámbito de la norma, sus principales mecanismos o deberes, y el órgano encargado de su fiscalización, en 3 a 5 oraciones.","relevancia":95}]
 
-Manten cada "descripcion" concisa (maximo 3-4 lineas por punto) para que el JSON completo no exceda el limite de salida.
+Escribe "descripcion" como lo haría un analista de la Biblioteca del Congreso Nacional de Chile en un informe de Asesoría Técnica Parlamentaria: prosa formal y continua, en tercera persona, sin emojis, sin viñetas y sin encabezados dentro del texto. Manten cada "descripcion" concisa (máximo 4-5 líneas) para que el JSON completo no exceda el límite de salida.
 IMPORTANTE: clasifica el campo "tipo" usando EXCLUSIVAMENTE una de estas 5 categorías, según la jerarquía normativa real:
 - "Ley": norma aprobada por el Congreso/Parlamento nacional o su equivalente estatal (leyes orgánicas, actos, estatutos federales).
 - "Reglamento": norma de ejecución o desarrollo de una ley, de alcance general (reglamentos, regulations).
@@ -520,7 +520,7 @@ function generarFallbackOntologicoComparado(query: string): ResultadoComparado[]
       fecha: "2024",
       url: "https://eur-lex.europa.eu/homepage.html",
       tipo: "Administrativo",
-      descripcion: `🎯 Objeto & Ámbito: Directiva comunitaria que armoniza los estándares mínimos, licencias de operación y principios de precaución en torno a ${conceptoLimpio}.\n⚙️ Mecanismos Clave: Obligación de evaluación de riesgos previa, registros públicos unificados y protocolos de transparencia.\n⚖️ Fiscalización & Sanciones: Comité Europeo de Supervisión y autoridades nacionales competentes con sanciones administrativas disuasorias.\n💡 Lección para Chile: Permite adoptar estándares internacionales alineados con los compromisos del Acuerdo Marco Chile-UE.`,
+      descripcion: `Directiva comunitaria que armoniza los estándares mínimos, las licencias de operación y los principios de precaución en torno a ${conceptoLimpio}. Establece la obligación de una evaluación de riesgos previa, registros públicos unificados y protocolos de transparencia, cuya fiscalización corresponde al Comité Europeo de Supervisión y a las autoridades nacionales competentes, facultadas para aplicar sanciones administrativas disuasorias.`,
       relevancia: 96
     },
     {
@@ -530,7 +530,7 @@ function generarFallbackOntologicoComparado(query: string): ResultadoComparado[]
       fecha: "2023",
       url: "https://www.boe.es/buscar/legislacion.php",
       tipo: "Ley",
-      descripcion: `🎯 Objeto & Ámbito: Ley de ámbito estatal que regula las condiciones de ejercicio, deberes de información y régimen sancionador para ${conceptoLimpio}.\n⚙️ Mecanismos Clave: Creación de comisiones técnicas sectoriales, régimen de autorizaciones previas y ventanillas de fiscalización.\n⚖️ Fiscalización & Sanciones: Órganos reguladores estatales y potestad sancionadora con multas graduales según gravedad.\n💡 Lección para Chile: Su redacción civilista y tradición codificada facilita la adaptación al ordenamiento jurídico nacional.`,
+      descripcion: `Ley de ámbito estatal que regula las condiciones de ejercicio, los deberes de información y el régimen sancionador aplicables a ${conceptoLimpio}. Crea comisiones técnicas sectoriales y un régimen de autorizaciones previas, quedando su fiscalización a cargo de los órganos reguladores estatales, con potestad sancionadora graduada según la gravedad de la infracción.`,
       relevancia: 95
     },
     {
@@ -540,7 +540,7 @@ function generarFallbackOntologicoComparado(query: string): ResultadoComparado[]
       fecha: "2023",
       url: "https://www.congress.gov",
       tipo: "Ley",
-      descripcion: `🎯 Objeto & Ámbito: Estatuto federal que fija directrices técnicas, directivas de cumplimiento voluntario y mandatos de no discriminación en ${conceptoLimpio}.\n⚙️ Mecanismos Clave: Estándares emitidos por agencias especializadas (NIST/FTC/SEC) y auditorías periódicas de cumplimiento.\n⚖️ Fiscalización & Sanciones: Acciones de supervisión por agencias regulatorias federales y acciones de clase.\n💡 Lección para Chile: Ofrece enfoques basados en incentivos al mercado y mitigación de costos regulatorios.`,
+      descripcion: `Estatuto federal que fija directrices técnicas, directivas de cumplimiento voluntario y mandatos de no discriminación en materia de ${conceptoLimpio}. Los estándares son emitidos por agencias especializadas y sujetos a auditorías periódicas de cumplimiento, mientras que la fiscalización queda entregada a las agencias regulatorias federales competentes.`,
       relevancia: 93
     },
     {
@@ -550,7 +550,7 @@ function generarFallbackOntologicoComparado(query: string): ResultadoComparado[]
       fecha: "2024",
       url: "https://www.gesetze-im-internet.de",
       tipo: "Ley",
-      descripcion: `🎯 Objeto & Ámbito: Ley federal con altos estándares de rigor técnico, trazabilidad de procesos y seguridad jurídica respecto a ${conceptoLimpio}.\n⚙️ Mecanismos Clave: Deberes rigurosos de reporte preventivo, peritajes externos independientes y salvaguarda de derechos fundamentales.\n⚖️ Fiscalización & Sanciones: Bundesoberbehörde con facultades de clausura cautelar y multas acumulativas.\n💡 Lección para Chile: Ejemplo de solidez técnica institucional y prevención de litigiosidad post-promulgación.`,
+      descripcion: `Ley federal con altos estándares de rigor técnico, trazabilidad de procesos y seguridad jurídica respecto de ${conceptoLimpio}. Impone deberes de reporte preventivo y peritajes externos independientes, quedando su fiscalización a cargo de la autoridad federal competente (Bundesoberbehörde), facultada para aplicar clausuras cautelares y multas acumulativas.`,
       relevancia: 92
     },
     {
@@ -560,7 +560,7 @@ function generarFallbackOntologicoComparado(query: string): ResultadoComparado[]
       fecha: "2023",
       url: "https://www.suin-juriscol.gov.co",
       tipo: "Ley",
-      descripcion: `🎯 Objeto & Ámbito: Legislación latinoamericana que adapta las mejores prácticas internacionales de ${conceptoLimpio} a realidades institucionales regionales.\n⚙️ Mecanismos Clave: Planes graduales de implementación, mesas de diálogo multisectorial y fomento de capacidades técnicas públicas.\n⚖️ Fiscalización & Sanciones: Superintendencias sectoriales correspondientes.\n💡 Lección para Chile: Aporta comparabilidad directa en costos de implementación para presupuestos del Cono Sur.`,
+      descripcion: `Legislación latinoamericana que adapta las mejores prácticas internacionales sobre ${conceptoLimpio} a realidades institucionales regionales, mediante planes graduales de implementación y mesas de diálogo multisectorial. Su fiscalización corresponde a las superintendencias sectoriales respectivas.`,
       relevancia: 91
     },
     {
@@ -570,7 +570,7 @@ function generarFallbackOntologicoComparado(query: string): ResultadoComparado[]
       fecha: "2024",
       url: "https://www.legislation.gov.uk",
       tipo: "Reglamento",
-      descripcion: `🎯 Objeto & Ámbito: Marco normativo británico enfocado en la flexibilidad regulatoria basada en principios (outcomes-based regulation) para ${conceptoLimpio}.\n⚙️ Mecanismos Clave: Sandboxes regulatorios, códigos de conducta vinculantes y supervisión ágil.\n⚖️ Fiscalización & Sanciones: Autoridades regulatorias sectoriales independientes.\n💡 Lección para Chile: Modelo idóneo para diseñar espacios de pruebas controladas antes de dictar normas definitivas.`,
+      descripcion: `Marco normativo británico enfocado en una regulación flexible basada en principios y resultados (outcomes-based regulation) para ${conceptoLimpio}. Contempla espacios de prueba regulatoria (sandboxes) y códigos de conducta vinculantes, con supervisión a cargo de autoridades regulatorias sectoriales independientes.`,
       relevancia: 90
     }
   ];

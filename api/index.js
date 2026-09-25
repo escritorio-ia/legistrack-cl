@@ -189399,10 +189399,7 @@ function sintetizarResumenNorma(titulo, pais, tipo) {
   const clean = titulo.replace(/^LEY NUM\.\s*\d+\.?\d*\s*[:\-]?\s*/i, "").replace(/^DECRETO\s*\d+\s*[:\-]?\s*/i, "").replace(/^RESOLUCI[OÓ]N\s*\d+\s*[:\-]?\s*/i, "").trim();
   const materia = clean.replace(/^(establece normas sobre|modifica|crea|aprueba|fija|regula|sobre)\s*/i, "").trim() || clean;
   const tipoNorma = tipo || "Normativa oficial";
-  return `\u{1F3AF} Objeto & \xC1mbito: ${tipoNorma} de ${pais} que regula el marco jur\xEDdico relativo a ${materia.toLowerCase()}.
-\u2699\uFE0F Mecanismos Clave: Dispone directrices operativas y deberes de cumplimiento institucional.
-\u2696\uFE0F Fiscalizaci\xF3n & Cumplimiento: Supervisado bajo los \xF3rganos competentes de ${pais}.
-\u{1F4A1} Lecci\xF3n para Chile: Referente \xFAtil para el debate y t\xE9cnica legislativa en comisiones del Congreso.`;
+  return `Se trata de ${tipoNorma.toLowerCase()} de ${pais} que regula el marco jur\xEDdico relativo a ${materia.toLowerCase()}, disponiendo directrices operativas y deberes de cumplimiento para los sujetos obligados. Su fiscalizaci\xF3n corresponde a los \xF3rganos competentes de ${pais}, y constituye un referente \xFAtil para el debate y la t\xE9cnica legislativa en las comisiones del Congreso Nacional.`;
 }
 function inferirTipoNorma(titulo) {
   const t = titulo.toLowerCase();
@@ -189541,9 +189538,9 @@ Cubre distintas jurisdicciones de referencia t\xE9cnica parlamentaria (elige las
 - OCDE / Asia-Pac\xEDfico (Jap\xF3n, Australia o Canad\xE1)
 
 Responde \xDANICAMENTE con un arreglo JSON v\xE1lido, compacto (sin saltos de l\xEDnea ni indentaci\xF3n innecesarios) y SIN texto adicional antes ni despu\xE9s, donde cada objeto tenga este esquema exacto:
-[{"pais":"Nombre del pa\xEDs o entidad","fuente":"Nombre del repositorio oficial (ej: EUR-Lex, BOE, Congress.gov)","titulo":"T\xEDtulo formal y n\xFAmero REAL de la norma (no inventes un t\xEDtulo gen\xE9rico)","tituloOriginal":"T\xEDtulo original en idioma nativo si no es espa\xF1ol","fecha":"A\xF1o de aprobaci\xF3n o entrada en vigencia","url":"Enlace oficial real o portal gubernamental de referencia","tipo":"Ley | Reglamento | Jurisprudencia | Administrativo | Documento","descripcion":"\u{1F3AF} Objeto & \xC1mbito: s\xEDntesis breve.\\n\u2699\uFE0F Mecanismos Clave: deberes e instrumentos.\\n\u2696\uFE0F Fiscalizaci\xF3n & Sanciones: \xF3rgano y sanciones.\\n\u{1F4A1} Lecci\xF3n para Chile: aporte concreto.","relevancia":95}]
+[{"pais":"Nombre del pa\xEDs o entidad","fuente":"Nombre del repositorio oficial (ej: EUR-Lex, BOE, Congress.gov)","titulo":"T\xEDtulo formal y n\xFAmero REAL de la norma (no inventes un t\xEDtulo gen\xE9rico)","tituloOriginal":"T\xEDtulo original en idioma nativo si no es espa\xF1ol","fecha":"A\xF1o de aprobaci\xF3n o entrada en vigencia","url":"Enlace oficial real o portal gubernamental de referencia","tipo":"Ley | Reglamento | Jurisprudencia | Administrativo | Documento","descripcion":"P\xE1rrafo \xFAnico en prosa formal (sin vi\xF1etas ni emojis, estilo Asesor\xEDa T\xE9cnica Parlamentaria de la BCN) que explique el objeto y \xE1mbito de la norma, sus principales mecanismos o deberes, y el \xF3rgano encargado de su fiscalizaci\xF3n, en 3 a 5 oraciones.","relevancia":95}]
 
-Manten cada "descripcion" concisa (maximo 3-4 lineas por punto) para que el JSON completo no exceda el limite de salida.
+Escribe "descripcion" como lo har\xEDa un analista de la Biblioteca del Congreso Nacional de Chile en un informe de Asesor\xEDa T\xE9cnica Parlamentaria: prosa formal y continua, en tercera persona, sin emojis, sin vi\xF1etas y sin encabezados dentro del texto. Manten cada "descripcion" concisa (m\xE1ximo 4-5 l\xEDneas) para que el JSON completo no exceda el l\xEDmite de salida.
 IMPORTANTE: clasifica el campo "tipo" usando EXCLUSIVAMENTE una de estas 5 categor\xEDas, seg\xFAn la jerarqu\xEDa normativa real:
 - "Ley": norma aprobada por el Congreso/Parlamento nacional o su equivalente estatal (leyes org\xE1nicas, actos, estatutos federales).
 - "Reglamento": norma de ejecuci\xF3n o desarrollo de una ley, de alcance general (reglamentos, regulations).
@@ -189717,10 +189714,7 @@ function generarFallbackOntologicoComparado(query) {
       fecha: "2024",
       url: "https://eur-lex.europa.eu/homepage.html",
       tipo: "Administrativo",
-      descripcion: `\u{1F3AF} Objeto & \xC1mbito: Directiva comunitaria que armoniza los est\xE1ndares m\xEDnimos, licencias de operaci\xF3n y principios de precauci\xF3n en torno a ${conceptoLimpio}.
-\u2699\uFE0F Mecanismos Clave: Obligaci\xF3n de evaluaci\xF3n de riesgos previa, registros p\xFAblicos unificados y protocolos de transparencia.
-\u2696\uFE0F Fiscalizaci\xF3n & Sanciones: Comit\xE9 Europeo de Supervisi\xF3n y autoridades nacionales competentes con sanciones administrativas disuasorias.
-\u{1F4A1} Lecci\xF3n para Chile: Permite adoptar est\xE1ndares internacionales alineados con los compromisos del Acuerdo Marco Chile-UE.`,
+      descripcion: `Directiva comunitaria que armoniza los est\xE1ndares m\xEDnimos, las licencias de operaci\xF3n y los principios de precauci\xF3n en torno a ${conceptoLimpio}. Establece la obligaci\xF3n de una evaluaci\xF3n de riesgos previa, registros p\xFAblicos unificados y protocolos de transparencia, cuya fiscalizaci\xF3n corresponde al Comit\xE9 Europeo de Supervisi\xF3n y a las autoridades nacionales competentes, facultadas para aplicar sanciones administrativas disuasorias.`,
       relevancia: 96
     },
     {
@@ -189730,10 +189724,7 @@ function generarFallbackOntologicoComparado(query) {
       fecha: "2023",
       url: "https://www.boe.es/buscar/legislacion.php",
       tipo: "Ley",
-      descripcion: `\u{1F3AF} Objeto & \xC1mbito: Ley de \xE1mbito estatal que regula las condiciones de ejercicio, deberes de informaci\xF3n y r\xE9gimen sancionador para ${conceptoLimpio}.
-\u2699\uFE0F Mecanismos Clave: Creaci\xF3n de comisiones t\xE9cnicas sectoriales, r\xE9gimen de autorizaciones previas y ventanillas de fiscalizaci\xF3n.
-\u2696\uFE0F Fiscalizaci\xF3n & Sanciones: \xD3rganos reguladores estatales y potestad sancionadora con multas graduales seg\xFAn gravedad.
-\u{1F4A1} Lecci\xF3n para Chile: Su redacci\xF3n civilista y tradici\xF3n codificada facilita la adaptaci\xF3n al ordenamiento jur\xEDdico nacional.`,
+      descripcion: `Ley de \xE1mbito estatal que regula las condiciones de ejercicio, los deberes de informaci\xF3n y el r\xE9gimen sancionador aplicables a ${conceptoLimpio}. Crea comisiones t\xE9cnicas sectoriales y un r\xE9gimen de autorizaciones previas, quedando su fiscalizaci\xF3n a cargo de los \xF3rganos reguladores estatales, con potestad sancionadora graduada seg\xFAn la gravedad de la infracci\xF3n.`,
       relevancia: 95
     },
     {
@@ -189743,10 +189734,7 @@ function generarFallbackOntologicoComparado(query) {
       fecha: "2023",
       url: "https://www.congress.gov",
       tipo: "Ley",
-      descripcion: `\u{1F3AF} Objeto & \xC1mbito: Estatuto federal que fija directrices t\xE9cnicas, directivas de cumplimiento voluntario y mandatos de no discriminaci\xF3n en ${conceptoLimpio}.
-\u2699\uFE0F Mecanismos Clave: Est\xE1ndares emitidos por agencias especializadas (NIST/FTC/SEC) y auditor\xEDas peri\xF3dicas de cumplimiento.
-\u2696\uFE0F Fiscalizaci\xF3n & Sanciones: Acciones de supervisi\xF3n por agencias regulatorias federales y acciones de clase.
-\u{1F4A1} Lecci\xF3n para Chile: Ofrece enfoques basados en incentivos al mercado y mitigaci\xF3n de costos regulatorios.`,
+      descripcion: `Estatuto federal que fija directrices t\xE9cnicas, directivas de cumplimiento voluntario y mandatos de no discriminaci\xF3n en materia de ${conceptoLimpio}. Los est\xE1ndares son emitidos por agencias especializadas y sujetos a auditor\xEDas peri\xF3dicas de cumplimiento, mientras que la fiscalizaci\xF3n queda entregada a las agencias regulatorias federales competentes.`,
       relevancia: 93
     },
     {
@@ -189756,10 +189744,7 @@ function generarFallbackOntologicoComparado(query) {
       fecha: "2024",
       url: "https://www.gesetze-im-internet.de",
       tipo: "Ley",
-      descripcion: `\u{1F3AF} Objeto & \xC1mbito: Ley federal con altos est\xE1ndares de rigor t\xE9cnico, trazabilidad de procesos y seguridad jur\xEDdica respecto a ${conceptoLimpio}.
-\u2699\uFE0F Mecanismos Clave: Deberes rigurosos de reporte preventivo, peritajes externos independientes y salvaguarda de derechos fundamentales.
-\u2696\uFE0F Fiscalizaci\xF3n & Sanciones: Bundesoberbeh\xF6rde con facultades de clausura cautelar y multas acumulativas.
-\u{1F4A1} Lecci\xF3n para Chile: Ejemplo de solidez t\xE9cnica institucional y prevenci\xF3n de litigiosidad post-promulgaci\xF3n.`,
+      descripcion: `Ley federal con altos est\xE1ndares de rigor t\xE9cnico, trazabilidad de procesos y seguridad jur\xEDdica respecto de ${conceptoLimpio}. Impone deberes de reporte preventivo y peritajes externos independientes, quedando su fiscalizaci\xF3n a cargo de la autoridad federal competente (Bundesoberbeh\xF6rde), facultada para aplicar clausuras cautelares y multas acumulativas.`,
       relevancia: 92
     },
     {
@@ -189769,10 +189754,7 @@ function generarFallbackOntologicoComparado(query) {
       fecha: "2023",
       url: "https://www.suin-juriscol.gov.co",
       tipo: "Ley",
-      descripcion: `\u{1F3AF} Objeto & \xC1mbito: Legislaci\xF3n latinoamericana que adapta las mejores pr\xE1cticas internacionales de ${conceptoLimpio} a realidades institucionales regionales.
-\u2699\uFE0F Mecanismos Clave: Planes graduales de implementaci\xF3n, mesas de di\xE1logo multisectorial y fomento de capacidades t\xE9cnicas p\xFAblicas.
-\u2696\uFE0F Fiscalizaci\xF3n & Sanciones: Superintendencias sectoriales correspondientes.
-\u{1F4A1} Lecci\xF3n para Chile: Aporta comparabilidad directa en costos de implementaci\xF3n para presupuestos del Cono Sur.`,
+      descripcion: `Legislaci\xF3n latinoamericana que adapta las mejores pr\xE1cticas internacionales sobre ${conceptoLimpio} a realidades institucionales regionales, mediante planes graduales de implementaci\xF3n y mesas de di\xE1logo multisectorial. Su fiscalizaci\xF3n corresponde a las superintendencias sectoriales respectivas.`,
       relevancia: 91
     },
     {
@@ -189782,10 +189764,7 @@ function generarFallbackOntologicoComparado(query) {
       fecha: "2024",
       url: "https://www.legislation.gov.uk",
       tipo: "Reglamento",
-      descripcion: `\u{1F3AF} Objeto & \xC1mbito: Marco normativo brit\xE1nico enfocado en la flexibilidad regulatoria basada en principios (outcomes-based regulation) para ${conceptoLimpio}.
-\u2699\uFE0F Mecanismos Clave: Sandboxes regulatorios, c\xF3digos de conducta vinculantes y supervisi\xF3n \xE1gil.
-\u2696\uFE0F Fiscalizaci\xF3n & Sanciones: Autoridades regulatorias sectoriales independientes.
-\u{1F4A1} Lecci\xF3n para Chile: Modelo id\xF3neo para dise\xF1ar espacios de pruebas controladas antes de dictar normas definitivas.`,
+      descripcion: `Marco normativo brit\xE1nico enfocado en una regulaci\xF3n flexible basada en principios y resultados (outcomes-based regulation) para ${conceptoLimpio}. Contempla espacios de prueba regulatoria (sandboxes) y c\xF3digos de conducta vinculantes, con supervisi\xF3n a cargo de autoridades regulatorias sectoriales independientes.`,
       relevancia: 90
     }
   ];
@@ -192920,12 +192899,14 @@ apiRouter.post("/derecho-comparado/redactar", async (req, res) => {
     return res.status(400).json({ error: "Se requiere 'query' y una lista de 'resultados' no vac\xEDa." });
   }
   const listado = resultados.map((r, i) => `${i + 1}. [${r.pais}] ${r.titulo} \u2014 Fuente: ${r.fuente}${r.fecha ? `, ${r.fecha}` : ""}${r.url ? ` (${r.url})` : ""}`).join("\n");
-  const prompt = `Eres un asesor t\xE9cnico de la Biblioteca del Congreso Nacional de Chile. A continuaci\xF3n se listan resultados REALES obtenidos de bases legislativas oficiales de distintos pa\xEDses sobre la materia "${query}". Redacta un p\xE1rrafo breve (m\xE1x. 180 palabras) de s\xEDntesis introductoria para un informe de derecho comparado, EXCLUSIVAMENTE a partir de los t\xEDtulos y pa\xEDses listados a continuaci\xF3n. No inventes contenido normativo, cifras, sanciones ni disposiciones que no est\xE9n respaldadas por los t\xEDtulos entregados.
+  const prompt = `Act\xFAa como un analista de Asesor\xEDa T\xE9cnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile (BCN), redactando la secci\xF3n "An\xE1lisis y lecciones para Chile" de un informe de legislaci\xF3n comparada sobre "${query}". A continuaci\xF3n se listan resultados REALES obtenidos de bases legislativas oficiales de distintos pa\xEDses.
 
 Resultados:
 ${listado}
 
-Responde solo con el p\xE1rrafo, sin encabezados ni markdown.`;
+Redacta uno o dos p\xE1rrafos (m\xE1x. 200 palabras en total) en prosa formal, tercera persona, sin emojis ni vi\xF1etas -- el mismo registro que usan los informes de Asesor\xEDa T\xE9cnica Parlamentaria de la BCN: comparando brevemente los enfoques regulatorios identificados entre las jurisdicciones listadas y se\xF1alando, de forma prudente y sin sobre-afirmar, qu\xE9 aspectos podr\xEDan ser de inter\xE9s para la discusi\xF3n legislativa en Chile. Usa EXCLUSIVAMENTE los t\xEDtulos, pa\xEDses y fuentes entregados; no inventes contenido normativo, cifras, sanciones ni disposiciones que no est\xE9n respaldadas por lo listado arriba.
+
+Responde solo con el/los p\xE1rrafo(s), sin encabezados ni markdown.`;
   const textoIA = await generarContenidoUniversalIA(prompt, 500);
   if (textoIA) {
     return res.json({ texto: textoIA });

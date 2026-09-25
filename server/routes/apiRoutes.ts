@@ -1198,12 +1198,14 @@ apiRouter.post("/derecho-comparado/redactar", async (req: Request, res: Response
     .map((r, i) => `${i + 1}. [${r.pais}] ${r.titulo} — Fuente: ${r.fuente}${r.fecha ? `, ${r.fecha}` : ""}${r.url ? ` (${r.url})` : ""}`)
     .join("\n");
 
-  const prompt = `Eres un asesor técnico de la Biblioteca del Congreso Nacional de Chile. A continuación se listan resultados REALES obtenidos de bases legislativas oficiales de distintos países sobre la materia "${query}". Redacta un párrafo breve (máx. 180 palabras) de síntesis introductoria para un informe de derecho comparado, EXCLUSIVAMENTE a partir de los títulos y países listados a continuación. No inventes contenido normativo, cifras, sanciones ni disposiciones que no estén respaldadas por los títulos entregados.
+  const prompt = `Actúa como un analista de Asesoría Técnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile (BCN), redactando la sección "Análisis y lecciones para Chile" de un informe de legislación comparada sobre "${query}". A continuación se listan resultados REALES obtenidos de bases legislativas oficiales de distintos países.
 
 Resultados:
 ${listado}
 
-Responde solo con el párrafo, sin encabezados ni markdown.`;
+Redacta uno o dos párrafos (máx. 200 palabras en total) en prosa formal, tercera persona, sin emojis ni viñetas -- el mismo registro que usan los informes de Asesoría Técnica Parlamentaria de la BCN: comparando brevemente los enfoques regulatorios identificados entre las jurisdicciones listadas y señalando, de forma prudente y sin sobre-afirmar, qué aspectos podrían ser de interés para la discusión legislativa en Chile. Usa EXCLUSIVAMENTE los títulos, países y fuentes entregados; no inventes contenido normativo, cifras, sanciones ni disposiciones que no estén respaldadas por lo listado arriba.
+
+Responde solo con el/los párrafo(s), sin encabezados ni markdown.`;
 
   const textoIA = await generarContenidoUniversalIA(prompt, 500);
   if (textoIA) {
