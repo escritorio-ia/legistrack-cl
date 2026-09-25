@@ -40,7 +40,8 @@ import {
   Sparkles,
   Video,
   ChevronDown,
-  Landmark
+  Landmark,
+  ListChecks
 } from "lucide-react";
 import { Proyecto, ActivityItem, VotacionItem } from "../types";
 import { resolveProyecto } from "../utils/proyectosResolver";
@@ -246,7 +247,7 @@ export default function ProyectoDetailView({
 }: ProyectoDetailViewProps) {
   const [proyecto, setProyecto] = useState<Proyecto>(() => resolveProyecto(proyectoId));
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<"resumen" | "tramitacion" | "comisiones" | "territorial" | "documentos" | "votaciones" | "comparado" | "informes-bcn" | "simulador-quorum">("resumen");
+  const [activeTab, setActiveTab] = useState<"resumen" | "tramitacion" | "comisiones" | "territorial" | "documentos" | "votaciones" | "comparado" | "indicaciones" | "informes-bcn" | "simulador-quorum">("resumen");
   const [isDiffModalOpen, setIsDiffModalOpen] = useState(false);
   const [isFichaModalOpen, setIsFichaModalOpen] = useState(false);
   const [isNotesDrawerOpen, setIsNotesDrawerOpen] = useState(false);
@@ -272,6 +273,19 @@ export default function ProyectoDetailView({
   } | null>(null);
   const [comparadoLoading, setComparadoLoading] = useState(false);
 
+  // Visor de indicaciones (pestaña "Indicaciones"): igual que comparadoReal,
+  // agrupa por IA las indicaciones reales del informe de comisión por
+  // artículo/materia, sin datos de ejemplo precargados.
+  const [indicacionesReal, setIndicacionesReal] = useState<{
+    disponible: boolean;
+    razon?: string;
+    informeUrl?: string;
+    informeTitulo?: string;
+    informeFecha?: string;
+    grupos: GrupoIndicaciones[];
+  } | null>(null);
+  const [indicacionesLoading, setIndicacionesLoading] = useState(false);
+
   const projectCommissionsForComparador = Array.from(new Set([
     proyecto.comisionActual,
     ...(proyecto.comisionesHistoricas || [])
@@ -290,6 +304,19 @@ export default function ProyectoDetailView({
       .then(data => { if (!cancelado) setComparadoReal(data); })
       .catch(() => { if (!cancelado) setComparadoReal({ disponible: false, razon: "No fue posible consultar el comparado en este momento.", comparaciones: [] }); })
       .finally(() => { if (!cancelado) setComparadoLoading(false); });
+    return () => { cancelado = true; };
+  }, [activeTab, proyecto.id, selectedComisionSafe]);
+
+  useEffect(() => {
+    if (activeTab !== "indicaciones" || !selectedComisionSafe) return;
+    let cancelado = false;
+    setIndicacionesLoading(true);
+    setIndicacionesReal(null);
+    fetch(`/api/proyecto/${encodeURIComponent(proyecto.id)}/indicaciones?comision=${encodeURIComponent(selectedComisionSafe)}`)
+      .then(res => res.json())
+      .then(data => { if (!cancelado) setIndicacionesReal(data); })
+      .catch(() => { if (!cancelado) setIndicacionesReal({ disponible: false, razon: "No fue posible consultar las indicaciones en este momento.", grupos: [] }); })
+      .finally(() => { if (!cancelado) setIndicacionesLoading(false); });
     return () => { cancelado = true; };
   }, [activeTab, proyecto.id, selectedComisionSafe]);
 
@@ -987,6 +1014,14 @@ export default function ProyectoDetailView({
               }`}
             >
               Comparado
+            </button>
+            <button
+              onClick={() => setActiveTab("indicaciones")}
+              className={`pb-2.5 px-3 border-b-2 transition-colors cursor-pointer ${
+                activeTab === "indicaciones" ? "border-blue-600 text-blue-600 font-bold" : "border-transparent text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              Indicaciones
             </button>
 
             <button
@@ -2035,6 +2070,132 @@ export default function ProyectoDetailView({
               </div>
             )}
 
+            {activeTab === "indicaciones" && (
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 animate-fade-in" id="tabpanel-indicaciones">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4 mb-5">
+                  <div>
+                    <h3 className="text-sm font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+                      <ListChecks className="w-5 h-5 text-blue-600" />
+                      <span>Visor de Indicaciones</span>
+                    </h3>
+                    <p className="text-xs text-slate-500 font-medium mt-1">
+                      Indicaciones (enmiendas) formuladas al proyecto, agrupadas por artículo o materia según el informe de comisión real.
+                    </p>
+                  </div>
+
+                  {indicacionesLoading ? (
+                    <div className="bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-[10px] font-extrabold text-slate-500 flex items-center gap-1.5 self-start sm:self-auto uppercase tracking-wider font-sans">
+                      <RefreshCw className="w-3 h-3 animate-spin" /> <span>Analizando informe...</span>
+                    </div>
+                  ) : indicacionesReal?.disponible ? (
+                    <div className="bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl text-[10px] font-extrabold text-emerald-800 flex items-center gap-1.5 self-start sm:self-auto uppercase tracking-wider font-sans">
+                      <span>Generado con IA desde el informe real</span>
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="flex flex-col gap-5">
+                  <div>
+                    <span className="text-[10px] font-extrabold text-slate-400 block mb-2 uppercase tracking-wider font-mono">
+                      SELECCIONAR COMISIÓN DE TRÁMITE ({projectCommissionsForComparador.length})
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      {projectCommissionsForComparador.map((comm) => {
+                        const isActive = selectedComisionSafe === comm;
+                        return (
+                          <button
+                            key={comm}
+                            onClick={() => setSelectedComisionComparador(comm)}
+                            className={`px-3.5 py-2 rounded-xl border text-xs font-bold transition-all duration-200 cursor-pointer flex items-center gap-1.5 ${
+                              isActive
+                                ? "bg-[#003366] border-[#002244] text-white shadow-md scale-102"
+                                : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-150 hover:text-slate-800 hover:border-slate-300"
+                            }`}
+                          >
+                            {comm === proyecto.comisionActual && (
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                            )}
+                            <span>{comm}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {indicacionesLoading ? (
+                    <div className="text-center py-10 text-xs text-slate-400 font-bold flex flex-col items-center gap-2">
+                      <RefreshCw className="w-6 h-6 animate-spin text-blue-500" />
+                      <span>Leyendo el informe real de {selectedComisionSafe} y agrupando las indicaciones con IA...</span>
+                    </div>
+                  ) : !indicacionesReal?.disponible ? (
+                    <div className="text-center py-10 text-xs text-slate-400 font-bold max-w-md mx-auto">
+                      {indicacionesReal?.razon || "No hay indicaciones disponibles para esta comisión."}
+                      {indicacionesReal?.informeUrl && (
+                        <a href={indicacionesReal.informeUrl} target="_blank" rel="noopener noreferrer" className="block mt-2 text-blue-600 hover:underline font-semibold">
+                          Ver informe original
+                        </a>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-4">
+                      {(indicacionesReal.grupos || []).map((grupo, idx) => {
+                        const prevSeccion = idx > 0 ? indicacionesReal.grupos[idx - 1].seccion : null;
+                        return (
+                          <div key={idx}>
+                            {grupo.seccion !== prevSeccion && (
+                              <div className="mb-2 px-3 py-2 rounded-lg border-l-4 border-blue-600 bg-blue-50 text-blue-900 font-extrabold text-sm">
+                                {grupo.seccion}
+                              </div>
+                            )}
+                            <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+                              <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <h4 className="text-sm font-bold text-slate-800">{grupo.titulo}</h4>
+                                <div className="flex flex-wrap gap-1.5">
+                                  <span className="text-[9px] font-mono font-bold px-2.5 py-0.5 bg-blue-50 border border-blue-100 text-blue-700 rounded-full">
+                                    Indicaciones {grupo.numeros}
+                                  </span>
+                                  <span className="text-[9px] font-mono font-bold px-2.5 py-0.5 bg-slate-100 border border-slate-200 text-slate-600 rounded-full">
+                                    {grupo.operacion}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="p-4 flex flex-col gap-3">
+                                <p className="text-xs text-slate-600 leading-relaxed">{grupo.resumen}</p>
+                                {(grupo.textoBase || grupo.textoResultante) && (
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px] font-mono leading-relaxed whitespace-pre-wrap">
+                                    {grupo.textoBase && (
+                                      <div className="text-slate-600">
+                                        <span className="text-[9px] uppercase font-bold tracking-wider text-slate-400 block mb-2 font-sans">Texto Base</span>
+                                        <p className="italic bg-slate-50 p-2.5 rounded-lg border border-slate-150/50">{grupo.textoBase}</p>
+                                      </div>
+                                    )}
+                                    {grupo.textoResultante && (
+                                      <div className="text-emerald-800">
+                                        <span className="text-[9px] uppercase font-bold tracking-wider text-emerald-600 block mb-2 font-sans">Texto si se aprueban</span>
+                                        <p className="font-bold bg-emerald-50/40 p-2.5 rounded-lg border border-emerald-100">{grupo.textoResultante}</p>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                                {grupo.fuentes && grupo.fuentes.length > 0 && (
+                                  <details className="text-xs text-slate-500">
+                                    <summary className="cursor-pointer font-semibold text-blue-600 hover:underline">Ver texto original de las indicaciones</summary>
+                                    <div className="mt-2 flex flex-col gap-1.5 pl-3 border-l-2 border-slate-100">
+                                      {grupo.fuentes.map((f, i) => <p key={i}>{f}</p>)}
+                                    </div>
+                                  </details>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* 7. Informes BCN Tab */}
             {activeTab === "informes-bcn" && (
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6" id="tabpanel-informes-bcn">
@@ -2423,4 +2584,15 @@ interface ComparativaArticulo {
   textoOriginal: string;
   textoModificado: string;
   explicacion?: string;
+}
+
+interface GrupoIndicaciones {
+  seccion: string;
+  titulo: string;
+  numeros: string;
+  operacion: string;
+  resumen: string;
+  textoBase?: string;
+  textoResultante?: string;
+  fuentes: string[];
 }

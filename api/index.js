@@ -192257,6 +192257,71 @@ Usa EXCLUSIVAMENTE informaci\xF3n que est\xE9 efectivamente en el texto entregad
     aiDiagnostics: aiAttempts
   });
 });
+apiRouter.get("/proyecto/:id/indicaciones", async (req, res) => {
+  const idParam = req.params.id;
+  const comisionNombre = String(req.query.comision || "").trim();
+  const possibleBoletinMatch = idParam.split("-")[0].replace(/[^0-9]/g, "");
+  if (possibleBoletinMatch.length < 4 || possibleBoletinMatch.length > 6) {
+    return res.status(400).json({ disponible: false, razon: "Identificador de bolet\xEDn inv\xE1lido." });
+  }
+  const proyecto = await fetchProyectoFromSenado(possibleBoletinMatch);
+  if (!proyecto) {
+    return res.json({ disponible: false, razon: "No se pudo obtener la ficha oficial del proyecto." });
+  }
+  const normComision = comisionNombre.toLowerCase().replace(/^comisi[oó]n\s+de\s+/i, "");
+  const informes = (proyecto.documentos || []).filter((d) => d.tipo === "Informe" && d.url && (!normComision || d.titulo.toLowerCase().includes(normComision))).sort((a, b) => (b.fecha || "").localeCompare(a.fecha || ""));
+  if (informes.length === 0) {
+    return res.json({
+      disponible: false,
+      razon: comisionNombre ? `A\xFAn no hay un informe de comisi\xF3n publicado para "${comisionNombre}" en el expediente de este proyecto.` : "A\xFAn no hay informes de comisi\xF3n publicados en el expediente de este proyecto."
+    });
+  }
+  const informe = informes[0];
+  const texto = await fetchTextoInformeDocx(informe.url);
+  if (!texto) {
+    return res.json({
+      disponible: false,
+      razon: "El informe de comisi\xF3n existe pero no se pudo descargar o leer su contenido.",
+      informeUrl: informe.url
+    });
+  }
+  const maxChars = 16e3;
+  const textoLower = texto.toLowerCase();
+  const marcador = ["indicaciones formuladas", "an\xE1lisis de las indicaciones", "analisis de las indicaciones", "discusi\xF3n particular", "discusion particular"].map((m) => textoLower.indexOf(m)).find((idx) => idx !== -1);
+  const inicio = marcador !== void 0 ? Math.max(0, marcador - 500) : 0;
+  const textoTruncado = texto.length > maxChars ? (inicio > 0 ? "[...inicio del documento omitido...] " : "") + texto.slice(inicio, inicio + maxChars) + " [...documento truncado por extensi\xF3n...]" : texto;
+  const prompt = `Act\xFAa como un analista de sistematizaci\xF3n de indicaciones de la Biblioteca del Congreso Nacional de Chile (BCN). A continuaci\xF3n se entrega el TEXTO REAL del informe de comisi\xF3n "${informe.titulo}" del proyecto de ley Bolet\xEDn N\xB0 ${proyecto.id} ("${proyecto.titulo}"), que contiene las indicaciones (enmiendas) formuladas por parlamentarios y su discusi\xF3n.
+
+Texto del informe:
+"""
+${textoTruncado}
+"""
+
+Identifica las indicaciones REALES que aparecen en el texto y agr\xFApalas por el art\xEDculo, inciso o materia del proyecto al que afectan (igual como lo hace un informe de sistematizaci\xF3n de indicaciones). Genera entre 2 y 8 grupos. Responde \xDANICAMENTE con un arreglo JSON v\xE1lido, compacto, sin texto adicional, con este esquema exacto:
+[{"seccion":"Art\xEDculo o materia al que pertenece el grupo, tal como aparece en el informe (ej: 'Art\xEDculo 1\xB0', 'Denominaci\xF3n del proyecto')","titulo":"T\xEDtulo breve que describe qu\xE9 hace este grupo de indicaciones (ej: 'Indicaciones que reemplazan el inciso primero')","numeros":"N\xFAmeros o identificadores de las indicaciones del grupo tal como aparecen en el informe, separados por coma","operacion":"Reemplazo total | Reemplazo parcial | Agregar | Suprimir | Modificar | Otro","resumen":"Resumen fiel de qu\xE9 proponen estas indicaciones y su estado (aprobada, rechazada, retirada, pendiente) seg\xFAn el informe","textoBase":"Cita o resumen fiel del texto base o vigente que las indicaciones buscan modificar, seg\xFAn el informe","textoResultante":"Cita o resumen fiel del texto que resulta si se aprueban estas indicaciones, seg\xFAn el informe (vac\xEDo si no se puede determinar)","fuentes":["Cita textual breve de cada indicaci\xF3n tal como figura en el informe, con su autor\xEDa si se menciona"]}]
+
+Usa EXCLUSIVAMENTE informaci\xF3n que est\xE9 efectivamente en el texto entregado; no inventes autores, n\xFAmeros ni contenido. Si el informe no permite identificar indicaciones concretas agrupables, responde con un arreglo vac\xEDo [].`;
+  const aiAttempts = [];
+  let grupos = [];
+  try {
+    const aiResponse = await generarContenidoUniversalIA(prompt, 3500, aiAttempts);
+    if (aiResponse) {
+      const parsed = safeJsonParse(aiResponse);
+      if (Array.isArray(parsed)) grupos = parsed;
+    }
+  } catch (err) {
+    console.warn(`Could not generate indicaciones for bolet\xEDn ${proyecto.id}:`, err);
+  }
+  res.json({
+    disponible: grupos.length > 0,
+    razon: grupos.length === 0 ? "La IA no pudo identificar indicaciones agrupables en el texto del informe disponible." : void 0,
+    informeUrl: informe.url,
+    informeTitulo: informe.titulo,
+    informeFecha: informe.fecha,
+    grupos,
+    aiDiagnostics: aiAttempts
+  });
+});
 apiRouter.get("/comisiones/autocomplete", async (req, res) => {
   const q = req.query.q ? String(req.query.q).trim() : "";
   if (!q) {
