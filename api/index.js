@@ -192899,17 +192899,25 @@ apiRouter.post("/derecho-comparado/redactar", async (req, res) => {
     return res.status(400).json({ error: "Se requiere 'query' y una lista de 'resultados' no vac\xEDa." });
   }
   const listado = resultados.map((r, i) => `${i + 1}. [${r.pais}] ${r.titulo} \u2014 Fuente: ${r.fuente}${r.fecha ? `, ${r.fecha}` : ""}${r.url ? ` (${r.url})` : ""}`).join("\n");
-  const prompt = `Act\xFAa como un analista de Asesor\xEDa T\xE9cnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile (BCN), redactando la secci\xF3n "An\xE1lisis y lecciones para Chile" de un informe de legislaci\xF3n comparada sobre "${query}". A continuaci\xF3n se listan resultados REALES obtenidos de bases legislativas oficiales de distintos pa\xEDses.
+  const prompt = `Act\xFAa como un analista de Asesor\xEDa T\xE9cnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile (BCN), redactando secciones de un informe de legislaci\xF3n comparada sobre "${query}". A continuaci\xF3n se listan resultados REALES obtenidos de bases legislativas oficiales de distintos pa\xEDses.
 
 Resultados:
 ${listado}
 
-Redacta uno o dos p\xE1rrafos (m\xE1x. 200 palabras en total) en prosa formal, tercera persona, sin emojis ni vi\xF1etas -- el mismo registro que usan los informes de Asesor\xEDa T\xE9cnica Parlamentaria de la BCN: comparando brevemente los enfoques regulatorios identificados entre las jurisdicciones listadas y se\xF1alando, de forma prudente y sin sobre-afirmar, qu\xE9 aspectos podr\xEDan ser de inter\xE9s para la discusi\xF3n legislativa en Chile. Usa EXCLUSIVAMENTE los t\xEDtulos, pa\xEDses y fuentes entregados; no inventes contenido normativo, cifras, sanciones ni disposiciones que no est\xE9n respaldadas por lo listado arriba.
+Responde \xDANICAMENTE con un objeto JSON v\xE1lido, compacto, sin texto adicional antes ni despu\xE9s, con este esquema exacto:
+{"marcoConceptual":"...","analisis":"..."}
 
-Responde solo con el/los p\xE1rrafo(s), sin encabezados ni markdown.`;
-  const textoIA = await generarContenidoUniversalIA(prompt, 500);
-  if (textoIA) {
-    return res.json({ texto: textoIA });
+Donde:
+- "marcoConceptual": SOLO si la materia "${query}" involucra terminolog\xEDa t\xE9cnica, jur\xEDdica o socialmente disputada que requiera aclararse antes de comparar pa\xEDses (ej. distinciones conceptuales, definiciones legales divergentes entre ordenamientos), escribe un p\xE1rrafo breve (m\xE1x. 120 palabras) que explique esos conceptos de forma neutral, EXCLUSIVAMENTE con base en lo que ya es de conocimiento general sobre esos t\xE9rminos, sin atribuir definiciones a autores o fuentes espec\xEDficas que no est\xE9n en la lista de resultados. Si la materia es suficientemente clara y no lo amerita (la mayor\xEDa de los casos), responde "" (cadena vac\xEDa).
+- "analisis": uno o dos p\xE1rrafos (m\xE1x. 200 palabras en total) en prosa formal, tercera persona, sin emojis ni vi\xF1etas -- el mismo registro que usan los informes de Asesor\xEDa T\xE9cnica Parlamentaria de la BCN: comparando brevemente los enfoques regulatorios identificados entre las jurisdicciones listadas y se\xF1alando, de forma prudente y sin sobre-afirmar, qu\xE9 aspectos podr\xEDan ser de inter\xE9s para la discusi\xF3n legislativa en Chile.
+
+En ambos campos usa EXCLUSIVAMENTE los t\xEDtulos, pa\xEDses y fuentes entregados arriba; no inventes contenido normativo, cifras, sanciones, jurisprudencia ni disposiciones que no est\xE9n respaldadas por lo listado.`;
+  const respuestaIA = await generarContenidoUniversalIA(prompt, 900);
+  if (respuestaIA) {
+    const parsed = safeJsonParse(respuestaIA);
+    if (parsed && parsed.analisis) {
+      return res.json({ texto: parsed.analisis, marcoConceptual: parsed.marcoConceptual || void 0 });
+    }
   }
   const paises = Array.from(new Set(resultados.map((r) => r.pais)));
   const chilenos = resultados.filter((r) => r.pais === "Chile");

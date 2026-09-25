@@ -1198,18 +1198,26 @@ apiRouter.post("/derecho-comparado/redactar", async (req: Request, res: Response
     .map((r, i) => `${i + 1}. [${r.pais}] ${r.titulo} — Fuente: ${r.fuente}${r.fecha ? `, ${r.fecha}` : ""}${r.url ? ` (${r.url})` : ""}`)
     .join("\n");
 
-  const prompt = `Actúa como un analista de Asesoría Técnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile (BCN), redactando la sección "Análisis y lecciones para Chile" de un informe de legislación comparada sobre "${query}". A continuación se listan resultados REALES obtenidos de bases legislativas oficiales de distintos países.
+  const prompt = `Actúa como un analista de Asesoría Técnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile (BCN), redactando secciones de un informe de legislación comparada sobre "${query}". A continuación se listan resultados REALES obtenidos de bases legislativas oficiales de distintos países.
 
 Resultados:
 ${listado}
 
-Redacta uno o dos párrafos (máx. 200 palabras en total) en prosa formal, tercera persona, sin emojis ni viñetas -- el mismo registro que usan los informes de Asesoría Técnica Parlamentaria de la BCN: comparando brevemente los enfoques regulatorios identificados entre las jurisdicciones listadas y señalando, de forma prudente y sin sobre-afirmar, qué aspectos podrían ser de interés para la discusión legislativa en Chile. Usa EXCLUSIVAMENTE los títulos, países y fuentes entregados; no inventes contenido normativo, cifras, sanciones ni disposiciones que no estén respaldadas por lo listado arriba.
+Responde ÚNICAMENTE con un objeto JSON válido, compacto, sin texto adicional antes ni después, con este esquema exacto:
+{"marcoConceptual":"...","analisis":"..."}
 
-Responde solo con el/los párrafo(s), sin encabezados ni markdown.`;
+Donde:
+- "marcoConceptual": SOLO si la materia "${query}" involucra terminología técnica, jurídica o socialmente disputada que requiera aclararse antes de comparar países (ej. distinciones conceptuales, definiciones legales divergentes entre ordenamientos), escribe un párrafo breve (máx. 120 palabras) que explique esos conceptos de forma neutral, EXCLUSIVAMENTE con base en lo que ya es de conocimiento general sobre esos términos, sin atribuir definiciones a autores o fuentes específicas que no estén en la lista de resultados. Si la materia es suficientemente clara y no lo amerita (la mayoría de los casos), responde "" (cadena vacía).
+- "analisis": uno o dos párrafos (máx. 200 palabras en total) en prosa formal, tercera persona, sin emojis ni viñetas -- el mismo registro que usan los informes de Asesoría Técnica Parlamentaria de la BCN: comparando brevemente los enfoques regulatorios identificados entre las jurisdicciones listadas y señalando, de forma prudente y sin sobre-afirmar, qué aspectos podrían ser de interés para la discusión legislativa en Chile.
 
-  const textoIA = await generarContenidoUniversalIA(prompt, 500);
-  if (textoIA) {
-    return res.json({ texto: textoIA });
+En ambos campos usa EXCLUSIVAMENTE los títulos, países y fuentes entregados arriba; no inventes contenido normativo, cifras, sanciones, jurisprudencia ni disposiciones que no estén respaldadas por lo listado.`;
+
+  const respuestaIA = await generarContenidoUniversalIA(prompt, 900);
+  if (respuestaIA) {
+    const parsed = safeJsonParse<{ marcoConceptual?: string; analisis?: string }>(respuestaIA);
+    if (parsed && parsed.analisis) {
+      return res.json({ texto: parsed.analisis, marcoConceptual: parsed.marcoConceptual || undefined });
+    }
   }
 
   const paises = Array.from(new Set(resultados.map(r => r.pais)));

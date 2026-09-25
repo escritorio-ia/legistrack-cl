@@ -316,6 +316,7 @@ interface CustomReport {
   fuentesFallidas: string[];
   parrafoAuto: string;
   redaccionIA?: string;
+  marcoConceptual?: string;
   leySeleccionada?: LeySeleccionada;
   normasComparadas?: ResultadoComparado[];
   boletinVinculado?: string;
@@ -354,12 +355,28 @@ function buildParrafoAutomatico(query: string, resultados: ResultadoComparado[])
   return `Se identificaron ${resultados.length} resultado${resultados.length === 1 ? "" : "s"} en ${paises.length} país(es) sobre "${query}": ${detallePaises}. Este resumen se basa en los registros normativos oficiales obtenidos en tiempo real; para conocer el contenido exhaustivo de cada iniciativa es recomendable acceder al documento original en el enlace correspondiente.`;
 }
 
+// Agrupa las fuentes consultadas por tipo de documento (Normativa,
+// Jurisprudencia, Documentos), tal como lo hacen las referencias
+// bibliográficas de un informe real de Asesoría Técnica Parlamentaria de la
+// BCN, en vez de una lista plana sin distinción de naturaleza de la fuente.
+function agruparFuentesPorTipo(resultados: ResultadoComparado[]): { grupo: string; items: ResultadoComparado[] }[] {
+  const normativa = resultados.filter(r => r.tipo !== "Jurisprudencia" && r.tipo !== "Documento");
+  const jurisprudencia = resultados.filter(r => r.tipo === "Jurisprudencia");
+  const documentos = resultados.filter(r => r.tipo === "Documento");
+  const grupos: { grupo: string; items: ResultadoComparado[] }[] = [];
+  if (normativa.length > 0) grupos.push({ grupo: "Normativa", items: normativa });
+  if (jurisprudencia.length > 0) grupos.push({ grupo: "Jurisprudencia", items: jurisprudencia });
+  if (documentos.length > 0) grupos.push({ grupo: "Documentos", items: documentos });
+  return grupos;
+}
+
 function buildInformeMarkdown(
-  query: string, 
-  resultados: ResultadoComparado[], 
-  parrafoAuto: string, 
+  query: string,
+  resultados: ResultadoComparado[],
+  parrafoAuto: string,
   redaccionIA?: string,
-  comparacionDetalle?: Record<string, { resultado: ResultadoComparado; puntos: string[]; disponible: boolean; mensaje?: string }>
+  comparacionDetalle?: Record<string, { resultado: ResultadoComparado; puntos: string[]; disponible: boolean; mensaje?: string }>,
+  marcoConceptual?: string
 ): string {
   const fecha = new Date().toLocaleDateString("es-CL", { day: "2-digit", month: "long", year: "numeric" });
   const tituloCase = query.charAt(0).toUpperCase() + query.slice(1);
@@ -371,9 +388,17 @@ function buildInformeMarkdown(
   lines.push(`*Fecha de emisión: ${fecha}* | *Jurisdicciones consultadas: ${paises.length}* | *Normas analizadas: ${resultados.length}*`);
   lines.push("");
   lines.push(`## Introducción`);
-  lines.push(`De acuerdo a lo consultado, este documento analiza el tratamiento normativo de "${query}" en la experiencia comparada, a partir de registros obtenidos en tiempo real desde repositorios legislativos oficiales (${fuentes.join(", ") || "fuentes oficiales"}). El contenido y su nivel de detalle están delimitados por la información efectivamente disponible en esas fuentes al momento de la consulta. Este documento fue generado con asistencia de inteligencia artificial a partir de fuentes oficiales en tiempo real; no reemplaza el análisis de un informe elaborado por un asesor de la BCN y su contenido debe contrastarse con las fuentes originales antes de su uso.`);
+  lines.push(`De acuerdo a lo consultado, este documento analiza el tratamiento normativo de "${query}" en la experiencia comparada, a partir de registros obtenidos en tiempo real desde repositorios legislativos oficiales (${fuentes.join(", ") || "fuentes oficiales"}). El tema que aborda y sus contenidos están delimitados por la información efectivamente disponible en esas fuentes al momento de la consulta y por el alcance de una minuta de apoyo, no de un estudio académico exhaustivo. Este documento fue generado con asistencia de inteligencia artificial a partir de fuentes oficiales en tiempo real; no reemplaza el análisis de un informe elaborado por un asesor de la BCN y su contenido debe contrastarse con las fuentes originales antes de su uso.`);
+  let n = 1;
+  if (marcoConceptual) {
+    lines.push("");
+    lines.push(`## ${n}. Marco conceptual`);
+    lines.push(marcoConceptual);
+    n++;
+  }
   lines.push("");
-  lines.push(`## 1. Síntesis`);
+  lines.push(`## ${n}. Síntesis`);
+  n++;
   lines.push(parrafoAuto);
   if (redaccionIA) {
     lines.push("");
@@ -381,7 +406,8 @@ function buildInformeMarkdown(
     lines.push(redaccionIA);
   }
   lines.push("");
-  lines.push(`## 2. Matriz comparativa por país`);
+  lines.push(`## ${n}. Matriz comparativa por país`);
+  n++;
   lines.push(`| País | Normativa Oficial | Tipo | Fuente | Resumen / Puntos Clave | Enlace |`);
   lines.push(`| :--- | :--- | :--- | :--- | :--- | :--- |`);
   for (const r of resultados) {
@@ -393,13 +419,17 @@ function buildInformeMarkdown(
     lines.push(`| ${r.pais} | **${r.titulo.replace(/\|/g, "/")}** | ${r.tipo || "Ley"} | ${r.fuente} | ${puntos.replace(/\|/g, "/")} | ${link} |`);
   }
   lines.push("");
-  lines.push(`## 3. Fuentes consultadas`);
-  for (const r of resultados) {
-    lines.push(`- **[${r.pais}]** ${r.titulo}${r.url ? ` — [enlace oficial](${r.url})` : ""}`);
+  lines.push(`## ${n}. Fuentes consultadas`);
+  for (const { grupo, items } of agruparFuentesPorTipo(resultados)) {
+    lines.push("");
+    lines.push(`**${grupo}**`);
+    for (const r of items) {
+      lines.push(`- **[${r.pais}]** ${r.titulo}${r.url ? ` — [enlace oficial](${r.url})` : ""}`);
+    }
   }
   lines.push("");
   lines.push(`---`);
-  lines.push(`*Nota: documento de trabajo generado con asistencia de IA por LegisTrack-CL a partir de fuentes legislativas oficiales, para apoyo al trabajo de Comisiones del Congreso Nacional de Chile. No constituye un informe oficial de la Biblioteca del Congreso Nacional.*`);
+  lines.push(`*Nota aclaratoria: este documento fue generado con asistencia de inteligencia artificial por LegisTrack-CL a partir de fuentes legislativas oficiales consultadas en tiempo real, para apoyo al trabajo de Comisiones del Congreso Nacional de Chile. No es un documento académico, no constituye un informe oficial de la Biblioteca del Congreso Nacional, y sus contenidos están delimitados por la información disponible en las fuentes al momento de la consulta.*`);
   return lines.join("\n");
 }
 
@@ -465,11 +495,12 @@ function renderInformeMarkdown(markdown: string) {
 }
 
 function exportarAWord(
-  query: string, 
-  resultados: ResultadoComparado[], 
-  parrafoAuto: string, 
-  redaccionIA?: string, 
-  comparacionDetalle?: Record<string, { resultado: ResultadoComparado; puntos: string[]; disponible: boolean; mensaje?: string }>
+  query: string,
+  resultados: ResultadoComparado[],
+  parrafoAuto: string,
+  redaccionIA?: string,
+  comparacionDetalle?: Record<string, { resultado: ResultadoComparado; puntos: string[]; disponible: boolean; mensaje?: string }>,
+  marcoConceptual?: string
 ) {
   const fecha = new Date().toLocaleDateString("es-CL", { day: "2-digit", month: "long", year: "numeric" });
   const rowsHtml = resultados.map((r, idx) => {
@@ -526,11 +557,13 @@ function exportarAWord(
         <strong>Total de Normativas Identificadas:</strong> ${resultados.length}
       </div>
 
-      <div class="section-title">1. Síntesis Ejecutiva y Panorama Internacional</div>
+      ${marcoConceptual ? `<div class="section-title">1. Marco Conceptual</div><p style="text-align: justify;">${marcoConceptual}</p>` : ""}
+
+      <div class="section-title">${marcoConceptual ? "2" : "1"}. Síntesis Ejecutiva y Panorama Internacional</div>
       <p style="text-align: justify;">${parrafoAuto}</p>
       ${redaccionIA ? `<div style="background-color: #fffbeb; border: 1px solid #fef3c7; padding: 12px; border-radius: 6px; margin-top: 10px;"><strong>Análisis Estratégico y Lecciones para Chile:</strong><br>${redaccionIA}</div>` : ""}
 
-      <div class="section-title">2. Matriz de Legislación Comparada por País</div>
+      <div class="section-title">${marcoConceptual ? "3" : "2"}. Matriz de Legislación Comparada por País</div>
       <table>
         <thead>
           <tr>
@@ -546,7 +579,7 @@ function exportarAWord(
         </tbody>
       </table>
 
-      <div class="section-title">3. Marco Metodológico y Fuentes Oficiales</div>
+      <div class="section-title">${marcoConceptual ? "4" : "3"}. Marco Metodológico y Fuentes Oficiales</div>
       <p>Este informe compila información extraída en tiempo real de los repositorios y gacetas legislativas oficiales de las jurisdicciones consultadas (incluyendo LeyChile de la BCN, Boletín Oficial del Estado de España, EUR-Lex CELLAR de la Unión Europea, Cámara y Senado de Brasil, Legislation.gov.uk del Reino Unido, entre otros). Provee una panorámica sistemática de las soluciones normativas adoptadas internacionalmente.</p>
 
       <div class="footer">
@@ -611,7 +644,8 @@ function imprimirInformePDF(
   resultados: ResultadoComparado[],
   parrafoAuto: string,
   redaccionIA?: string,
-  comparacionDetalle?: Record<string, { resultado: ResultadoComparado; puntos: string[]; disponible: boolean; mensaje?: string }>
+  comparacionDetalle?: Record<string, { resultado: ResultadoComparado; puntos: string[]; disponible: boolean; mensaje?: string }>,
+  marcoConceptual?: string
 ) {
   const fecha = new Date().toLocaleDateString("es-CL", { day: "2-digit", month: "long", year: "numeric" });
   const rowsHtml = resultados.map((r, idx) => {
@@ -691,11 +725,13 @@ function imprimirInformePDF(
         <div><strong>Origen:</strong> LegisTrack-CL (Asesoría Parlamentaria)</div>
       </div>
 
-      <div class="section-header">1. Síntesis Ejecutiva</div>
+      ${marcoConceptual ? `<div class="section-header">1. Marco Conceptual</div><p style="font-size: 10px; text-align: justify; margin: 0 0 8px 0;">${marcoConceptual}</p>` : ""}
+
+      <div class="section-header">${marcoConceptual ? "2" : "1"}. Síntesis Ejecutiva</div>
       <p style="font-size: 10px; text-align: justify; margin: 0 0 8px 0;">${parrafoAuto}</p>
       ${redaccionIA ? `<div style="background: #fffbeb; border: 1px solid #fef3c7; padding: 8px; border-radius: 6px; margin-top: 6px;"><strong>Síntesis analítica:</strong><br>${redaccionIA}</div>` : ""}
 
-      <div class="section-header">2. Matriz de Legislación Comparada</div>
+      <div class="section-header">${marcoConceptual ? "3" : "2"}. Matriz de Legislación Comparada</div>
       <table>
         <thead>
           <tr>
@@ -736,8 +772,14 @@ function buildInformeText(rep: CustomReport): string {
     "a partir del término de búsqueda indicado. Provee una panorámica sistemática de las soluciones " +
     "normativas adoptadas internacionalmente."
   );
+  if (rep.marcoConceptual) {
+    lines.push("");
+    lines.push("2. MARCO CONCEPTUAL");
+    lines.push("-".repeat(70));
+    lines.push(rep.marcoConceptual);
+  }
   lines.push("");
-  lines.push("2. SÍNTESIS EJECUTIVA");
+  lines.push(`${rep.marcoConceptual ? "3" : "2"}. SÍNTESIS EJECUTIVA`);
   lines.push("-".repeat(70));
   lines.push(rep.parrafoAuto);
   if (rep.redaccionIA) {
@@ -905,6 +947,7 @@ interface ExportToolbarProps {
   resultados: ResultadoComparado[];
   parrafoAuto: string;
   redaccionIA?: string;
+  marcoConceptual?: string;
   comparacionDetalle?: Record<string, { resultado: ResultadoComparado; puntos: string[]; disponible: boolean; mensaje?: string }>;
   onNotify?: (msg: string) => void;
   label?: string;
@@ -915,6 +958,7 @@ function ExportToolbar({
   resultados,
   parrafoAuto,
   redaccionIA,
+  marcoConceptual,
   comparacionDetalle,
   onNotify,
   label = "Exportar Minuta:"
@@ -922,7 +966,7 @@ function ExportToolbar({
   const [copiado, setCopiado] = useState(false);
 
   const handleCopiarMD = async () => {
-    const md = buildInformeMarkdown(query, resultados, parrafoAuto, redaccionIA, comparacionDetalle);
+    const md = buildInformeMarkdown(query, resultados, parrafoAuto, redaccionIA, comparacionDetalle, marcoConceptual);
     try {
       await navigator.clipboard.writeText(md);
       setCopiado(true);
@@ -934,8 +978,8 @@ function ExportToolbar({
   };
 
   const handleDownloadWord = () => {
-    exportarAWord(query, resultados, parrafoAuto, redaccionIA, comparacionDetalle);
-    if (onNotify) onNotify("Descargando documento Word (.doc) con membrete oficial BCN.");
+    exportarAWord(query, resultados, parrafoAuto, redaccionIA, comparacionDetalle, marcoConceptual);
+    if (onNotify) onNotify("Descargando documento Word (.doc) generado con IA.");
   };
 
   const handleDownloadExcel = () => {
@@ -944,7 +988,7 @@ function ExportToolbar({
   };
 
   const handlePrintPDF = () => {
-    imprimirInformePDF(query, resultados, parrafoAuto, redaccionIA, comparacionDetalle);
+    imprimirInformePDF(query, resultados, parrafoAuto, redaccionIA, comparacionDetalle, marcoConceptual);
   };
 
   const handleDownloadTxt = () => {
@@ -955,10 +999,11 @@ function ExportToolbar({
       fuentesConsultadas: Array.from(new Set(resultados.map(r => r.fuente))),
       fuentesFallidas: [],
       parrafoAuto,
-      redaccionIA
+      redaccionIA,
+      marcoConceptual
     };
     downloadInforme(rep);
-    if (onNotify) onNotify("Descargando informe oficial en texto (.txt).");
+    if (onNotify) onNotify("Descargando informe en texto (.txt).");
   };
 
   return (
@@ -1537,8 +1582,8 @@ export default function LegislacionComparadaView({ setSelectedProyectoId }: Legi
         body: JSON.stringify({ query: rep.query, resultados: rep.resultados }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: { texto: string } = await res.json();
-      setSavedReports((prev) => prev.map((r, i) => (i === idx ? { ...r, redaccionIA: data.texto } : r)));
+      const data: { texto: string; marcoConceptual?: string } = await res.json();
+      setSavedReports((prev) => prev.map((r, i) => (i === idx ? { ...r, redaccionIA: data.texto, marcoConceptual: data.marcoConceptual } : r)));
     } catch (err) {
       setSearchError("No fue posible generar la redacción con IA en este momento.");
     } finally {
@@ -2868,6 +2913,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId }: Legi
                       resultados={rep.resultados}
                       parrafoAuto={rep.parrafoAuto}
                       redaccionIA={rep.redaccionIA}
+                      marcoConceptual={rep.marcoConceptual}
                       onNotify={(msg) => {
                         setSuccessMessage(msg);
                         setTimeout(() => setSuccessMessage(null), 3500);
@@ -2875,6 +2921,15 @@ export default function LegislacionComparadaView({ setSelectedProyectoId }: Legi
                       label="Descargar Minuta:"
                     />
                   </div>
+
+                  {rep.marcoConceptual && (
+                    <div className="text-xs text-slate-700 leading-relaxed bg-indigo-50 border border-indigo-200 rounded-xl p-3">
+                      <span className="block text-[10px] font-bold text-indigo-700 uppercase tracking-wider mb-1">
+                        Marco Conceptual
+                      </span>
+                      {rep.marcoConceptual}
+                    </div>
+                  )}
 
                   <p className="text-xs text-slate-600 leading-relaxed">{rep.parrafoAuto}</p>
 
