@@ -1214,8 +1214,6 @@ interface LegislacionComparadaViewProps {
 export default function LegislacionComparadaView({ setSelectedProyectoId, initialQuery }: LegislacionComparadaViewProps = {}) {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [selectedTopicId, setSelectedTopicId] = useState<string>(COMPARATIVE_TOPICS[0].id);
-  const [customQuery, setCustomQuery] = useState<string>("");
-  const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [savedReports, setSavedReports] = useState<CustomReport[]>([]);
   const [cargandoCompartidos, setCargandoCompartidos] = useState<boolean>(false);
 
@@ -1266,9 +1264,8 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
   // "live": Búsqueda en vivo internacional (19 fuentes)
   // "documento": Informe oficial BCN (Estructura formal)
   // "comparador": Comparador lado a lado / matriz dinámica de leyes seleccionadas
-  // "ia": Generador y redactor de minutas
   // "guardados": Informes guardados
-  const [activeTab, setActiveTab] = useState<"live" | "documento" | "comparador" | "ia" | "guardados">("live");
+  const [activeTab, setActiveTab] = useState<"live" | "documento" | "comparador" | "guardados">("live");
   const [vistaComparador, setVistaComparador] = useState<"matriz" | "fichas">("matriz");
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -1609,77 +1606,6 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
     }
   };
 
-  // Antes este formulario duplicaba por completo la lógica del buscador
-  // principal (mismo fetch a /api/derecho-comparado, hecho por separado) --
-  // ahora reutiliza el mismo fetch que "Búsqueda en Vivo", con la única
-  // diferencia real de que además guarda el resultado como informe de equipo
-  // (Firestore) de inmediato, sin que el usuario tenga que hacerlo aparte.
-  const handleGenerateCustomAI = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!customQuery.trim()) return;
-    const queryClean = customQuery.trim();
-
-    setIsGenerating(true);
-    setSearchError(null);
-    setSeleccionComparar([]);
-    setComparacionDetalle({});
-    try {
-      const res = await fetch(`/api/derecho-comparado?q=${encodeURIComponent(queryClean)}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: { resultados: ResultadoComparado[]; fuentesConsultadas: string[]; fuentesFallidas: string[]; aiDiagnostics?: AIProviderAttempt[] } = await res.json();
-
-      const resultados = ordenarChilePrimero(data.resultados || []);
-      const parrafoAuto = buildParrafoAutomatico(queryClean, resultados);
-      const boletinVinculado = detectarBoletinChile(resultados) || undefined;
-
-      // También alimenta el resto de la vista (Búsqueda en Vivo, Informe
-      // Técnico BCN) con esta misma consulta, en vez de dejarla aislada.
-      setLiveQuery(queryClean);
-      setLiveResultados(resultados);
-      setLiveFuentesConsultadas(data.fuentesConsultadas || []);
-      setLiveFuentesFallidas(data.fuentesFallidas || []);
-      setLiveAiDiagnostics(data.aiDiagnostics || []);
-      guardarEnHistorial(queryClean);
-      if (resultados.length > 0) {
-        setInformeLiveMarkdown(buildInformeMarkdown(queryClean, resultados, parrafoAuto));
-        setInformeLiveQuery(queryClean);
-      }
-
-      const newReport: CustomReport = {
-        id: `dc_${Date.now()}`,
-        query: queryClean,
-        fecha: new Date().toLocaleDateString("es-CL", { day: '2-digit', month: '2-digit', year: 'numeric' }),
-        resultados,
-        fuentesConsultadas: data.fuentesConsultadas || [],
-        fuentesFallidas: data.fuentesFallidas || [],
-        parrafoAuto,
-        boletinVinculado,
-        compartidoEquipo: true
-      };
-      setSavedReports((prev) => [newReport, ...prev]);
-      saveInformeComparadoToFirestore({
-        id: newReport.id!,
-        query: newReport.query,
-        fecha: newReport.fecha,
-        resultados: newReport.resultados,
-        fuentesConsultadas: newReport.fuentesConsultadas,
-        fuentesFallidas: newReport.fuentesFallidas,
-        parrafoAuto: newReport.parrafoAuto,
-        boletinVinculado,
-        createdAt: new Date().toISOString()
-      }).catch((err) => console.warn("Could not sync informe comparado to Firestore:", err));
-
-      setCustomQuery("");
-      setActiveTab("guardados");
-      setSuccessMessage(`Búsqueda completada: ${newReport.resultados.length} resultado(s), guardado para todo el equipo.`);
-      setTimeout(() => setSuccessMessage(null), 4000);
-    } catch (err) {
-      setSearchError("No fue posible consultar las fuentes de derecho comparado en este momento.");
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
   return (
     <div className="max-w-[1440px] mx-auto w-full px-3 sm:px-6 lg:px-8 py-5 sm:py-8 flex flex-col gap-8 font-sans text-slate-800" id="legislacion-comparada-root">
       
@@ -1917,18 +1843,6 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
         >
           <SlidersHorizontal className="w-4 h-4" />
           <span>Comparador Lado a Lado ({seleccionComparar.length})</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab("ia")}
-          className={`text-xs font-bold px-4 py-2.5 rounded-xl transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
-            activeTab === "ia" 
-              ? "bg-blue-700 text-white shadow-xs" 
-              : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
-          }`}
-        >
-          <Sparkles className="w-4 h-4 text-amber-400" />
-          <span>Generador y Síntesis IA</span>
         </button>
 
         <button
@@ -2328,13 +2242,18 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
                 <div>
                   <h4 className="text-xs font-extrabold text-blue-900">Informe Técnico BCN de este tema</h4>
                   <p className="text-[11px] text-blue-800/80 mt-0.5 max-w-lg">
-                    Ya generado a partir de los {liveResultadosFiltrados.length} resultados encontrados para &quot;{liveQuery}&quot;, con la matriz comparativa por país. Ábrelo, o regenéralo si acabas de analizar alguna norma con IA.
+                    {seleccionComparar.length > 0 ? (
+                      <>Se generará solo con los {seleccionComparar.length} países que marcaste para comparar ({seleccionComparar.map(s => s.pais).join(", ")}). Desmarca todos para usar los {liveResultadosFiltrados.length} resultados completos.</>
+                    ) : (
+                      <>Marca los países que te interesan (casilla junto a cada resultado) antes de generarlo, o ábrelo directo con los {liveResultadosFiltrados.length} resultados encontrados para &quot;{liveQuery}&quot;.</>
+                    )}
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => {
-                  const md = buildInformeMarkdown(liveQuery, ordenarChilePrimero(liveResultadosFiltrados), buildParrafoAutomatico(liveQuery, liveResultadosFiltrados), undefined, comparacionDetalle);
+                  const base = seleccionComparar.length > 0 ? seleccionComparar : liveResultadosFiltrados;
+                  const md = buildInformeMarkdown(liveQuery, ordenarChilePrimero(base), buildParrafoAutomatico(liveQuery, base), undefined, comparacionDetalle);
                   setInformeLiveMarkdown(md);
                   setInformeLiveQuery(liveQuery);
                   setActiveTab("documento");
@@ -2342,7 +2261,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
                 className="bg-blue-700 hover:bg-blue-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl cursor-pointer shadow-xs flex items-center gap-2 shrink-0"
               >
                 <FileText className="w-4 h-4" />
-                <span>Abrir Informe Técnico BCN</span>
+                <span>{seleccionComparar.length > 0 ? `Generar Informe (${seleccionComparar.length} países)` : "Abrir Informe Técnico BCN"}</span>
               </button>
             </div>
           )}
@@ -2838,63 +2757,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
         </div>
       )}
 
-      {/* TAB 5: GENERADOR Y SÍNTESIS IA */}
-      {activeTab === "ia" && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 flex flex-col gap-6 animate-fade-in max-w-4xl mx-auto w-full">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 font-bold">
-              <Sparkles className="w-6 h-6" />
-            </div>
-            <div>
-              <h3 className="text-base font-extrabold text-slate-900">Generador Analítico de Derecho Comparado</h3>
-              <p className="text-xs text-slate-500">
-                Igual que el buscador principal, pero el resultado queda guardado automáticamente en &quot;Informes Guardados&quot; para todo el equipo (y vinculado al Boletín chileno si se detecta uno).
-              </p>
-            </div>
-          </div>
-
-          <form onSubmit={handleGenerateCustomAI} className="flex flex-col gap-4">
-            <div className="flex flex-col gap-2">
-              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                Materia o Tópico Legislativo a Investigar:
-              </label>
-              <input
-                type="text"
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600"
-                placeholder="Ej. Regulación de criptomonedas, Ley de Royalty Minero, Eutanasia, Neuroderechos..."
-                value={customQuery}
-                onChange={(e) => setCustomQuery(e.target.value)}
-              />
-            </div>
-
-            {searchError && (
-              <p className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">{searchError}</p>
-            )}
-
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <button
-                type="submit"
-                disabled={isGenerating || !customQuery.trim()}
-                className="bg-blue-700 hover:bg-blue-800 disabled:bg-slate-300 text-white font-bold py-3 px-6 rounded-xl text-xs transition-colors flex items-center gap-2 cursor-pointer shadow-sm"
-              >
-                {isGenerating ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Consultando fuentes internacionales...</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4" />
-                    <span>Buscar y Generar Informe</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* TAB 6: INFORMES GUARDADOS */}
+      {/* TAB 5: INFORMES GUARDADOS */}
       {activeTab === "guardados" && (
         <div className="flex flex-col gap-5 animate-fade-in">
           <div className="flex items-center justify-between border-b border-slate-200 pb-3">
