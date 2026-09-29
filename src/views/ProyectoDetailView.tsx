@@ -258,6 +258,13 @@ export default function ProyectoDetailView({
   const [showAutoresPopover, setShowAutoresPopover] = useState(false);
   const [selectedComisionComparador, setSelectedComisionComparador] = useState<string>("");
   const [sesionesVinculadas, setSesionesVinculadas] = useState<SesionVinculadaProyecto[]>([]);
+  // Mientras se obtienen los datos reales del proyecto (fichaTecnica real
+  // incluida) desde el Senado, la Ficha Ejecutiva Inteligente y la Ficha
+  // Técnica NO deben mostrar el texto genérico de relleno como si fuera el
+  // resultado final -- eso es justo lo que el usuario reportó como "sale
+  // cualquier cosa" mientras carga. Se muestra un esqueleto de carga en su
+  // lugar hasta que se resuelva la consulta (con o sin fichaTecnica real).
+  const [datosInicialesLoading, setDatosInicialesLoading] = useState(true);
 
   // Comparado real (pestaña "Comparado"): extraído por IA del texto real del
   // informe de comisión, en vez del comparador con datos precargados/fijos
@@ -331,6 +338,7 @@ export default function ProyectoDetailView({
     setProyecto(localProy);
     setSyncError("");
     setSyncSuccess(false);
+    setDatosInicialesLoading(true);
 
     fetchLiveSenateProject(proyectoId)
       .then(liveData => {
@@ -339,7 +347,8 @@ export default function ProyectoDetailView({
           setSyncSuccess(true);
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setDatosInicialesLoading(false));
   }, [proyectoId]);
 
   function handleSyncOnline() {
@@ -1173,46 +1182,62 @@ export default function ProyectoDetailView({
                   </div>
 
                   {/* 3 Executive Bullet Points */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-                    {/* Bullet 1 */}
-                    <div className="p-4 bg-white rounded-2xl border border-slate-200/90 shadow-2xs space-y-1.5">
-                      <div className="flex items-center gap-2">
-                        <span className="w-6 h-6 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center font-bold text-xs">1</span>
-                        <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wide">¿Qué Cambia?</h4>
-                      </div>
-                      <p className="text-xs text-slate-700 leading-relaxed font-medium">
-                        {proyecto.fichaTecnica?.objeto 
-                          ? proyecto.fichaTecnica.objeto.replace(/^🎯\s*Objeto\s*&\s*Ámbito:\s*/i, "")
-                          : proyecto.resumen || "Modificaciones sustantivas al marco normativo vigente para perfeccionar obligaciones legales."}
-                      </p>
+                  {datosInicialesLoading && !proyecto.fichaTecnica ? (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                      {[1, 2, 3].map((n) => (
+                        <div key={n} className="p-4 bg-white rounded-2xl border border-slate-200/90 shadow-2xs space-y-2 animate-pulse">
+                          <div className="flex items-center gap-2">
+                            <span className="w-6 h-6 rounded-lg bg-slate-200 shrink-0" />
+                            <span className="h-3 w-24 bg-slate-200 rounded" />
+                          </div>
+                          <div className="h-2.5 w-full bg-slate-100 rounded" />
+                          <div className="h-2.5 w-5/6 bg-slate-100 rounded" />
+                          <div className="h-2.5 w-2/3 bg-slate-100 rounded" />
+                        </div>
+                      ))}
                     </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                      {/* Bullet 1 */}
+                      <div className="p-4 bg-white rounded-2xl border border-slate-200/90 shadow-2xs space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center font-bold text-xs">1</span>
+                          <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wide">¿Qué Cambia?</h4>
+                        </div>
+                        <p className="text-xs text-slate-700 leading-relaxed font-medium">
+                          {proyecto.fichaTecnica?.objeto
+                            ? proyecto.fichaTecnica.objeto.replace(/^🎯\s*Objeto\s*&\s*Ámbito:\s*/i, "")
+                            : proyecto.resumen || "Sin información suficiente en la ficha oficial del proyecto para describir el cambio propuesto."}
+                        </p>
+                      </div>
 
-                    {/* Bullet 2 */}
-                    <div className="p-4 bg-white rounded-2xl border border-slate-200/90 shadow-2xs space-y-1.5">
-                      <div className="flex items-center gap-2">
-                        <span className="w-6 h-6 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-xs">2</span>
-                        <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wide">¿Quiénes se Impactan?</h4>
+                      {/* Bullet 2 */}
+                      <div className="p-4 bg-white rounded-2xl border border-slate-200/90 shadow-2xs space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-xs">2</span>
+                          <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wide">¿Quiénes se Impactan?</h4>
+                        </div>
+                        <p className="text-xs text-slate-700 leading-relaxed font-medium">
+                          {proyecto.fichaTecnica?.mecanismos
+                            ? proyecto.fichaTecnica.mecanismos.replace(/^⚙️\s*Mecanismos\s*Clave:\s*/i, "")
+                            : "Sin información suficiente en la ficha oficial del proyecto para identificar a los sujetos afectados."}
+                        </p>
                       </div>
-                      <p className="text-xs text-slate-700 leading-relaxed font-medium">
-                        {proyecto.fichaTecnica?.mecanismos 
-                          ? proyecto.fichaTecnica.mecanismos.replace(/^⚙️\s*Mecanismos\s*Clave:\s*/i, "")
-                          : "Sujetos obligados del sector público y privado, trabajadores, usuarios y órganos fiscalizadores competentes."}
-                      </p>
-                    </div>
 
-                    {/* Bullet 3 */}
-                    <div className="p-4 bg-white rounded-2xl border border-slate-200/90 shadow-2xs space-y-1.5">
-                      <div className="flex items-center gap-2">
-                        <span className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs">3</span>
-                        <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wide">Impacto y Fiscalización</h4>
+                      {/* Bullet 3 */}
+                      <div className="p-4 bg-white rounded-2xl border border-slate-200/90 shadow-2xs space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs">3</span>
+                          <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wide">Impacto y Fiscalización</h4>
+                        </div>
+                        <p className="text-xs text-slate-700 leading-relaxed font-medium">
+                          {proyecto.fichaTecnica?.fiscalizacion
+                            ? proyecto.fichaTecnica.fiscalizacion.replace(/^⚖️\s*Fiscalización\s*&\s*(Sanciones|Cumplimiento):\s*/i, "")
+                            : "Sin información suficiente en la ficha oficial del proyecto para identificar el órgano fiscalizador."}
+                        </p>
                       </div>
-                      <p className="text-xs text-slate-700 leading-relaxed font-medium">
-                        {proyecto.fichaTecnica?.fiscalizacion 
-                          ? proyecto.fichaTecnica.fiscalizacion.replace(/^⚖️\s*Fiscalización\s*&\s*(Sanciones|Cumplimiento):\s*/i, "")
-                          : "Monitoreo administrativo y sanciones pecuniarias graduales bajo supervisión de los organismos fiscalizadores del Estado."}
-                      </p>
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 {/* FICHA TÉCNICA EN 3 EJES */}
@@ -1229,47 +1254,53 @@ export default function ProyectoDetailView({
                     </span>
                   </div>
 
-                  {(() => {
-                    const ficha = proyecto.fichaTecnica || {
-                      objeto: `🎯 Objeto & Ámbito: Establece un marco normativo integral sobre "${proyecto.titulo}".`,
-                      mecanismos: "⚙️ Mecanismos Clave: Modificaciones legales, obligaciones directas de cumplimiento y plazos de adecuación.",
-                      fiscalizacion: "⚖️ Fiscalización & Sanciones: Órganos sectoriales del Estado competentes y sanciones administrativas proporcionales."
-                    };
-
-                    return (
-                      <div className="space-y-3 font-sans">
-                        {/* Eje 1: Objeto */}
-                        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-3xs flex flex-col gap-1">
-                          <span className="text-[10.5px] font-extrabold uppercase tracking-wide text-sky-800 flex items-center gap-1 font-mono">
-                            <span>🎯 Objeto & Ámbito de Aplicación</span>
-                          </span>
-                          <p className="text-xs text-slate-700 leading-relaxed font-medium">
-                            {ficha.objeto.replace(/^🎯\s*Objeto\s*&\s*Ámbito:\s*/i, "")}
-                          </p>
+                  {datosInicialesLoading && !proyecto.fichaTecnica ? (
+                    <div className="space-y-3 font-sans">
+                      {[1, 2, 3].map((n) => (
+                        <div key={n} className="bg-white p-4 rounded-xl border border-slate-200 shadow-3xs flex flex-col gap-2 animate-pulse">
+                          <span className="h-2.5 w-40 bg-slate-200 rounded" />
+                          <span className="h-2.5 w-full bg-slate-100 rounded" />
+                          <span className="h-2.5 w-4/5 bg-slate-100 rounded" />
                         </div>
-
-                        {/* Eje 2: Mecanismos */}
-                        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-3xs flex flex-col gap-1">
-                          <span className="text-[10.5px] font-extrabold uppercase tracking-wide text-amber-800 flex items-center gap-1 font-mono">
-                            <span>⚙️ Mecanismos Clave e Innovaciones Legales</span>
-                          </span>
-                          <p className="text-xs text-slate-700 leading-relaxed font-medium">
-                            {ficha.mecanismos.replace(/^⚙️\s*Mecanismos\s*Clave:\s*/i, "")}
-                          </p>
-                        </div>
-
-                        {/* Eje 3: Fiscalización */}
-                        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-3xs flex flex-col gap-1">
-                          <span className="text-[10.5px] font-extrabold uppercase tracking-wide text-emerald-800 flex items-center gap-1 font-mono">
-                            <span>⚖️ Fiscalización, Sanciones y Órgano Competente</span>
-                          </span>
-                          <p className="text-xs text-slate-700 leading-relaxed font-medium">
-                            {ficha.fiscalizacion.replace(/^⚖️\s*Fiscalización\s*&\s*(Sanciones|Cumplimiento):\s*/i, "")}
-                          </p>
-                        </div>
+                      ))}
+                    </div>
+                  ) : proyecto.fichaTecnica ? (
+                    <div className="space-y-3 font-sans">
+                      {/* Eje 1: Objeto */}
+                      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-3xs flex flex-col gap-1">
+                        <span className="text-[10.5px] font-extrabold uppercase tracking-wide text-sky-800 flex items-center gap-1 font-mono">
+                          <span>🎯 Objeto & Ámbito de Aplicación</span>
+                        </span>
+                        <p className="text-xs text-slate-700 leading-relaxed font-medium">
+                          {proyecto.fichaTecnica.objeto.replace(/^🎯\s*Objeto\s*&\s*Ámbito:\s*/i, "")}
+                        </p>
                       </div>
-                    );
-                  })()}
+
+                      {/* Eje 2: Mecanismos */}
+                      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-3xs flex flex-col gap-1">
+                        <span className="text-[10.5px] font-extrabold uppercase tracking-wide text-amber-800 flex items-center gap-1 font-mono">
+                          <span>⚙️ Mecanismos Clave e Innovaciones Legales</span>
+                        </span>
+                        <p className="text-xs text-slate-700 leading-relaxed font-medium">
+                          {proyecto.fichaTecnica.mecanismos.replace(/^⚙️\s*Mecanismos\s*Clave:\s*/i, "")}
+                        </p>
+                      </div>
+
+                      {/* Eje 3: Fiscalización */}
+                      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-3xs flex flex-col gap-1">
+                        <span className="text-[10.5px] font-extrabold uppercase tracking-wide text-emerald-800 flex items-center gap-1 font-mono">
+                          <span>⚖️ Fiscalización, Sanciones y Órgano Competente</span>
+                        </span>
+                        <p className="text-xs text-slate-700 leading-relaxed font-medium">
+                          {proyecto.fichaTecnica.fiscalizacion.replace(/^⚖️\s*Fiscalización\s*&\s*(Sanciones|Cumplimiento):\s*/i, "")}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400 font-bold text-center py-6">
+                      La ficha oficial del proyecto no incluye una ficha técnica estructurada.
+                    </p>
+                  )}
                 </div>
 
                 {/* CALCULADORA DE QUÓRUM Y MAYORÍAS CONSTITUCIONALES */}
