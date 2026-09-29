@@ -298,7 +298,7 @@ export async function buscarLeyChilePorNumero(numLey: string): Promise<Resultado
       fecha,
       url: urlNorma ? decodeEntities(urlNorma) : `https://www.leychile.cl/Navegar?idNorma=${cleanNum}`,
       tipo: "Ley",
-      descripcion: `🎯 Objeto & Ámbito: Marco regulatorio oficial publicado en el Diario Oficial de Chile.\n⚖️ Jurisdicción: República de Chile.`
+      descripcion: `Marco regulatorio oficial publicado en el Diario Oficial de Chile, bajo la jurisdicción de la República de Chile.`
     };
   } catch {
     return null;
@@ -632,7 +632,7 @@ export async function buscarDerechoComparado(q: string): Promise<{
         fecha: "2024",
         url: `https://www.leychile.cl/Consulta/obtxml?opt=61&cadena=${encodeURIComponent(q)}`,
         tipo: "Ley",
-        descripcion: `🎯 Objeto & Ámbito: Normativa chilena aplicable y antecedentes legislativos en tramitación en la Cámara de Diputados y Senado sobre ${q}.\n⚙️ Mecanismos Clave: Regulado bajo el ordenamiento jurídico nacional y código sectorial respectivo.\n⚖️ Fiscalización & Cumplimiento: Supervisado por los ministerios sectoriales y superintendencias del Estado de Chile.`,
+        descripcion: `Normativa chilena aplicable y antecedentes legislativos en tramitación en la Cámara de Diputados y el Senado sobre ${q}, regulada bajo el ordenamiento jurídico nacional y el código sectorial respectivo. Su cumplimiento es supervisado por los ministerios sectoriales y superintendencias del Estado de Chile.`,
         relevancia: 99
       });
     }

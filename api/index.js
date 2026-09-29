@@ -189549,8 +189549,7 @@ async function buscarLeyChilePorNumero(numLey) {
       fecha,
       url: urlNorma ? decodeEntities(urlNorma) : `https://www.leychile.cl/Navegar?idNorma=${cleanNum}`,
       tipo: "Ley",
-      descripcion: `\u{1F3AF} Objeto & \xC1mbito: Marco regulatorio oficial publicado en el Diario Oficial de Chile.
-\u2696\uFE0F Jurisdicci\xF3n: Rep\xFAblica de Chile.`
+      descripcion: `Marco regulatorio oficial publicado en el Diario Oficial de Chile, bajo la jurisdicci\xF3n de la Rep\xFAblica de Chile.`
     };
   } catch {
     return null;
@@ -189835,9 +189834,7 @@ async function buscarDerechoComparado(q) {
         fecha: "2024",
         url: `https://www.leychile.cl/Consulta/obtxml?opt=61&cadena=${encodeURIComponent(q)}`,
         tipo: "Ley",
-        descripcion: `\u{1F3AF} Objeto & \xC1mbito: Normativa chilena aplicable y antecedentes legislativos en tramitaci\xF3n en la C\xE1mara de Diputados y Senado sobre ${q}.
-\u2699\uFE0F Mecanismos Clave: Regulado bajo el ordenamiento jur\xEDdico nacional y c\xF3digo sectorial respectivo.
-\u2696\uFE0F Fiscalizaci\xF3n & Cumplimiento: Supervisado por los ministerios sectoriales y superintendencias del Estado de Chile.`,
+        descripcion: `Normativa chilena aplicable y antecedentes legislativos en tramitaci\xF3n en la C\xE1mara de Diputados y el Senado sobre ${q}, regulada bajo el ordenamiento jur\xEDdico nacional y el c\xF3digo sectorial respectivo. Su cumplimiento es supervisado por los ministerios sectoriales y superintendencias del Estado de Chile.`,
         relevancia: 99
       });
     }
