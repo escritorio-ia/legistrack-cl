@@ -192984,6 +192984,27 @@ Responde en formato de lista, un punto por l\xEDnea, cada uno iniciando con "- "
   const puntosHeuristicos = extraerPuntosHeuristicos(query, resultado, textoFuente);
   res.json({ puntos: puntosHeuristicos, disponible: true });
 });
+apiRouter.post("/derecho-comparado/sintetizar-comparacion", async (req, res) => {
+  const { query, items } = req.body;
+  if (!query || !Array.isArray(items) || items.length < 2) {
+    return res.status(400).json({ error: "Se requiere 'query' y al menos 2 'items' con sus puntos." });
+  }
+  const bloque = items.map((it, i) => `${i + 1}. [${it.pais}] ${it.titulo}
+${(it.puntos || []).map((p) => `   - ${p}`).join("\n")}`).join("\n\n");
+  const prompt = `Act\xFAa como un analista de Asesor\xEDa T\xE9cnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile, redactando un an\xE1lisis comparado sobre "${query}". A continuaci\xF3n se entregan los puntos REALES ya extra\xEDdos del texto de cada norma seleccionada por el usuario para comparar:
+
+${bloque}
+
+Redacta un an\xE1lisis comparativo en prosa formal (m\xE1x. 280 palabras), en tercera persona, sin emojis ni vi\xF1etas, que efectivamente COMPARE el contenido entre estas jurisdicciones: qu\xE9 enfoques comparten, en qu\xE9 difieren sustantivamente (alcance, mecanismos, \xF3rgano fiscalizador, sanciones, etc. seg\xFAn lo que digan los puntos entregados), y qu\xE9 podr\xEDa ser relevante considerar para Chile a partir de ese contraste. USA EXCLUSIVAMENTE los puntos entregados arriba; no inventes disposiciones, cifras ni mecanismos que no est\xE9n respaldados por ellos. Si los puntos no permiten comparar alg\xFAn aspecto, om\xEDtelo en vez de inventarlo.
+
+Responde solo con el an\xE1lisis, sin encabezados ni markdown.`;
+  const texto = await generarContenidoUniversalIA(prompt, 700);
+  if (texto) {
+    return res.json({ analisis: texto });
+  }
+  const paises = items.map((it) => it.pais).join(", ");
+  res.json({ analisis: `No fue posible generar el an\xE1lisis comparativo con IA en este momento. Se seleccionaron ${items.length} normas de ${paises} sobre "${query}"; revisa los puntos sustantivos de cada una m\xE1s abajo.` });
+});
 apiRouter.get("/leychile/buscar", async (req, res) => {
   const q = req.query.q ? String(req.query.q).trim() : "";
   if (!q) {

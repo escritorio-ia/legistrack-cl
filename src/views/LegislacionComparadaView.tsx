@@ -1295,6 +1295,12 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
   const [seleccionComparar, setSeleccionComparar] = useState<ResultadoComparado[]>([]);
   const [comparacionDetalle, setComparacionDetalle] = useState<Record<string, LeySeleccionada>>({});
   const [comparando, setComparando] = useState(false);
+  // Análisis comparativo REAL entre las normas seleccionadas (a partir de sus
+  // puntos ya extraídos del texto real, no de los títulos) -- "analisisKey"
+  // guarda para qué selección exacta se generó, para saber si quedó obsoleto.
+  const [analisisComparadoIA, setAnalisisComparadoIA] = useState<string | null>(null);
+  const [analisisComparadoKey, setAnalisisComparadoKey] = useState<string>("");
+  const [analisisComparadoLoading, setAnalisisComparadoLoading] = useState(false);
 
   // Search history
   const [historial, setHistorial] = useState<string[]>(() => {
@@ -1523,9 +1529,55 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
           }
         })
       );
-      setComparacionDetalle(Object.fromEntries(entradas));
+      const detalleActualizado = Object.fromEntries(entradas) as Record<string, LeySeleccionada>;
+      setComparacionDetalle(detalleActualizado);
+      return detalleActualizado;
     } finally {
       setComparando(false);
+    }
+  };
+
+  // Genera el análisis comparativo real (prosa) entre las normas
+  // seleccionadas, a partir de los puntos ya extraídos de su texto real
+  // (comparacionDetalle) -- si aún no se extrajeron (usuario no apretó
+  // "Comparar en tabla lado a lado" primero), los extrae antes.
+  const handleGenerarAnalisisComparado = async () => {
+    if (seleccionComparar.length < 2) return;
+    const key = seleccionComparar.map(claveResultado).sort().join("||");
+    setAnalisisComparadoLoading(true);
+    setAnalisisComparadoIA(null);
+    try {
+      let detalleActual = comparacionDetalle;
+      const faltaAnalisis = seleccionComparar.some((r) => !detalleActual[claveResultado(r)]?.disponible);
+      if (faltaAnalisis) {
+        detalleActual = (await handleComparar()) || detalleActual;
+      }
+
+      const items = seleccionComparar.map((r) => ({
+        pais: r.pais,
+        titulo: r.titulo,
+        puntos: detalleActual[claveResultado(r)]?.puntos || []
+      })).filter((it) => it.puntos.length > 0);
+
+      if (items.length < 2) {
+        setAnalisisComparadoIA("No fue posible extraer suficientes puntos reales de las normas seleccionadas para compararlas. Prueba con otras normas que tengan enlace a su fuente oficial.");
+        setAnalisisComparadoKey(key);
+        return;
+      }
+
+      const res = await fetch("/api/derecho-comparado/sintetizar-comparacion", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: liveQuery, items })
+      });
+      const data: { analisis: string } = await res.json();
+      setAnalisisComparadoIA(data.analisis);
+      setAnalisisComparadoKey(key);
+    } catch {
+      setAnalisisComparadoIA("No fue posible generar el análisis comparativo en este momento.");
+      setAnalisisComparadoKey(key);
+    } finally {
+      setAnalisisComparadoLoading(false);
     }
   };
 
@@ -2660,6 +2712,38 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
               </button>
             </div>
           </div>
+
+          {/* Análisis comparativo REAL a partir del texto de cada norma
+              seleccionada (no solo del título) -- reemplaza el vacío que
+              dejaban las fichas genéricas por país cuando el usuario quería
+              una comparación de fondo, no solo la matriz de datos. */}
+          {seleccionComparar.length >= 2 && (
+            <div className="bg-indigo-50/60 border border-indigo-200 rounded-2xl p-5 flex flex-col gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="flex items-center gap-1.5 text-xs font-extrabold text-indigo-900">
+                  <Sparkles className="w-4 h-4 text-indigo-600" /> Análisis Comparado Real (a partir del texto de cada norma)
+                </span>
+                <button
+                  onClick={handleGenerarAnalisisComparado}
+                  disabled={analisisComparadoLoading || comparando}
+                  className="bg-indigo-700 hover:bg-indigo-800 disabled:bg-slate-300 text-white font-bold text-[11px] px-3.5 py-2 rounded-xl cursor-pointer shadow-xs flex items-center gap-1.5"
+                >
+                  {analisisComparadoLoading || comparando ? (
+                    <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Analizando texto real...</>
+                  ) : (
+                    <><Sparkles className="w-3.5 h-3.5" /> {analisisComparadoIA ? "Regenerar Análisis" : "Generar Análisis Comparado"}</>
+                  )}
+                </button>
+              </div>
+              {analisisComparadoIA && analisisComparadoKey === seleccionComparar.map(claveResultado).sort().join("||") ? (
+                <p className="text-xs text-indigo-950 leading-relaxed">{analisisComparadoIA}</p>
+              ) : (
+                <p className="text-[11px] text-indigo-800/70">
+                  Extrae el texto real de cada norma seleccionada (LeyChile y las demás fuentes oficiales) y le pide a la IA que las compare de verdad -- no solo un resumen del título de cada una.
+                </p>
+              )}
+            </div>
+          )}
 
           {seleccionComparar.length === 0 ? (
             <div className="p-12 text-center flex flex-col items-center justify-center gap-3">

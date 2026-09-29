@@ -1269,6 +1269,42 @@ Responde en formato de lista, un punto por línea, cada uno iniciando con "- ".`
   res.json({ puntos: puntosHeuristicos, disponible: true });
 });
 
+// Redacta un análisis comparativo REAL entre las normas que el usuario
+// seleccionó para comparar, a partir de los puntos ya extraídos del texto
+// real de cada una (por /derecho-comparado/analizar) -- no de los títulos.
+// Reemplaza la antigua ficha "Se trata de una ley que regula..." (genérica,
+// basada solo en el título) por una síntesis que efectivamente compara el
+// contenido real entre los países seleccionados.
+apiRouter.post("/derecho-comparado/sintetizar-comparacion", async (req: Request, res: Response) => {
+  const { query, items } = req.body as {
+    query?: string;
+    items?: Array<{ pais: string; titulo: string; puntos: string[] }>;
+  };
+  if (!query || !Array.isArray(items) || items.length < 2) {
+    return res.status(400).json({ error: "Se requiere 'query' y al menos 2 'items' con sus puntos." });
+  }
+
+  const bloque = items
+    .map((it, i) => `${i + 1}. [${it.pais}] ${it.titulo}\n${(it.puntos || []).map((p) => `   - ${p}`).join("\n")}`)
+    .join("\n\n");
+
+  const prompt = `Actúa como un analista de Asesoría Técnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile, redactando un análisis comparado sobre "${query}". A continuación se entregan los puntos REALES ya extraídos del texto de cada norma seleccionada por el usuario para comparar:
+
+${bloque}
+
+Redacta un análisis comparativo en prosa formal (máx. 280 palabras), en tercera persona, sin emojis ni viñetas, que efectivamente COMPARE el contenido entre estas jurisdicciones: qué enfoques comparten, en qué difieren sustantivamente (alcance, mecanismos, órgano fiscalizador, sanciones, etc. según lo que digan los puntos entregados), y qué podría ser relevante considerar para Chile a partir de ese contraste. USA EXCLUSIVAMENTE los puntos entregados arriba; no inventes disposiciones, cifras ni mecanismos que no estén respaldados por ellos. Si los puntos no permiten comparar algún aspecto, omítelo en vez de inventarlo.
+
+Responde solo con el análisis, sin encabezados ni markdown.`;
+
+  const texto = await generarContenidoUniversalIA(prompt, 700);
+  if (texto) {
+    return res.json({ analisis: texto });
+  }
+
+  const paises = items.map((it) => it.pais).join(", ");
+  res.json({ analisis: `No fue posible generar el análisis comparativo con IA en este momento. Se seleccionaron ${items.length} normas de ${paises} sobre "${query}"; revisa los puntos sustantivos de cada una más abajo.` });
+});
+
 apiRouter.get("/leychile/buscar", async (req: Request, res: Response) => {
   const q = req.query.q ? String(req.query.q).trim() : "";
   if (!q) {
