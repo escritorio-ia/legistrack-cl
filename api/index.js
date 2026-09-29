@@ -189389,42 +189389,42 @@ var DICCIONARIO_LEYES_CHILENAS = {
     numero: "21.020",
     nombreOficial: "Sobre Tenencia Responsable de Mascotas y Animales de Compa\xF1\xEDa",
     nombrePopular: "Ley Cholito",
-    resumen: "\u{1F3AF} Objeto & \xC1mbito: Regula integralmente los deberes de cuidado, protecci\xF3n y control sobre perros, gatos y animales de compa\xF1\xEDa en Chile.\n\u2699\uFE0F Mecanismos Clave: Crea el Registro Nacional de Mascotas con microchip subcut\xE1neo obligatorio.\n\u2696\uFE0F Fiscalizaci\xF3n & Sanciones: Supervisado por Municipalidades, Seremis de Salud y Carabineros.",
+    resumen: "Regula integralmente los deberes de cuidado, protecci\xF3n y control sobre perros, gatos y animales de compa\xF1\xEDa en Chile, creando el Registro Nacional de Mascotas con microchip subcut\xE1neo obligatorio. Su cumplimiento es supervisado por las Municipalidades, las Seremis de Salud y Carabineros.",
     palabrasClave: ["perro", "perros", "gato", "gatos", "mascota", "mascotas", "animal", "animales", "cholito", "tenencia responsable"]
   },
   "21643": {
     numero: "21.643",
     nombreOficial: "Modifica el C\xF3digo del Trabajo en materia de Prevenci\xF3n, Investigaci\xF3n y Sanci\xF3n del Acoso Laboral, Sexual y Violencia en el Trabajo",
     nombrePopular: "Ley Karin",
-    resumen: "\u{1F3AF} Objeto & \xC1mbito: Marco preventivo y sancionatorio integral frente al acoso laboral, sexual y violencia en el trabajo.\n\u2699\uFE0F Mecanismos Clave: Protocolos preventivos obligatorios y medidas cautelares inmediatas de resguardo.\n\u2696\uFE0F Fiscalizaci\xF3n & Sanciones: Fiscalizado por la Direcci\xF3n del Trabajo.",
+    resumen: "Establece un marco preventivo y sancionatorio integral frente al acoso laboral, sexual y la violencia en el trabajo, exigiendo protocolos preventivos obligatorios y medidas cautelares inmediatas de resguardo. Es fiscalizada por la Direcci\xF3n del Trabajo.",
     palabrasClave: ["karin", "acoso laboral", "acoso sexual", "violencia laboral", "mobbing", "trabajo"]
   },
   "21561": {
     numero: "21.561",
     nombreOficial: "Modifica el C\xF3digo del Trabajo con el objeto de Reducir la Jornada Laboral a 40 Horas Semanales",
     nombrePopular: "Ley de 40 Horas",
-    resumen: "\u{1F3AF} Objeto & \xC1mbito: Reduce gradualmente la jornada laboral semanal de 45 a 40 horas.\n\u2699\uFE0F Mecanismos Clave: Bandas horarias diferidas y jornada 4x3.\n\u2696\uFE0F Fiscalizaci\xF3n & Sanciones: Fiscalizado por la Direcci\xF3n del Trabajo.",
+    resumen: "Reduce gradualmente la jornada laboral semanal de 45 a 40 horas, contemplando bandas horarias diferidas y la jornada 4x3 como mecanismos de adaptaci\xF3n. Es fiscalizada por la Direcci\xF3n del Trabajo.",
     palabrasClave: ["40 horas", "jornada laboral", "horario de trabajo", "codigo del trabajo"]
   },
   "21663": {
     numero: "21.663",
     nombreOficial: "Ley Marco de Ciberseguridad e Infraestructura Cr\xEDtica de la Informaci\xF3n",
     nombrePopular: "Ley de Ciberseguridad",
-    resumen: "\u{1F3AF} Objeto & \xC1mbito: Bases institucionales para la ciberdefensa y ciberseguridad nacional.\n\u2699\uFE0F Mecanismos Clave: Crea la Agencia Nacional de Ciberseguridad (ANCI) y CSIRT Nacional.\n\u2696\uFE0F Fiscalizaci\xF3n & Sanciones: Multas disuasorias de hasta 40.000 UTM.",
+    resumen: "Establece las bases institucionales para la ciberdefensa y ciberseguridad nacional, creando la Agencia Nacional de Ciberseguridad (ANCI) y el CSIRT Nacional. Contempla multas disuasorias de hasta 40.000 UTM ante incumplimientos.",
     palabrasClave: ["ciberseguridad", "seguridad informatica", "infraestructura critica", "anci"]
   },
   "21383": {
     numero: "21.383",
     nombreOficial: "Modifica la Carta Fundamental para consagrar la protecci\xF3n de los Neuroderechos y la Integridad Mental",
     nombrePopular: "Ley de Neuroderechos",
-    resumen: "\u{1F3AF} Objeto & \xC1mbito: Pionera reforma constitucional a nivel mundial que protege los datos cerebrales y la privacidad mental frente al avance de la neurotecnolog\xEDa.\n\u2699\uFE0F Mecanismos Clave: Eleva a rango constitucional el consentimiento informado para el uso de interfaces cerebro-computador.\n\u2696\uFE0F Fiscalizaci\xF3n & Sanciones: Tutelado mediante recurso de protecci\xF3n ante las Cortes de Apelaciones.",
+    resumen: "Pionera reforma constitucional a nivel mundial que protege los datos cerebrales y la privacidad mental frente al avance de la neurotecnolog\xEDa, elevando a rango constitucional el consentimiento informado para el uso de interfaces cerebro-computador. Su tutela se ejerce mediante recurso de protecci\xF3n ante las Cortes de Apelaciones.",
     palabrasClave: ["neuroderechos", "neurotecnologia", "privacidad mental", "cerebro", "datos neuronales"]
   },
   "21220": {
     numero: "21.220",
     nombreOficial: "Modifica el C\xF3digo del Trabajo en materia de Trabajo a Distancia y Teletrabajo",
     nombrePopular: "Ley de Teletrabajo",
-    resumen: "\u{1F3AF} Objeto & \xC1mbito: Regula el trabajo a distancia y consagra el derecho a la desconexi\xF3n digital obligatoria de al menos 12 horas continuas.\n\u2699\uFE0F Mecanismos Clave: Deber del empleador de proporcionar equipos, herramientas y costos de operaci\xF3n.\n\u2696\uFE0F Fiscalizaci\xF3n & Sanciones: Fiscalizado por la Direcci\xF3n del Trabajo con multas por vulneraci\xF3n del descanso.",
+    resumen: "Regula el trabajo a distancia y consagra el derecho a la desconexi\xF3n digital obligatoria de al menos 12 horas continuas, imponiendo al empleador el deber de proporcionar equipos, herramientas y costos de operaci\xF3n. Es fiscalizada por la Direcci\xF3n del Trabajo, con multas por vulneraci\xF3n del descanso.",
     palabrasClave: ["teletrabajo", "trabajo a distancia", "desconexion digital", "remoto"]
   }
 };

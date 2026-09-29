@@ -84,42 +84,42 @@ export const DICCIONARIO_LEYES_CHILENAS: Record<string, LeyInfoChile> = {
     numero: "21.020",
     nombreOficial: "Sobre Tenencia Responsable de Mascotas y Animales de Compañía",
     nombrePopular: "Ley Cholito",
-    resumen: "🎯 Objeto & Ámbito: Regula integralmente los deberes de cuidado, protección y control sobre perros, gatos y animales de compañía en Chile.\n⚙️ Mecanismos Clave: Crea el Registro Nacional de Mascotas con microchip subcutáneo obligatorio.\n⚖️ Fiscalización & Sanciones: Supervisado por Municipalidades, Seremis de Salud y Carabineros.",
+    resumen: "Regula integralmente los deberes de cuidado, protección y control sobre perros, gatos y animales de compañía en Chile, creando el Registro Nacional de Mascotas con microchip subcutáneo obligatorio. Su cumplimiento es supervisado por las Municipalidades, las Seremis de Salud y Carabineros.",
     palabrasClave: ["perro", "perros", "gato", "gatos", "mascota", "mascotas", "animal", "animales", "cholito", "tenencia responsable"]
   },
   "21643": {
     numero: "21.643",
     nombreOficial: "Modifica el Código del Trabajo en materia de Prevención, Investigación y Sanción del Acoso Laboral, Sexual y Violencia en el Trabajo",
     nombrePopular: "Ley Karin",
-    resumen: "🎯 Objeto & Ámbito: Marco preventivo y sancionatorio integral frente al acoso laboral, sexual y violencia en el trabajo.\n⚙️ Mecanismos Clave: Protocolos preventivos obligatorios y medidas cautelares inmediatas de resguardo.\n⚖️ Fiscalización & Sanciones: Fiscalizado por la Dirección del Trabajo.",
+    resumen: "Establece un marco preventivo y sancionatorio integral frente al acoso laboral, sexual y la violencia en el trabajo, exigiendo protocolos preventivos obligatorios y medidas cautelares inmediatas de resguardo. Es fiscalizada por la Dirección del Trabajo.",
     palabrasClave: ["karin", "acoso laboral", "acoso sexual", "violencia laboral", "mobbing", "trabajo"]
   },
   "21561": {
     numero: "21.561",
     nombreOficial: "Modifica el Código del Trabajo con el objeto de Reducir la Jornada Laboral a 40 Horas Semanales",
     nombrePopular: "Ley de 40 Horas",
-    resumen: "🎯 Objeto & Ámbito: Reduce gradualmente la jornada laboral semanal de 45 a 40 horas.\n⚙️ Mecanismos Clave: Bandas horarias diferidas y jornada 4x3.\n⚖️ Fiscalización & Sanciones: Fiscalizado por la Dirección del Trabajo.",
+    resumen: "Reduce gradualmente la jornada laboral semanal de 45 a 40 horas, contemplando bandas horarias diferidas y la jornada 4x3 como mecanismos de adaptación. Es fiscalizada por la Dirección del Trabajo.",
     palabrasClave: ["40 horas", "jornada laboral", "horario de trabajo", "codigo del trabajo"]
   },
   "21663": {
     numero: "21.663",
     nombreOficial: "Ley Marco de Ciberseguridad e Infraestructura Crítica de la Información",
     nombrePopular: "Ley de Ciberseguridad",
-    resumen: "🎯 Objeto & Ámbito: Bases institucionales para la ciberdefensa y ciberseguridad nacional.\n⚙️ Mecanismos Clave: Crea la Agencia Nacional de Ciberseguridad (ANCI) y CSIRT Nacional.\n⚖️ Fiscalización & Sanciones: Multas disuasorias de hasta 40.000 UTM.",
+    resumen: "Establece las bases institucionales para la ciberdefensa y ciberseguridad nacional, creando la Agencia Nacional de Ciberseguridad (ANCI) y el CSIRT Nacional. Contempla multas disuasorias de hasta 40.000 UTM ante incumplimientos.",
     palabrasClave: ["ciberseguridad", "seguridad informatica", "infraestructura critica", "anci"]
   },
   "21383": {
     numero: "21.383",
     nombreOficial: "Modifica la Carta Fundamental para consagrar la protección de los Neuroderechos y la Integridad Mental",
     nombrePopular: "Ley de Neuroderechos",
-    resumen: "🎯 Objeto & Ámbito: Pionera reforma constitucional a nivel mundial que protege los datos cerebrales y la privacidad mental frente al avance de la neurotecnología.\n⚙️ Mecanismos Clave: Eleva a rango constitucional el consentimiento informado para el uso de interfaces cerebro-computador.\n⚖️ Fiscalización & Sanciones: Tutelado mediante recurso de protección ante las Cortes de Apelaciones.",
+    resumen: "Pionera reforma constitucional a nivel mundial que protege los datos cerebrales y la privacidad mental frente al avance de la neurotecnología, elevando a rango constitucional el consentimiento informado para el uso de interfaces cerebro-computador. Su tutela se ejerce mediante recurso de protección ante las Cortes de Apelaciones.",
     palabrasClave: ["neuroderechos", "neurotecnologia", "privacidad mental", "cerebro", "datos neuronales"]
   },
   "21220": {
     numero: "21.220",
     nombreOficial: "Modifica el Código del Trabajo en materia de Trabajo a Distancia y Teletrabajo",
     nombrePopular: "Ley de Teletrabajo",
-    resumen: "🎯 Objeto & Ámbito: Regula el trabajo a distancia y consagra el derecho a la desconexión digital obligatoria de al menos 12 horas continuas.\n⚙️ Mecanismos Clave: Deber del empleador de proporcionar equipos, herramientas y costos de operación.\n⚖️ Fiscalización & Sanciones: Fiscalizado por la Dirección del Trabajo con multas por vulneración del descanso.",
+    resumen: "Regula el trabajo a distancia y consagra el derecho a la desconexión digital obligatoria de al menos 12 horas continuas, imponiendo al empleador el deber de proporcionar equipos, herramientas y costos de operación. Es fiscalizada por la Dirección del Trabajo, con multas por vulneración del descanso.",
     palabrasClave: ["teletrabajo", "trabajo a distancia", "desconexion digital", "remoto"]
   }
 };
