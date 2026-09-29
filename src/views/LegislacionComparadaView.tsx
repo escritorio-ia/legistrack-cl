@@ -1864,7 +1864,22 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
         </div>
       </div>
 
-      {/* Navigation Sub-tabs structured like BCN report sections */}
+      {/* Navigation Sub-tabs structured like BCN report sections -- antes de
+          la primera búsqueda no tiene sentido mostrar pestañas ni paneles
+          vacíos ("0 resultados", filtros sin nada que filtrar, etc.). Solo se
+          deja siempre accesible "Informes Guardados", que no depende de que
+          haya una consulta activa. */}
+      {!liveQuery && activeTab !== "guardados" ? (
+        <div className="flex items-center justify-end border-b border-slate-200 pb-3">
+          <button
+            onClick={() => setActiveTab("guardados")}
+            className="text-xs font-bold px-4 py-2.5 rounded-xl transition-all flex items-center gap-2 cursor-pointer shrink-0 bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+          >
+            <Bookmark className="w-4 h-4" />
+            <span>Informes Guardados ({savedReports.length})</span>
+          </button>
+        </div>
+      ) : (
       <div className="flex items-center gap-2 border-b border-slate-200 pb-3 overflow-x-auto" id="comparative-tabs">
         <button
           onClick={() => setActiveTab("live")}
@@ -1928,9 +1943,10 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
           <span>Informes Guardados ({savedReports.length})</span>
         </button>
       </div>
+      )}
 
       {/* TAB 1: BÚSQUEDA EN VIVO INTERNACIONAL (19 FUENTES) */}
-      {activeTab === "live" && (
+      {liveQuery && activeTab === "live" && (
         <div className="flex flex-col gap-6 animate-fade-in">
 
           {/* Aviso honesto: cuando el motor de IA no pudo responder (saturado,
