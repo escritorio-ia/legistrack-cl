@@ -38,6 +38,7 @@ import {
   ResultadoComparado, 
   extraerPuntosHeuristicos, 
   fetchTextoFuente,
+  fetchTextoNormaLeyChileCompleto,
   buscarChile,
   buscarLeyChilePorNumero,
   LEYCHILE_API_KEY
@@ -1232,22 +1233,31 @@ apiRouter.post("/derecho-comparado/analizar", async (req: Request, res: Response
     return res.status(400).json({ error: "Se requiere 'query' y 'resultado'." });
   }
 
-  const textoFuente = resultado.url ? await fetchTextoFuente(resultado.url) : null;
+  // Para normas chilenas de LeyChile, el texto articulado completo (vía la
+  // API oficial opt=7) da mucho más de donde citar textualmente que el HTML
+  // genérico de la página de navegación -- se prefiere ese cuando aplica.
+  const textoNormaCompleto = resultado.pais === "Chile" && resultado.url
+    ? await fetchTextoNormaLeyChileCompleto(resultado.url)
+    : null;
+  const textoFuente = textoNormaCompleto || (resultado.url ? await fetchTextoFuente(resultado.url) : null);
 
   if (textoFuente) {
-    const prompt = `Eres un asesor técnico de la Biblioteca del Congreso Nacional de Chile. A continuación se entrega el TEXTO REAL extraído de la fuente oficial "${resultado.titulo}" (${resultado.pais}), en relación a la materia "${query}". Identifica entre 3 y 6 puntos principales de esta norma/iniciativa EN RELACIÓN A LA MATERIA CONSULTADA, basándote EXCLUSIVAMENTE en el texto entregado.
+    const prompt = `Eres un asesor técnico de la Biblioteca del Congreso Nacional de Chile. A continuación se entrega el TEXTO REAL extraído de la fuente oficial "${resultado.titulo}" (${resultado.pais}), en relación a la materia "${query}". Identifica entre 4 y 8 puntos sustantivos de esta norma/iniciativa EN RELACIÓN A LA MATERIA CONSULTADA, basándote EXCLUSIVAMENTE en el texto entregado.
 
 Texto de la fuente:
 """
 ${textoFuente}
 """
 
+Para al menos 2 de esos puntos, incluye una cita textual breve (máx. 30 palabras) entre comillas del artículo o pasaje exacto del texto entregado que lo respalda -- no la parafrasees, cópiala literal. Si el texto entregado no permite citar literalmente algún punto, redáctalo igual pero sin inventar una cita que no esté ahí.
+
 Responde en formato de lista, un punto por línea, cada uno iniciando con "- ".`;
 
-    // 600 tokens se quedaban cortos para un modelo de razonamiento (Groq gpt-oss-*),
-    // que gasta parte del presupuesto "pensando" antes de responder -- el resultado
-    // llegaba truncado a mitad de oración (ver nota en generarConGroq/aiService.ts).
-    const textoIA = await generarContenidoUniversalIA(prompt, 1200);
+    // 1200 se quedaba corto para el análisis más profundo con citas literales
+    // que ahora se pide (antes 600, ya se había subido una vez por el mismo
+    // problema con modelos de razonamiento que gastan presupuesto "pensando"
+    // antes de responder -- ver nota en generarConGroq/aiService.ts).
+    const textoIA = await generarContenidoUniversalIA(prompt, 2000);
     if (textoIA) {
       const puntos = textoIA
         .split("\n")
@@ -1292,11 +1302,13 @@ apiRouter.post("/derecho-comparado/sintetizar-comparacion", async (req: Request,
 
 ${bloque}
 
-Redacta un análisis comparativo en prosa formal (máx. 280 palabras), en tercera persona, sin emojis ni viñetas, que efectivamente COMPARE el contenido entre estas jurisdicciones: qué enfoques comparten, en qué difieren sustantivamente (alcance, mecanismos, órgano fiscalizador, sanciones, etc. según lo que digan los puntos entregados), y qué podría ser relevante considerar para Chile a partir de ese contraste. USA EXCLUSIVAMENTE los puntos entregados arriba; no inventes disposiciones, cifras ni mecanismos que no estén respaldados por ellos. Si los puntos no permiten comparar algún aspecto, omítelo en vez de inventarlo.
+Redacta un análisis comparativo en prosa formal (entre 500 y 700 palabras -- desarróllalo con el mismo nivel de profundidad que un informe de Asesoría Técnica Parlamentaria de la BCN, no un resumen breve), en tercera persona, sin emojis ni viñetas, organizado en dos o tres párrafos, que efectivamente COMPARE el contenido entre estas jurisdicciones: qué enfoques comparten, en qué difieren sustantivamente (alcance, mecanismos, órgano fiscalizador, sanciones, plazos, etc. según lo que digan los puntos entregados), y qué podría ser relevante considerar para Chile a partir de ese contraste. Cuando alguno de los puntos entregados incluya una cita textual entre comillas, incorpórala literalmente en tu análisis (sin alterarla) para respaldar la comparación, en vez de solo parafrasearla.
+
+USA EXCLUSIVAMENTE los puntos entregados arriba; no inventes disposiciones, cifras, citas ni mecanismos que no estén respaldados por ellos. No menciones sentencias, fallos judiciales ni jurisprudencia de ningún tribunal salvo que aparezcan explícitamente citados en los puntos entregados -- no tienes acceso a bases de jurisprudencia y no debes inventar casos ni referencias judiciales. Si los puntos no permiten comparar algún aspecto, omítelo en vez de inventarlo.
 
 Responde solo con el análisis, sin encabezados ni markdown.`;
 
-  const texto = await generarContenidoUniversalIA(prompt, 700);
+  const texto = await generarContenidoUniversalIA(prompt, 1400);
   if (texto) {
     return res.json({ analisis: texto });
   }

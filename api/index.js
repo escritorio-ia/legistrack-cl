@@ -189912,6 +189912,22 @@ async function fetchTextoFuente(url) {
     return null;
   }
 }
+async function fetchTextoNormaLeyChileCompleto(url) {
+  const match = url.match(/leychile\.cl\/Navegar\?idNorma=(\d+)/i);
+  if (!match) return null;
+  const idNorma = match[1];
+  try {
+    const keyParam = LEYCHILE_API_KEY ? `&key=${encodeURIComponent(LEYCHILE_API_KEY)}` : "";
+    const apiUrl = `https://www.leychile.cl/Consulta/obtxml?opt=7&idNorma=${idNorma}${keyParam}`;
+    const res = await fetchConTimeout(apiUrl, 1e4);
+    if (!res.ok) return null;
+    const xml = await res.text();
+    const texto = xml.replace(/<[^>]*>/g, " ").replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code))).replace(/&amp;/g, "&").replace(/&nbsp;/gi, " ").replace(/\s+/g, " ").trim();
+    return texto.length > 200 ? texto.slice(0, 2e4) : null;
+  } catch {
+    return null;
+  }
+}
 
 // server/services/publicDataService.ts
 var OWID_TOPICS = {
@@ -192962,17 +192978,20 @@ apiRouter.post("/derecho-comparado/analizar", async (req, res) => {
   if (!query || !resultado || !resultado.titulo) {
     return res.status(400).json({ error: "Se requiere 'query' y 'resultado'." });
   }
-  const textoFuente = resultado.url ? await fetchTextoFuente(resultado.url) : null;
+  const textoNormaCompleto = resultado.pais === "Chile" && resultado.url ? await fetchTextoNormaLeyChileCompleto(resultado.url) : null;
+  const textoFuente = textoNormaCompleto || (resultado.url ? await fetchTextoFuente(resultado.url) : null);
   if (textoFuente) {
-    const prompt = `Eres un asesor t\xE9cnico de la Biblioteca del Congreso Nacional de Chile. A continuaci\xF3n se entrega el TEXTO REAL extra\xEDdo de la fuente oficial "${resultado.titulo}" (${resultado.pais}), en relaci\xF3n a la materia "${query}". Identifica entre 3 y 6 puntos principales de esta norma/iniciativa EN RELACI\xD3N A LA MATERIA CONSULTADA, bas\xE1ndote EXCLUSIVAMENTE en el texto entregado.
+    const prompt = `Eres un asesor t\xE9cnico de la Biblioteca del Congreso Nacional de Chile. A continuaci\xF3n se entrega el TEXTO REAL extra\xEDdo de la fuente oficial "${resultado.titulo}" (${resultado.pais}), en relaci\xF3n a la materia "${query}". Identifica entre 4 y 8 puntos sustantivos de esta norma/iniciativa EN RELACI\xD3N A LA MATERIA CONSULTADA, bas\xE1ndote EXCLUSIVAMENTE en el texto entregado.
 
 Texto de la fuente:
 """
 ${textoFuente}
 """
 
+Para al menos 2 de esos puntos, incluye una cita textual breve (m\xE1x. 30 palabras) entre comillas del art\xEDculo o pasaje exacto del texto entregado que lo respalda -- no la parafrasees, c\xF3piala literal. Si el texto entregado no permite citar literalmente alg\xFAn punto, red\xE1ctalo igual pero sin inventar una cita que no est\xE9 ah\xED.
+
 Responde en formato de lista, un punto por l\xEDnea, cada uno iniciando con "- ".`;
-    const textoIA = await generarContenidoUniversalIA(prompt, 1200);
+    const textoIA = await generarContenidoUniversalIA(prompt, 2e3);
     if (textoIA) {
       const puntos = textoIA.split("\n").map((l) => l.replace(/^[-•]\s*/, "").trim()).filter((l) => l.length > 0);
       const pareceTruncado = puntos.length === 1 && /^[a-záéíóúñ]/.test(puntos[0]);
@@ -192995,10 +193014,12 @@ ${(it.puntos || []).map((p) => `   - ${p}`).join("\n")}`).join("\n\n");
 
 ${bloque}
 
-Redacta un an\xE1lisis comparativo en prosa formal (m\xE1x. 280 palabras), en tercera persona, sin emojis ni vi\xF1etas, que efectivamente COMPARE el contenido entre estas jurisdicciones: qu\xE9 enfoques comparten, en qu\xE9 difieren sustantivamente (alcance, mecanismos, \xF3rgano fiscalizador, sanciones, etc. seg\xFAn lo que digan los puntos entregados), y qu\xE9 podr\xEDa ser relevante considerar para Chile a partir de ese contraste. USA EXCLUSIVAMENTE los puntos entregados arriba; no inventes disposiciones, cifras ni mecanismos que no est\xE9n respaldados por ellos. Si los puntos no permiten comparar alg\xFAn aspecto, om\xEDtelo en vez de inventarlo.
+Redacta un an\xE1lisis comparativo en prosa formal (entre 500 y 700 palabras -- desarr\xF3llalo con el mismo nivel de profundidad que un informe de Asesor\xEDa T\xE9cnica Parlamentaria de la BCN, no un resumen breve), en tercera persona, sin emojis ni vi\xF1etas, organizado en dos o tres p\xE1rrafos, que efectivamente COMPARE el contenido entre estas jurisdicciones: qu\xE9 enfoques comparten, en qu\xE9 difieren sustantivamente (alcance, mecanismos, \xF3rgano fiscalizador, sanciones, plazos, etc. seg\xFAn lo que digan los puntos entregados), y qu\xE9 podr\xEDa ser relevante considerar para Chile a partir de ese contraste. Cuando alguno de los puntos entregados incluya una cita textual entre comillas, incorp\xF3rala literalmente en tu an\xE1lisis (sin alterarla) para respaldar la comparaci\xF3n, en vez de solo parafrasearla.
+
+USA EXCLUSIVAMENTE los puntos entregados arriba; no inventes disposiciones, cifras, citas ni mecanismos que no est\xE9n respaldados por ellos. No menciones sentencias, fallos judiciales ni jurisprudencia de ning\xFAn tribunal salvo que aparezcan expl\xEDcitamente citados en los puntos entregados -- no tienes acceso a bases de jurisprudencia y no debes inventar casos ni referencias judiciales. Si los puntos no permiten comparar alg\xFAn aspecto, om\xEDtelo en vez de inventarlo.
 
 Responde solo con el an\xE1lisis, sin encabezados ni markdown.`;
-  const texto = await generarContenidoUniversalIA(prompt, 700);
+  const texto = await generarContenidoUniversalIA(prompt, 1400);
   if (texto) {
     return res.json({ analisis: texto });
   }

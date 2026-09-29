@@ -740,3 +740,35 @@ export async function fetchTextoFuente(url: string): Promise<string | null> {
     return null;
   }
 }
+
+/**
+ * Texto REAL y completo (articulado, no resumen) de una norma chilena, vía la
+ * API oficial de LeyChile (obtxml?opt=7&idNorma=X), que devuelve la norma
+ * consolidada estructurada por artículos en vez del HTML de la página de
+ * navegación (que fetchTextoFuente scrapea genérico y suele traer menos
+ * contenido útil). Permite que el análisis cite artículos textualmente en
+ * vez de solo parafrasear el título, como pedía el usuario. Devuelve null si
+ * la URL no es de LeyChile o no se pudo obtener el texto.
+ */
+export async function fetchTextoNormaLeyChileCompleto(url: string): Promise<string | null> {
+  const match = url.match(/leychile\.cl\/Navegar\?idNorma=(\d+)/i);
+  if (!match) return null;
+  const idNorma = match[1];
+  try {
+    const keyParam = LEYCHILE_API_KEY ? `&key=${encodeURIComponent(LEYCHILE_API_KEY)}` : "";
+    const apiUrl = `https://www.leychile.cl/Consulta/obtxml?opt=7&idNorma=${idNorma}${keyParam}`;
+    const res = await fetchConTimeout(apiUrl, 10000);
+    if (!res.ok) return null;
+    const xml = await res.text();
+    const texto = xml
+      .replace(/<[^>]*>/g, " ")
+      .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+      .replace(/&amp;/g, "&")
+      .replace(/&nbsp;/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    return texto.length > 200 ? texto.slice(0, 20000) : null;
+  } catch {
+    return null;
+  }
+}
