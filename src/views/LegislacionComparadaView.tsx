@@ -1427,6 +1427,16 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialQuery]);
 
+  // Si el usuario deselecciona todas las normativas mientras está en "Informe
+  // Técnico BCN" o "Comparador Lado a Lado" (pestañas que solo existen con
+  // selección activa), lo devuelve a "Búsqueda en Vivo" en vez de dejarlo en
+  // una pestaña cuyo botón ya no está visible.
+  useEffect(() => {
+    if (seleccionComparar.length === 0 && (activeTab === "documento" || activeTab === "comparador")) {
+      setActiveTab("live");
+    }
+  }, [seleccionComparar, activeTab]);
+
   // Filter and sort live results
   const paisesDisponibles = useMemo(() => {
     return Array.from(new Set(liveResultados.map((r) => r.pais)));
@@ -1871,6 +1881,13 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
           <span>Búsqueda en Vivo Internacional ({liveResultados.length} Resultados)</span>
         </button>
 
+        {/* "Informe Técnico BCN" y "Comparador Lado a Lado" son el paso
+            siguiente a la búsqueda, no algo que tenga sentido abrir antes de
+            elegir qué países comparar -- por eso solo aparecen una vez que el
+            usuario marcó al menos una normativa con el checkbox "Comparar" en
+            los resultados de "Búsqueda en Vivo". */}
+        {seleccionComparar.length > 0 && (
+        <>
         <button
           onClick={() => setActiveTab("documento")}
           className={`text-xs font-bold px-4 py-2.5 rounded-xl transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
@@ -1896,6 +1913,8 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
           <SlidersHorizontal className="w-4 h-4" />
           <span>Comparador Lado a Lado ({seleccionComparar.length})</span>
         </button>
+        </>
+        )}
 
         <button
           onClick={() => setActiveTab("guardados")}
