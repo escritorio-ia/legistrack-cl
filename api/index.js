@@ -187978,6 +187978,356 @@ var CacheService = class {
 };
 var cache = new CacheService();
 
+// server/services/aiService.ts
+import Anthropic from "@anthropic-ai/sdk";
+var aiClient = null;
+var isClaudeQuotaExceeded = false;
+function handleClaudeError(context, err) {
+  const errStr = (String(err?.message || "") + " " + String(err?.status || "") + " " + String(err?.statusCode || "") + " " + String(err?.code || "")).toLowerCase();
+  const isQuotaOrAuth = errStr.includes("quota") || errStr.includes("exhausted") || errStr.includes("billing") || errStr.includes("plan") || errStr.includes("exceeded") || errStr.includes("rate limit") || errStr.includes("429") || errStr.includes("limit") || errStr.includes("key") || errStr.includes("api_key") || errStr.includes("unauthorized") || errStr.includes("invalid") || err?.status === 429 || err?.status === 401;
+  if (isQuotaOrAuth) {
+    isClaudeQuotaExceeded = true;
+    console.log(`[Claude Info] ${context}: Quota/key limit active. Switched to alternative AI provider or high-fidelity offline mode.`);
+  } else {
+    console.log(`[Claude Info] ${context}: ${err?.message || err}`);
+  }
+}
+function getClaudeClient() {
+  if (isClaudeQuotaExceeded) {
+    return null;
+  }
+  if (!aiClient) {
+    const key = process.env.ANTHROPIC_API_KEY;
+    if (key && key !== "MY_ANTHROPIC_API_KEY") {
+      aiClient = new Anthropic({
+        apiKey: key,
+        defaultHeaders: {
+          "User-Agent": "aistudio-build"
+        }
+      });
+    }
+  }
+  return aiClient;
+}
+function safeJsonParse(text) {
+  let cleaned = text.trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch (ignore) {
+  }
+  if (cleaned.startsWith("```")) {
+    cleaned = cleaned.replace(/^```[a-zA-Z]*\s*/, "");
+    cleaned = cleaned.replace(/\s*```$/, "");
+  }
+  cleaned = cleaned.trim();
+  cleaned = cleaned.replace(/^```json\s*/i, "").replace(/\s*```$/, "").trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch (ignore) {
+  }
+  const firstBrace = cleaned.indexOf("{");
+  const firstBracket = cleaned.indexOf("[");
+  let startIdx = -1;
+  let endIdx = -1;
+  if (firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) {
+    startIdx = firstBrace;
+    endIdx = cleaned.lastIndexOf("}");
+  } else if (firstBracket !== -1) {
+    startIdx = firstBracket;
+    endIdx = cleaned.lastIndexOf("]");
+  }
+  if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+    const candidate = cleaned.substring(startIdx, endIdx + 1);
+    try {
+      return JSON.parse(candidate);
+    } catch (e) {
+      throw new Error(`JSON parsing failed: ${e.message}`);
+    }
+  }
+  throw new Error(`Could not find valid JSON boundaries in response text.`);
+}
+async function generarConGeminiUnaVez(prompt, maxTokens, apiKey, model, timeoutMs) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { maxOutputTokens: maxTokens }
+    }),
+    signal: AbortSignal.timeout(timeoutMs)
+  });
+  if (!res.ok) {
+    const err = await res.text().catch(() => "");
+    throw new Error(`Gemini HTTP ${res.status}: ${err.slice(0, 150)}`);
+  }
+  const data = await res.json();
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) throw new Error("Gemini no devolvi\xF3 texto");
+  return String(text).trim();
+}
+async function generarConGemini(prompt, maxTokens = 2e3) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || apiKey === "MY_GEMINI_API_KEY") throw new Error("GEMINI_API_KEY no configurada");
+  const model = process.env.GEMINI_MODEL || "gemini-3.6-flash";
+  let lastErr;
+  for (let intento = 1; intento <= 2; intento++) {
+    try {
+      return await generarConGeminiUnaVez(prompt, maxTokens, apiKey, model, 25e3);
+    } catch (err) {
+      lastErr = err;
+      const esSaturacion = /HTTP 503|HTTP 429/.test(err?.message || "");
+      if (intento < 2 && esSaturacion) {
+        await new Promise((r) => setTimeout(r, 1200));
+        continue;
+      }
+      break;
+    }
+  }
+  throw lastErr;
+}
+var GROQ_MODELOS_CANDIDATOS = [
+  "openai/gpt-oss-120b",
+  "llama-3.3-70b-versatile",
+  "llama-3.1-8b-instant",
+  "llama3-70b-8192",
+  "llama3-8b-8192",
+  "gemma2-9b-it"
+];
+async function llamarGroqConModelo(prompt, maxTokens, apiKey, model) {
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: "user", content: prompt }],
+      // Los modelos "openai/gpt-oss-*" servidos por Groq exigen max_completion_tokens
+      // en vez de (o además de) max_tokens; se envían ambos por compatibilidad.
+      max_tokens: maxTokens,
+      max_completion_tokens: maxTokens,
+      // gpt-oss-* son modelos de razonamiento: sin esto gastan el presupuesto de
+      // tokens en su "pensamiento" interno y devuelven contenido final vacío,
+      // sobre todo con maxTokens bajos (health checks, prompts cortos).
+      ...model.startsWith("openai/gpt-oss") ? { reasoning_effort: "low" } : {}
+    }),
+    signal: AbortSignal.timeout(2e4)
+  });
+  if (!res.ok) {
+    const err = await res.text().catch(() => "");
+    throw new Error(`Groq HTTP ${res.status}: ${err.slice(0, 150)}`);
+  }
+  const data = await res.json();
+  const text = data?.choices?.[0]?.message?.content;
+  if (!text) throw new Error("Groq no devolvi\xF3 texto");
+  return String(text).trim();
+}
+async function generarConGroq(prompt, maxTokens = 2e3) {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey || apiKey === "MY_GROQ_API_KEY") throw new Error("GROQ_API_KEY no configurada");
+  const modeloFijado = process.env.GROQ_MODEL;
+  if (modeloFijado) return llamarGroqConModelo(prompt, maxTokens, apiKey, modeloFijado);
+  let lastErr;
+  for (const model of GROQ_MODELOS_CANDIDATOS) {
+    try {
+      return await llamarGroqConModelo(prompt, maxTokens, apiKey, model);
+    } catch (e) {
+      lastErr = e;
+      if (!/model.*(not exist|does not exist|no access|invalid_request_error|decommissioned)/i.test(e.message)) {
+        throw e;
+      }
+    }
+  }
+  throw lastErr;
+}
+async function generarConOpenRouter(prompt, maxTokens = 1500) {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey || apiKey === "MY_OPENROUTER_API_KEY") throw new Error("OPENROUTER_API_KEY no configurada");
+  const configuredModel = process.env.OPENROUTER_MODEL;
+  const models = [
+    configuredModel && !configuredModel.includes("claude-3.5-haiku") ? configuredModel : void 0,
+    "liquid/lfm-2.5-2.6b:free",
+    "nvidia/nemotron-3-ultra-550b-a55b:free",
+    "google/gemma-4-31b-it:free",
+    "google/gemma-4-26b-a4b-it:free"
+  ].filter((m) => Boolean(m));
+  let lastError = "";
+  for (const model of models) {
+    try {
+      const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": process.env.APP_URL || "http://localhost:3000",
+          "X-Title": "LegisTrack-CL"
+        },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: "user", content: prompt }],
+          max_tokens: maxTokens
+        }),
+        signal: AbortSignal.timeout(15e3)
+      });
+      if (!resp.ok) {
+        const errText = await resp.text().catch(() => "");
+        lastError = `OpenRouter (${model}) HTTP ${resp.status}: ${errText.slice(0, 200)}`;
+        continue;
+      }
+      const data = await resp.json();
+      const text = data?.choices?.[0]?.message?.content;
+      if (text) return String(text).trim();
+    } catch (e) {
+      lastError = e?.message || String(e);
+    }
+  }
+  throw new Error(lastError || "OpenRouter no devolvi\xF3 contenido");
+}
+async function intentarGemini(prompt, maxTokens) {
+  const configured = !!(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY");
+  if (!configured) return { provider: "gemini", configured };
+  try {
+    const text = await generarConGemini(prompt, maxTokens);
+    return text ? { provider: "gemini", configured, text } : { provider: "gemini", configured, error: "respuesta vac\xEDa" };
+  } catch (e) {
+    console.log(`[Gemini Free Info]: ${e?.message || e}`);
+    return { provider: "gemini", configured, error: e?.message || String(e) };
+  }
+}
+async function intentarOpenRouter(prompt, maxTokens) {
+  const configured = !!(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY !== "MY_OPENROUTER_API_KEY");
+  if (!configured) return { provider: "openrouter", configured };
+  try {
+    const text = await generarConOpenRouter(prompt, maxTokens);
+    return text ? { provider: "openrouter", configured, text } : { provider: "openrouter", configured, error: "respuesta vac\xEDa" };
+  } catch (e) {
+    console.log(`[OpenRouter Info]: ${e?.message || e}`);
+    return { provider: "openrouter", configured, error: e?.message || String(e) };
+  }
+}
+async function intentarGroq(prompt, maxTokens) {
+  const configured = !!(process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== "MY_GROQ_API_KEY");
+  if (!configured) return { provider: "groq", configured };
+  try {
+    const text = await generarConGroq(prompt, maxTokens);
+    return text ? { provider: "groq", configured, text } : { provider: "groq", configured, error: "respuesta vac\xEDa" };
+  } catch (e) {
+    console.log(`[Groq Free Info]: ${e?.message || e}`);
+    return { provider: "groq", configured, error: e?.message || String(e) };
+  }
+}
+async function intentarClaude(prompt, maxTokens) {
+  const claude = getClaudeClient();
+  if (!claude) return { provider: "claude", configured: !!process.env.ANTHROPIC_API_KEY };
+  try {
+    const resp = await claude.messages.create({
+      model: "claude-3-5-haiku-20241022",
+      max_tokens: maxTokens,
+      messages: [{ role: "user", content: prompt }]
+    });
+    const text = resp.content[0].type === "text" ? resp.content[0].text : "";
+    return text ? { provider: "claude", configured: true, text } : { provider: "claude", configured: true, error: "respuesta vac\xEDa" };
+  } catch (err) {
+    handleClaudeError("Claude Universal", err);
+    return { provider: "claude", configured: true, error: err?.message || String(err) };
+  }
+}
+async function generarContenidoUniversalIA(prompt, maxTokens = 2e3, attempts) {
+  const [geminiRes, openrouterRes] = await Promise.all([
+    intentarGemini(prompt, maxTokens),
+    intentarOpenRouter(prompt, maxTokens)
+  ]);
+  const primeraRonda = [geminiRes, openrouterRes];
+  for (const r of primeraRonda) {
+    attempts?.push({ provider: r.provider, configured: r.configured, error: r.error });
+  }
+  const exitoPrimeraRonda = primeraRonda.find((r) => r.text);
+  if (exitoPrimeraRonda) return exitoPrimeraRonda.text;
+  const groqRes = await intentarGroq(prompt, maxTokens);
+  attempts?.push({ provider: groqRes.provider, configured: groqRes.configured, error: groqRes.error });
+  if (groqRes.text) return groqRes.text;
+  const claudeRes = await intentarClaude(prompt, maxTokens);
+  attempts?.push({ provider: claudeRes.provider, configured: claudeRes.configured, error: claudeRes.error });
+  if (claudeRes.text) return claudeRes.text;
+  return null;
+}
+async function responderCopilotoLegislativo(params) {
+  const { mensaje, contextoBoletin, contextoComision, historial = [] } = params;
+  const prompt = `Eres el "Copiloto Legislativo", un asistente experto en t\xE9cnica legislativa, derecho parlamentario y transparencia del Congreso Nacional de Chile.
+Tu misi\xF3n es explicar con claridad t\xE9cnica, objetiva y sobria el proceso legislativo, el estado de los proyectos de ley (boletines), el rol de las comisiones, qu\xF3rums requeridos y antecedentes comparados.
+
+Contexto actual del usuario:
+- Bolet\xEDn en pantalla: ${contextoBoletin || "No especificado"}
+- Comisi\xF3n en pantalla: ${contextoComision || "No especificado"}
+
+Pregunta del usuario:
+"${mensaje}"
+
+Instrucciones:
+1. Responde de forma directa, sobria y t\xE9cnicamente rigurosa (m\xE1ximo 160 palabras).
+2. Si el usuario pregunta por qu\xF3rums, cita el art\xEDculo correspondiente (ej. Art. 66 o Art. 127 de la CPR).
+3. Utiliza formato Markdown limpio (vi\xF1etas cortas y negritas en conceptos clave).
+4. No inventes art\xEDculos ni resultados de votaciones inexistentes.
+
+Responde \xFAnicamente con el texto de la respuesta.`;
+  const textoIA = await generarContenidoUniversalIA(prompt, 800);
+  if (textoIA) {
+    return {
+      respuesta: textoIA,
+      sugerencias: [
+        "\xBFCu\xE1les son los plazos seg\xFAn la urgencia vigente?",
+        "\xBFQu\xE9 qu\xF3rum se requiere para aprobar este proyecto?",
+        "\xBFQu\xE9 ministerios est\xE1n involucrados?"
+      ],
+      fuente: "ia"
+    };
+  }
+  let respuestaFallback = `El proceso legislativo chileno contempla distintas etapas constitucionales (Primer Tr\xE1mite, Segundo Tr\xE1mite, Comisi\xF3n Mixta y Promulgaci\xF3n). `;
+  if (contextoBoletin) {
+    respuestaFallback += `Para el **Bolet\xEDn ${contextoBoletin}**, puedes revisar el desglose del hemiciclo en la pesta\xF1a *Simulador de Qu\xF3rum*, las diferencias de redacci\xF3n en el *Comparador de Textos* o descargar la *Ficha Ejecutiva* formal con antecedentes oficiales.`;
+  } else {
+    respuestaFallback += `Puedes explorar el cat\xE1logo de proyectos vigentes, las citaciones en vivo de comisiones o buscar antecedentes en la secci\xF3n de *Legislaci\xF3n Comparada*.`;
+  }
+  return {
+    respuesta: respuestaFallback,
+    sugerencias: [
+      "\xBFC\xF3mo funciona una Comisi\xF3n Mixta?",
+      "\xBFQu\xE9 diferencia hay entre Moci\xF3n y Mensaje?",
+      "\xBFC\xF3mo se calculan las 4/7 partes?"
+    ],
+    fuente: "fallback"
+  };
+}
+function getAIProvidersStatus() {
+  return {
+    gemini: Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY"),
+    groq: Boolean(process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== "MY_GROQ_API_KEY"),
+    openrouter: Boolean(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY !== "MY_OPENROUTER_API_KEY"),
+    claude: Boolean(process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_API_KEY !== "MY_ANTHROPIC_API_KEY" && !isClaudeQuotaExceeded),
+    claudeQuotaExceeded: isClaudeQuotaExceeded
+  };
+}
+async function testearProveedoresIAReal() {
+  const promptTrivial = 'Responde solo con: {"ok":true}';
+  const [gemini, openrouter, groq, claude] = await Promise.all([
+    intentarGemini(promptTrivial, 30),
+    intentarOpenRouter(promptTrivial, 30),
+    // Groq: se le da más presupuesto porque el modelo por defecto (gpt-oss, de
+    // razonamiento) puede consumir tokens en pensar antes de responder.
+    intentarGroq(promptTrivial, 200),
+    intentarClaude(promptTrivial, 30)
+  ]);
+  const toResult = (r) => ({ configured: r.configured, ok: !!r.text, error: r.error });
+  return {
+    gemini: toResult(gemini),
+    openrouter: toResult(openrouter),
+    groq: toResult(groq),
+    claude: toResult(claude)
+  };
+}
+
 // server/services/senadoService.ts
 function parseFechaDDMMYYYY(fecha) {
   const m = fecha.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
@@ -188115,6 +188465,33 @@ function estimarFichaTecnica(titulo, materia) {
     fiscalizacion = "\u2696\uFE0F Fiscalizaci\xF3n & Sanciones: Fiscalizaci\xF3n por Municipalidades, Seremis de Salud y Carabineros, con penas de presidio menor y multas de hasta 30 UTM por maltrato.";
   }
   return { objeto, mecanismos, fiscalizacion };
+}
+async function generarFichaTecnicaIA(titulo, resumen) {
+  const prompt = `Act\xFAa como un analista de Asesor\xEDa T\xE9cnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile. A continuaci\xF3n se entrega el t\xEDtulo oficial y el resumen de tramitaci\xF3n REAL de un proyecto de ley chileno.
+
+T\xEDtulo: "${titulo}"
+Resumen de tramitaci\xF3n: "${resumen}"
+
+Responde \xDANICAMENTE con un objeto JSON v\xE1lido, compacto, sin texto adicional antes ni despu\xE9s, con este esquema exacto:
+{"objeto":"\u{1F3AF} Objeto & \xC1mbito: ...","mecanismos":"\u2699\uFE0F Mecanismos Clave: ...","fiscalizacion":"\u2696\uFE0F Fiscalizaci\xF3n & Sanciones: ..."}
+
+Cada campo debe ser una oraci\xF3n o dos, en prosa formal, espec\xEDficas a ESTE proyecto (no un p\xE1rrafo gen\xE9rico aplicable a cualquier ley):
+- "objeto": qu\xE9 cambia concretamente este proyecto y a qu\xE9 \xE1mbito o cuerpo legal afecta, seg\xFAn el t\xEDtulo y resumen entregados.
+- "mecanismos": qu\xE9 tipo de sujetos, obligaciones o instrumentos introduce (en t\xE9rminos generales y prudentes si el resumen no da el detalle exacto).
+- "fiscalizacion": qu\xE9 tipo de \xF3rgano previsiblemente fiscalizar\xEDa su cumplimiento dado el \xE1mbito de la materia (ministerio, superintendencia, direcci\xF3n u organismo sectorial competente en Chile), sin inventar cifras de multas ni nombres de instituciones si no hay base razonable para inferirlos.
+
+Usa EXCLUSIVAMENTE el t\xEDtulo y resumen entregados como base; si no hay informaci\xF3n suficiente para alguno de los tres campos, responde con una frase prudente y gen\xE9rica para ESE campo en particular en vez de inventar contenido espec\xEDfico no respaldado.`;
+  const respuesta = await generarContenidoUniversalIA(prompt, 500);
+  if (!respuesta) return null;
+  try {
+    const parsed = safeJsonParse(respuesta);
+    if (parsed && parsed.objeto && parsed.mecanismos && parsed.fiscalizacion) {
+      return { objeto: parsed.objeto, mecanismos: parsed.mecanismos, fiscalizacion: parsed.fiscalizacion };
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 function estimarOrigenDetalle(titulo, materia, iniciativa, autores) {
   const t = (titulo + " " + (autores || "")).toLowerCase();
@@ -188329,6 +188706,12 @@ async function fetchProyectoFromSenado(boletinId) {
         fichaTecnica: estimarFichaTecnica(titulo, materia),
         origenDetalle: estimarOrigenDetalle(titulo, materia, iniciativa, autores)
       };
+      try {
+        const fichaIA = await generarFichaTecnicaIA(p.titulo, p.resumen);
+        if (fichaIA) p.fichaTecnica = fichaIA;
+      } catch (err) {
+        console.warn(`Could not generate AI ficha tecnica for bolet\xEDn ${p.id}:`, err);
+      }
       return p;
     } catch (error) {
       console.error(`Error fetching/parsing project from Senate XML API:`, error);
@@ -188980,356 +189363,6 @@ async function getTodasComisiones() {
   for (const c of SENADO_COMISIONES_REALES) byId.set(c.id, c);
   for (const c of camaraLive) byId.set(c.id, c);
   return Array.from(byId.values());
-}
-
-// server/services/aiService.ts
-import Anthropic from "@anthropic-ai/sdk";
-var aiClient = null;
-var isClaudeQuotaExceeded = false;
-function handleClaudeError(context, err) {
-  const errStr = (String(err?.message || "") + " " + String(err?.status || "") + " " + String(err?.statusCode || "") + " " + String(err?.code || "")).toLowerCase();
-  const isQuotaOrAuth = errStr.includes("quota") || errStr.includes("exhausted") || errStr.includes("billing") || errStr.includes("plan") || errStr.includes("exceeded") || errStr.includes("rate limit") || errStr.includes("429") || errStr.includes("limit") || errStr.includes("key") || errStr.includes("api_key") || errStr.includes("unauthorized") || errStr.includes("invalid") || err?.status === 429 || err?.status === 401;
-  if (isQuotaOrAuth) {
-    isClaudeQuotaExceeded = true;
-    console.log(`[Claude Info] ${context}: Quota/key limit active. Switched to alternative AI provider or high-fidelity offline mode.`);
-  } else {
-    console.log(`[Claude Info] ${context}: ${err?.message || err}`);
-  }
-}
-function getClaudeClient() {
-  if (isClaudeQuotaExceeded) {
-    return null;
-  }
-  if (!aiClient) {
-    const key = process.env.ANTHROPIC_API_KEY;
-    if (key && key !== "MY_ANTHROPIC_API_KEY") {
-      aiClient = new Anthropic({
-        apiKey: key,
-        defaultHeaders: {
-          "User-Agent": "aistudio-build"
-        }
-      });
-    }
-  }
-  return aiClient;
-}
-function safeJsonParse(text) {
-  let cleaned = text.trim();
-  try {
-    return JSON.parse(cleaned);
-  } catch (ignore) {
-  }
-  if (cleaned.startsWith("```")) {
-    cleaned = cleaned.replace(/^```[a-zA-Z]*\s*/, "");
-    cleaned = cleaned.replace(/\s*```$/, "");
-  }
-  cleaned = cleaned.trim();
-  cleaned = cleaned.replace(/^```json\s*/i, "").replace(/\s*```$/, "").trim();
-  try {
-    return JSON.parse(cleaned);
-  } catch (ignore) {
-  }
-  const firstBrace = cleaned.indexOf("{");
-  const firstBracket = cleaned.indexOf("[");
-  let startIdx = -1;
-  let endIdx = -1;
-  if (firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) {
-    startIdx = firstBrace;
-    endIdx = cleaned.lastIndexOf("}");
-  } else if (firstBracket !== -1) {
-    startIdx = firstBracket;
-    endIdx = cleaned.lastIndexOf("]");
-  }
-  if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
-    const candidate = cleaned.substring(startIdx, endIdx + 1);
-    try {
-      return JSON.parse(candidate);
-    } catch (e) {
-      throw new Error(`JSON parsing failed: ${e.message}`);
-    }
-  }
-  throw new Error(`Could not find valid JSON boundaries in response text.`);
-}
-async function generarConGeminiUnaVez(prompt, maxTokens, apiKey, model, timeoutMs) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { maxOutputTokens: maxTokens }
-    }),
-    signal: AbortSignal.timeout(timeoutMs)
-  });
-  if (!res.ok) {
-    const err = await res.text().catch(() => "");
-    throw new Error(`Gemini HTTP ${res.status}: ${err.slice(0, 150)}`);
-  }
-  const data = await res.json();
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) throw new Error("Gemini no devolvi\xF3 texto");
-  return String(text).trim();
-}
-async function generarConGemini(prompt, maxTokens = 2e3) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey || apiKey === "MY_GEMINI_API_KEY") throw new Error("GEMINI_API_KEY no configurada");
-  const model = process.env.GEMINI_MODEL || "gemini-3.6-flash";
-  let lastErr;
-  for (let intento = 1; intento <= 2; intento++) {
-    try {
-      return await generarConGeminiUnaVez(prompt, maxTokens, apiKey, model, 25e3);
-    } catch (err) {
-      lastErr = err;
-      const esSaturacion = /HTTP 503|HTTP 429/.test(err?.message || "");
-      if (intento < 2 && esSaturacion) {
-        await new Promise((r) => setTimeout(r, 1200));
-        continue;
-      }
-      break;
-    }
-  }
-  throw lastErr;
-}
-var GROQ_MODELOS_CANDIDATOS = [
-  "openai/gpt-oss-120b",
-  "llama-3.3-70b-versatile",
-  "llama-3.1-8b-instant",
-  "llama3-70b-8192",
-  "llama3-8b-8192",
-  "gemma2-9b-it"
-];
-async function llamarGroqConModelo(prompt, maxTokens, apiKey, model) {
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model,
-      messages: [{ role: "user", content: prompt }],
-      // Los modelos "openai/gpt-oss-*" servidos por Groq exigen max_completion_tokens
-      // en vez de (o además de) max_tokens; se envían ambos por compatibilidad.
-      max_tokens: maxTokens,
-      max_completion_tokens: maxTokens,
-      // gpt-oss-* son modelos de razonamiento: sin esto gastan el presupuesto de
-      // tokens en su "pensamiento" interno y devuelven contenido final vacío,
-      // sobre todo con maxTokens bajos (health checks, prompts cortos).
-      ...model.startsWith("openai/gpt-oss") ? { reasoning_effort: "low" } : {}
-    }),
-    signal: AbortSignal.timeout(2e4)
-  });
-  if (!res.ok) {
-    const err = await res.text().catch(() => "");
-    throw new Error(`Groq HTTP ${res.status}: ${err.slice(0, 150)}`);
-  }
-  const data = await res.json();
-  const text = data?.choices?.[0]?.message?.content;
-  if (!text) throw new Error("Groq no devolvi\xF3 texto");
-  return String(text).trim();
-}
-async function generarConGroq(prompt, maxTokens = 2e3) {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey || apiKey === "MY_GROQ_API_KEY") throw new Error("GROQ_API_KEY no configurada");
-  const modeloFijado = process.env.GROQ_MODEL;
-  if (modeloFijado) return llamarGroqConModelo(prompt, maxTokens, apiKey, modeloFijado);
-  let lastErr;
-  for (const model of GROQ_MODELOS_CANDIDATOS) {
-    try {
-      return await llamarGroqConModelo(prompt, maxTokens, apiKey, model);
-    } catch (e) {
-      lastErr = e;
-      if (!/model.*(not exist|does not exist|no access|invalid_request_error|decommissioned)/i.test(e.message)) {
-        throw e;
-      }
-    }
-  }
-  throw lastErr;
-}
-async function generarConOpenRouter(prompt, maxTokens = 1500) {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey || apiKey === "MY_OPENROUTER_API_KEY") throw new Error("OPENROUTER_API_KEY no configurada");
-  const configuredModel = process.env.OPENROUTER_MODEL;
-  const models = [
-    configuredModel && !configuredModel.includes("claude-3.5-haiku") ? configuredModel : void 0,
-    "liquid/lfm-2.5-2.6b:free",
-    "nvidia/nemotron-3-ultra-550b-a55b:free",
-    "google/gemma-4-31b-it:free",
-    "google/gemma-4-26b-a4b-it:free"
-  ].filter((m) => Boolean(m));
-  let lastError = "";
-  for (const model of models) {
-    try {
-      const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": process.env.APP_URL || "http://localhost:3000",
-          "X-Title": "LegisTrack-CL"
-        },
-        body: JSON.stringify({
-          model,
-          messages: [{ role: "user", content: prompt }],
-          max_tokens: maxTokens
-        }),
-        signal: AbortSignal.timeout(15e3)
-      });
-      if (!resp.ok) {
-        const errText = await resp.text().catch(() => "");
-        lastError = `OpenRouter (${model}) HTTP ${resp.status}: ${errText.slice(0, 200)}`;
-        continue;
-      }
-      const data = await resp.json();
-      const text = data?.choices?.[0]?.message?.content;
-      if (text) return String(text).trim();
-    } catch (e) {
-      lastError = e?.message || String(e);
-    }
-  }
-  throw new Error(lastError || "OpenRouter no devolvi\xF3 contenido");
-}
-async function intentarGemini(prompt, maxTokens) {
-  const configured = !!(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY");
-  if (!configured) return { provider: "gemini", configured };
-  try {
-    const text = await generarConGemini(prompt, maxTokens);
-    return text ? { provider: "gemini", configured, text } : { provider: "gemini", configured, error: "respuesta vac\xEDa" };
-  } catch (e) {
-    console.log(`[Gemini Free Info]: ${e?.message || e}`);
-    return { provider: "gemini", configured, error: e?.message || String(e) };
-  }
-}
-async function intentarOpenRouter(prompt, maxTokens) {
-  const configured = !!(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY !== "MY_OPENROUTER_API_KEY");
-  if (!configured) return { provider: "openrouter", configured };
-  try {
-    const text = await generarConOpenRouter(prompt, maxTokens);
-    return text ? { provider: "openrouter", configured, text } : { provider: "openrouter", configured, error: "respuesta vac\xEDa" };
-  } catch (e) {
-    console.log(`[OpenRouter Info]: ${e?.message || e}`);
-    return { provider: "openrouter", configured, error: e?.message || String(e) };
-  }
-}
-async function intentarGroq(prompt, maxTokens) {
-  const configured = !!(process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== "MY_GROQ_API_KEY");
-  if (!configured) return { provider: "groq", configured };
-  try {
-    const text = await generarConGroq(prompt, maxTokens);
-    return text ? { provider: "groq", configured, text } : { provider: "groq", configured, error: "respuesta vac\xEDa" };
-  } catch (e) {
-    console.log(`[Groq Free Info]: ${e?.message || e}`);
-    return { provider: "groq", configured, error: e?.message || String(e) };
-  }
-}
-async function intentarClaude(prompt, maxTokens) {
-  const claude = getClaudeClient();
-  if (!claude) return { provider: "claude", configured: !!process.env.ANTHROPIC_API_KEY };
-  try {
-    const resp = await claude.messages.create({
-      model: "claude-3-5-haiku-20241022",
-      max_tokens: maxTokens,
-      messages: [{ role: "user", content: prompt }]
-    });
-    const text = resp.content[0].type === "text" ? resp.content[0].text : "";
-    return text ? { provider: "claude", configured: true, text } : { provider: "claude", configured: true, error: "respuesta vac\xEDa" };
-  } catch (err) {
-    handleClaudeError("Claude Universal", err);
-    return { provider: "claude", configured: true, error: err?.message || String(err) };
-  }
-}
-async function generarContenidoUniversalIA(prompt, maxTokens = 2e3, attempts) {
-  const [geminiRes, openrouterRes] = await Promise.all([
-    intentarGemini(prompt, maxTokens),
-    intentarOpenRouter(prompt, maxTokens)
-  ]);
-  const primeraRonda = [geminiRes, openrouterRes];
-  for (const r of primeraRonda) {
-    attempts?.push({ provider: r.provider, configured: r.configured, error: r.error });
-  }
-  const exitoPrimeraRonda = primeraRonda.find((r) => r.text);
-  if (exitoPrimeraRonda) return exitoPrimeraRonda.text;
-  const groqRes = await intentarGroq(prompt, maxTokens);
-  attempts?.push({ provider: groqRes.provider, configured: groqRes.configured, error: groqRes.error });
-  if (groqRes.text) return groqRes.text;
-  const claudeRes = await intentarClaude(prompt, maxTokens);
-  attempts?.push({ provider: claudeRes.provider, configured: claudeRes.configured, error: claudeRes.error });
-  if (claudeRes.text) return claudeRes.text;
-  return null;
-}
-async function responderCopilotoLegislativo(params) {
-  const { mensaje, contextoBoletin, contextoComision, historial = [] } = params;
-  const prompt = `Eres el "Copiloto Legislativo", un asistente experto en t\xE9cnica legislativa, derecho parlamentario y transparencia del Congreso Nacional de Chile.
-Tu misi\xF3n es explicar con claridad t\xE9cnica, objetiva y sobria el proceso legislativo, el estado de los proyectos de ley (boletines), el rol de las comisiones, qu\xF3rums requeridos y antecedentes comparados.
-
-Contexto actual del usuario:
-- Bolet\xEDn en pantalla: ${contextoBoletin || "No especificado"}
-- Comisi\xF3n en pantalla: ${contextoComision || "No especificado"}
-
-Pregunta del usuario:
-"${mensaje}"
-
-Instrucciones:
-1. Responde de forma directa, sobria y t\xE9cnicamente rigurosa (m\xE1ximo 160 palabras).
-2. Si el usuario pregunta por qu\xF3rums, cita el art\xEDculo correspondiente (ej. Art. 66 o Art. 127 de la CPR).
-3. Utiliza formato Markdown limpio (vi\xF1etas cortas y negritas en conceptos clave).
-4. No inventes art\xEDculos ni resultados de votaciones inexistentes.
-
-Responde \xFAnicamente con el texto de la respuesta.`;
-  const textoIA = await generarContenidoUniversalIA(prompt, 800);
-  if (textoIA) {
-    return {
-      respuesta: textoIA,
-      sugerencias: [
-        "\xBFCu\xE1les son los plazos seg\xFAn la urgencia vigente?",
-        "\xBFQu\xE9 qu\xF3rum se requiere para aprobar este proyecto?",
-        "\xBFQu\xE9 ministerios est\xE1n involucrados?"
-      ],
-      fuente: "ia"
-    };
-  }
-  let respuestaFallback = `El proceso legislativo chileno contempla distintas etapas constitucionales (Primer Tr\xE1mite, Segundo Tr\xE1mite, Comisi\xF3n Mixta y Promulgaci\xF3n). `;
-  if (contextoBoletin) {
-    respuestaFallback += `Para el **Bolet\xEDn ${contextoBoletin}**, puedes revisar el desglose del hemiciclo en la pesta\xF1a *Simulador de Qu\xF3rum*, las diferencias de redacci\xF3n en el *Comparador de Textos* o descargar la *Ficha Ejecutiva* formal con antecedentes oficiales.`;
-  } else {
-    respuestaFallback += `Puedes explorar el cat\xE1logo de proyectos vigentes, las citaciones en vivo de comisiones o buscar antecedentes en la secci\xF3n de *Legislaci\xF3n Comparada*.`;
-  }
-  return {
-    respuesta: respuestaFallback,
-    sugerencias: [
-      "\xBFC\xF3mo funciona una Comisi\xF3n Mixta?",
-      "\xBFQu\xE9 diferencia hay entre Moci\xF3n y Mensaje?",
-      "\xBFC\xF3mo se calculan las 4/7 partes?"
-    ],
-    fuente: "fallback"
-  };
-}
-function getAIProvidersStatus() {
-  return {
-    gemini: Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY"),
-    groq: Boolean(process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== "MY_GROQ_API_KEY"),
-    openrouter: Boolean(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY !== "MY_OPENROUTER_API_KEY"),
-    claude: Boolean(process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_API_KEY !== "MY_ANTHROPIC_API_KEY" && !isClaudeQuotaExceeded),
-    claudeQuotaExceeded: isClaudeQuotaExceeded
-  };
-}
-async function testearProveedoresIAReal() {
-  const promptTrivial = 'Responde solo con: {"ok":true}';
-  const [gemini, openrouter, groq, claude] = await Promise.all([
-    intentarGemini(promptTrivial, 30),
-    intentarOpenRouter(promptTrivial, 30),
-    // Groq: se le da más presupuesto porque el modelo por defecto (gpt-oss, de
-    // razonamiento) puede consumir tokens en pensar antes de responder.
-    intentarGroq(promptTrivial, 200),
-    intentarClaude(promptTrivial, 30)
-  ]);
-  const toResult = (r) => ({ configured: r.configured, ok: !!r.text, error: r.error });
-  return {
-    gemini: toResult(gemini),
-    openrouter: toResult(openrouter),
-    groq: toResult(groq),
-    claude: toResult(claude)
-  };
 }
 
 // server/services/comparadoService.ts

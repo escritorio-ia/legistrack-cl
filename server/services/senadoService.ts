@@ -1,5 +1,6 @@
 import { Proyecto, ActivityItem, VotacionItem, PasoComision } from "../../src/types";
 import { cache } from "./cacheService";
+import { generarContenidoUniversalIA, safeJsonParse } from "./aiService";
 
 export interface ProyectoListado {
   id: string;
@@ -203,6 +204,48 @@ export function estimarFichaTecnica(titulo: string, materia: string): { objeto: 
   }
 
   return { objeto, mecanismos, fiscalizacion };
+}
+
+/**
+ * Genera una Ficha Técnica real y específica del proyecto usando IA, en vez
+ * del texto genérico por palabra clave de estimarFichaTecnica (que solo
+ * reconoce 5 temas y usa el mismo párrafo de relleno para cualquier otro
+ * proyecto). Se usa solo al cargar el detalle de UN proyecto puntual -- no en
+ * listados, donde llamar a la IA por cada ítem sería demasiado costoso -- y
+ * su resultado queda cacheado junto al resto de la ficha del proyecto.
+ * Devuelve null si la IA no está disponible o falla, para que el llamador
+ * pueda caer de vuelta al estimador heurístico en vez de dejar la ficha vacía.
+ */
+export async function generarFichaTecnicaIA(
+  titulo: string,
+  resumen: string
+): Promise<{ objeto: string; mecanismos: string; fiscalizacion: string } | null> {
+  const prompt = `Actúa como un analista de Asesoría Técnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile. A continuación se entrega el título oficial y el resumen de tramitación REAL de un proyecto de ley chileno.
+
+Título: "${titulo}"
+Resumen de tramitación: "${resumen}"
+
+Responde ÚNICAMENTE con un objeto JSON válido, compacto, sin texto adicional antes ni después, con este esquema exacto:
+{"objeto":"🎯 Objeto & Ámbito: ...","mecanismos":"⚙️ Mecanismos Clave: ...","fiscalizacion":"⚖️ Fiscalización & Sanciones: ..."}
+
+Cada campo debe ser una oración o dos, en prosa formal, específicas a ESTE proyecto (no un párrafo genérico aplicable a cualquier ley):
+- "objeto": qué cambia concretamente este proyecto y a qué ámbito o cuerpo legal afecta, según el título y resumen entregados.
+- "mecanismos": qué tipo de sujetos, obligaciones o instrumentos introduce (en términos generales y prudentes si el resumen no da el detalle exacto).
+- "fiscalizacion": qué tipo de órgano previsiblemente fiscalizaría su cumplimiento dado el ámbito de la materia (ministerio, superintendencia, dirección u organismo sectorial competente en Chile), sin inventar cifras de multas ni nombres de instituciones si no hay base razonable para inferirlos.
+
+Usa EXCLUSIVAMENTE el título y resumen entregados como base; si no hay información suficiente para alguno de los tres campos, responde con una frase prudente y genérica para ESE campo en particular en vez de inventar contenido específico no respaldado.`;
+
+  const respuesta = await generarContenidoUniversalIA(prompt, 500);
+  if (!respuesta) return null;
+  try {
+    const parsed = safeJsonParse<{ objeto?: string; mecanismos?: string; fiscalizacion?: string }>(respuesta);
+    if (parsed && parsed.objeto && parsed.mecanismos && parsed.fiscalizacion) {
+      return { objeto: parsed.objeto, mecanismos: parsed.mecanismos, fiscalizacion: parsed.fiscalizacion };
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 export function estimarOrigenDetalle(
@@ -462,6 +505,19 @@ export async function fetchProyectoFromSenado(boletinId: string): Promise<Proyec
         fichaTecnica: estimarFichaTecnica(titulo, materia),
         origenDetalle: estimarOrigenDetalle(titulo, materia, iniciativa, autores)
       };
+
+      // Se intenta reemplazar la ficha técnica heurística (por palabra clave,
+      // genérica para cualquier proyecto que no calce con los 5 temas
+      // reconocidos) por una generada con IA específica para ESTE proyecto,
+      // a partir de su título y resumen reales. Si la IA no está disponible o
+      // falla, se conserva el estimador heurístico ya calculado arriba en vez
+      // de dejar la ficha vacía.
+      try {
+        const fichaIA = await generarFichaTecnicaIA(p.titulo, p.resumen);
+        if (fichaIA) p.fichaTecnica = fichaIA;
+      } catch (err) {
+        console.warn(`Could not generate AI ficha tecnica for boletín ${p.id}:`, err);
+      }
 
       return p;
     } catch (error) {
