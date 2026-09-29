@@ -1097,6 +1097,16 @@ function ordenarChilePrimero<T extends { pais: string }>(items: T[]): T[] {
   });
 }
 
+// Antes esta función rellenaba "Mecanismos clave", "Fiscalización" y
+// "Lecciones para Chile" con frases genéricas fijas (idénticas sin importar
+// el país o la materia buscada) cuando no encontraba esas 3 dimensiones
+// dentro de la descripción -- y como el formato de "descripcion" ya no trae
+// esas 3 etiquetas (se cambió a prosa continua), esas 3 filas SIEMPRE caían
+// al texto genérico fabricado, para cualquier búsqueda. Ahora la matriz solo
+// muestra dimensiones respaldadas por datos reales: el objeto/ámbito (de la
+// descripción real obtenida) y los puntos sustantivos reales extraídos del
+// texto de la norma (mismos que "Ver puntos clave"/Análisis Comparado) --
+// sin filas rellenas con contenido inventado cuando no hay esa información.
 function generarMatrizDinamica(
   query: string,
   seleccionSinOrdenar: ResultadoComparado[],
@@ -1111,89 +1121,37 @@ function generarMatrizDinamica(
     isChile: r.pais === "Chile"
   }));
 
-  const parse3Ejes = (r: ResultadoComparado) => {
-    const desc = r.descripcion || "";
-    const lines = desc.split("\n").map(l => l.trim()).filter(Boolean);
-    let obj = "";
-    let mec = "";
-    let fisc = "";
-
-    for (const l of lines) {
-      if (l.includes("Objeto") || l.startsWith("🎯")) {
-        obj = l.replace(/^[🎯\s]*Objeto\s*&\s*Ámbito:\s*/i, "");
-      } else if (l.includes("Mecanismos") || l.startsWith("⚙️")) {
-        mec = l.replace(/^[⚙️\s]*Mecanismos\s*Clave:\s*/i, "");
-      } else if (l.includes("Fiscalización") || l.includes("Sanciones") || l.startsWith("⚖️")) {
-        fisc = l.replace(/^[⚖️\s]*Fiscalización\s*&\s*(Sanciones|Cumplimiento):\s*/i, "");
-      }
-    }
-
-    if (!obj) obj = desc ? desc.slice(0, 180) : `Marco regulatorio de ${r.pais} aplicable a la materia de ${query}.`;
-    if (!mec) mec = `Dispone directrices técnicas, obligaciones de cumplimiento y protocolos sectoriales.`;
-    if (!fisc) fisc = `Supervisado bajo el régimen legal de ${r.pais} por ${r.fuente}.`;
-
-    return { obj, mec, fisc };
-  };
-
   const valoresObjeto: Record<string, string> = {};
-  const valoresObligaciones: Record<string, string> = {};
-  const valoresFiscalizacion: Record<string, string> = {};
   const valoresPuntosClave: Record<string, string> = {};
-  const valoresLeccion: Record<string, string> = {};
 
   seleccion.forEach((r, i) => {
     const key = `col_${i}`;
-    const ejes = parse3Ejes(r);
-    valoresObjeto[key] = ejes.obj;
-    valoresObligaciones[key] = ejes.mec;
-    valoresFiscalizacion[key] = ejes.fisc;
-    
-    const d = detalles[`${r.pais}|${r.titulo}`];
-    valoresPuntosClave[key] = d?.puntos && d.puntos.length > 0
-      ? d.puntos.slice(0, 2).join("; ")
-      : `Regula los deberes operativos y salvaguardas legales exigibles a los sujetos obligados.`;
+    valoresObjeto[key] = r.descripcion || `Sin descripción disponible en la fuente oficial para ${r.pais}.`;
 
-    valoresLeccion[key] = r.pais === "Chile"
-      ? `Marco normativo nacional de referencia sobre el cual se estructuran las indicaciones parlamentarias.`
-      : `Aporta estándares de derecho comparado en ${r.pais} útiles para contrastar vacíos técnicos en la tramitación chilena.`;
+    const d = detalles[`${r.pais}|${r.titulo}`];
+    valoresPuntosClave[key] = d?.disponible && d.puntos.length > 0
+      ? d.puntos.join(" · ")
+      : "Aún no analizado — presiona \"Comparar en tabla lado a lado\" para extraer los puntos reales del texto de esta norma.";
   });
 
   return {
     id: "live-matrix",
-    titulo: `Matriz Comparada Multidimensional: ${query.charAt(0).toUpperCase()}${query.slice(1)}`,
+    titulo: `Matriz Comparada: ${query.charAt(0).toUpperCase()}${query.slice(1)}`,
     subtitulo: `Contraste analítico estructurado entre ${seleccion.map(s => s.pais).join(", ")}`,
     boletinReferencia: `Consulta Activa BCN`,
     columnas,
     filas: [
       {
-        dimension: "1. Enfoque general y objeto de la regulación",
+        dimension: "Objeto y ámbito de la norma",
         icono: "🎯",
         valores: valoresObjeto,
-        lecturaJuridica: `La comparación en torno a "${query}" evidencia marcos regulatorios centrados en la delimitación precisa de obligaciones y garantías jurídicas.`
+        lecturaJuridica: "Tomado de la descripción oficial obtenida en tiempo real de cada fuente (LeyChile, BOE, EUR-Lex, etc.)."
       },
       {
-        dimension: "2. Mecanismos clave y deberes de cumplimiento",
-        icono: "⚙️",
-        valores: valoresObligaciones,
-        lecturaJuridica: `Los ordenamientos comparados estructuran deberes preventivos, registros obligatorios y protocolos de gestión técnica.`
-      },
-      {
-        dimension: "3. Órgano fiscalizador y régimen de supervisión",
-        icono: "🛡️",
-        valores: valoresFiscalizacion,
-        lecturaJuridica: `La efectividad de la norma depende de la dotación inspectiva, autonomía resolutiva y capacidad sancionadora de la autoridad competente.`
-      },
-      {
-        dimension: "4. Disposiciones sustantivas y puntos críticos",
+        dimension: "Puntos sustantivos reales del texto",
         icono: "📑",
         valores: valoresPuntosClave,
-        lecturaJuridica: `Los puntos críticos analizados permiten identificar umbrales de proporcionalidad y salvaguardas para la protección de derechos.`
-      },
-      {
-        dimension: "5. Lecciones y contrastes para la legislación chilena",
-        icono: "🇨🇱",
-        valores: valoresLeccion,
-        lecturaJuridica: `El contraste multipaís orienta el diseño de indicaciones legales en el Congreso Nacional, evitando inconsistencias operativas.`,
+        lecturaJuridica: "Extraído del texto oficial de cada norma cuando el análisis por país ya fue generado; de lo contrario, se indica explícitamente.",
         isWarmRow: true
       }
     ]
