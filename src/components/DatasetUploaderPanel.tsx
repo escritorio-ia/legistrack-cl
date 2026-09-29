@@ -156,6 +156,7 @@ export default function DatasetUploaderPanel() {
   const [subiendo, setSubiendo] = useState(false);
   const [progresoTexto, setProgresoTexto] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [arrastrando, setArrastrando] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -253,8 +254,35 @@ export default function DatasetUploaderPanel() {
 
       <label
         htmlFor="dataset-file-input"
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (!subiendo) setArrastrando(true);
+        }}
+        onDragLeave={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setArrastrando(false);
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setArrastrando(false);
+          if (subiendo) return;
+          const dropped = Array.from(e.dataTransfer.files || []);
+          const validos = dropped.filter((f) => /\.(csv|xlsx|xls)$/i.test(f.name));
+          if (validos.length === 0) {
+            setError(dropped.length > 0 ? "Ninguno de los archivos arrastrados es .csv, .xlsx o .xls." : null);
+            return;
+          }
+          handleFilesSelected(validos);
+        }}
         className={`flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-2xl py-8 px-4 text-center transition-colors ${
-          subiendo ? "border-slate-200 bg-slate-50 cursor-not-allowed" : "border-slate-300 hover:border-emerald-400 hover:bg-emerald-50/40 cursor-pointer"
+          subiendo
+            ? "border-slate-200 bg-slate-50 cursor-not-allowed"
+            : arrastrando
+              ? "border-emerald-500 bg-emerald-50"
+              : "border-slate-300 hover:border-emerald-400 hover:bg-emerald-50/40 cursor-pointer"
         }`}
       >
         {subiendo ? (
