@@ -9,7 +9,7 @@ import {
   CheckCircle, Sparkles, Layers, Shield, Building2, ExternalLink, Download, 
   RefreshCw, Filter, BookMarked, Bookmark, Plus, Check, X, Copy, 
   SlidersHorizontal, ChevronRight, ChevronDown, ChevronUp, Tag, Share2, HelpCircle, Eye, Info,
-  FileSpreadsheet, Printer, FileDown, CheckCheck, Target, ShieldAlert, Wrench, AlertTriangle, AlertCircle
+  FileSpreadsheet, Printer, FileDown, CheckCheck, Target, ShieldAlert, Wrench, AlertTriangle, AlertCircle, History
 } from "lucide-react";
 import MatrizComparadaTable, { MatrizColumna, MatrizComparadaData, TODAS_LAS_MATRICES } from "../components/MatrizComparadaTable";
 import { normalizeSearchText } from "../utils/textUtils";
@@ -1265,7 +1265,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
   // "documento": Informe oficial BCN (Estructura formal)
   // "comparador": Comparador lado a lado / matriz dinámica de leyes seleccionadas
   // "guardados": Informes guardados
-  const [activeTab, setActiveTab] = useState<"live" | "documento" | "comparador" | "guardados">("live");
+  const [activeTab, setActiveTab] = useState<"live" | "documento" | "comparador" | "evolucion" | "guardados">("live");
   const [vistaComparador, setVistaComparador] = useState<"matriz" | "fichas">("matriz");
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -1301,6 +1301,11 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
   const [analisisComparadoIA, setAnalisisComparadoIA] = useState<string | null>(null);
   const [analisisComparadoKey, setAnalisisComparadoKey] = useState<string>("");
   const [analisisComparadoLoading, setAnalisisComparadoLoading] = useState(false);
+
+  // Pestaña "Evolución Legal": objetivo + menciones explícitas de
+  // modificaciones por norma seleccionada, extraídos de su texto real.
+  const [evolucionDetalle, setEvolucionDetalle] = useState<Record<string, { objetivo: string; modificaciones: string; disponible: boolean }>>({});
+  const [evolucionLoading, setEvolucionLoading] = useState(false);
 
   // Search history
   const [historial, setHistorial] = useState<string[]>(() => {
@@ -1432,7 +1437,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
   // selección activa), lo devuelve a "Búsqueda en Vivo" en vez de dejarlo en
   // una pestaña cuyo botón ya no está visible.
   useEffect(() => {
-    if (seleccionComparar.length === 0 && (activeTab === "documento" || activeTab === "comparador")) {
+    if (seleccionComparar.length === 0 && (activeTab === "documento" || activeTab === "comparador" || activeTab === "evolucion")) {
       setActiveTab("live");
     }
   }, [seleccionComparar, activeTab]);
@@ -1588,6 +1593,37 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
       setAnalisisComparadoKey(key);
     } finally {
       setAnalisisComparadoLoading(false);
+    }
+  };
+
+  // Genera (o regenera) el objetivo + menciones de modificaciones de cada
+  // norma seleccionada, en paralelo, para la pestaña "Evolución Legal".
+  const handleGenerarEvolucion = async () => {
+    if (seleccionComparar.length === 0) return;
+    setEvolucionLoading(true);
+    try {
+      const entradas = await Promise.all(
+        seleccionComparar.map(async (r) => {
+          try {
+            const res = await fetch("/api/derecho-comparado/evolucion", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ query: liveQuery, resultado: r })
+            });
+            const data: { objetivo: string; modificaciones: string; disponible: boolean } = await res.json();
+            return [claveResultado(r), data] as const;
+          } catch {
+            return [claveResultado(r), {
+              objetivo: r.descripcion || `Norma de ${r.pais}.`,
+              modificaciones: "No fue posible generar este análisis en este momento.",
+              disponible: false
+            }] as const;
+          }
+        })
+      );
+      setEvolucionDetalle((prev) => ({ ...prev, ...Object.fromEntries(entradas) }));
+    } finally {
+      setEvolucionLoading(false);
     }
   };
 
@@ -1912,6 +1948,18 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
         >
           <SlidersHorizontal className="w-4 h-4" />
           <span>Matriz ({seleccionComparar.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab("evolucion")}
+          className={`text-xs font-bold px-4 py-2.5 rounded-xl transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
+            activeTab === "evolucion"
+              ? "bg-blue-700 text-white shadow-xs"
+              : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+          }`}
+        >
+          <History className="w-4 h-4" />
+          <span>Evolución Legal</span>
         </button>
         </>
         )}
@@ -2855,6 +2903,94 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
                   </div>
                 );
               })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB: EVOLUCIÓN LEGAL -- objetivo + menciones explícitas de
+          modificaciones por norma seleccionada, a partir de su texto real.
+          No existe una fuente estructurada de "historia de la ley" para
+          todos los países, así que se limita honestamente a lo que la propia
+          norma diga de sí misma. */}
+      {activeTab === "evolucion" && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col gap-5 animate-fade-in">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
+            <div>
+              <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                <History className="w-5 h-5 text-blue-700" />
+                Evolución Legal de las Normas Seleccionadas
+              </h3>
+              <p className="text-xs text-slate-500 mt-1 max-w-xl">
+                Objeto de cada norma y menciones explícitas de modificaciones que hayan sufrido, según su propio texto oficial ({seleccionComparar.length} seleccionadas).
+              </p>
+            </div>
+            <button
+              onClick={handleGenerarEvolucion}
+              disabled={evolucionLoading || seleccionComparar.length === 0}
+              className="bg-blue-700 hover:bg-blue-800 disabled:bg-slate-300 text-white font-bold text-xs px-4 py-2.5 rounded-xl cursor-pointer shadow-xs flex items-center gap-2 shrink-0"
+            >
+              {evolucionLoading ? (
+                <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Analizando texto real...</>
+              ) : (
+                <><History className="w-3.5 h-3.5" /> {Object.keys(evolucionDetalle).length > 0 ? "Regenerar" : "Generar Evolución Legal"}</>
+              )}
+            </button>
+          </div>
+
+          {seleccionComparar.length === 0 ? (
+            <div className="p-10 text-center flex flex-col items-center justify-center gap-3">
+              <History className="w-8 h-8 text-slate-300" />
+              <h4 className="text-sm font-bold text-slate-800">No ha seleccionado normativas</h4>
+              <p className="text-xs text-slate-500 max-w-md">
+                Vuelva a "Búsqueda en Vivo Internacional" y marque las casillas "Comparar".
+              </p>
+            </div>
+          ) : Object.keys(evolucionDetalle).length === 0 ? (
+            <div className="p-10 text-center text-xs text-slate-400 font-bold">
+              {evolucionLoading ? "Extrayendo objetivo y modificaciones del texto real de cada norma..." : 'Haz clic en "Generar Evolución Legal" para analizar el texto real de cada norma seleccionada.'}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr className="text-left text-[10px] uppercase tracking-wider text-slate-400 border-b border-slate-200">
+                    <th className="py-2 pr-4 font-bold">País</th>
+                    <th className="py-2 pr-4 font-bold">Norma</th>
+                    <th className="py-2 pr-4 font-bold w-[32%]">Objetivo</th>
+                    <th className="py-2 font-bold w-[32%]">Modificaciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ordenarChilePrimero(seleccionComparar).map((r) => {
+                    const detalle = evolucionDetalle[claveResultado(r)];
+                    return (
+                      <tr key={claveResultado(r)} className="border-b border-slate-100 last:border-b-0 align-top">
+                        <td className="py-3 pr-4 font-bold text-slate-800 whitespace-nowrap">
+                          {BANDERA_PAIS[r.pais] || "🌐"} {r.pais}
+                        </td>
+                        <td className="py-3 pr-4 text-slate-700 font-semibold">
+                          {r.url ? (
+                            <a href={r.url} target="_blank" rel="noreferrer" className="text-blue-700 hover:underline">{r.titulo}</a>
+                          ) : r.titulo}
+                        </td>
+                        <td className="py-3 pr-4 text-slate-600 leading-relaxed">
+                          {!detalle ? (
+                            <span className="text-slate-300 italic">Sin generar</span>
+                          ) : detalle.objetivo}
+                        </td>
+                        <td className="py-3 text-slate-600 leading-relaxed">
+                          {!detalle ? (
+                            <span className="text-slate-300 italic">Sin generar</span>
+                          ) : (
+                            <span className={detalle.disponible ? "" : "text-slate-400 italic"}>{detalle.modificaciones}</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
