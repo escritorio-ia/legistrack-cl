@@ -19,7 +19,6 @@ import EscritorioHubView from "./views/EscritorioHubView";
 import StaticDataAnalyticsView from "./views/StaticDataAnalyticsView";
 import ComisionesGraficas from "./components/ComisionesGraficas";
 import CitacionesCamaraWidget from "./components/CitacionesCamaraWidget";
-import CopilotoLegislativo from "./components/CopilotoLegislativo";
 import { 
   Users, 
   Shield, 
@@ -781,12 +780,6 @@ export default function App() {
 
       {/* Global Footer */}
       <Footer />
-
-      {/* Copiloto Legislativo Flotante */}
-      <CopilotoLegislativo 
-        contextoBoletin={view === "proyecto-detail" ? selectedProyectoId : undefined}
-        contextoComision={view === "comision-detail" ? selectedComisionId : undefined}
-      />
     </div>
   );
 }
