@@ -1,18 +1,19 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { 
-  getFirestore, 
-  collection, 
-  doc, 
-  setDoc, 
-  getDoc, 
-  getDocs, 
-  query, 
-  where, 
+import {
+  getFirestore,
+  collection,
+  doc,
+  setDoc,
+  getDoc,
+  getDocs,
+  query,
+  where,
   orderBy,
   limit,
   onSnapshot,
   deleteDoc
 } from "firebase/firestore";
+import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 
 // Exact Firebase Web Config for project legistrack-d75bc
 export const firebaseConfig = {
@@ -28,17 +29,19 @@ export const isFirebaseConfigured = true;
 
 let app: any = null;
 let db: any = null;
+let storage: any = null;
 
 try {
   if (typeof window !== "undefined") {
     app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
     db = getFirestore(app);
+    storage = getStorage(app);
   }
 } catch (err) {
   console.warn("Firebase initialization warning (falling back gracefully):", err);
 }
 
-export { db, app };
+export { db, app, storage };
 
 // Firestore Collections definition
 export const COLLECTIONS = {
@@ -48,7 +51,8 @@ export const COLLECTIONS = {
   ALERTAS_LEGISLATIVAS: "alertas_legislativas",
   NOTAS_COLABORATIVAS: "notas_colaborativas",
   HISTORIAL_PROYECTOS: "historial_proyectos",
-  DERECHO_COMPARADO_INFORMES: "derecho_comparado_informes"
+  DERECHO_COMPARADO_INFORMES: "derecho_comparado_informes",
+  DATASETS_ESTADISTICOS: "datasets_estadisticos"
 };
 
 export interface NotaColaborativa {
@@ -334,6 +338,112 @@ export async function deleteInformeComparadoFromFirestore(id: string): Promise<b
     return true;
   } catch (err) {
     console.warn("Error deleting informe comparado from Firestore:", err);
+    return false;
+  }
+}
+
+/**
+ * Datasets estadísticos subidos por analistas en Statistics++ (CSV/Excel).
+ * El archivo crudo se guarda en Firebase Storage (permite datasets grandes,
+ * de decenas de miles de filas, sin límite de tamaño de documento de
+ * Firestore); en Firestore solo se guardan las ESTADÍSTICAS AGREGADAS
+ * calculadas de forma determinística (min/max/promedio/nulos por columna,
+ * etc.) y el informe redactado por IA a partir de esas cifras reales -- no
+ * las filas crudas, para no exceder el límite de 1MB por documento y para
+ * que la IA nunca tenga que "calcular" nada por su cuenta.
+ */
+export interface ColumnaDatasetStats {
+  nombre: string;
+  tipo: "numerico" | "fecha" | "categorico";
+  nulos: number;
+  // numérico
+  min?: number;
+  max?: number;
+  promedio?: number;
+  mediana?: number;
+  desviacionEstandar?: number;
+  // fecha
+  fechaMin?: string;
+  fechaMax?: string;
+  // categórico
+  valoresUnicos?: number;
+  topValores?: { valor: string; conteo: number }[];
+}
+
+export interface DatasetEstadistico {
+  id: string;
+  nombre: string;
+  autor: string;
+  createdAt: string;
+  fileName: string;
+  fileSize: number;
+  storagePath: string;
+  downloadUrl: string;
+  totalFilas: number;
+  columnas: ColumnaDatasetStats[];
+  informeIA?: string;
+}
+
+/** Sube el archivo crudo (CSV/Excel) a Firebase Storage y devuelve su ruta y URL de descarga. */
+export async function subirArchivoDatasetAStorage(
+  id: string,
+  file: File
+): Promise<{ storagePath: string; downloadUrl: string } | null> {
+  if (!storage) return null;
+  try {
+    const storagePath = `datasets_estadisticos/${id}/${file.name}`;
+    const storageRef = ref(storage, storagePath);
+    await uploadBytes(storageRef, file);
+    const downloadUrl = await getDownloadURL(storageRef);
+    return { storagePath, downloadUrl };
+  } catch (err) {
+    console.warn("Error uploading dataset file to Firebase Storage:", err);
+    return null;
+  }
+}
+
+export async function saveDatasetEstadisticoToFirestore(dataset: DatasetEstadistico): Promise<boolean> {
+  if (!db) return false;
+  try {
+    const docRef = doc(db, COLLECTIONS.DATASETS_ESTADISTICOS, dataset.id);
+    await setDoc(docRef, dataset, { merge: true });
+    return true;
+  } catch (err) {
+    console.warn("Error saving dataset estadístico to Firestore:", err);
+    return false;
+  }
+}
+
+/** Datasets subidos por CUALQUIER analista del equipo (compartidos, como los informes de Derecho Comparado). */
+export async function getDatasetsEstadisticosFromFirestore(maxResultados = 50): Promise<DatasetEstadistico[]> {
+  if (!db) return [];
+  try {
+    const colRef = collection(db, COLLECTIONS.DATASETS_ESTADISTICOS);
+    const q = query(colRef, orderBy("createdAt", "desc"), limit(maxResultados));
+    const snap = await getDocs(q);
+    const datasets: DatasetEstadistico[] = [];
+    snap.forEach((d) => datasets.push(d.data() as DatasetEstadistico));
+    return datasets;
+  } catch (err) {
+    console.warn("Error fetching datasets estadísticos from Firestore:", err);
+    return [];
+  }
+}
+
+export async function deleteDatasetEstadisticoFromFirestore(dataset: DatasetEstadistico): Promise<boolean> {
+  if (!db) return false;
+  try {
+    await deleteDoc(doc(db, COLLECTIONS.DATASETS_ESTADISTICOS, dataset.id));
+    if (storage && dataset.storagePath) {
+      try {
+        await deleteObject(ref(storage, dataset.storagePath));
+      } catch (err) {
+        console.warn("Error deleting dataset file from Storage (Firestore record already removed):", err);
+      }
+    }
+    return true;
+  } catch (err) {
+    console.warn("Error deleting dataset estadístico from Firestore:", err);
     return false;
   }
 }

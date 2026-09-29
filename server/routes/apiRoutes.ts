@@ -1559,6 +1559,56 @@ apiRouter.get("/statistics/all", (_req: Request, res: Response) => {
   }
 });
 
+// Redacta el informe en prosa de un dataset subido por el usuario (CSV/Excel)
+// EXCLUSIVAMENTE a partir de las estadísticas ya calculadas de forma
+// determinística en el cliente (min/max/promedio/nulos/etc. por columna) --
+// nunca se le pide a la IA que calcule cifras, solo que las describa.
+apiRouter.post("/statistics/analizar-dataset", async (req: Request, res: Response) => {
+  const { nombre, totalFilas, columnas } = req.body as {
+    nombre?: string;
+    totalFilas?: number;
+    columnas?: Array<Record<string, any>>;
+  };
+  if (!nombre || !totalFilas || !Array.isArray(columnas) || columnas.length === 0) {
+    return res.status(400).json({ error: "Se requiere 'nombre', 'totalFilas' y un arreglo 'columnas' no vacío." });
+  }
+
+  const columnasTexto = columnas
+    .map((c) => {
+      if (c.tipo === "numerico") {
+        return `- ${c.nombre} (numérico): mín=${c.min}, máx=${c.max}, promedio=${c.promedio}, mediana=${c.mediana}, desviación estándar=${c.desviacionEstandar}, valores nulos=${c.nulos}`;
+      }
+      if (c.tipo === "fecha") {
+        return `- ${c.nombre} (fecha): rango entre ${c.fechaMin} y ${c.fechaMax}, valores nulos=${c.nulos}`;
+      }
+      const top = (c.topValores || []).map((t: any) => `${t.valor} (${t.conteo})`).join(", ");
+      return `- ${c.nombre} (categórico): ${c.valoresUnicos} valores únicos, más frecuentes: ${top || "N/D"}, valores nulos=${c.nulos}`;
+    })
+    .join("\n");
+
+  const prompt = `Actúa como un analista de datos legislativos. A continuación se entregan las estadísticas REALES, YA CALCULADAS, de un dataset llamado "${nombre}" con ${totalFilas} filas y ${columnas.length} columnas, subido por un analista parlamentario.
+
+Estadísticas por columna:
+${columnasTexto}
+
+Redacta un informe breve (máx. 220 palabras) en prosa formal, en tercera persona, sin emojis ni viñetas, describiendo el contenido del dataset: qué tipo de información parece contener (según los nombres y rangos de las columnas), qué patrones o particularidades destacan de las cifras entregadas (ej. columnas con muchos valores nulos, rangos inusuales, categorías dominantes), y qué utilidad podría tener para el análisis legislativo o de políticas públicas.
+
+USA EXCLUSIVAMENTE las cifras entregadas arriba. No inventes valores, columnas ni conclusiones que no se desprendan directamente de esas estadísticas. Si el propósito del dataset no es evidente a partir de los nombres de columna, dilo explícitamente en vez de adivinar.
+
+Responde solo con el informe, sin encabezados ni markdown.`;
+
+  const texto = await generarContenidoUniversalIA(prompt, 600);
+  if (texto) {
+    return res.json({ informe: texto });
+  }
+
+  const columnasNumericas = columnas.filter((c) => c.tipo === "numerico").length;
+  const columnasFecha = columnas.filter((c) => c.tipo === "fecha").length;
+  const columnasCategoricas = columnas.filter((c) => c.tipo === "categorico").length;
+  const fallback = `El dataset "${nombre}" contiene ${totalFilas} filas y ${columnas.length} columnas (${columnasNumericas} numéricas, ${columnasFecha} de fecha, ${columnasCategoricas} categóricas). No fue posible generar un análisis narrativo con IA en este momento; revisa las estadísticas por columna listadas más abajo.`;
+  res.json({ informe: fallback });
+});
+
 // ============================================================================
 // 10. FAOSTAT (NACIONES UNIDAS - AGRICULTURA & ALIMENTACIÓN)
 // ============================================================================

@@ -193225,6 +193225,41 @@ apiRouter.get("/statistics/all", (_req, res) => {
     res.status(500).json({ error: "Error al listar indicadores" });
   }
 });
+apiRouter.post("/statistics/analizar-dataset", async (req, res) => {
+  const { nombre, totalFilas, columnas } = req.body;
+  if (!nombre || !totalFilas || !Array.isArray(columnas) || columnas.length === 0) {
+    return res.status(400).json({ error: "Se requiere 'nombre', 'totalFilas' y un arreglo 'columnas' no vac\xEDo." });
+  }
+  const columnasTexto = columnas.map((c) => {
+    if (c.tipo === "numerico") {
+      return `- ${c.nombre} (num\xE9rico): m\xEDn=${c.min}, m\xE1x=${c.max}, promedio=${c.promedio}, mediana=${c.mediana}, desviaci\xF3n est\xE1ndar=${c.desviacionEstandar}, valores nulos=${c.nulos}`;
+    }
+    if (c.tipo === "fecha") {
+      return `- ${c.nombre} (fecha): rango entre ${c.fechaMin} y ${c.fechaMax}, valores nulos=${c.nulos}`;
+    }
+    const top = (c.topValores || []).map((t) => `${t.valor} (${t.conteo})`).join(", ");
+    return `- ${c.nombre} (categ\xF3rico): ${c.valoresUnicos} valores \xFAnicos, m\xE1s frecuentes: ${top || "N/D"}, valores nulos=${c.nulos}`;
+  }).join("\n");
+  const prompt = `Act\xFAa como un analista de datos legislativos. A continuaci\xF3n se entregan las estad\xEDsticas REALES, YA CALCULADAS, de un dataset llamado "${nombre}" con ${totalFilas} filas y ${columnas.length} columnas, subido por un analista parlamentario.
+
+Estad\xEDsticas por columna:
+${columnasTexto}
+
+Redacta un informe breve (m\xE1x. 220 palabras) en prosa formal, en tercera persona, sin emojis ni vi\xF1etas, describiendo el contenido del dataset: qu\xE9 tipo de informaci\xF3n parece contener (seg\xFAn los nombres y rangos de las columnas), qu\xE9 patrones o particularidades destacan de las cifras entregadas (ej. columnas con muchos valores nulos, rangos inusuales, categor\xEDas dominantes), y qu\xE9 utilidad podr\xEDa tener para el an\xE1lisis legislativo o de pol\xEDticas p\xFAblicas.
+
+USA EXCLUSIVAMENTE las cifras entregadas arriba. No inventes valores, columnas ni conclusiones que no se desprendan directamente de esas estad\xEDsticas. Si el prop\xF3sito del dataset no es evidente a partir de los nombres de columna, dilo expl\xEDcitamente en vez de adivinar.
+
+Responde solo con el informe, sin encabezados ni markdown.`;
+  const texto = await generarContenidoUniversalIA(prompt, 600);
+  if (texto) {
+    return res.json({ informe: texto });
+  }
+  const columnasNumericas = columnas.filter((c) => c.tipo === "numerico").length;
+  const columnasFecha = columnas.filter((c) => c.tipo === "fecha").length;
+  const columnasCategoricas = columnas.filter((c) => c.tipo === "categorico").length;
+  const fallback = `El dataset "${nombre}" contiene ${totalFilas} filas y ${columnas.length} columnas (${columnasNumericas} num\xE9ricas, ${columnasFecha} de fecha, ${columnasCategoricas} categ\xF3ricas). No fue posible generar un an\xE1lisis narrativo con IA en este momento; revisa las estad\xEDsticas por columna listadas m\xE1s abajo.`;
+  res.json({ informe: fallback });
+});
 apiRouter.get("/fao/groups", async (_req, res) => {
   try {
     const groups = await getFAOGroupsAndDomains();

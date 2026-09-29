@@ -67,6 +67,7 @@ import {
   OWIDTopic
 } from "../../server/services/publicDataService";
 import { normalizeSearchText } from "../utils/textUtils";
+import DatasetUploaderPanel from "../components/DatasetUploaderPanel";
 
 interface StaticDataAnalyticsViewProps {
   setView?: (view: string) => void;
@@ -397,6 +398,11 @@ export default function StaticDataAnalyticsView({ setView: _setView, setSelected
             </div>
           </div>
         </div>
+
+        {/* ========================================================================= */}
+        {/* 1B. CARGA DE DATASET PROPIO (CSV/EXCEL) CON ANÁLISIS POR IA */}
+        {/* ========================================================================= */}
+        <DatasetUploaderPanel />
 
         {/* ========================================================================= */}
         {/* 2. THEMATIC FILTER PILLS */}
