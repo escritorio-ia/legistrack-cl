@@ -439,13 +439,21 @@ function renderTextoConNegrita(text: string) {
 }
 
 // Renderer de markdown liviano (encabezados, listas, negrita y tablas) para
-// mostrar el Informe Técnico BCN generado en vivo -- misma lógica que se
-// duplica en otras vistas del proyecto (ComisionDetailView, ProyectoDetailView).
+// mostrar el Informe Técnico generado en vivo, con una tipografía y
+// jerarquía visual cercana a los informes reales de Asesoría Técnica
+// Parlamentaria de la BCN (título grande, secciones con línea divisoria,
+// "Introducción" destacada como recuadro) en vez de texto plano chico.
 function renderInformeMarkdown(markdown: string) {
   if (!markdown) return null;
   const lines = markdown.split("\n");
   const blocks: React.ReactNode[] = [];
   let i = 0;
+  // Cuando la sección activa es "Introducción" (o "Marco conceptual"), su
+  // primer párrafo se destaca como recuadro -- igual al "Resumen Ejecutivo"
+  // de un informe real -- en vez de mezclarse como texto plano más.
+  let seccionDestacada = false;
+  let primerParrafoDeSeccion = true;
+
   while (i < lines.length) {
     const raw = lines[i];
     const text = raw.trim();
@@ -459,19 +467,19 @@ function renderInformeMarkdown(markdown: string) {
       const rows = tableLines.filter(l => !/^\|[\s:|-]+\|$/.test(l)).map(l => l.slice(1, -1).split("|").map(c => c.trim()));
       const [header, ...body] = rows;
       blocks.push(
-        <div key={`table-${i}`} className="overflow-x-auto my-3 rounded-lg border border-slate-200">
-          <table className="w-full text-[11px] border-collapse">
+        <div key={`table-${i}`} className="overflow-x-auto my-4 rounded-xl border border-slate-200">
+          <table className="w-full text-xs border-collapse">
             {header && (
               <thead>
                 <tr className="bg-slate-100">
-                  {header.map((h, hi) => <th key={hi} className="text-left font-extrabold text-slate-700 px-3 py-2 border-b border-slate-200">{h}</th>)}
+                  {header.map((h, hi) => <th key={hi} className="text-left font-extrabold text-slate-700 px-3.5 py-2.5 border-b border-slate-200">{h}</th>)}
                 </tr>
               </thead>
             )}
             <tbody>
               {body.map((row, ri) => (
                 <tr key={ri} className={ri % 2 === 0 ? "bg-white" : "bg-slate-50/60"}>
-                  {row.map((cell, ci) => <td key={ci} className="align-top px-3 py-2 border-b border-slate-100 text-slate-600">{renderTextoConNegrita(cell)}</td>)}
+                  {row.map((cell, ci) => <td key={ci} className="align-top px-3.5 py-2.5 border-b border-slate-100 text-slate-600">{renderTextoConNegrita(cell)}</td>)}
                 </tr>
               ))}
             </tbody>
@@ -481,14 +489,36 @@ function renderInformeMarkdown(markdown: string) {
       continue;
     }
 
-    if (text === "") { blocks.push(<div key={i} className="h-2" />); i++; continue; }
-    if (text === "---") { blocks.push(<hr key={i} className="my-3 border-t border-slate-200" />); i++; continue; }
-    if (text.startsWith("# ")) { blocks.push(<h1 key={i} className="text-base font-extrabold text-slate-900 tracking-tight mt-4 mb-2">{text.slice(2)}</h1>); i++; continue; }
-    if (text.startsWith("### ")) { blocks.push(<h3 key={i} className="text-xs font-bold text-slate-700 uppercase tracking-wide mt-3 mb-1">{text.slice(4)}</h3>); i++; continue; }
-    if (text.startsWith("## ")) { blocks.push(<h2 key={i} className="text-sm font-extrabold text-slate-800 mt-3 mb-1.5">{text.slice(3)}</h2>); i++; continue; }
-    if (text.startsWith("* ") || text.startsWith("- ")) { blocks.push(<li key={i} className="ml-4 list-disc text-xs text-slate-600 leading-relaxed py-0.5">{renderTextoConNegrita(text.slice(2))}</li>); i++; continue; }
+    if (text === "") { blocks.push(<div key={i} className="h-1" />); i++; continue; }
+    if (text === "---") { blocks.push(<hr key={i} className="my-5 border-t border-slate-200" />); i++; continue; }
+    if (text.startsWith("# ")) {
+      blocks.push(<h1 key={i} className="text-2xl font-black text-slate-900 tracking-tight border-b-2 border-blue-700 pb-3 mb-1">{text.slice(2)}</h1>);
+      i++; continue;
+    }
+    if (text.startsWith("### ")) { blocks.push(<h3 key={i} className="text-xs font-extrabold text-blue-900 uppercase tracking-wide mt-4 mb-1.5">{text.slice(4)}</h3>); i++; continue; }
+    if (text.startsWith("## ")) {
+      const titulo = text.slice(3);
+      seccionDestacada = /^(introducci[oó]n|marco conceptual)\b/i.test(titulo);
+      primerParrafoDeSeccion = true;
+      blocks.push(
+        <h2 key={i} className="text-sm font-extrabold text-slate-900 uppercase tracking-wider border-b border-slate-200 pb-2 mt-5 mb-2.5">
+          {titulo}
+        </h2>
+      );
+      i++; continue;
+    }
+    if (text.startsWith("* ") || text.startsWith("- ")) { blocks.push(<li key={i} className="ml-4 list-disc text-sm text-slate-700 leading-relaxed py-0.5">{renderTextoConNegrita(text.slice(2))}</li>); i++; continue; }
 
-    blocks.push(<p key={i} className="text-xs text-slate-600 leading-relaxed my-1">{renderTextoConNegrita(text)}</p>);
+    if (seccionDestacada && primerParrafoDeSeccion) {
+      blocks.push(
+        <p key={i} className="text-sm text-slate-800 leading-relaxed bg-slate-50 border-l-4 border-blue-700 rounded-r-xl px-4 py-3 my-2">
+          {renderTextoConNegrita(text)}
+        </p>
+      );
+      primerParrafoDeSeccion = false;
+    } else {
+      blocks.push(<p key={i} className="text-sm text-slate-700 leading-relaxed my-1.5">{renderTextoConNegrita(text)}</p>);
+    }
     i++;
   }
   return blocks;
@@ -2424,7 +2454,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
                 );
               })()}
 
-              <div className="p-6 md:p-8">
+              <div className="p-6 md:p-10 lg:p-12 flex flex-col gap-1 bg-white">
                 {renderInformeMarkdown(informeLiveMarkdown)}
               </div>
             </div>
