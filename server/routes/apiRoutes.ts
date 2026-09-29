@@ -1249,11 +1249,15 @@ Texto de la fuente:
 ${textoFuente}
 """
 
-Identifica entre 4 y 8 artículos, secciones o disposiciones de esta norma que sean sustantivos EN RELACIÓN A LA MATERIA CONSULTADA, basándote EXCLUSIVAMENTE en el texto entregado. Redacta cada uno como hace un informe real de legislación comparada de la BCN: identificando el artículo o sección (número o nombre tal como aparece en el texto) seguido de una explicación breve en prosa de qué prohíbe, permite, obliga o establece -- por ejemplo: "Artículo 8: Registro de mascotas: Establece la obligación de inscribir a los animales en un registro municipal dentro de los 30 días siguientes a su adquisición." Si el texto no distingue artículos numerados, usa el nombre de la sección o el tema tal como aparece.
+Primero evalúa si el texto entregado corresponde efectivamente al CUERPO de la norma (artículos, disposiciones) o si en cambio es una página de archivo, índice, buscador, menú de navegación u otro contenido que NO contiene el texto legal sustantivo (esto pasa con frecuencia en portales de repositorios oficiales extranjeros).
 
-Para al menos 2 de esos puntos, incluye además una cita textual breve (máx. 30 palabras) entre comillas del pasaje exacto del texto entregado que lo respalda -- no la parafrasees, cópiala literal. Si el texto entregado no permite citar literalmente algún punto, redáctalo igual pero sin inventar una cita que no esté ahí.
+Responde ÚNICAMENTE con un objeto JSON válido, compacto, sin texto adicional, con uno de estos dos esquemas:
 
-Responde en formato de lista, un punto por línea, cada uno iniciando con "- ".`;
+- Si el texto SÍ contiene disposiciones sustantivas: {"disponible":true,"puntos":["- Artículo 8: Registro de mascotas: Establece la obligación de inscribir a los animales en un registro municipal dentro de los 30 días siguientes a su adquisición.", "..."]}
+  Identifica entre 4 y 8 artículos, secciones o disposiciones sustantivos EN RELACIÓN A LA MATERIA CONSULTADA, basándote EXCLUSIVAMENTE en el texto entregado, cada uno identificando el artículo o sección (número o nombre tal como aparece en el texto) seguido de una explicación breve en prosa de qué prohíbe, permite, obliga o establece. Para al menos 2 de esos puntos, incluye una cita textual breve (máx. 30 palabras) entre comillas del pasaje exacto del texto -- no la parafrasees, cópiala literal.
+- Si el texto NO contiene disposiciones sustantivas (es una página de archivo/índice/buscador/menú): {"disponible":false,"motivo":"Explicación breve de qué es efectivamente el texto obtenido (ej. página de índice del archivo oficial) y que no permite identificar disposiciones sobre la materia consultada."}
+
+No inventes disposiciones que no estén en el texto entregado bajo ninguna circunstancia.`;
 
     // 1200 se quedaba corto para el análisis más profundo con citas literales
     // que ahora se pide (antes 600, ya se había subido una vez por el mismo
@@ -1261,18 +1265,23 @@ Responde en formato de lista, un punto por línea, cada uno iniciando con "- ".`
     // antes de responder -- ver nota en generarConGroq/aiService.ts).
     const textoIA = await generarContenidoUniversalIA(prompt, 2000);
     if (textoIA) {
-      const puntos = textoIA
-        .split("\n")
-        .map((l) => l.replace(/^[-•]\s*/, "").trim())
-        .filter((l) => l.length > 0);
-      // Si solo llegó un "punto" y no parece una oración completa (empieza en
-      // minúscula, como si le faltara la primera palabra -- señal de que el
-      // modelo respondió en prosa y se truncó a mitad de frase en vez de la
-      // lista pedida), se descarta y se usa el respaldo heurístico en vez de
-      // mostrar texto roto al usuario.
-      const pareceTruncado = puntos.length === 1 && /^[a-záéíóúñ]/.test(puntos[0]);
-      if (puntos.length > 0 && !pareceTruncado) {
-        return res.json({ puntos, disponible: true });
+      const parsed = safeJsonParse<{ disponible?: boolean; puntos?: string[]; motivo?: string }>(textoIA);
+      if (parsed && parsed.disponible === false) {
+        // La IA determinó honestamente que la fuente obtenida no es el texto
+        // de la norma (ej. una página de archivo/índice) -- se muestra como
+        // "no disponible" con el motivo, en vez de listar ese comentario
+        // meta como si fueran puntos reales de análisis normativo.
+        return res.json({
+          puntos: [],
+          disponible: false,
+          mensaje: parsed.motivo || "La fuente obtenida no contiene el texto de la norma; revisa el enlace oficial directamente."
+        });
+      }
+      if (parsed && parsed.disponible && Array.isArray(parsed.puntos) && parsed.puntos.length > 0) {
+        const puntos = parsed.puntos.map((l) => l.replace(/^[-•]\s*/, "").trim()).filter((l) => l.length > 0);
+        if (puntos.length > 0) {
+          return res.json({ puntos, disponible: true });
+        }
       }
     }
   }

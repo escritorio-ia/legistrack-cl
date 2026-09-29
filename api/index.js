@@ -192985,17 +192985,30 @@ Texto de la fuente:
 ${textoFuente}
 """
 
-Identifica entre 4 y 8 art\xEDculos, secciones o disposiciones de esta norma que sean sustantivos EN RELACI\xD3N A LA MATERIA CONSULTADA, bas\xE1ndote EXCLUSIVAMENTE en el texto entregado. Redacta cada uno como hace un informe real de legislaci\xF3n comparada de la BCN: identificando el art\xEDculo o secci\xF3n (n\xFAmero o nombre tal como aparece en el texto) seguido de una explicaci\xF3n breve en prosa de qu\xE9 proh\xEDbe, permite, obliga o establece -- por ejemplo: "Art\xEDculo 8: Registro de mascotas: Establece la obligaci\xF3n de inscribir a los animales en un registro municipal dentro de los 30 d\xEDas siguientes a su adquisici\xF3n." Si el texto no distingue art\xEDculos numerados, usa el nombre de la secci\xF3n o el tema tal como aparece.
+Primero eval\xFAa si el texto entregado corresponde efectivamente al CUERPO de la norma (art\xEDculos, disposiciones) o si en cambio es una p\xE1gina de archivo, \xEDndice, buscador, men\xFA de navegaci\xF3n u otro contenido que NO contiene el texto legal sustantivo (esto pasa con frecuencia en portales de repositorios oficiales extranjeros).
 
-Para al menos 2 de esos puntos, incluye adem\xE1s una cita textual breve (m\xE1x. 30 palabras) entre comillas del pasaje exacto del texto entregado que lo respalda -- no la parafrasees, c\xF3piala literal. Si el texto entregado no permite citar literalmente alg\xFAn punto, red\xE1ctalo igual pero sin inventar una cita que no est\xE9 ah\xED.
+Responde \xDANICAMENTE con un objeto JSON v\xE1lido, compacto, sin texto adicional, con uno de estos dos esquemas:
 
-Responde en formato de lista, un punto por l\xEDnea, cada uno iniciando con "- ".`;
+- Si el texto S\xCD contiene disposiciones sustantivas: {"disponible":true,"puntos":["- Art\xEDculo 8: Registro de mascotas: Establece la obligaci\xF3n de inscribir a los animales en un registro municipal dentro de los 30 d\xEDas siguientes a su adquisici\xF3n.", "..."]}
+  Identifica entre 4 y 8 art\xEDculos, secciones o disposiciones sustantivos EN RELACI\xD3N A LA MATERIA CONSULTADA, bas\xE1ndote EXCLUSIVAMENTE en el texto entregado, cada uno identificando el art\xEDculo o secci\xF3n (n\xFAmero o nombre tal como aparece en el texto) seguido de una explicaci\xF3n breve en prosa de qu\xE9 proh\xEDbe, permite, obliga o establece. Para al menos 2 de esos puntos, incluye una cita textual breve (m\xE1x. 30 palabras) entre comillas del pasaje exacto del texto -- no la parafrasees, c\xF3piala literal.
+- Si el texto NO contiene disposiciones sustantivas (es una p\xE1gina de archivo/\xEDndice/buscador/men\xFA): {"disponible":false,"motivo":"Explicaci\xF3n breve de qu\xE9 es efectivamente el texto obtenido (ej. p\xE1gina de \xEDndice del archivo oficial) y que no permite identificar disposiciones sobre la materia consultada."}
+
+No inventes disposiciones que no est\xE9n en el texto entregado bajo ninguna circunstancia.`;
     const textoIA = await generarContenidoUniversalIA(prompt, 2e3);
     if (textoIA) {
-      const puntos = textoIA.split("\n").map((l) => l.replace(/^[-•]\s*/, "").trim()).filter((l) => l.length > 0);
-      const pareceTruncado = puntos.length === 1 && /^[a-záéíóúñ]/.test(puntos[0]);
-      if (puntos.length > 0 && !pareceTruncado) {
-        return res.json({ puntos, disponible: true });
+      const parsed = safeJsonParse(textoIA);
+      if (parsed && parsed.disponible === false) {
+        return res.json({
+          puntos: [],
+          disponible: false,
+          mensaje: parsed.motivo || "La fuente obtenida no contiene el texto de la norma; revisa el enlace oficial directamente."
+        });
+      }
+      if (parsed && parsed.disponible && Array.isArray(parsed.puntos) && parsed.puntos.length > 0) {
+        const puntos = parsed.puntos.map((l) => l.replace(/^[-•]\s*/, "").trim()).filter((l) => l.length > 0);
+        if (puntos.length > 0) {
+          return res.json({ puntos, disponible: true });
+        }
       }
     }
   }
