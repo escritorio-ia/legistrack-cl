@@ -1540,6 +1540,20 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
     }
   };
 
+  // Combina en un solo clic lo que antes eran dos pasos separados: extraer
+  // los puntos reales de cada norma seleccionada (handleComparar) y generar
+  // de inmediato el Informe Técnico con esa misma selección, en vez de
+  // dejar al usuario dando un segundo clic aparte en otra pestaña.
+  const handleCompararYGenerarInforme = async () => {
+    if (seleccionComparar.length < 2) return;
+    const detalleActualizado = await handleComparar();
+    const base = ordenarChilePrimero(seleccionComparar);
+    const md = buildInformeMarkdown(liveQuery, base, buildParrafoAutomatico(liveQuery, base), undefined, detalleActualizado || comparacionDetalle);
+    setInformeLiveMarkdown(md);
+    setInformeLiveQuery(liveQuery);
+    setActiveTab("documento");
+  };
+
   // Genera el análisis comparativo real (prosa) entre las normas
   // seleccionadas, a partir de los puntos ya extraídos de su texto real
   // (comparacionDetalle) -- si aún no se extrajeron (usuario no apretó
@@ -2163,12 +2177,12 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
                   Limpiar
                 </button>
                 <button
-                  onClick={handleComparar}
+                  onClick={handleCompararYGenerarInforme}
                   disabled={seleccionComparar.length < 2 || comparando}
                   className="bg-white hover:bg-blue-50 text-blue-900 font-bold px-4 py-2 rounded-xl text-xs transition-colors flex items-center gap-2 cursor-pointer shadow-xs disabled:opacity-50"
                 >
                   <SlidersHorizontal className="w-3.5 h-3.5 text-blue-700" />
-                  <span>{comparando ? "Analizando..." : "Comparar en tabla lado a lado"}</span>
+                  <span>{comparando ? "Analizando..." : "Comparar y Generar Informe"}</span>
                 </button>
               </div>
             </div>
