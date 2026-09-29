@@ -2351,10 +2351,12 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
             </div>
           )}
 
-          {/* CTA: generar el Informe Técnico BCN real a partir de los resultados
-              efectivamente encontrados para el tema buscado (en vez de un
-              dossier precargado desconectado de la búsqueda). */}
-          {!liveLoading && liveResultadosFiltrados.length > 0 && (
+          {/* CTA: abrir el Informe Técnico ya generado automáticamente con
+              todos los resultados. Solo tiene sentido cuando no hay países
+              marcados -- si ya seleccionaste países, el botón "Comparar y
+              Generar Informe" de la barra de arriba hace justo esto mismo
+              (y con más contexto), así que mostrar los dos era redundante. */}
+          {!liveLoading && liveResultadosFiltrados.length > 0 && seleccionComparar.length === 0 && (
             <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-start gap-3">
                 <div className="w-9 h-9 rounded-xl bg-blue-700 text-white flex items-center justify-center shrink-0">
@@ -2363,18 +2365,13 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
                 <div>
                   <h4 className="text-xs font-extrabold text-blue-900">Informe Técnico de este tema</h4>
                   <p className="text-[11px] text-blue-800/80 mt-0.5 max-w-lg">
-                    {seleccionComparar.length > 0 ? (
-                      <>Se generará solo con los {seleccionComparar.length} países que marcaste para comparar ({seleccionComparar.map(s => s.pais).join(", ")}). Desmarca todos para usar los {liveResultadosFiltrados.length} resultados completos.</>
-                    ) : (
-                      <>Marca los países que te interesan (casilla junto a cada resultado) antes de generarlo, o ábrelo directo con los {liveResultadosFiltrados.length} resultados encontrados para &quot;{liveQuery}&quot;.</>
-                    )}
+                    Marca los países que te interesan (casilla junto a cada resultado) para un informe acotado, o ábrelo directo con los {liveResultadosFiltrados.length} resultados encontrados para &quot;{liveQuery}&quot;.
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => {
-                  const base = seleccionComparar.length > 0 ? seleccionComparar : liveResultadosFiltrados;
-                  const md = buildInformeMarkdown(liveQuery, ordenarChilePrimero(base), buildParrafoAutomatico(liveQuery, base), undefined, comparacionDetalle);
+                  const md = buildInformeMarkdown(liveQuery, ordenarChilePrimero(liveResultadosFiltrados), buildParrafoAutomatico(liveQuery, liveResultadosFiltrados), undefined, comparacionDetalle);
                   setInformeLiveMarkdown(md);
                   setInformeLiveQuery(liveQuery);
                   setActiveTab("documento");
@@ -2382,7 +2379,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
                 className="bg-blue-700 hover:bg-blue-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl cursor-pointer shadow-xs flex items-center gap-2 shrink-0"
               >
                 <FileText className="w-4 h-4" />
-                <span>{seleccionComparar.length > 0 ? `Generar Informe (${seleccionComparar.length} países)` : "Abrir Informe Técnico"}</span>
+                <span>Abrir Informe Técnico</span>
               </button>
             </div>
           )}
