@@ -22,6 +22,49 @@ export interface DatasetParseado {
 
 const MAX_FILAS = 100000;
 
+const COLUMNA_ORIGEN = "_archivo_origen";
+
+/**
+ * Combina varios archivos ya parseados en un único dataset (una sola tabla)
+ * para que el análisis se haga sobre el conjunto y no archivo por archivo.
+ * Las columnas se unen por nombre (unión de todas); si un archivo no tiene
+ * una columna que otro sí tiene, esas celdas quedan vacías (se cuentan como
+ * nulas en las estadísticas de esa columna para ese archivo). Se agrega una
+ * columna "_archivo_origen" para poder rastrear de qué archivo vino cada fila.
+ */
+export function combinarDatasetsParaAnalisis(
+  archivos: { nombre: string; datos: DatasetParseado }[]
+): DatasetParseado {
+  if (archivos.length === 1) {
+    const unico = archivos[0];
+    return {
+      headers: unico.datos.headers,
+      rows: unico.datos.rows.map((r) => ({ ...r }))
+    };
+  }
+
+  const headersUnidos: string[] = [COLUMNA_ORIGEN];
+  for (const { datos } of archivos) {
+    for (const h of datos.headers) {
+      if (!headersUnidos.includes(h)) headersUnidos.push(h);
+    }
+  }
+
+  const rows: Record<string, string>[] = [];
+  for (const { nombre, datos } of archivos) {
+    for (const r of datos.rows) {
+      const fila: Record<string, string> = { [COLUMNA_ORIGEN]: nombre };
+      for (const h of headersUnidos) {
+        if (h === COLUMNA_ORIGEN) continue;
+        fila[h] = r[h] ?? "";
+      }
+      rows.push(fila);
+    }
+  }
+
+  return { headers: headersUnidos, rows };
+}
+
 export async function parseDatasetFile(file: File): Promise<DatasetParseado> {
   const nombreLower = file.name.toLowerCase();
   if (nombreLower.endsWith(".csv")) {

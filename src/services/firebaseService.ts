@@ -370,15 +370,22 @@ export interface ColumnaDatasetStats {
   topValores?: { valor: string; conteo: number }[];
 }
 
+export interface ArchivoOrigenDataset {
+  fileName: string;
+  fileSize: number;
+  storagePath: string;
+  downloadUrl: string;
+}
+
 export interface DatasetEstadistico {
   id: string;
   nombre: string;
   autor: string;
   createdAt: string;
-  fileName: string;
-  fileSize: number;
-  storagePath: string;
-  downloadUrl: string;
+  // Uno o más archivos originales que componen este dataset -- cuando se
+  // suben varios a la vez, el análisis (columnas/estadísticas/informe) se
+  // hace sobre el conjunto combinado de todos ellos, no archivo por archivo.
+  archivos: ArchivoOrigenDataset[];
   totalFilas: number;
   columnas: ColumnaDatasetStats[];
   informeIA?: string;
@@ -434,11 +441,13 @@ export async function deleteDatasetEstadisticoFromFirestore(dataset: DatasetEsta
   if (!db) return false;
   try {
     await deleteDoc(doc(db, COLLECTIONS.DATASETS_ESTADISTICOS, dataset.id));
-    if (storage && dataset.storagePath) {
-      try {
-        await deleteObject(ref(storage, dataset.storagePath));
-      } catch (err) {
-        console.warn("Error deleting dataset file from Storage (Firestore record already removed):", err);
+    if (storage && dataset.archivos && dataset.archivos.length > 0) {
+      for (const archivo of dataset.archivos) {
+        try {
+          await deleteObject(ref(storage, archivo.storagePath));
+        } catch (err) {
+          console.warn(`Error deleting dataset file "${archivo.fileName}" from Storage (Firestore record already removed):`, err);
+        }
       }
     }
     return true;
