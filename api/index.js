@@ -192981,14 +192981,16 @@ apiRouter.post("/derecho-comparado/analizar", async (req, res) => {
   const textoNormaCompleto = resultado.pais === "Chile" && resultado.url ? await fetchTextoNormaLeyChileCompleto(resultado.url) : null;
   const textoFuente = textoNormaCompleto || (resultado.url ? await fetchTextoFuente(resultado.url) : null);
   if (textoFuente) {
-    const prompt = `Eres un asesor t\xE9cnico de la Biblioteca del Congreso Nacional de Chile. A continuaci\xF3n se entrega el TEXTO REAL extra\xEDdo de la fuente oficial "${resultado.titulo}" (${resultado.pais}), en relaci\xF3n a la materia "${query}". Identifica entre 4 y 8 puntos sustantivos de esta norma/iniciativa EN RELACI\xD3N A LA MATERIA CONSULTADA, bas\xE1ndote EXCLUSIVAMENTE en el texto entregado.
+    const prompt = `Eres un analista de Asesor\xEDa T\xE9cnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile, redactando la secci\xF3n de un pa\xEDs en un informe de legislaci\xF3n comparada. A continuaci\xF3n se entrega el TEXTO REAL extra\xEDdo de la fuente oficial "${resultado.titulo}" (${resultado.pais}), en relaci\xF3n a la materia "${query}".
 
 Texto de la fuente:
 """
 ${textoFuente}
 """
 
-Para al menos 2 de esos puntos, incluye una cita textual breve (m\xE1x. 30 palabras) entre comillas del art\xEDculo o pasaje exacto del texto entregado que lo respalda -- no la parafrasees, c\xF3piala literal. Si el texto entregado no permite citar literalmente alg\xFAn punto, red\xE1ctalo igual pero sin inventar una cita que no est\xE9 ah\xED.
+Identifica entre 4 y 8 art\xEDculos, secciones o disposiciones de esta norma que sean sustantivos EN RELACI\xD3N A LA MATERIA CONSULTADA, bas\xE1ndote EXCLUSIVAMENTE en el texto entregado. Redacta cada uno como hace un informe real de legislaci\xF3n comparada de la BCN: identificando el art\xEDculo o secci\xF3n (n\xFAmero o nombre tal como aparece en el texto) seguido de una explicaci\xF3n breve en prosa de qu\xE9 proh\xEDbe, permite, obliga o establece -- por ejemplo: "Art\xEDculo 8: Registro de mascotas: Establece la obligaci\xF3n de inscribir a los animales en un registro municipal dentro de los 30 d\xEDas siguientes a su adquisici\xF3n." Si el texto no distingue art\xEDculos numerados, usa el nombre de la secci\xF3n o el tema tal como aparece.
+
+Para al menos 2 de esos puntos, incluye adem\xE1s una cita textual breve (m\xE1x. 30 palabras) entre comillas del pasaje exacto del texto entregado que lo respalda -- no la parafrasees, c\xF3piala literal. Si el texto entregado no permite citar literalmente alg\xFAn punto, red\xE1ctalo igual pero sin inventar una cita que no est\xE9 ah\xED.
 
 Responde en formato de lista, un punto por l\xEDnea, cada uno iniciando con "- ".`;
     const textoIA = await generarContenidoUniversalIA(prompt, 2e3);

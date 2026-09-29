@@ -1242,14 +1242,16 @@ apiRouter.post("/derecho-comparado/analizar", async (req: Request, res: Response
   const textoFuente = textoNormaCompleto || (resultado.url ? await fetchTextoFuente(resultado.url) : null);
 
   if (textoFuente) {
-    const prompt = `Eres un asesor técnico de la Biblioteca del Congreso Nacional de Chile. A continuación se entrega el TEXTO REAL extraído de la fuente oficial "${resultado.titulo}" (${resultado.pais}), en relación a la materia "${query}". Identifica entre 4 y 8 puntos sustantivos de esta norma/iniciativa EN RELACIÓN A LA MATERIA CONSULTADA, basándote EXCLUSIVAMENTE en el texto entregado.
+    const prompt = `Eres un analista de Asesoría Técnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile, redactando la sección de un país en un informe de legislación comparada. A continuación se entrega el TEXTO REAL extraído de la fuente oficial "${resultado.titulo}" (${resultado.pais}), en relación a la materia "${query}".
 
 Texto de la fuente:
 """
 ${textoFuente}
 """
 
-Para al menos 2 de esos puntos, incluye una cita textual breve (máx. 30 palabras) entre comillas del artículo o pasaje exacto del texto entregado que lo respalda -- no la parafrasees, cópiala literal. Si el texto entregado no permite citar literalmente algún punto, redáctalo igual pero sin inventar una cita que no esté ahí.
+Identifica entre 4 y 8 artículos, secciones o disposiciones de esta norma que sean sustantivos EN RELACIÓN A LA MATERIA CONSULTADA, basándote EXCLUSIVAMENTE en el texto entregado. Redacta cada uno como hace un informe real de legislación comparada de la BCN: identificando el artículo o sección (número o nombre tal como aparece en el texto) seguido de una explicación breve en prosa de qué prohíbe, permite, obliga o establece -- por ejemplo: "Artículo 8: Registro de mascotas: Establece la obligación de inscribir a los animales en un registro municipal dentro de los 30 días siguientes a su adquisición." Si el texto no distingue artículos numerados, usa el nombre de la sección o el tema tal como aparece.
+
+Para al menos 2 de esos puntos, incluye además una cita textual breve (máx. 30 palabras) entre comillas del pasaje exacto del texto entregado que lo respalda -- no la parafrasees, cópiala literal. Si el texto entregado no permite citar literalmente algún punto, redáctalo igual pero sin inventar una cita que no esté ahí.
 
 Responde en formato de lista, un punto por línea, cada uno iniciando con "- ".`;
 
