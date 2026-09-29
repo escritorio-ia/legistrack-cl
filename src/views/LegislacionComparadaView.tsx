@@ -2232,7 +2232,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
 
                 return (
                   <div
-                    key={i}
+                    key={`${claveResultado(r)}__${i}`}
                     className={`bg-white rounded-2xl border p-5 flex flex-col justify-between gap-4 transition-all shadow-2xs hover:shadow-xs ${
                       estaEnComparacion 
                         ? "border-blue-600 ring-2 ring-blue-100" 
