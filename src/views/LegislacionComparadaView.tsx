@@ -1898,7 +1898,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
         >
           <FileText className="w-4 h-4" />
           <span>
-            Informe Técnico BCN ({(informeLiveMarkdown && informeLiveQuery === liveQuery ? liveQuery : currentTopic.titulo).slice(0, 35)}...)
+            Informe Técnico ({(informeLiveMarkdown && informeLiveQuery === liveQuery ? liveQuery : currentTopic.titulo).slice(0, 35)}...)
           </span>
         </button>
 
@@ -1911,7 +1911,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
           }`}
         >
           <SlidersHorizontal className="w-4 h-4" />
-          <span>Comparador Lado a Lado ({seleccionComparar.length})</span>
+          <span>Matriz ({seleccionComparar.length})</span>
         </button>
         </>
         )}
@@ -2311,7 +2311,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
                   <FileText className="w-4.5 h-4.5" />
                 </div>
                 <div>
-                  <h4 className="text-xs font-extrabold text-blue-900">Informe Técnico BCN de este tema</h4>
+                  <h4 className="text-xs font-extrabold text-blue-900">Informe Técnico de este tema</h4>
                   <p className="text-[11px] text-blue-800/80 mt-0.5 max-w-lg">
                     {seleccionComparar.length > 0 ? (
                       <>Se generará solo con los {seleccionComparar.length} países que marcaste para comparar ({seleccionComparar.map(s => s.pais).join(", ")}). Desmarca todos para usar los {liveResultadosFiltrados.length} resultados completos.</>
@@ -2332,7 +2332,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
                 className="bg-blue-700 hover:bg-blue-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl cursor-pointer shadow-xs flex items-center gap-2 shrink-0"
               >
                 <FileText className="w-4 h-4" />
-                <span>{seleccionComparar.length > 0 ? `Generar Informe (${seleccionComparar.length} países)` : "Abrir Informe Técnico BCN"}</span>
+                <span>{seleccionComparar.length > 0 ? `Generar Informe (${seleccionComparar.length} países)` : "Abrir Informe Técnico"}</span>
               </button>
             </div>
           )}
@@ -2379,7 +2379,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
           {informeLiveMarkdown && informeLiveQuery === liveQuery && (
             <div className="bg-white rounded-2xl border-2 border-blue-200 shadow-sm overflow-hidden">
               <div className="bg-blue-700 text-white px-6 py-3 flex items-center justify-between text-xs font-mono font-bold tracking-wider">
-                <span className="flex items-center gap-2"><Sparkles className="w-4 h-4" /> INFORME TÉCNICO BCN — GENERADO EN VIVO PARA &quot;{liveQuery.toUpperCase()}&quot;</span>
+                <span className="flex items-center gap-2"><Sparkles className="w-4 h-4" /> INFORME TÉCNICO — GENERADO EN VIVO PARA &quot;{liveQuery.toUpperCase()}&quot;</span>
                 <button onClick={() => setInformeLiveMarkdown(null)} className="hover:text-blue-200 cursor-pointer" title="Cerrar">
                   <X className="w-4 h-4" />
                 </button>
@@ -2672,7 +2672,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
             <div>
               <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
                 <SlidersHorizontal className="w-5 h-5 text-blue-700" />
-                Comparador y Matriz Multidimensional de Normativa Internacional
+                Matriz Comparada de Normativa Internacional
               </h3>
               <p className="text-xs text-slate-500 mt-1">
                 Contraste analítico estructurado entre las legislaciones seleccionadas ({seleccionComparar.length} seleccionadas).
