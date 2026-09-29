@@ -89,6 +89,12 @@ export default function App() {
   const [selectedProyectoId, setSelectedProyectoId] = useState<string>("16.621-13");
   const [selectedComisionId, setSelectedComisionId] = useState<string>("cd-trabajo-y-prevision");
   const [searchFilter, setSearchFilter] = useState<string>("");
+  // Materia con la que se debe abrir Derecho Comparado++ automáticamente al
+  // venir del banner "¿Cómo regulan esta materia otros 27 países?" de un
+  // proyecto de ley. Separado de searchFilter para no disparar una búsqueda
+  // inesperada al entrar a Derecho Comparado++ desde el menú principal con
+  // un searchFilter viejo de otra búsqueda global.
+  const [comparadoInitialQuery, setComparadoInitialQuery] = useState<string>("");
   const [activeAlertsCount, setActiveAlertsCount] = useState<number>(0);
   const [commSearchTerm, setCommSearchTerm] = useState<string>("");
   const [commSearchFocused, setCommSearchFocused] = useState<boolean>(false);
@@ -319,12 +325,13 @@ export default function App() {
         )}
 
         {view === "proyecto-detail" && (
-          <ProyectoDetailView 
+          <ProyectoDetailView
             proyectoId={selectedProyectoId}
             setView={navigateView}
             setSelectedComisionId={(id) => navigateView("comision-detail", id)}
             followedProys={followedProys}
             toggleFollowProy={toggleFollowProy}
+            setComparadoInitialQuery={setComparadoInitialQuery}
           />
         )}
 
@@ -764,7 +771,10 @@ export default function App() {
         )}
 
         {view === "legislacion-comparada" && (
-          <LegislacionComparadaView setSelectedProyectoId={(id) => navigateView("proyecto-detail", id)} />
+          <LegislacionComparadaView
+            setSelectedProyectoId={(id) => navigateView("proyecto-detail", id)}
+            initialQuery={comparadoInitialQuery}
+          />
         )}
 
         {view === "search-results" && (

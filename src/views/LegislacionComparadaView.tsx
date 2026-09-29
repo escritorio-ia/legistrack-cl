@@ -1204,9 +1204,14 @@ interface LegislacionComparadaViewProps {
   // Navega al detalle de un proyecto de ley por su Boletín -- permite vincular
   // un informe de Derecho Comparado directamente al proyecto chileno relacionado.
   setSelectedProyectoId?: (id: string) => void;
+  // Materia con la que se debe buscar automáticamente al abrir la vista (ej.
+  // al venir del banner "¿Cómo regulan esta materia otros 27 países?" de un
+  // proyecto de ley específico) -- sin esto, el usuario tenía que volver a
+  // escribir manualmente la misma materia que ya se le mostró en el banner.
+  initialQuery?: string;
 }
 
-export default function LegislacionComparadaView({ setSelectedProyectoId }: LegislacionComparadaViewProps = {}) {
+export default function LegislacionComparadaView({ setSelectedProyectoId, initialQuery }: LegislacionComparadaViewProps = {}) {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [selectedTopicId, setSelectedTopicId] = useState<string>(COMPARATIVE_TOPICS[0].id);
   const [customQuery, setCustomQuery] = useState<string>("");
@@ -1405,6 +1410,19 @@ export default function LegislacionComparadaView({ setSelectedProyectoId }: Legi
       setLiveLoading(false);
     }
   };
+
+  // Si se llega a esta vista con una materia ya definida (ej. desde el banner
+  // "¿Cómo regulan esta materia otros 27 países?" de un proyecto de ley),
+  // dispara la búsqueda automáticamente en vez de dejar al usuario con la
+  // pantalla vacía teniendo que volver a escribir la misma materia.
+  useEffect(() => {
+    if (!initialQuery || !initialQuery.trim()) return;
+    setSearchTerm(initialQuery);
+    handleBuscarRegulacion(initialQuery);
+    // Solo debe dispararse una vez al llegar con una materia inicial, no cada
+    // vez que cambie handleBuscarRegulacion (se recrea en cada render).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialQuery]);
 
   // Filter and sort live results
   const paisesDisponibles = useMemo(() => {

@@ -60,6 +60,9 @@ interface ProyectoDetailViewProps {
   setSelectedComisionId?: (id: string) => void;
   followedProys?: string[];
   toggleFollowProy?: (id: string) => void;
+  // Materia con la que se debe abrir Derecho Comparado++ automáticamente al
+  // hacer clic en "Abrir Comparador" desde el banner de legislación comparada.
+  setComparadoInitialQuery?: (query: string) => void;
 }
 
 function diffDays(fromStr?: string, toStr?: string): number | undefined {
@@ -243,7 +246,8 @@ export default function ProyectoDetailView({
   setView,
   setSelectedComisionId,
   followedProys,
-  toggleFollowProy
+  toggleFollowProy,
+  setComparadoInitialQuery
 }: ProyectoDetailViewProps) {
   const [proyecto, setProyecto] = useState<Proyecto>(() => resolveProyecto(proyectoId));
   const [loading, setLoading] = useState(false);
@@ -1379,6 +1383,7 @@ export default function ProyectoDetailView({
                   </div>
                   <button
                     onClick={() => {
+                      setComparadoInitialQuery?.(proyecto.materia || proyecto.titulo);
                       setView("legislacion-comparada");
                     }}
                     className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs px-5 py-2.5 rounded-xl transition-all shadow-md shrink-0 cursor-pointer flex items-center gap-1.5"
