@@ -308,40 +308,45 @@ export async function buscarLeyChilePorNumero(numLey: string): Promise<Resultado
 /**
  * Motor de IA para identificar legislación comparada internacional precisa
  */
-export async function buscarComparadoConIA(query: string, attempts?: AIProviderAttempt[]): Promise<ResultadoComparado[]> {
-  // Lista explícita de las 28 jurisdicciones que la UI anuncia como "27
-  // Países" (todo CODIGO_PAIS salvo Chile, que se consulta aparte vía
-  // LeyChile). Antes el prompt solo pedía "elige las 5 a 7 más pertinentes"
-  // de una lista de 8 regiones agrupadas -- la IA nunca evaluaba realmente
-  // las 27, así que muchos países listados en el filtro de la UI jamás
-  // podían aparecer en un resultado real. Ahora se le pide evaluar CADA una
-  // de las jurisdicciones listadas e incluir solo aquellas donde identifique
-  // una norma real y específica sobre la materia (se permite omitir las que
-  // genuinamente no tengan una norma identificable, en vez de inventarla).
-  const jurisdicciones = Object.keys(CODIGO_PAIS).filter((p) => p !== "Chile");
-  const prompt = `Actúa como un analista experto en Derecho Comparado y Asesoría Técnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile (BCN).
-Para la materia, concepto o ámbito regulatorio: "${query}", evalúa CADA UNA de las siguientes ${jurisdicciones.length} jurisdicciones (Chile se consulta por separado, no lo incluyas) e identifica, para cada una en que exista, un marco normativo o iniciativa legal REAL, VIGENTE O EN TRÁMITE relacionado con la materia:
+function construirPromptLoteComparado(query: string, lote: string[]): string {
+  return `Actúa como un analista experto en Derecho Comparado y Asesoría Técnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile (BCN).
+Para la materia, concepto o ámbito regulatorio: "${query}", evalúa CADA UNA de las siguientes ${lote.length} jurisdicciones e identifica, para cada una en que exista, un marco normativo o iniciativa legal REAL, VIGENTE O EN TRÁMITE relacionado con la materia:
 
-${jurisdicciones.join(", ")}
+${lote.join(", ")}
 
-No te limites a un subconjunto pequeño: revisa la lista completa e incluye en tu respuesta a TODAS las jurisdicciones para las que puedas identificar honestamente una norma real y específica sobre "${query}" (puede ser bastante más de 7 si la materia es de regulación común, como protección de datos, medio ambiente o derechos laborales). Omite del arreglo únicamente aquellas jurisdicciones para las que genuinamente no exista o no puedas identificar una norma específica sobre la materia -- nunca inventes un título, número o fecha para rellenar una jurisdicción.
+Incluye en tu respuesta a TODAS las jurisdicciones de esta lista para las que puedas identificar honestamente una norma real y específica sobre "${query}". Omite del arreglo únicamente aquellas para las que genuinamente no exista o no puedas identificar una norma específica sobre la materia -- nunca inventes un título, número o fecha para rellenar una jurisdicción.
 
 Responde ÚNICAMENTE con un arreglo JSON válido, compacto (sin saltos de línea ni indentación innecesarios) y SIN texto adicional antes ni después, donde cada objeto tenga este esquema exacto:
 [{"pais":"Nombre del país o entidad","fuente":"Nombre del repositorio oficial (ej: EUR-Lex, BOE, Congress.gov)","titulo":"Título formal y número REAL de la norma (no inventes un título genérico)","tituloOriginal":"Título original en idioma nativo si no es español","fecha":"Año de aprobación o entrada en vigencia","url":"Enlace oficial real o portal gubernamental de referencia","tipo":"Ley | Reglamento | Jurisprudencia | Administrativo | Documento","descripcion":"Párrafo único en prosa formal (sin viñetas ni emojis, estilo Asesoría Técnica Parlamentaria de la BCN) que explique el objeto y ámbito de la norma, sus principales mecanismos o deberes, y el órgano encargado de su fiscalización, en 2 a 3 oraciones.","relevancia":95}]
 
-Escribe "descripcion" como lo haría un analista de la Biblioteca del Congreso Nacional de Chile en un informe de Asesoría Técnica Parlamentaria: prosa formal y continua, en tercera persona, sin emojis, sin viñetas y sin encabezados dentro del texto. Mantén cada "descripcion" breve (2 a 3 oraciones, máximo 3-4 líneas) para que el JSON completo, con potencialmente muchas jurisdicciones, no exceda el límite de salida.
+Escribe "descripcion" como lo haría un analista de la Biblioteca del Congreso Nacional de Chile en un informe de Asesoría Técnica Parlamentaria: prosa formal y continua, en tercera persona, sin emojis, sin viñetas y sin encabezados dentro del texto. Mantén cada "descripcion" breve (2 a 3 oraciones, máximo 3-4 líneas).
 IMPORTANTE: clasifica el campo "tipo" usando EXCLUSIVAMENTE una de estas 5 categorías, según la jerarquía normativa real:
 - "Ley": norma aprobada por el Congreso/Parlamento nacional o su equivalente estatal (leyes orgánicas, actos, estatutos federales).
 - "Reglamento": norma de ejecución o desarrollo de una ley, de alcance general (reglamentos, regulations).
 - "Jurisprudencia": sentencias, fallos o resoluciones de tribunales.
 - "Administrativo": decretos, resoluciones, ordenanzas municipales/locales, directivas de organismos administrativos y circulares. Una ordenanza municipal NUNCA es "Ley".
 - "Documento": informes, minutas, estudios técnicos u otro texto de referencia sin fuerza normativa vinculante propia.`;
+}
 
-  const intentarUnaVez = async (p: string): Promise<ResultadoComparado[] | null> => {
-    // Con hasta 27 jurisdicciones evaluadas (antes el tope real eran 7), el
-    // JSON de salida puede ser bastante más largo -- se sube el presupuesto
-    // de tokens para no truncar la respuesta a mitad de un objeto.
-    const aiResponse = await generarContenidoUniversalIA(p, 7000, attempts);
+export async function buscarComparadoConIA(query: string, attempts?: AIProviderAttempt[]): Promise<ResultadoComparado[]> {
+  // Lista explícita de las 28 jurisdicciones que la UI anuncia como "27
+  // Países" (todo CODIGO_PAIS salvo Chile, que se consulta aparte vía
+  // LeyChile). Antes el prompt pedía "elige las 5 a 7 más pertinentes" de
+  // una lista de 8 regiones agrupadas -- la IA nunca evaluaba realmente las
+  // 27. Pedirlas todas en UN solo prompt sí las cubre, pero un modelo
+  // generando ~7000 tokens de salida en un solo llamado se siente muy lento
+  // (30-40s). En vez de eso, se reparte la lista en lotes más chicos y se
+  // consultan EN PARALELO -- el tiempo total queda acotado por el lote más
+  // lento, no por la suma de los 27 países.
+  const jurisdicciones = Object.keys(CODIGO_PAIS).filter((p) => p !== "Chile");
+  const TAMANO_LOTE = 7;
+  const lotes: string[][] = [];
+  for (let i = 0; i < jurisdicciones.length; i += TAMANO_LOTE) {
+    lotes.push(jurisdicciones.slice(i, i + TAMANO_LOTE));
+  }
+
+  const intentarUnaVez = async (p: string, maxTokens: number): Promise<ResultadoComparado[] | null> => {
+    const aiResponse = await generarContenidoUniversalIA(p, maxTokens, attempts);
     if (!aiResponse) return null;
     try {
       const parsed = safeJsonParse<ResultadoComparado[]>(aiResponse);
@@ -360,23 +365,31 @@ IMPORTANTE: clasifica el campo "tipo" usando EXCLUSIVAMENTE una de estas 5 categ
     }
   };
 
-  try {
-    const primerIntento = await intentarUnaVez(prompt);
-    if (primerIntento) return primerIntento;
+  const resolverLote = async (lote: string[]): Promise<ResultadoComparado[]> => {
+    const prompt = construirPromptLoteComparado(query, lote);
+    try {
+      const primerIntento = await intentarUnaVez(prompt, 2200);
+      if (primerIntento) return primerIntento;
 
-    // El modelo a veces "conversa" en vez de responder solo el JSON pedido
-    // (variación normal de un LLM, no un fallo de la llamada en sí). Antes de
-    // caer al respaldo genérico, se reintenta una vez con una instrucción de
-    // formato más estricta -- suele bastar para corregirlo.
-    const promptEstricto = `${prompt}\n\nIMPORTANTE: tu respuesta anterior no cumplió el formato. Responde EXCLUSIVAMENTE con el arreglo JSON solicitado, empezando en "[" y terminando en "]", sin ningún texto, explicación ni markdown antes o después.`;
-    const segundoIntento = await intentarUnaVez(promptEstricto);
-    if (segundoIntento) return segundoIntento;
-  } catch (err: any) {
-    console.warn("[Derecho Comparado IA] Error al consultar modelo de IA:", err.message);
-  }
+      // El modelo a veces "conversa" en vez de responder solo el JSON pedido
+      // (variación normal de un LLM, no un fallo de la llamada en sí). Antes de
+      // rendirse con este lote, se reintenta una vez con formato más estricto.
+      const promptEstricto = `${prompt}\n\nIMPORTANTE: tu respuesta anterior no cumplió el formato. Responde EXCLUSIVAMENTE con el arreglo JSON solicitado, empezando en "[" y terminando en "]", sin ningún texto, explicación ni markdown antes o después.`;
+      const segundoIntento = await intentarUnaVez(promptEstricto, 2200);
+      if (segundoIntento) return segundoIntento;
+    } catch (err: any) {
+      console.warn("[Derecho Comparado IA] Error al consultar modelo de IA para lote:", lote.join(", "), err.message);
+    }
+    return [];
+  };
 
-  // Si la IA falla, no responde JSON valido, o no esta disponible, usamos el
-  // sintetizador de ontologia legal comparada como ultimo recurso.
+  const resultadosPorLote = await Promise.all(lotes.map(resolverLote));
+  const resultados = resultadosPorLote.flat();
+
+  if (resultados.length > 0) return resultados;
+
+  // Si todos los lotes fallaron (IA no disponible, sin API keys, etc.), usamos
+  // el sintetizador de ontologia legal comparada como ultimo recurso.
   attempts?.push({ provider: "fallback-ontologico", configured: true });
   return generarFallbackOntologicoComparado(query);
 }

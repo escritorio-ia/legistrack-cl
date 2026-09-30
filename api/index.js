@@ -189586,27 +189586,34 @@ async function buscarLeyChilePorNumero(numLey) {
     return null;
   }
 }
-async function buscarComparadoConIA(query, attempts) {
-  const jurisdicciones = Object.keys(CODIGO_PAIS).filter((p) => p !== "Chile");
-  const prompt = `Act\xFAa como un analista experto en Derecho Comparado y Asesor\xEDa T\xE9cnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile (BCN).
-Para la materia, concepto o \xE1mbito regulatorio: "${query}", eval\xFAa CADA UNA de las siguientes ${jurisdicciones.length} jurisdicciones (Chile se consulta por separado, no lo incluyas) e identifica, para cada una en que exista, un marco normativo o iniciativa legal REAL, VIGENTE O EN TR\xC1MITE relacionado con la materia:
+function construirPromptLoteComparado(query, lote) {
+  return `Act\xFAa como un analista experto en Derecho Comparado y Asesor\xEDa T\xE9cnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile (BCN).
+Para la materia, concepto o \xE1mbito regulatorio: "${query}", eval\xFAa CADA UNA de las siguientes ${lote.length} jurisdicciones e identifica, para cada una en que exista, un marco normativo o iniciativa legal REAL, VIGENTE O EN TR\xC1MITE relacionado con la materia:
 
-${jurisdicciones.join(", ")}
+${lote.join(", ")}
 
-No te limites a un subconjunto peque\xF1o: revisa la lista completa e incluye en tu respuesta a TODAS las jurisdicciones para las que puedas identificar honestamente una norma real y espec\xEDfica sobre "${query}" (puede ser bastante m\xE1s de 7 si la materia es de regulaci\xF3n com\xFAn, como protecci\xF3n de datos, medio ambiente o derechos laborales). Omite del arreglo \xFAnicamente aquellas jurisdicciones para las que genuinamente no exista o no puedas identificar una norma espec\xEDfica sobre la materia -- nunca inventes un t\xEDtulo, n\xFAmero o fecha para rellenar una jurisdicci\xF3n.
+Incluye en tu respuesta a TODAS las jurisdicciones de esta lista para las que puedas identificar honestamente una norma real y espec\xEDfica sobre "${query}". Omite del arreglo \xFAnicamente aquellas para las que genuinamente no exista o no puedas identificar una norma espec\xEDfica sobre la materia -- nunca inventes un t\xEDtulo, n\xFAmero o fecha para rellenar una jurisdicci\xF3n.
 
 Responde \xDANICAMENTE con un arreglo JSON v\xE1lido, compacto (sin saltos de l\xEDnea ni indentaci\xF3n innecesarios) y SIN texto adicional antes ni despu\xE9s, donde cada objeto tenga este esquema exacto:
 [{"pais":"Nombre del pa\xEDs o entidad","fuente":"Nombre del repositorio oficial (ej: EUR-Lex, BOE, Congress.gov)","titulo":"T\xEDtulo formal y n\xFAmero REAL de la norma (no inventes un t\xEDtulo gen\xE9rico)","tituloOriginal":"T\xEDtulo original en idioma nativo si no es espa\xF1ol","fecha":"A\xF1o de aprobaci\xF3n o entrada en vigencia","url":"Enlace oficial real o portal gubernamental de referencia","tipo":"Ley | Reglamento | Jurisprudencia | Administrativo | Documento","descripcion":"P\xE1rrafo \xFAnico en prosa formal (sin vi\xF1etas ni emojis, estilo Asesor\xEDa T\xE9cnica Parlamentaria de la BCN) que explique el objeto y \xE1mbito de la norma, sus principales mecanismos o deberes, y el \xF3rgano encargado de su fiscalizaci\xF3n, en 2 a 3 oraciones.","relevancia":95}]
 
-Escribe "descripcion" como lo har\xEDa un analista de la Biblioteca del Congreso Nacional de Chile en un informe de Asesor\xEDa T\xE9cnica Parlamentaria: prosa formal y continua, en tercera persona, sin emojis, sin vi\xF1etas y sin encabezados dentro del texto. Mant\xE9n cada "descripcion" breve (2 a 3 oraciones, m\xE1ximo 3-4 l\xEDneas) para que el JSON completo, con potencialmente muchas jurisdicciones, no exceda el l\xEDmite de salida.
+Escribe "descripcion" como lo har\xEDa un analista de la Biblioteca del Congreso Nacional de Chile en un informe de Asesor\xEDa T\xE9cnica Parlamentaria: prosa formal y continua, en tercera persona, sin emojis, sin vi\xF1etas y sin encabezados dentro del texto. Mant\xE9n cada "descripcion" breve (2 a 3 oraciones, m\xE1ximo 3-4 l\xEDneas).
 IMPORTANTE: clasifica el campo "tipo" usando EXCLUSIVAMENTE una de estas 5 categor\xEDas, seg\xFAn la jerarqu\xEDa normativa real:
 - "Ley": norma aprobada por el Congreso/Parlamento nacional o su equivalente estatal (leyes org\xE1nicas, actos, estatutos federales).
 - "Reglamento": norma de ejecuci\xF3n o desarrollo de una ley, de alcance general (reglamentos, regulations).
 - "Jurisprudencia": sentencias, fallos o resoluciones de tribunales.
 - "Administrativo": decretos, resoluciones, ordenanzas municipales/locales, directivas de organismos administrativos y circulares. Una ordenanza municipal NUNCA es "Ley".
 - "Documento": informes, minutas, estudios t\xE9cnicos u otro texto de referencia sin fuerza normativa vinculante propia.`;
-  const intentarUnaVez = async (p) => {
-    const aiResponse = await generarContenidoUniversalIA(p, 7e3, attempts);
+}
+async function buscarComparadoConIA(query, attempts) {
+  const jurisdicciones = Object.keys(CODIGO_PAIS).filter((p) => p !== "Chile");
+  const TAMANO_LOTE = 7;
+  const lotes = [];
+  for (let i = 0; i < jurisdicciones.length; i += TAMANO_LOTE) {
+    lotes.push(jurisdicciones.slice(i, i + TAMANO_LOTE));
+  }
+  const intentarUnaVez = async (p, maxTokens) => {
+    const aiResponse = await generarContenidoUniversalIA(p, maxTokens, attempts);
     if (!aiResponse) return null;
     try {
       const parsed = safeJsonParse(aiResponse);
@@ -189624,17 +189631,24 @@ IMPORTANTE: clasifica el campo "tipo" usando EXCLUSIVAMENTE una de estas 5 categ
       return null;
     }
   };
-  try {
-    const primerIntento = await intentarUnaVez(prompt);
-    if (primerIntento) return primerIntento;
-    const promptEstricto = `${prompt}
+  const resolverLote = async (lote) => {
+    const prompt = construirPromptLoteComparado(query, lote);
+    try {
+      const primerIntento = await intentarUnaVez(prompt, 2200);
+      if (primerIntento) return primerIntento;
+      const promptEstricto = `${prompt}
 
 IMPORTANTE: tu respuesta anterior no cumpli\xF3 el formato. Responde EXCLUSIVAMENTE con el arreglo JSON solicitado, empezando en "[" y terminando en "]", sin ning\xFAn texto, explicaci\xF3n ni markdown antes o despu\xE9s.`;
-    const segundoIntento = await intentarUnaVez(promptEstricto);
-    if (segundoIntento) return segundoIntento;
-  } catch (err) {
-    console.warn("[Derecho Comparado IA] Error al consultar modelo de IA:", err.message);
-  }
+      const segundoIntento = await intentarUnaVez(promptEstricto, 2200);
+      if (segundoIntento) return segundoIntento;
+    } catch (err) {
+      console.warn("[Derecho Comparado IA] Error al consultar modelo de IA para lote:", lote.join(", "), err.message);
+    }
+    return [];
+  };
+  const resultadosPorLote = await Promise.all(lotes.map(resolverLote));
+  const resultados = resultadosPorLote.flat();
+  if (resultados.length > 0) return resultados;
   attempts?.push({ provider: "fallback-ontologico", configured: true });
   return generarFallbackOntologicoComparado(query);
 }
