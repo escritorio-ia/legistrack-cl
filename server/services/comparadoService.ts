@@ -309,23 +309,27 @@ export async function buscarLeyChilePorNumero(numLey: string): Promise<Resultado
  * Motor de IA para identificar legislación comparada internacional precisa
  */
 export async function buscarComparadoConIA(query: string, attempts?: AIProviderAttempt[]): Promise<ResultadoComparado[]> {
+  // Lista explícita de las 28 jurisdicciones que la UI anuncia como "27
+  // Países" (todo CODIGO_PAIS salvo Chile, que se consulta aparte vía
+  // LeyChile). Antes el prompt solo pedía "elige las 5 a 7 más pertinentes"
+  // de una lista de 8 regiones agrupadas -- la IA nunca evaluaba realmente
+  // las 27, así que muchos países listados en el filtro de la UI jamás
+  // podían aparecer en un resultado real. Ahora se le pide evaluar CADA una
+  // de las jurisdicciones listadas e incluir solo aquellas donde identifique
+  // una norma real y específica sobre la materia (se permite omitir las que
+  // genuinamente no tengan una norma identificable, en vez de inventarla).
+  const jurisdicciones = Object.keys(CODIGO_PAIS).filter((p) => p !== "Chile");
   const prompt = `Actúa como un analista experto en Derecho Comparado y Asesoría Técnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile (BCN).
-Para la materia, concepto o ámbito regulatorio: "${query}", identifica entre 5 y 7 marcos normativos e iniciativas legales REALES, VIGENTES O EN TRÁMITE en ordenamientos jurídicos comparados internacionales (NO incluyas a Chile, pues Chile se consulta por separado).
+Para la materia, concepto o ámbito regulatorio: "${query}", evalúa CADA UNA de las siguientes ${jurisdicciones.length} jurisdicciones (Chile se consulta por separado, no lo incluyas) e identifica, para cada una en que exista, un marco normativo o iniciativa legal REAL, VIGENTE O EN TRÁMITE relacionado con la materia:
 
-Cubre distintas jurisdicciones de referencia técnica parlamentaria (elige las 5 a 7 más pertinentes a la materia, no listes todas):
-- Unión Europea (Directivas, Reglamentos EUR-Lex)
-- España (Leyes Orgánicas, Reales Decretos BOE)
-- Estados Unidos (Federal Acts, Code of Federal Regulations, Executive Orders)
-- Alemania (Gesetze, Bundesgesetzblatt)
-- Francia (Lois, Décrets Légifrance)
-- Reino Unido (Acts of Parliament, Legislation.gov.uk)
-- Iberoamérica (Colombia, México, Uruguay, Argentina o Brasil)
-- OCDE / Asia-Pacífico (Japón, Australia o Canadá)
+${jurisdicciones.join(", ")}
+
+No te limites a un subconjunto pequeño: revisa la lista completa e incluye en tu respuesta a TODAS las jurisdicciones para las que puedas identificar honestamente una norma real y específica sobre "${query}" (puede ser bastante más de 7 si la materia es de regulación común, como protección de datos, medio ambiente o derechos laborales). Omite del arreglo únicamente aquellas jurisdicciones para las que genuinamente no exista o no puedas identificar una norma específica sobre la materia -- nunca inventes un título, número o fecha para rellenar una jurisdicción.
 
 Responde ÚNICAMENTE con un arreglo JSON válido, compacto (sin saltos de línea ni indentación innecesarios) y SIN texto adicional antes ni después, donde cada objeto tenga este esquema exacto:
-[{"pais":"Nombre del país o entidad","fuente":"Nombre del repositorio oficial (ej: EUR-Lex, BOE, Congress.gov)","titulo":"Título formal y número REAL de la norma (no inventes un título genérico)","tituloOriginal":"Título original en idioma nativo si no es español","fecha":"Año de aprobación o entrada en vigencia","url":"Enlace oficial real o portal gubernamental de referencia","tipo":"Ley | Reglamento | Jurisprudencia | Administrativo | Documento","descripcion":"Párrafo único en prosa formal (sin viñetas ni emojis, estilo Asesoría Técnica Parlamentaria de la BCN) que explique el objeto y ámbito de la norma, sus principales mecanismos o deberes, y el órgano encargado de su fiscalización, en 3 a 5 oraciones.","relevancia":95}]
+[{"pais":"Nombre del país o entidad","fuente":"Nombre del repositorio oficial (ej: EUR-Lex, BOE, Congress.gov)","titulo":"Título formal y número REAL de la norma (no inventes un título genérico)","tituloOriginal":"Título original en idioma nativo si no es español","fecha":"Año de aprobación o entrada en vigencia","url":"Enlace oficial real o portal gubernamental de referencia","tipo":"Ley | Reglamento | Jurisprudencia | Administrativo | Documento","descripcion":"Párrafo único en prosa formal (sin viñetas ni emojis, estilo Asesoría Técnica Parlamentaria de la BCN) que explique el objeto y ámbito de la norma, sus principales mecanismos o deberes, y el órgano encargado de su fiscalización, en 2 a 3 oraciones.","relevancia":95}]
 
-Escribe "descripcion" como lo haría un analista de la Biblioteca del Congreso Nacional de Chile en un informe de Asesoría Técnica Parlamentaria: prosa formal y continua, en tercera persona, sin emojis, sin viñetas y sin encabezados dentro del texto. Manten cada "descripcion" concisa (máximo 4-5 líneas) para que el JSON completo no exceda el límite de salida.
+Escribe "descripcion" como lo haría un analista de la Biblioteca del Congreso Nacional de Chile en un informe de Asesoría Técnica Parlamentaria: prosa formal y continua, en tercera persona, sin emojis, sin viñetas y sin encabezados dentro del texto. Mantén cada "descripcion" breve (2 a 3 oraciones, máximo 3-4 líneas) para que el JSON completo, con potencialmente muchas jurisdicciones, no exceda el límite de salida.
 IMPORTANTE: clasifica el campo "tipo" usando EXCLUSIVAMENTE una de estas 5 categorías, según la jerarquía normativa real:
 - "Ley": norma aprobada por el Congreso/Parlamento nacional o su equivalente estatal (leyes orgánicas, actos, estatutos federales).
 - "Reglamento": norma de ejecución o desarrollo de una ley, de alcance general (reglamentos, regulations).
@@ -334,7 +338,10 @@ IMPORTANTE: clasifica el campo "tipo" usando EXCLUSIVAMENTE una de estas 5 categ
 - "Documento": informes, minutas, estudios técnicos u otro texto de referencia sin fuerza normativa vinculante propia.`;
 
   const intentarUnaVez = async (p: string): Promise<ResultadoComparado[] | null> => {
-    const aiResponse = await generarContenidoUniversalIA(p, 4000, attempts);
+    // Con hasta 27 jurisdicciones evaluadas (antes el tope real eran 7), el
+    // JSON de salida puede ser bastante más largo -- se sube el presupuesto
+    // de tokens para no truncar la respuesta a mitad de un objeto.
+    const aiResponse = await generarContenidoUniversalIA(p, 7000, attempts);
     if (!aiResponse) return null;
     try {
       const parsed = safeJsonParse<ResultadoComparado[]>(aiResponse);

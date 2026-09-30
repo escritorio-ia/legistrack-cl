@@ -189367,6 +189367,37 @@ async function getTodasComisiones() {
 
 // server/services/comparadoService.ts
 var LEYCHILE_API_KEY = process.env.LEYCHILE_API_KEY || "qW5yv690wb8WIEq1wN08HsHZur4MyrSSrhLgcXdstNZwtJ3Fihfu3baz4y3uYlCb";
+var CODIGO_PAIS = {
+  "Chile": "CL",
+  "Espa\xF1a": "ES",
+  "Uni\xF3n Europea": "EU",
+  "Estados Unidos": "US",
+  "Brasil": "BR",
+  "Argentina": "AR",
+  "Uruguay": "UY",
+  "Colombia": "CO",
+  "M\xE9xico": "MX",
+  "Per\xFA": "PE",
+  "Panam\xE1": "PA",
+  "Reino Unido": "GB",
+  "Francia": "FR",
+  "Alemania": "DE",
+  "Italia": "IT",
+  "Portugal": "PT",
+  "Canad\xE1": "CA",
+  "Australia": "AU",
+  "Nueva Zelanda": "NZ",
+  "Suiza": "CH",
+  "Suecia": "SE",
+  "Finlandia": "FI",
+  "Noruega": "NO",
+  "Dinamarca": "DK",
+  "Pa\xEDses Bajos": "NL",
+  "Irlanda": "IE",
+  "Polonia": "PL",
+  "Jap\xF3n": "JP",
+  "Luxemburgo": "LU"
+};
 function normalizarTexto2(s) {
   return s.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
@@ -189556,23 +189587,18 @@ async function buscarLeyChilePorNumero(numLey) {
   }
 }
 async function buscarComparadoConIA(query, attempts) {
+  const jurisdicciones = Object.keys(CODIGO_PAIS).filter((p) => p !== "Chile");
   const prompt = `Act\xFAa como un analista experto en Derecho Comparado y Asesor\xEDa T\xE9cnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile (BCN).
-Para la materia, concepto o \xE1mbito regulatorio: "${query}", identifica entre 5 y 7 marcos normativos e iniciativas legales REALES, VIGENTES O EN TR\xC1MITE en ordenamientos jur\xEDdicos comparados internacionales (NO incluyas a Chile, pues Chile se consulta por separado).
+Para la materia, concepto o \xE1mbito regulatorio: "${query}", eval\xFAa CADA UNA de las siguientes ${jurisdicciones.length} jurisdicciones (Chile se consulta por separado, no lo incluyas) e identifica, para cada una en que exista, un marco normativo o iniciativa legal REAL, VIGENTE O EN TR\xC1MITE relacionado con la materia:
 
-Cubre distintas jurisdicciones de referencia t\xE9cnica parlamentaria (elige las 5 a 7 m\xE1s pertinentes a la materia, no listes todas):
-- Uni\xF3n Europea (Directivas, Reglamentos EUR-Lex)
-- Espa\xF1a (Leyes Org\xE1nicas, Reales Decretos BOE)
-- Estados Unidos (Federal Acts, Code of Federal Regulations, Executive Orders)
-- Alemania (Gesetze, Bundesgesetzblatt)
-- Francia (Lois, D\xE9crets L\xE9gifrance)
-- Reino Unido (Acts of Parliament, Legislation.gov.uk)
-- Iberoam\xE9rica (Colombia, M\xE9xico, Uruguay, Argentina o Brasil)
-- OCDE / Asia-Pac\xEDfico (Jap\xF3n, Australia o Canad\xE1)
+${jurisdicciones.join(", ")}
+
+No te limites a un subconjunto peque\xF1o: revisa la lista completa e incluye en tu respuesta a TODAS las jurisdicciones para las que puedas identificar honestamente una norma real y espec\xEDfica sobre "${query}" (puede ser bastante m\xE1s de 7 si la materia es de regulaci\xF3n com\xFAn, como protecci\xF3n de datos, medio ambiente o derechos laborales). Omite del arreglo \xFAnicamente aquellas jurisdicciones para las que genuinamente no exista o no puedas identificar una norma espec\xEDfica sobre la materia -- nunca inventes un t\xEDtulo, n\xFAmero o fecha para rellenar una jurisdicci\xF3n.
 
 Responde \xDANICAMENTE con un arreglo JSON v\xE1lido, compacto (sin saltos de l\xEDnea ni indentaci\xF3n innecesarios) y SIN texto adicional antes ni despu\xE9s, donde cada objeto tenga este esquema exacto:
-[{"pais":"Nombre del pa\xEDs o entidad","fuente":"Nombre del repositorio oficial (ej: EUR-Lex, BOE, Congress.gov)","titulo":"T\xEDtulo formal y n\xFAmero REAL de la norma (no inventes un t\xEDtulo gen\xE9rico)","tituloOriginal":"T\xEDtulo original en idioma nativo si no es espa\xF1ol","fecha":"A\xF1o de aprobaci\xF3n o entrada en vigencia","url":"Enlace oficial real o portal gubernamental de referencia","tipo":"Ley | Reglamento | Jurisprudencia | Administrativo | Documento","descripcion":"P\xE1rrafo \xFAnico en prosa formal (sin vi\xF1etas ni emojis, estilo Asesor\xEDa T\xE9cnica Parlamentaria de la BCN) que explique el objeto y \xE1mbito de la norma, sus principales mecanismos o deberes, y el \xF3rgano encargado de su fiscalizaci\xF3n, en 3 a 5 oraciones.","relevancia":95}]
+[{"pais":"Nombre del pa\xEDs o entidad","fuente":"Nombre del repositorio oficial (ej: EUR-Lex, BOE, Congress.gov)","titulo":"T\xEDtulo formal y n\xFAmero REAL de la norma (no inventes un t\xEDtulo gen\xE9rico)","tituloOriginal":"T\xEDtulo original en idioma nativo si no es espa\xF1ol","fecha":"A\xF1o de aprobaci\xF3n o entrada en vigencia","url":"Enlace oficial real o portal gubernamental de referencia","tipo":"Ley | Reglamento | Jurisprudencia | Administrativo | Documento","descripcion":"P\xE1rrafo \xFAnico en prosa formal (sin vi\xF1etas ni emojis, estilo Asesor\xEDa T\xE9cnica Parlamentaria de la BCN) que explique el objeto y \xE1mbito de la norma, sus principales mecanismos o deberes, y el \xF3rgano encargado de su fiscalizaci\xF3n, en 2 a 3 oraciones.","relevancia":95}]
 
-Escribe "descripcion" como lo har\xEDa un analista de la Biblioteca del Congreso Nacional de Chile en un informe de Asesor\xEDa T\xE9cnica Parlamentaria: prosa formal y continua, en tercera persona, sin emojis, sin vi\xF1etas y sin encabezados dentro del texto. Manten cada "descripcion" concisa (m\xE1ximo 4-5 l\xEDneas) para que el JSON completo no exceda el l\xEDmite de salida.
+Escribe "descripcion" como lo har\xEDa un analista de la Biblioteca del Congreso Nacional de Chile en un informe de Asesor\xEDa T\xE9cnica Parlamentaria: prosa formal y continua, en tercera persona, sin emojis, sin vi\xF1etas y sin encabezados dentro del texto. Mant\xE9n cada "descripcion" breve (2 a 3 oraciones, m\xE1ximo 3-4 l\xEDneas) para que el JSON completo, con potencialmente muchas jurisdicciones, no exceda el l\xEDmite de salida.
 IMPORTANTE: clasifica el campo "tipo" usando EXCLUSIVAMENTE una de estas 5 categor\xEDas, seg\xFAn la jerarqu\xEDa normativa real:
 - "Ley": norma aprobada por el Congreso/Parlamento nacional o su equivalente estatal (leyes org\xE1nicas, actos, estatutos federales).
 - "Reglamento": norma de ejecuci\xF3n o desarrollo de una ley, de alcance general (reglamentos, regulations).
@@ -189580,7 +189606,7 @@ IMPORTANTE: clasifica el campo "tipo" usando EXCLUSIVAMENTE una de estas 5 categ
 - "Administrativo": decretos, resoluciones, ordenanzas municipales/locales, directivas de organismos administrativos y circulares. Una ordenanza municipal NUNCA es "Ley".
 - "Documento": informes, minutas, estudios t\xE9cnicos u otro texto de referencia sin fuerza normativa vinculante propia.`;
   const intentarUnaVez = async (p) => {
-    const aiResponse = await generarContenidoUniversalIA(p, 4e3, attempts);
+    const aiResponse = await generarContenidoUniversalIA(p, 7e3, attempts);
     if (!aiResponse) return null;
     try {
       const parsed = safeJsonParse(aiResponse);
