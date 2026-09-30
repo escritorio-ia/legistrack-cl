@@ -1973,7 +1973,10 @@ apiRouter.get("/opendata/buscar", async (req: Request, res: Response) => {
           url: d.access_url[0],
           tamanoBytes: d.byte_size
         }))
-        .filter((d: EuroDatasetDistribucion) => /csv|xlsx?|json/i.test(d.formato))
+        // Solo CSV/XLS(X) -- el analizador de datasets del frontend
+        // (parseDatasetFile) solo sabe leer esos dos formatos; JSON y
+        // JSON-STAT (habituales en data.europa.eu) fallarían al importar.
+        .filter((d: EuroDatasetDistribucion) => /\bcsv\b|\bxlsx?\b/i.test(d.formato))
     })).filter((r) => r.distribuciones.length > 0);
 
     res.json({ total: data?.result?.count || 0, resultados });

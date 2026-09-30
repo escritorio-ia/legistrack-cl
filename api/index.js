@@ -193576,7 +193576,7 @@ apiRouter.get("/opendata/buscar", async (req, res) => {
         formato: d.format?.id || d.format?.label || "Desconocido",
         url: d.access_url[0],
         tamanoBytes: d.byte_size
-      })).filter((d) => /csv|xlsx?|json/i.test(d.formato))
+      })).filter((d) => /\bcsv\b|\bxlsx?\b/i.test(d.formato))
     })).filter((r) => r.distribuciones.length > 0);
     res.json({ total: data?.result?.count || 0, resultados });
   } catch (err) {
