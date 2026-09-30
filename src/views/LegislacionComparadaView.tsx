@@ -1152,17 +1152,66 @@ function generarMatrizDinamica(
   }));
 
   const valoresObjeto: Record<string, string> = {};
-  const valoresPuntosClave: Record<string, string> = {};
+  const valoresTipo: Record<string, string> = {};
+  const valoresFecha: Record<string, string> = {};
+  const valoresFuente: Record<string, string> = {};
+  // Hasta 3 filas de "disposición destacada" -- una por cada punto real ya
+  // extraído del texto (por país, en el orden en que la IA los entregó), en
+  // vez de aplastar todos los puntos de cada país en una sola celda con "·".
+  // Esto restaura varias filas temáticas visibles en la matriz, cada una
+  // respaldada por un punto real (no inventado) cuando ya se analizó esa norma.
+  const valoresPunto: Record<string, string>[] = [{}, {}, {}];
 
   seleccion.forEach((r, i) => {
     const key = `col_${i}`;
     valoresObjeto[key] = r.descripcion || `Sin descripción disponible en la fuente oficial para ${r.pais}.`;
+    valoresTipo[key] = r.tipo || "No especificado en la fuente.";
+    valoresFecha[key] = r.fecha || "No especificada en la fuente.";
+    valoresFuente[key] = r.fuente || "No especificada.";
 
     const d = detalles[`${r.pais}|${r.titulo}`];
-    valoresPuntosClave[key] = d?.disponible && d.puntos.length > 0
-      ? d.puntos.join(" · ")
-      : "Aún no analizado — presiona \"Comparar en tabla lado a lado\" para extraer los puntos reales del texto de esta norma.";
+    const puntosDisponibles = d?.disponible ? d.puntos : [];
+    for (let p = 0; p < 3; p++) {
+      valoresPunto[p][key] = puntosDisponibles[p]
+        || (d?.disponible === false
+          ? "No disponible: la fuente obtenida no contiene disposiciones sustantivas."
+          : "Aún no analizado — presiona \"Comparar y Generar Informe\" para extraer los puntos reales del texto de esta norma.");
+    }
   });
+
+  const filas = [
+    {
+      dimension: "Objeto y ámbito de la norma",
+      icono: "🎯",
+      valores: valoresObjeto,
+      lecturaJuridica: "Tomado de la descripción oficial obtenida en tiempo real de cada fuente (LeyChile, BOE, EUR-Lex, etc.)."
+    },
+    {
+      dimension: "Tipo de instrumento normativo",
+      icono: "⚖️",
+      valores: valoresTipo,
+      lecturaJuridica: "Jerarquía normativa real según la fuente consultada para cada país."
+    },
+    {
+      dimension: "Fecha de la norma",
+      icono: "🗓️",
+      valores: valoresFecha,
+      lecturaJuridica: "Año de aprobación o entrada en vigencia reportado por la fuente oficial."
+    },
+    {
+      dimension: "Fuente oficial",
+      icono: "📚",
+      valores: valoresFuente,
+      lecturaJuridica: "Repositorio o boletín oficial de origen del dato (LeyChile, BOE, EUR-Lex, Congress.gov, etc.)."
+    },
+    ...valoresPunto.map((valores, idx) => ({
+      dimension: `Disposición destacada ${idx + 1}`,
+      icono: "📑",
+      valores,
+      lecturaJuridica: "Extraído del texto oficial de cada norma cuando el análisis por país ya fue generado; de lo contrario, se indica explícitamente.",
+      isWarmRow: true
+    }))
+  ];
 
   return {
     id: "live-matrix",
@@ -1170,21 +1219,7 @@ function generarMatrizDinamica(
     subtitulo: `Contraste analítico estructurado entre ${seleccion.map(s => s.pais).join(", ")}`,
     boletinReferencia: `Consulta Activa BCN`,
     columnas,
-    filas: [
-      {
-        dimension: "Objeto y ámbito de la norma",
-        icono: "🎯",
-        valores: valoresObjeto,
-        lecturaJuridica: "Tomado de la descripción oficial obtenida en tiempo real de cada fuente (LeyChile, BOE, EUR-Lex, etc.)."
-      },
-      {
-        dimension: "Puntos sustantivos reales del texto",
-        icono: "📑",
-        valores: valoresPuntosClave,
-        lecturaJuridica: "Extraído del texto oficial de cada norma cuando el análisis por país ya fue generado; de lo contrario, se indica explícitamente.",
-        isWarmRow: true
-      }
-    ]
+    filas
   };
 }
 

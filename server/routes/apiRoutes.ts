@@ -1257,6 +1257,8 @@ Responde ÚNICAMENTE con un objeto JSON válido, compacto, sin texto adicional, 
   Identifica entre 4 y 8 artículos, secciones o disposiciones sustantivos EN RELACIÓN A LA MATERIA CONSULTADA, basándote EXCLUSIVAMENTE en el texto entregado, cada uno identificando el artículo o sección (número o nombre tal como aparece en el texto) seguido de una explicación breve en prosa de qué prohíbe, permite, obliga o establece. Para al menos 2 de esos puntos, incluye una cita textual breve (máx. 30 palabras) entre comillas del pasaje exacto del texto -- no la parafrasees, cópiala literal.
 - Si el texto NO contiene disposiciones sustantivas (es una página de archivo/índice/buscador/menú): {"disponible":false,"motivo":"Explicación breve de qué es efectivamente el texto obtenido (ej. página de índice del archivo oficial) y que no permite identificar disposiciones sobre la materia consultada."}
 
+Redacta SIEMPRE en español, incluso si el texto de la fuente original está en otro idioma (portugués, inglés, alemán, francés, etc.): traduce tu explicación de cada disposición al español. Las citas textuales entre comillas puedes mantenerlas en el idioma original del texto, agregando inmediatamente después su traducción al español entre paréntesis.
+
 No inventes disposiciones que no estén en el texto entregado bajo ninguna circunstancia.`;
 
     // 1200 se quedaba corto para el análisis más profundo con citas literales
@@ -1326,7 +1328,9 @@ Responde ÚNICAMENTE con un objeto JSON válido, compacto, sin texto adicional, 
 {"objetivo":"...","modificaciones":"..."}
 
 - "objetivo": 1-2 oraciones en prosa formal que resuman el objeto y ámbito de esta norma, basándote exclusivamente en el texto entregado.
-- "modificaciones": basándote EXCLUSIVAMENTE en lo que el texto entregado diga explícitamente de sí mismo, indica si esta norma modifica, deroga, sustituye o complementa otra norma anterior, y/o si el propio texto menciona que ha sido modificada por una norma posterior (cita el nombre/número de esa norma si aparece). Si el texto no contiene ninguna mención explícita de modificaciones, responde exactamente: "El texto disponible no menciona explícitamente modificaciones a esta norma." No inventes leyes, números ni fechas que no estén en el texto entregado.`;
+- "modificaciones": basándote EXCLUSIVAMENTE en lo que el texto entregado diga explícitamente de sí mismo, indica si esta norma modifica, deroga, sustituye o complementa otra norma anterior, y/o si el propio texto menciona que ha sido modificada por una norma posterior (cita el nombre/número de esa norma si aparece). Si el texto no contiene ninguna mención explícita de modificaciones, responde exactamente: "El texto disponible no menciona explícitamente modificaciones a esta norma." No inventes leyes, números ni fechas que no estén en el texto entregado.
+
+Redacta SIEMPRE ambos campos en español, incluso si el texto de la fuente original está en otro idioma -- traduce el contenido, no lo copies en el idioma original.`;
 
   const textoIA = await generarContenidoUniversalIA(prompt, 900);
   if (textoIA) {

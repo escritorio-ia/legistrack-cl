@@ -192993,6 +192993,8 @@ Responde \xDANICAMENTE con un objeto JSON v\xE1lido, compacto, sin texto adicion
   Identifica entre 4 y 8 art\xEDculos, secciones o disposiciones sustantivos EN RELACI\xD3N A LA MATERIA CONSULTADA, bas\xE1ndote EXCLUSIVAMENTE en el texto entregado, cada uno identificando el art\xEDculo o secci\xF3n (n\xFAmero o nombre tal como aparece en el texto) seguido de una explicaci\xF3n breve en prosa de qu\xE9 proh\xEDbe, permite, obliga o establece. Para al menos 2 de esos puntos, incluye una cita textual breve (m\xE1x. 30 palabras) entre comillas del pasaje exacto del texto -- no la parafrasees, c\xF3piala literal.
 - Si el texto NO contiene disposiciones sustantivas (es una p\xE1gina de archivo/\xEDndice/buscador/men\xFA): {"disponible":false,"motivo":"Explicaci\xF3n breve de qu\xE9 es efectivamente el texto obtenido (ej. p\xE1gina de \xEDndice del archivo oficial) y que no permite identificar disposiciones sobre la materia consultada."}
 
+Redacta SIEMPRE en espa\xF1ol, incluso si el texto de la fuente original est\xE1 en otro idioma (portugu\xE9s, ingl\xE9s, alem\xE1n, franc\xE9s, etc.): traduce tu explicaci\xF3n de cada disposici\xF3n al espa\xF1ol. Las citas textuales entre comillas puedes mantenerlas en el idioma original del texto, agregando inmediatamente despu\xE9s su traducci\xF3n al espa\xF1ol entre par\xE9ntesis.
+
 No inventes disposiciones que no est\xE9n en el texto entregado bajo ninguna circunstancia.`;
     const textoIA = await generarContenidoUniversalIA(prompt, 2e3);
     if (textoIA) {
@@ -193040,7 +193042,9 @@ Responde \xDANICAMENTE con un objeto JSON v\xE1lido, compacto, sin texto adicion
 {"objetivo":"...","modificaciones":"..."}
 
 - "objetivo": 1-2 oraciones en prosa formal que resuman el objeto y \xE1mbito de esta norma, bas\xE1ndote exclusivamente en el texto entregado.
-- "modificaciones": bas\xE1ndote EXCLUSIVAMENTE en lo que el texto entregado diga expl\xEDcitamente de s\xED mismo, indica si esta norma modifica, deroga, sustituye o complementa otra norma anterior, y/o si el propio texto menciona que ha sido modificada por una norma posterior (cita el nombre/n\xFAmero de esa norma si aparece). Si el texto no contiene ninguna menci\xF3n expl\xEDcita de modificaciones, responde exactamente: "El texto disponible no menciona expl\xEDcitamente modificaciones a esta norma." No inventes leyes, n\xFAmeros ni fechas que no est\xE9n en el texto entregado.`;
+- "modificaciones": bas\xE1ndote EXCLUSIVAMENTE en lo que el texto entregado diga expl\xEDcitamente de s\xED mismo, indica si esta norma modifica, deroga, sustituye o complementa otra norma anterior, y/o si el propio texto menciona que ha sido modificada por una norma posterior (cita el nombre/n\xFAmero de esa norma si aparece). Si el texto no contiene ninguna menci\xF3n expl\xEDcita de modificaciones, responde exactamente: "El texto disponible no menciona expl\xEDcitamente modificaciones a esta norma." No inventes leyes, n\xFAmeros ni fechas que no est\xE9n en el texto entregado.
+
+Redacta SIEMPRE ambos campos en espa\xF1ol, incluso si el texto de la fuente original est\xE1 en otro idioma -- traduce el contenido, no lo copies en el idioma original.`;
   const textoIA = await generarContenidoUniversalIA(prompt, 900);
   if (textoIA) {
     try {
