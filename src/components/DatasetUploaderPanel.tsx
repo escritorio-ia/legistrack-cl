@@ -4,7 +4,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { UploadCloud, FileSpreadsheet, Loader2, AlertTriangle, ChevronDown, Trash2, Download, Sparkles } from "lucide-react";
+import { UploadCloud, FileSpreadsheet, Loader2, AlertTriangle, ChevronDown, Trash2, Download, Sparkles, Globe2, Search } from "lucide-react";
 import { parseDatasetFile, calcularStatsColumnas, combinarDatasetsParaAnalisis } from "../utils/datasetAnalysis";
 import {
   DatasetEstadistico,
@@ -143,6 +143,45 @@ function DatasetCard({ dataset, onDelete }: { dataset: DatasetEstadistico; onDel
   );
 }
 
+interface EuroDatasetDistribucion {
+  id: string;
+  titulo: string;
+  formato: string;
+  url: string;
+  tamanoBytes?: number;
+}
+interface EuroDatasetResultado {
+  id: string;
+  titulo: string;
+  descripcion: string;
+  pais: string;
+  paisLabel: string;
+  publicador?: string;
+  landingPage?: string;
+  distribuciones: EuroDatasetDistribucion[];
+}
+
+// Solo los países que ya tienen bandera/etiqueta útil en la UI -- el campo
+// país es opcional, así que igual se puede buscar sin filtrar.
+const PAISES_EU_FILTRO: Array<{ code: string; label: string }> = [
+  { code: "de", label: "🇩🇪 Alemania" },
+  { code: "es", label: "🇪🇸 España" },
+  { code: "fr", label: "🇫🇷 Francia" },
+  { code: "it", label: "🇮🇹 Italia" },
+  { code: "pt", label: "🇵🇹 Portugal" },
+  { code: "nl", label: "🇳🇱 Países Bajos" },
+  { code: "ie", label: "🇮🇪 Irlanda" },
+  { code: "se", label: "🇸🇪 Suecia" },
+  { code: "fi", label: "🇫🇮 Finlandia" },
+  { code: "no", label: "🇳🇴 Noruega" },
+  { code: "dk", label: "🇩🇰 Dinamarca" },
+  { code: "gb", label: "🇬🇧 Reino Unido" },
+  { code: "pl", label: "🇵🇱 Polonia" },
+  { code: "gr", label: "🇬🇷 Grecia" },
+  { code: "at", label: "🇦🇹 Austria" },
+  { code: "be", label: "🇧🇪 Bélgica" }
+];
+
 function nombreDataset(files: File[]): string {
   if (files.length === 1) return files[0].name;
   const listado = files.map(f => f.name).join(", ");
@@ -158,6 +197,17 @@ export default function DatasetUploaderPanel() {
   const [error, setError] = useState<string | null>(null);
   const [arrastrando, setArrastrando] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Búsqueda de datasets reales en data.europa.eu (portal oficial de datos
+  // abiertos de la UE) -- al importar una distribución, reutiliza el mismo
+  // pipeline de análisis que un archivo subido manualmente.
+  const [euAbierto, setEuAbierto] = useState(false);
+  const [euQuery, setEuQuery] = useState("");
+  const [euPais, setEuPais] = useState("");
+  const [euBuscando, setEuBuscando] = useState(false);
+  const [euResultados, setEuResultados] = useState<EuroDatasetResultado[]>([]);
+  const [euError, setEuError] = useState<string | null>(null);
+  const [euImportandoId, setEuImportandoId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelado = false;
@@ -236,6 +286,51 @@ export default function DatasetUploaderPanel() {
     if (!confirm(`¿Eliminar el dataset "${dataset.nombre}"? Esta acción no se puede deshacer.`)) return;
     setDatasets((prev) => prev.filter((d) => d.id !== dataset.id));
     await deleteDatasetEstadisticoFromFirestore(dataset);
+  };
+
+  const handleBuscarEuropa = async () => {
+    const term = euQuery.trim();
+    if (!term) return;
+    setEuBuscando(true);
+    setEuError(null);
+    setEuResultados([]);
+    try {
+      const params = new URLSearchParams({ q: term });
+      if (euPais) params.set("pais", euPais);
+      const res = await fetch(`/api/opendata/buscar?${params.toString()}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setEuResultados(data.resultados || []);
+      if ((data.resultados || []).length === 0) {
+        setEuError("No se encontraron datasets con distribuciones descargables (CSV/Excel/JSON) para esa búsqueda.");
+      }
+    } catch (err: any) {
+      setEuError(err?.message || "No fue posible consultar data.europa.eu.");
+    } finally {
+      setEuBuscando(false);
+    }
+  };
+
+  const handleImportarDistribucion = async (dataset: EuroDatasetResultado, dist: EuroDatasetDistribucion) => {
+    setEuImportandoId(dist.id);
+    setEuError(null);
+    try {
+      const ext = (dist.formato || "").toLowerCase().includes("csv") ? "csv" : (dist.formato || "").toLowerCase().includes("json") ? "json" : "xlsx";
+      const nombreArchivo = `${dataset.titulo.replace(/[^\w.\- ]/g, "").slice(0, 60) || "dataset"}.${ext}`;
+      const res = await fetch(`/api/opendata/descargar?url=${encodeURIComponent(dist.url)}&nombre=${encodeURIComponent(nombreArchivo)}`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      const blob = await res.blob();
+      const file = new File([blob], nombreArchivo, { type: blob.type });
+      await handleFilesSelected([file]);
+      setEuAbierto(false);
+    } catch (err: any) {
+      setEuError(err?.message || "No fue posible importar esta distribución.");
+    } finally {
+      setEuImportandoId(null);
+    }
   };
 
   return (
@@ -318,6 +413,96 @@ export default function DatasetUploaderPanel() {
           <span>{error}</span>
         </div>
       )}
+
+      <div className="border border-slate-200 rounded-2xl overflow-hidden">
+        <button
+          onClick={() => setEuAbierto((v) => !v)}
+          className="w-full flex items-center justify-between gap-2 px-4 py-3 bg-slate-50 hover:bg-slate-100 cursor-pointer transition-colors"
+        >
+          <span className="flex items-center gap-2 text-xs font-extrabold text-slate-700">
+            <Globe2 className="w-4 h-4 text-blue-600" />
+            Buscar dataset real en data.europa.eu (portal oficial de la UE)
+          </span>
+          <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform ${euAbierto ? "rotate-180" : ""}`} />
+        </button>
+
+        {euAbierto && (
+          <div className="p-4 space-y-3 border-t border-slate-200">
+            <p className="text-[11px] text-slate-500">
+              Busca en el catálogo oficial de datos abiertos de la Unión Europea (data.europa.eu) y trae directamente el archivo real al análisis -- sin descargar y volver a subir manualmente.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                type="text"
+                value={euQuery}
+                onChange={(e) => setEuQuery(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleBuscarEuropa(); }}
+                placeholder="Ej. desempleo, presupuesto municipal, emisiones CO2..."
+                className="flex-1 text-xs px-3 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              />
+              <select
+                value={euPais}
+                onChange={(e) => setEuPais(e.target.value)}
+                className="text-xs px-3 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/30 bg-white"
+              >
+                <option value="">Todos los países</option>
+                {PAISES_EU_FILTRO.map((p) => (
+                  <option key={p.code} value={p.code}>{p.label}</option>
+                ))}
+              </select>
+              <button
+                onClick={handleBuscarEuropa}
+                disabled={euBuscando || !euQuery.trim()}
+                className="bg-blue-700 hover:bg-blue-800 disabled:bg-slate-300 text-white font-bold text-xs px-4 py-2.5 rounded-xl cursor-pointer flex items-center gap-2 justify-center shrink-0"
+              >
+                {euBuscando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+                Buscar
+              </button>
+            </div>
+
+            {euError && (
+              <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-3 py-2.5 text-[11px]">
+                {euError}
+              </div>
+            )}
+
+            {euResultados.length > 0 && (
+              <div className="flex flex-col gap-2 max-h-96 overflow-y-auto">
+                {euResultados.map((r) => (
+                  <div key={r.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <h5 className="text-xs font-extrabold text-slate-800 truncate">{r.titulo}</h5>
+                        <p className="text-[10px] text-slate-500 mt-0.5">
+                          {r.paisLabel || "Sin país"} {r.publicador ? `· ${r.publicador}` : ""}
+                        </p>
+                        {r.descripcion && <p className="text-[11px] text-slate-600 mt-1 line-clamp-2">{r.descripcion}</p>}
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {r.distribuciones.map((d) => (
+                        <button
+                          key={d.id}
+                          onClick={() => handleImportarDistribucion(r, d)}
+                          disabled={euImportandoId !== null || subiendo}
+                          className="text-[10px] font-bold bg-white border border-slate-300 hover:border-blue-500 hover:text-blue-700 disabled:opacity-50 text-slate-600 px-2.5 py-1.5 rounded-lg cursor-pointer flex items-center gap-1.5"
+                        >
+                          {euImportandoId === d.id ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <Download className="w-3 h-3" />
+                          )}
+                          {d.formato}{d.tamanoBytes ? ` · ${formatFileSize(d.tamanoBytes)}` : ""}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       <div className="space-y-3">
         {cargandoLista ? (

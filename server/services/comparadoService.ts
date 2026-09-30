@@ -210,7 +210,7 @@ export function relevanciaPorCoincidencia(q: string, r: ResultadoComparado): num
   return r.pais === "Chile" ? 90 : 80;
 }
 
-async function fetchConTimeout(url: string, ms = 8000): Promise<Response> {
+export async function fetchConTimeout(url: string, ms = 8000): Promise<Response> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), ms);
   try {

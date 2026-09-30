@@ -193540,6 +193540,84 @@ Responde solo con el informe, sin encabezados ni markdown.`;
   const fallback = `El dataset "${nombre}" contiene ${totalFilas} filas y ${columnas.length} columnas (${columnasNumericas} num\xE9ricas, ${columnasFecha} de fecha, ${columnasCategoricas} categ\xF3ricas). No fue posible generar un an\xE1lisis narrativo con IA en este momento; revisa las estad\xEDsticas por columna listadas m\xE1s abajo.`;
   res.json({ informe: fallback });
 });
+function primerTextoIdioma(campo) {
+  if (!campo) return "";
+  if (typeof campo === "string") return campo;
+  return campo.es || campo.en || Object.values(campo)[0] || "";
+}
+apiRouter.get("/opendata/buscar", async (req, res) => {
+  const q = req.query.q ? String(req.query.q).trim() : "";
+  const pais = req.query.pais ? String(req.query.pais).trim().toLowerCase() : "";
+  if (!q) {
+    return res.status(400).json({ error: "Se requiere el par\xE1metro 'q'." });
+  }
+  try {
+    const url = `https://data.europa.eu/api/hub/search/search?q=${encodeURIComponent(q)}&limit=100`;
+    const apiRes = await fetchConTimeout(url, 12e3);
+    if (!apiRes.ok) {
+      return res.status(502).json({ error: `data.europa.eu respondi\xF3 HTTP ${apiRes.status}` });
+    }
+    const data = await apiRes.json();
+    let resultadosCrudos = data?.result?.results || [];
+    if (pais) {
+      resultadosCrudos = resultadosCrudos.filter((r) => (r.country?.id || "").toLowerCase() === pais);
+    }
+    const resultados = resultadosCrudos.slice(0, 30).map((r) => ({
+      id: r.id || r.identifier?.[0] || "",
+      titulo: primerTextoIdioma(r.title) || "(sin t\xEDtulo)",
+      descripcion: primerTextoIdioma(r.description).slice(0, 300),
+      pais: r.country?.id || "",
+      paisLabel: r.country?.label || "",
+      publicador: r.publisher?.name,
+      landingPage: r.landing_page,
+      distribuciones: (r.distributions || []).filter((d) => Array.isArray(d.access_url) && d.access_url.length > 0).map((d) => ({
+        id: d.id,
+        titulo: primerTextoIdioma(d.title) || d.format?.label || "Distribuci\xF3n",
+        formato: d.format?.id || d.format?.label || "Desconocido",
+        url: d.access_url[0],
+        tamanoBytes: d.byte_size
+      })).filter((d) => /csv|xlsx?|json/i.test(d.formato))
+    })).filter((r) => r.distribuciones.length > 0);
+    res.json({ total: data?.result?.count || 0, resultados });
+  } catch (err) {
+    res.status(500).json({ error: err.message || "No fue posible consultar data.europa.eu." });
+  }
+});
+apiRouter.get("/opendata/descargar", async (req, res) => {
+  const url = req.query.url ? String(req.query.url) : "";
+  const nombre = req.query.nombre ? String(req.query.nombre) : "descarga";
+  if (!url || !/^https?:\/\//i.test(url)) {
+    return res.status(400).json({ error: "Se requiere un par\xE1metro 'url' http(s) v\xE1lido." });
+  }
+  let host = "";
+  try {
+    host = new URL(url).hostname.toLowerCase();
+  } catch {
+    return res.status(400).json({ error: "URL inv\xE1lida." });
+  }
+  if (host === "localhost" || host === "127.0.0.1" || host.endsWith(".local") || /^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.)/.test(host)) {
+    return res.status(400).json({ error: "No se permite descargar desde direcciones internas." });
+  }
+  try {
+    const fileRes = await fetchConTimeout(url, 2e4);
+    if (!fileRes.ok) {
+      return res.status(502).json({ error: `La fuente respondi\xF3 HTTP ${fileRes.status}` });
+    }
+    const contentLength = fileRes.headers.get("content-length");
+    if (contentLength && Number(contentLength) > 30 * 1024 * 1024) {
+      return res.status(413).json({ error: "El archivo supera el l\xEDmite de 30MB permitido para importar." });
+    }
+    const buffer = Buffer.from(await fileRes.arrayBuffer());
+    if (buffer.length > 30 * 1024 * 1024) {
+      return res.status(413).json({ error: "El archivo supera el l\xEDmite de 30MB permitido para importar." });
+    }
+    res.setHeader("Content-Type", fileRes.headers.get("content-type") || "application/octet-stream");
+    res.setHeader("Content-Disposition", `attachment; filename="${nombre.replace(/[^\w.\-]/g, "_")}"`);
+    res.send(buffer);
+  } catch (err) {
+    res.status(500).json({ error: err.message || "No fue posible descargar el archivo." });
+  }
+});
 apiRouter.get("/fao/groups", async (_req, res) => {
   try {
     const groups = await getFAOGroupsAndDomains();

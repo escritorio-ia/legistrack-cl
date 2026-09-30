@@ -41,7 +41,8 @@ import {
   fetchTextoNormaLeyChileCompleto,
   buscarChile,
   buscarLeyChilePorNumero,
-  LEYCHILE_API_KEY
+  LEYCHILE_API_KEY,
+  fetchConTimeout
 } from "../services/comparadoService";
 import { 
   getOWIDTopics, 
@@ -1896,6 +1897,132 @@ Responde solo con el informe, sin encabezados ni markdown.`;
   const columnasCategoricas = columnas.filter((c) => c.tipo === "categorico").length;
   const fallback = `El dataset "${nombre}" contiene ${totalFilas} filas y ${columnas.length} columnas (${columnasNumericas} numéricas, ${columnasFecha} de fecha, ${columnasCategoricas} categóricas). No fue posible generar un análisis narrativo con IA en este momento; revisa las estadísticas por columna listadas más abajo.`;
   res.json({ informe: fallback });
+});
+
+// ============================================================================
+// 9.5 DATA.EUROPA.EU (PORTAL OFICIAL DE DATOS ABIERTOS DE LA UE)
+// ============================================================================
+// El endpoint oficial de búsqueda (https://data.europa.eu/api/hub/search/search)
+// documenta un parámetro "facets" para filtrar por país, pero probado en vivo
+// NO filtra realmente (el "count" no cambia sin importar el valor) -- parece
+// un desfase entre el spec OpenAPI publicado y la versión desplegada. Por eso
+// el filtro por país se aplica ACÁ, en el backend, sobre los resultados ya
+// obtenidos (cada resultado sí trae un "country.id" confiable).
+interface EuroDatasetDistribucion {
+  id: string;
+  titulo: string;
+  formato: string;
+  url: string;
+  tamanoBytes?: number;
+}
+interface EuroDatasetResultado {
+  id: string;
+  titulo: string;
+  descripcion: string;
+  pais: string;
+  paisLabel: string;
+  publicador?: string;
+  landingPage?: string;
+  distribuciones: EuroDatasetDistribucion[];
+}
+
+function primerTextoIdioma(campo: any): string {
+  if (!campo) return "";
+  if (typeof campo === "string") return campo;
+  return campo.es || campo.en || Object.values(campo)[0] as string || "";
+}
+
+apiRouter.get("/opendata/buscar", async (req: Request, res: Response) => {
+  const q = req.query.q ? String(req.query.q).trim() : "";
+  const pais = req.query.pais ? String(req.query.pais).trim().toLowerCase() : "";
+  if (!q) {
+    return res.status(400).json({ error: "Se requiere el parámetro 'q'." });
+  }
+
+  try {
+    // Se piden hasta 100 resultados sin filtrar (el límite real de países UE
+    // suele quedar cubierto en ese rango para una búsqueda temática) y se
+    // filtra por país en memoria, ya que el filtro del lado del servidor de
+    // la API no funciona de forma confiable.
+    const url = `https://data.europa.eu/api/hub/search/search?q=${encodeURIComponent(q)}&limit=100`;
+    const apiRes = await fetchConTimeout(url, 12000);
+    if (!apiRes.ok) {
+      return res.status(502).json({ error: `data.europa.eu respondió HTTP ${apiRes.status}` });
+    }
+    const data: any = await apiRes.json();
+    let resultadosCrudos: any[] = data?.result?.results || [];
+
+    if (pais) {
+      resultadosCrudos = resultadosCrudos.filter((r) => (r.country?.id || "").toLowerCase() === pais);
+    }
+
+    const resultados: EuroDatasetResultado[] = resultadosCrudos.slice(0, 30).map((r) => ({
+      id: r.id || r.identifier?.[0] || "",
+      titulo: primerTextoIdioma(r.title) || "(sin título)",
+      descripcion: primerTextoIdioma(r.description).slice(0, 300),
+      pais: r.country?.id || "",
+      paisLabel: r.country?.label || "",
+      publicador: r.publisher?.name,
+      landingPage: r.landing_page,
+      distribuciones: (r.distributions || [])
+        .filter((d: any) => Array.isArray(d.access_url) && d.access_url.length > 0)
+        .map((d: any) => ({
+          id: d.id,
+          titulo: primerTextoIdioma(d.title) || d.format?.label || "Distribución",
+          formato: d.format?.id || d.format?.label || "Desconocido",
+          url: d.access_url[0],
+          tamanoBytes: d.byte_size
+        }))
+        .filter((d: EuroDatasetDistribucion) => /csv|xlsx?|json/i.test(d.formato))
+    })).filter((r) => r.distribuciones.length > 0);
+
+    res.json({ total: data?.result?.count || 0, resultados });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "No fue posible consultar data.europa.eu." });
+  }
+});
+
+// Proxy de descarga: los access_url de las distribuciones (portales de
+// terceros, uno distinto por cada país/organismo) no traen cabeceras CORS,
+// así que el navegador no puede descargarlos directamente -- este endpoint
+// los descarga en el servidor y se los entrega al frontend desde el mismo
+// origen. Restringido a http(s) y con límites de tamaño/tiempo para no
+// convertirlo en un proxy abierto arbitrario.
+apiRouter.get("/opendata/descargar", async (req: Request, res: Response) => {
+  const url = req.query.url ? String(req.query.url) : "";
+  const nombre = req.query.nombre ? String(req.query.nombre) : "descarga";
+  if (!url || !/^https?:\/\//i.test(url)) {
+    return res.status(400).json({ error: "Se requiere un parámetro 'url' http(s) válido." });
+  }
+  let host = "";
+  try {
+    host = new URL(url).hostname.toLowerCase();
+  } catch {
+    return res.status(400).json({ error: "URL inválida." });
+  }
+  if (host === "localhost" || host === "127.0.0.1" || host.endsWith(".local") || /^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.)/.test(host)) {
+    return res.status(400).json({ error: "No se permite descargar desde direcciones internas." });
+  }
+
+  try {
+    const fileRes = await fetchConTimeout(url, 20000);
+    if (!fileRes.ok) {
+      return res.status(502).json({ error: `La fuente respondió HTTP ${fileRes.status}` });
+    }
+    const contentLength = fileRes.headers.get("content-length");
+    if (contentLength && Number(contentLength) > 30 * 1024 * 1024) {
+      return res.status(413).json({ error: "El archivo supera el límite de 30MB permitido para importar." });
+    }
+    const buffer = Buffer.from(await fileRes.arrayBuffer());
+    if (buffer.length > 30 * 1024 * 1024) {
+      return res.status(413).json({ error: "El archivo supera el límite de 30MB permitido para importar." });
+    }
+    res.setHeader("Content-Type", fileRes.headers.get("content-type") || "application/octet-stream");
+    res.setHeader("Content-Disposition", `attachment; filename="${nombre.replace(/[^\w.\-]/g, "_")}"`);
+    res.send(buffer);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "No fue posible descargar el archivo." });
+  }
 });
 
 // ============================================================================
