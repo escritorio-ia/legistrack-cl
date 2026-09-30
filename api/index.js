@@ -193128,6 +193128,40 @@ Responde solo con el an\xE1lisis, sin encabezados ni markdown.`;
   const paises = items.map((it) => it.pais).join(", ");
   res.json({ analisis: `No fue posible generar el an\xE1lisis comparativo con IA en este momento. Se seleccionaron ${items.length} normas de ${paises} sobre "${query}"; revisa los puntos sustantivos de cada una m\xE1s abajo.` });
 });
+apiRouter.post("/derecho-comparado/lectura-matriz", async (req, res) => {
+  const { query, items } = req.body;
+  if (!query || !Array.isArray(items) || items.length < 2) {
+    return res.status(400).json({ error: "Se requiere 'query' y al menos 2 'items'." });
+  }
+  const bloqueObjeto = items.map((it) => `- [${it.pais}] ${it.descripcion || "(sin descripci\xF3n disponible)"}`).join("\n");
+  const bloquePuntos = items.map((it) => `- [${it.pais}] ${it.puntos && it.puntos.length > 0 ? it.puntos.join(" | ") : "(sin puntos extra\xEDdos del texto de esta norma todav\xEDa)"}`).join("\n");
+  const prompt = `Act\xFAa como un analista de Asesor\xEDa T\xE9cnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile, redactando la "lectura jur\xEDdica" al pie de dos filas de una matriz comparada sobre "${query}".
+
+Descripciones oficiales del objeto y \xE1mbito de cada norma:
+${bloqueObjeto}
+
+Puntos/disposiciones reales ya extra\xEDdos del texto de cada norma:
+${bloquePuntos}
+
+Responde \xDANICAMENTE con un objeto JSON v\xE1lido, compacto, sin texto adicional, con este esquema exacto:
+{"lecturaObjeto":"...","lecturaDisposiciones":"..."}
+
+- "lecturaObjeto": una oraci\xF3n (m\xE1x. 35 palabras) que sintetice, a partir de las descripciones entregadas, qu\xE9 enfoque comparten o en qu\xE9 difieren sustantivamente las jurisdicciones en el objeto y \xE1mbito de la norma.
+- "lecturaDisposiciones": una oraci\xF3n (m\xE1x. 35 palabras) que sintetice, a partir de los puntos/disposiciones entregados, qu\xE9 mecanismo, obligaci\xF3n o diferencia sustantiva m\xE1s relevante surge al comparar esas disposiciones entre pa\xEDses. Si para la mayor\xEDa de los pa\xEDses no hay puntos extra\xEDdos todav\xEDa, responde exactamente: "A\xFAn no hay suficientes disposiciones extra\xEDdas de los pa\xEDses seleccionados para una lectura jur\xEDdica comparativa; genera el an\xE1lisis por pa\xEDs primero."
+
+USA EXCLUSIVAMENTE lo entregado arriba; no inventes mecanismos, cifras, \xF3rganos fiscalizadores ni disposiciones que no est\xE9n respaldados por ese contenido.`;
+  const texto = await generarContenidoUniversalIA(prompt, 500);
+  if (texto) {
+    const parsed = safeJsonParse(texto);
+    if (parsed && (parsed.lecturaObjeto || parsed.lecturaDisposiciones)) {
+      return res.json({
+        lecturaObjeto: parsed.lecturaObjeto || void 0,
+        lecturaDisposiciones: parsed.lecturaDisposiciones || void 0
+      });
+    }
+  }
+  res.json({});
+});
 apiRouter.get("/leychile/buscar", async (req, res) => {
   const q = req.query.q ? String(req.query.q).trim() : "";
   if (!q) {

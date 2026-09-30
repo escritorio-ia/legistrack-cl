@@ -1151,7 +1151,8 @@ function ordenarChilePrimero<T extends { pais: string }>(items: T[]): T[] {
 function generarMatrizDinamica(
   query: string,
   seleccionSinOrdenar: ResultadoComparado[],
-  detalles: Record<string, LeySeleccionada>
+  detalles: Record<string, LeySeleccionada>,
+  lecturas?: { lecturaObjeto?: string; lecturaDisposiciones?: string }
 ): MatrizComparadaData {
   const seleccion = ordenarChilePrimero(seleccionSinOrdenar);
   const columnas: MatrizColumna[] = seleccion.map((r, i) => ({
@@ -1195,7 +1196,7 @@ function generarMatrizDinamica(
       dimension: "Objeto y ámbito de la norma",
       icono: "🎯",
       valores: valoresObjeto,
-      lecturaJuridica: "Tomado de la descripción oficial obtenida en tiempo real de cada fuente (LeyChile, BOE, EUR-Lex, etc.)."
+      lecturaJuridica: lecturas?.lecturaObjeto || "Presiona \"Comparar y Generar Informe\" para obtener la lectura jurídica comparativa de esta dimensión."
     },
     {
       dimension: "Tipo de instrumento normativo",
@@ -1219,7 +1220,9 @@ function generarMatrizDinamica(
       dimension: `Disposición destacada ${idx + 1}`,
       icono: "📑",
       valores,
-      lecturaJuridica: "Extraído del texto oficial de cada norma cuando el análisis por país ya fue generado; de lo contrario, se indica explícitamente.",
+      lecturaJuridica: idx === 0
+        ? (lecturas?.lecturaDisposiciones || "Presiona \"Comparar y Generar Informe\" para obtener la lectura jurídica comparativa de las disposiciones reales.")
+        : "Extraído del texto oficial de cada norma cuando el análisis por país ya fue generado; de lo contrario, se indica explícitamente.",
       isWarmRow: true
     }))
   ];
@@ -1335,6 +1338,13 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
   const [analisisComparadoIA, setAnalisisComparadoIA] = useState<string | null>(null);
   const [analisisComparadoKey, setAnalisisComparadoKey] = useState<string>("");
   const [analisisComparadoLoading, setAnalisisComparadoLoading] = useState(false);
+
+  // "Lectura jurídica" real por dimensión de la Matriz Comparada (antes eran
+  // frases fijas que solo explicaban qué significaba el campo, no un análisis
+  // real) -- se genera junto con comparacionDetalle, a partir de las
+  // descripciones y puntos ya extraídos.
+  const [lecturasMatriz, setLecturasMatriz] = useState<{ lecturaObjeto?: string; lecturaDisposiciones?: string }>({});
+  const [lecturasMatrizKey, setLecturasMatrizKey] = useState<string>("");
 
   // Pestaña "Evolución Legal": objetivo + menciones explícitas de
   // modificaciones por norma seleccionada, extraídos de su texto real.
@@ -1580,9 +1590,38 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
       );
       const detalleActualizado = Object.fromEntries(entradas) as Record<string, LeySeleccionada>;
       setComparacionDetalle(detalleActualizado);
+      handleGenerarLecturasMatriz(seleccionComparar, detalleActualizado);
       return detalleActualizado;
     } finally {
       setComparando(false);
+    }
+  };
+
+  // Lectura jurídica real (no genérica) al pie de las filas "Objeto y
+  // ámbito" y "Disposición destacada" de la Matriz -- se dispara en paralelo
+  // apenas se tienen los datos reales (descripción + puntos), sin bloquear
+  // el resto del flujo.
+  const handleGenerarLecturasMatriz = async (seleccion: ResultadoComparado[], detalle: Record<string, LeySeleccionada>) => {
+    if (seleccion.length < 2) return;
+    const key = seleccion.map(claveResultado).sort().join("||");
+    const items = seleccion.map((r) => ({
+      pais: r.pais,
+      descripcion: r.descripcion,
+      puntos: detalle[claveResultado(r)]?.puntos || []
+    }));
+    try {
+      const res = await fetch("/api/derecho-comparado/lectura-matriz", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: liveQuery, items })
+      });
+      if (res.ok) {
+        const data: { lecturaObjeto?: string; lecturaDisposiciones?: string } = await res.json();
+        setLecturasMatriz(data);
+        setLecturasMatrizKey(key);
+      }
+    } catch {
+      // si falla, la matriz se queda con las lecturas genéricas por defecto
     }
   };
 
@@ -2923,7 +2962,12 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
             </div>
           ) : vistaComparador === "matriz" ? (
             <div className="flex flex-col gap-4">
-              <MatrizComparadaTable data={generarMatrizDinamica(liveQuery, seleccionComparar, comparacionDetalle)} />
+              <MatrizComparadaTable data={generarMatrizDinamica(
+                liveQuery,
+                seleccionComparar,
+                comparacionDetalle,
+                lecturasMatrizKey === seleccionComparar.map(claveResultado).sort().join("||") ? lecturasMatriz : undefined
+              )} />
             </div>
           ) : (
             <div 

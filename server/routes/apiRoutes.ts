@@ -1393,6 +1393,58 @@ Responde solo con el análisis, sin encabezados ni markdown.`;
   res.json({ analisis: `No fue posible generar el análisis comparativo con IA en este momento. Se seleccionaron ${items.length} normas de ${paises} sobre "${query}"; revisa los puntos sustantivos de cada una más abajo.` });
 });
 
+// Genera la "lectura jurídica" (la fila de análisis al pie de cada dimensión
+// en la Matriz Comparada) a partir de los datos REALES ya obtenidos -- antes
+// esas filas se habían reducido a frases fijas que solo explicaban qué
+// significa el campo (ej. "Jerarquía normativa real según la fuente
+// consultada"), en vez de dar una lectura jurídica comparativa real como
+// hacían las matrices de ejemplo. Se pide una síntesis breve por dimensión,
+// basada exclusivamente en lo ya extraído (descripción oficial y puntos
+// reales de cada norma), nunca inventando contenido no respaldado por ellos.
+apiRouter.post("/derecho-comparado/lectura-matriz", async (req: Request, res: Response) => {
+  const { query, items } = req.body as {
+    query?: string;
+    items?: Array<{ pais: string; descripcion?: string; puntos?: string[] }>;
+  };
+  if (!query || !Array.isArray(items) || items.length < 2) {
+    return res.status(400).json({ error: "Se requiere 'query' y al menos 2 'items'." });
+  }
+
+  const bloqueObjeto = items.map((it) => `- [${it.pais}] ${it.descripcion || "(sin descripción disponible)"}`).join("\n");
+  const bloquePuntos = items
+    .map((it) => `- [${it.pais}] ${(it.puntos && it.puntos.length > 0) ? it.puntos.join(" | ") : "(sin puntos extraídos del texto de esta norma todavía)"}`)
+    .join("\n");
+
+  const prompt = `Actúa como un analista de Asesoría Técnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile, redactando la "lectura jurídica" al pie de dos filas de una matriz comparada sobre "${query}".
+
+Descripciones oficiales del objeto y ámbito de cada norma:
+${bloqueObjeto}
+
+Puntos/disposiciones reales ya extraídos del texto de cada norma:
+${bloquePuntos}
+
+Responde ÚNICAMENTE con un objeto JSON válido, compacto, sin texto adicional, con este esquema exacto:
+{"lecturaObjeto":"...","lecturaDisposiciones":"..."}
+
+- "lecturaObjeto": una oración (máx. 35 palabras) que sintetice, a partir de las descripciones entregadas, qué enfoque comparten o en qué difieren sustantivamente las jurisdicciones en el objeto y ámbito de la norma.
+- "lecturaDisposiciones": una oración (máx. 35 palabras) que sintetice, a partir de los puntos/disposiciones entregados, qué mecanismo, obligación o diferencia sustantiva más relevante surge al comparar esas disposiciones entre países. Si para la mayoría de los países no hay puntos extraídos todavía, responde exactamente: "Aún no hay suficientes disposiciones extraídas de los países seleccionados para una lectura jurídica comparativa; genera el análisis por país primero."
+
+USA EXCLUSIVAMENTE lo entregado arriba; no inventes mecanismos, cifras, órganos fiscalizadores ni disposiciones que no estén respaldados por ese contenido.`;
+
+  const texto = await generarContenidoUniversalIA(prompt, 500);
+  if (texto) {
+    const parsed = safeJsonParse<{ lecturaObjeto?: string; lecturaDisposiciones?: string }>(texto);
+    if (parsed && (parsed.lecturaObjeto || parsed.lecturaDisposiciones)) {
+      return res.json({
+        lecturaObjeto: parsed.lecturaObjeto || undefined,
+        lecturaDisposiciones: parsed.lecturaDisposiciones || undefined
+      });
+    }
+  }
+
+  res.json({});
+});
+
 apiRouter.get("/leychile/buscar", async (req: Request, res: Response) => {
   const q = req.query.q ? String(req.query.q).trim() : "";
   if (!q) {
