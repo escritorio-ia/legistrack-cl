@@ -1621,19 +1621,27 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
       }
     }
 
+    // El marco conceptual (vía /redactar) se pide con un timeout corto y sin
+    // bloquear el informe -- esa llamada a IA puede demorar mucho más que
+    // sintetizar-comparacion, y el usuario ya tiene lo esencial (desarrollo
+    // real por país + análisis comparado) sin necesidad de esperarla.
     let marcoConceptual: string | undefined;
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
       const resRedactar = await fetch("/api/derecho-comparado/redactar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: liveQuery, resultados: base })
+        body: JSON.stringify({ query: liveQuery, resultados: base }),
+        signal: controller.signal
       });
+      clearTimeout(timeoutId);
       if (resRedactar.ok) {
         const dataRedactar: { texto: string; marcoConceptual?: string } = await resRedactar.json();
         marcoConceptual = dataRedactar.marcoConceptual;
       }
     } catch {
-      // si falla, el informe se genera igual sin marco conceptual
+      // si falla o se agota el tiempo, el informe se genera igual sin marco conceptual
     }
 
     const md = buildInformeMarkdown(liveQuery, base, buildParrafoAutomatico(liveQuery, base), analisisReal, detalleFinal, marcoConceptual);
