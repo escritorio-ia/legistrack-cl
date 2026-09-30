@@ -189607,7 +189607,7 @@ IMPORTANTE: clasifica el campo "tipo" usando EXCLUSIVAMENTE una de estas 5 categ
 }
 async function buscarComparadoConIA(query, attempts) {
   const jurisdicciones = Object.keys(CODIGO_PAIS).filter((p) => p !== "Chile");
-  const TAMANO_LOTE = 7;
+  const TAMANO_LOTE = 4;
   const lotes = [];
   for (let i = 0; i < jurisdicciones.length; i += TAMANO_LOTE) {
     lotes.push(jurisdicciones.slice(i, i + TAMANO_LOTE));
@@ -189634,12 +189634,12 @@ async function buscarComparadoConIA(query, attempts) {
   const resolverLote = async (lote) => {
     const prompt = construirPromptLoteComparado(query, lote);
     try {
-      const primerIntento = await intentarUnaVez(prompt, 2200);
+      const primerIntento = await intentarUnaVez(prompt, 1400);
       if (primerIntento) return primerIntento;
       const promptEstricto = `${prompt}
 
 IMPORTANTE: tu respuesta anterior no cumpli\xF3 el formato. Responde EXCLUSIVAMENTE con el arreglo JSON solicitado, empezando en "[" y terminando en "]", sin ning\xFAn texto, explicaci\xF3n ni markdown antes o despu\xE9s.`;
-      const segundoIntento = await intentarUnaVez(promptEstricto, 2200);
+      const segundoIntento = await intentarUnaVez(promptEstricto, 1400);
       if (segundoIntento) return segundoIntento;
     } catch (err) {
       console.warn("[Derecho Comparado IA] Error al consultar modelo de IA para lote:", lote.join(", "), err.message);

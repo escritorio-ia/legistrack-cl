@@ -339,7 +339,7 @@ export async function buscarComparadoConIA(query: string, attempts?: AIProviderA
   // consultan EN PARALELO -- el tiempo total queda acotado por el lote más
   // lento, no por la suma de los 27 países.
   const jurisdicciones = Object.keys(CODIGO_PAIS).filter((p) => p !== "Chile");
-  const TAMANO_LOTE = 7;
+  const TAMANO_LOTE = 4;
   const lotes: string[][] = [];
   for (let i = 0; i < jurisdicciones.length; i += TAMANO_LOTE) {
     lotes.push(jurisdicciones.slice(i, i + TAMANO_LOTE));
@@ -368,14 +368,14 @@ export async function buscarComparadoConIA(query: string, attempts?: AIProviderA
   const resolverLote = async (lote: string[]): Promise<ResultadoComparado[]> => {
     const prompt = construirPromptLoteComparado(query, lote);
     try {
-      const primerIntento = await intentarUnaVez(prompt, 2200);
+      const primerIntento = await intentarUnaVez(prompt, 1400);
       if (primerIntento) return primerIntento;
 
       // El modelo a veces "conversa" en vez de responder solo el JSON pedido
       // (variación normal de un LLM, no un fallo de la llamada en sí). Antes de
       // rendirse con este lote, se reintenta una vez con formato más estricto.
       const promptEstricto = `${prompt}\n\nIMPORTANTE: tu respuesta anterior no cumplió el formato. Responde EXCLUSIVAMENTE con el arreglo JSON solicitado, empezando en "[" y terminando en "]", sin ningún texto, explicación ni markdown antes o después.`;
-      const segundoIntento = await intentarUnaVez(promptEstricto, 2200);
+      const segundoIntento = await intentarUnaVez(promptEstricto, 1400);
       if (segundoIntento) return segundoIntento;
     } catch (err: any) {
       console.warn("[Derecho Comparado IA] Error al consultar modelo de IA para lote:", lote.join(", "), err.message);
