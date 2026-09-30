@@ -11,7 +11,7 @@ import {
   SlidersHorizontal, ChevronRight, ChevronDown, ChevronUp, Tag, Share2, HelpCircle, Eye, Info,
   FileSpreadsheet, Printer, FileDown, CheckCheck, Target, ShieldAlert, Wrench, AlertTriangle, AlertCircle, History
 } from "lucide-react";
-import MatrizComparadaTable, { MatrizColumna, MatrizComparadaData, TODAS_LAS_MATRICES } from "../components/MatrizComparadaTable";
+import MatrizComparadaTable, { MatrizColumna, MatrizComparadaData, MatrizFilaDinamica, TODAS_LAS_MATRICES } from "../components/MatrizComparadaTable";
 import { normalizeSearchText } from "../utils/textUtils";
 import {
   saveInformeComparadoToFirestore,
@@ -1152,7 +1152,8 @@ function generarMatrizDinamica(
   query: string,
   seleccionSinOrdenar: ResultadoComparado[],
   detalles: Record<string, LeySeleccionada>,
-  lecturas?: { lecturaObjeto?: string; lecturaDisposiciones?: string }
+  lecturas?: { lecturaObjeto?: string; lecturaDisposiciones?: string },
+  matrizTematica?: Array<{ dimension: string; valores: Record<string, string>; lecturaJuridica: string }>
 ): MatrizComparadaData {
   const seleccion = ordenarChilePrimero(seleccionSinOrdenar);
   const columnas: MatrizColumna[] = seleccion.map((r, i) => ({
@@ -1163,69 +1164,61 @@ function generarMatrizDinamica(
     isChile: r.pais === "Chile"
   }));
 
-  const valoresObjeto: Record<string, string> = {};
-  const valoresTipo: Record<string, string> = {};
-  const valoresFecha: Record<string, string> = {};
-  const valoresFuente: Record<string, string> = {};
-  // Hasta 3 filas de "disposición destacada" -- una por cada punto real ya
-  // extraído del texto (por país, en el orden en que la IA los entregó), en
-  // vez de aplastar todos los puntos de cada país en una sola celda con "·".
-  // Esto restaura varias filas temáticas visibles en la matriz, cada una
-  // respaldada por un punto real (no inventado) cuando ya se analizó esa norma.
-  const valoresPunto: Record<string, string>[] = [{}, {}, {}];
+  let filas: MatrizFilaDinamica[];
 
-  seleccion.forEach((r, i) => {
-    const key = `col_${i}`;
-    valoresObjeto[key] = r.descripcion || `Sin descripción disponible en la fuente oficial para ${r.pais}.`;
-    valoresTipo[key] = r.tipo || "No especificado en la fuente.";
-    valoresFecha[key] = r.fecha || "No especificada en la fuente.";
-    valoresFuente[key] = r.fuente || "No especificada.";
+  if (matrizTematica && matrizTematica.length > 0) {
+    // Dimensiones jurídicas sustantivas reales para ESTA materia específica
+    // (ej. "Titularidad", "Órgano garante" para acceso a información; serían
+    // otras para otra materia), generadas por /matriz-tematica a partir de
+    // las disposiciones reales ya extraídas -- en vez de filas administrativas
+    // fijas (Tipo/Fecha/Fuente, ya visibles en la cabecera de cada columna).
+    filas = matrizTematica.map((d) => {
+      const valores: Record<string, string> = {};
+      seleccion.forEach((r, i) => {
+        valores[`col_${i}`] = d.valores[r.pais] || "No especificado en las disposiciones disponibles.";
+      });
+      return { dimension: d.dimension, icono: "⚖️", valores, lecturaJuridica: d.lecturaJuridica };
+    });
+  } else {
+    const valoresObjeto: Record<string, string> = {};
+    // Hasta 3 filas de "disposición destacada" -- una por cada punto real ya
+    // extraído del texto (por país, en el orden en que la IA los entregó),
+    // como respaldo honesto mientras la matriz temática real (arriba) no se
+    // ha generado todavía.
+    const valoresPunto: Record<string, string>[] = [{}, {}, {}];
 
-    const d = detalles[`${r.pais}|${r.titulo}`];
-    const puntosDisponibles = d?.disponible ? d.puntos : [];
-    for (let p = 0; p < 3; p++) {
-      valoresPunto[p][key] = puntosDisponibles[p]
-        || (d?.disponible === false
-          ? "No disponible: la fuente obtenida no contiene disposiciones sustantivas."
-          : "Aún no analizado — presiona \"Comparar y Generar Informe\" para extraer los puntos reales del texto de esta norma.");
-    }
-  });
+    seleccion.forEach((r, i) => {
+      const key = `col_${i}`;
+      valoresObjeto[key] = r.descripcion || `Sin descripción disponible en la fuente oficial para ${r.pais}.`;
 
-  const filas = [
-    {
-      dimension: "Objeto y ámbito de la norma",
-      icono: "🎯",
-      valores: valoresObjeto,
-      lecturaJuridica: lecturas?.lecturaObjeto || "Presiona \"Comparar y Generar Informe\" para obtener la lectura jurídica comparativa de esta dimensión."
-    },
-    {
-      dimension: "Tipo de instrumento normativo",
-      icono: "⚖️",
-      valores: valoresTipo,
-      lecturaJuridica: "Jerarquía normativa real según la fuente consultada para cada país."
-    },
-    {
-      dimension: "Fecha de la norma",
-      icono: "🗓️",
-      valores: valoresFecha,
-      lecturaJuridica: "Año de aprobación o entrada en vigencia reportado por la fuente oficial."
-    },
-    {
-      dimension: "Fuente oficial",
-      icono: "📚",
-      valores: valoresFuente,
-      lecturaJuridica: "Repositorio o boletín oficial de origen del dato (LeyChile, BOE, EUR-Lex, Congress.gov, etc.)."
-    },
-    ...valoresPunto.map((valores, idx) => ({
-      dimension: `Disposición destacada ${idx + 1}`,
-      icono: "📑",
-      valores,
-      lecturaJuridica: idx === 0
-        ? (lecturas?.lecturaDisposiciones || "Presiona \"Comparar y Generar Informe\" para obtener la lectura jurídica comparativa de las disposiciones reales.")
-        : "Extraído del texto oficial de cada norma cuando el análisis por país ya fue generado; de lo contrario, se indica explícitamente.",
-      isWarmRow: true
-    }))
-  ];
+      const d = detalles[`${r.pais}|${r.titulo}`];
+      const puntosDisponibles = d?.disponible ? d.puntos : [];
+      for (let p = 0; p < 3; p++) {
+        valoresPunto[p][key] = puntosDisponibles[p]
+          || (d?.disponible === false
+            ? "No disponible: la fuente obtenida no contiene disposiciones sustantivas."
+            : "Aún no analizado — presiona \"Comparar y Generar Informe\" para extraer los puntos reales del texto de esta norma.");
+      }
+    });
+
+    filas = [
+      {
+        dimension: "Objeto y ámbito de la norma",
+        icono: "🎯",
+        valores: valoresObjeto,
+        lecturaJuridica: lecturas?.lecturaObjeto || "Presiona \"Comparar y Generar Informe\" para obtener la lectura jurídica comparativa de esta dimensión."
+      },
+      ...valoresPunto.map((valores, idx) => ({
+        dimension: `Disposición destacada ${idx + 1}`,
+        icono: "📑",
+        valores,
+        lecturaJuridica: idx === 0
+          ? (lecturas?.lecturaDisposiciones || "Presiona \"Comparar y Generar Informe\" para obtener la lectura jurídica comparativa de las disposiciones reales.")
+          : "Extraído del texto oficial de cada norma cuando el análisis por país ya fue generado; de lo contrario, se indica explícitamente.",
+        isWarmRow: true
+      }))
+    ];
+  }
 
   return {
     id: "live-matrix",
@@ -1235,6 +1228,105 @@ function generarMatrizDinamica(
     columnas,
     filas
   };
+}
+
+const CATEGORIA_COLOR: Record<string, string> = {
+  jurisdiccion: "#ec4899",
+  macrotema: "#0ea5e9",
+  hub_regulatorio: "#f97316",
+  dimension_estructural: "#84cc16",
+  funcion_juridica: "#a855f7",
+  forma_regulatoria: "#64748b"
+};
+
+const CATEGORIA_LABEL: Record<string, string> = {
+  jurisdiccion: "Jurisdicción",
+  macrotema: "Macrotema",
+  hub_regulatorio: "Hub regulatorio",
+  dimension_estructural: "Dimensión estructural",
+  funcion_juridica: "Función jurídica",
+  forma_regulatoria: "Forma regulatoria"
+};
+
+// Layout radial fijo (sin simulación de físicas): el macrotema va al centro,
+// las jurisdicciones (países) en el anillo exterior, y el resto de los
+// conceptos reales (órganos, mecanismos, funciones jurídicas) en un anillo
+// intermedio -- suficiente para visualizar las conexiones reales extraídas
+// sin depender de una librería de grafos adicional.
+function renderRelacionesGrafo(
+  nodos: Array<{ id: string; etiqueta: string; categoria: string }>,
+  enlaces: Array<{ origen: string; destino: string }>,
+  query: string
+) {
+  const W = 800, H = 560;
+  const cx = W / 2, cy = H / 2;
+  const central = nodos.find((n) => n.categoria === "macrotema") || { id: "tema_central", etiqueta: query, categoria: "macrotema" };
+  const jurisdicciones = nodos.filter((n) => n.categoria === "jurisdiccion");
+  const conceptos = nodos.filter((n) => n.categoria !== "macrotema" && n.categoria !== "jurisdiccion");
+
+  const posiciones: Record<string, { x: number; y: number }> = { [central.id]: { x: cx, y: cy } };
+  const radioJurisdicciones = 230;
+  jurisdicciones.forEach((n, i) => {
+    const angulo = (i / Math.max(jurisdicciones.length, 1)) * 2 * Math.PI - Math.PI / 2;
+    posiciones[n.id] = { x: cx + radioJurisdicciones * Math.cos(angulo), y: cy + radioJurisdicciones * Math.sin(angulo) * 0.78 };
+  });
+  const radioConceptos = 125;
+  conceptos.forEach((n, i) => {
+    const angulo = (i / Math.max(conceptos.length, 1)) * 2 * Math.PI + Math.PI / 6;
+    posiciones[n.id] = { x: cx + radioConceptos * Math.cos(angulo), y: cy + radioConceptos * Math.sin(angulo) * 0.78 };
+  });
+
+  const categoriasPresentes = Array.from(new Set(nodos.map((n) => n.categoria)));
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="overflow-x-auto bg-slate-50 rounded-xl border border-slate-100">
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ minWidth: 640 }}>
+          {enlaces.map((e, i) => {
+            const a = posiciones[e.origen];
+            const b = posiciones[e.destino];
+            if (!a || !b) return null;
+            const origenNodo = nodos.find((n) => n.id === e.origen);
+            const color = CATEGORIA_COLOR[origenNodo?.categoria || ""] || "#94a3b8";
+            return <line key={i} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={color} strokeOpacity={0.35} strokeWidth={1.5} />;
+          })}
+          {nodos.map((n) => {
+            const p = posiciones[n.id];
+            if (!p) return null;
+            const color = CATEGORIA_COLOR[n.categoria] || "#94a3b8";
+            const esCentral = n.id === central.id;
+            const r = esCentral ? 34 : n.categoria === "jurisdiccion" ? 22 : 16;
+            return (
+              <g key={n.id}>
+                <circle cx={p.x} cy={p.y} r={r} fill={color} fillOpacity={esCentral ? 0.9 : 0.75} stroke="white" strokeWidth={2} />
+                <text
+                  x={p.x}
+                  y={p.y + r + 12}
+                  textAnchor="middle"
+                  fontSize={esCentral ? 12 : 10}
+                  fontWeight={esCentral || n.categoria === "jurisdiccion" ? 700 : 500}
+                  fill="#334155"
+                >
+                  {n.etiqueta.length > 26 ? `${n.etiqueta.slice(0, 24)}…` : n.etiqueta}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-1.5 justify-center border-t border-slate-100 pt-3">
+        {categoriasPresentes.map((cat) => (
+          <div key={cat} className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500">
+            <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: CATEGORIA_COLOR[cat] || "#94a3b8" }} />
+            {CATEGORIA_LABEL[cat] || cat}
+          </div>
+        ))}
+      </div>
+      <p className="text-[10px] text-slate-400 text-center">
+        Conceptos extraídos de las disposiciones reales ya analizadas de cada norma seleccionada -- no es un mapa genérico.
+      </p>
+    </div>
+  );
 }
 
 interface LegislacionComparadaViewProps {
@@ -1302,7 +1394,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
   // "documento": Informe oficial BCN (Estructura formal)
   // "comparador": Comparador lado a lado / matriz dinámica de leyes seleccionadas
   // "guardados": Informes guardados
-  const [activeTab, setActiveTab] = useState<"live" | "documento" | "comparador" | "evolucion" | "guardados">("live");
+  const [activeTab, setActiveTab] = useState<"live" | "documento" | "comparador" | "evolucion" | "relaciones" | "guardados">("live");
   const [vistaComparador, setVistaComparador] = useState<"matriz" | "fichas">("matriz");
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -1345,6 +1437,19 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
   // descripciones y puntos ya extraídos.
   const [lecturasMatriz, setLecturasMatriz] = useState<{ lecturaObjeto?: string; lecturaDisposiciones?: string }>({});
   const [lecturasMatrizKey, setLecturasMatrizKey] = useState<string>("");
+
+  // Dimensiones jurídicas temáticas reales de la Matriz (ej. "Titularidad",
+  // "Órgano garante" para acceso a información -- específicas de cada
+  // materia, no una lista fija), generadas junto con las lecturas jurídicas.
+  const [matrizTematica, setMatrizTematica] = useState<Array<{ dimension: string; valores: Record<string, string>; lecturaJuridica: string }>>([]);
+  const [matrizTematicaKey, setMatrizTematicaKey] = useState<string>("");
+
+  // Pestaña "Relaciones": mapa de conceptos reales (órganos, mecanismos,
+  // funciones jurídicas) que efectivamente aparecen en las disposiciones de
+  // las normas seleccionadas, y cómo se conectan entre países.
+  const [relaciones, setRelaciones] = useState<{ nodos: Array<{ id: string; etiqueta: string; categoria: string }>; enlaces: Array<{ origen: string; destino: string }> }>({ nodos: [], enlaces: [] });
+  const [relacionesKey, setRelacionesKey] = useState<string>("");
+  const [relacionesLoading, setRelacionesLoading] = useState(false);
 
   // Pestaña "Evolución Legal": objetivo + menciones explícitas de
   // modificaciones por norma seleccionada, extraídos de su texto real.
@@ -1481,7 +1586,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
   // selección activa), lo devuelve a "Búsqueda en Vivo" en vez de dejarlo en
   // una pestaña cuyo botón ya no está visible.
   useEffect(() => {
-    if (seleccionComparar.length === 0 && (activeTab === "documento" || activeTab === "comparador" || activeTab === "evolucion")) {
+    if (seleccionComparar.length === 0 && (activeTab === "documento" || activeTab === "comparador" || activeTab === "evolucion" || activeTab === "relaciones")) {
       setActiveTab("live");
     }
   }, [seleccionComparar, activeTab]);
@@ -1622,6 +1727,59 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
       }
     } catch {
       // si falla, la matriz se queda con las lecturas genéricas por defecto
+    }
+
+    try {
+      const resTematica = await fetch("/api/derecho-comparado/matriz-tematica", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: liveQuery, items: seleccion.map((r) => ({ pais: r.pais, titulo: r.titulo, descripcion: r.descripcion, puntos: detalle[claveResultado(r)]?.puntos || [] })) })
+      });
+      if (resTematica.ok) {
+        const dataTematica: { dimensiones?: Array<{ dimension: string; valores: Record<string, string>; lecturaJuridica: string }> } = await resTematica.json();
+        if (dataTematica.dimensiones && dataTematica.dimensiones.length > 0) {
+          setMatrizTematica(dataTematica.dimensiones);
+          setMatrizTematicaKey(key);
+        }
+      }
+    } catch {
+      // si falla, la matriz se queda con las filas de respaldo (Objeto/Disposiciones)
+    }
+  };
+
+  // Pestaña "Relaciones": se genera bajo demanda (al entrar a la pestaña),
+  // no automáticamente con cada comparación, porque es una llamada de IA
+  // adicional y no todos los usuarios la van a abrir.
+  const handleGenerarRelaciones = async () => {
+    if (seleccionComparar.length < 2) return;
+    const key = seleccionComparar.map(claveResultado).sort().join("||");
+    if (relacionesKey === key) return;
+    setRelacionesLoading(true);
+    try {
+      let detalleActual = comparacionDetalle;
+      const faltaAnalisis = seleccionComparar.some((r) => !detalleActual[claveResultado(r)]?.disponible);
+      if (faltaAnalisis) {
+        detalleActual = (await handleComparar()) || detalleActual;
+      }
+      const items = seleccionComparar.map((r) => ({
+        pais: r.pais,
+        descripcion: r.descripcion,
+        puntos: detalleActual[claveResultado(r)]?.puntos || []
+      }));
+      const res = await fetch("/api/derecho-comparado/relaciones", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: liveQuery, items })
+      });
+      if (res.ok) {
+        const data: { nodos: Array<{ id: string; etiqueta: string; categoria: string }>; enlaces: Array<{ origen: string; destino: string }> } = await res.json();
+        setRelaciones(data);
+        setRelacionesKey(key);
+      }
+    } catch {
+      // si falla, la pestaña muestra el estado honesto de "no disponible"
+    } finally {
+      setRelacionesLoading(false);
     }
   };
 
@@ -2097,6 +2255,18 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
         >
           <History className="w-4 h-4" />
           <span>Evolución Legal</span>
+        </button>
+
+        <button
+          onClick={() => { setActiveTab("relaciones"); handleGenerarRelaciones(); }}
+          className={`text-xs font-bold px-4 py-2.5 rounded-xl transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
+            activeTab === "relaciones"
+              ? "bg-blue-700 text-white shadow-xs"
+              : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+          }`}
+        >
+          <Share2 className="w-4 h-4" />
+          <span>Relaciones</span>
         </button>
         </>
         )}
@@ -2966,7 +3136,8 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
                 liveQuery,
                 seleccionComparar,
                 comparacionDetalle,
-                lecturasMatrizKey === seleccionComparar.map(claveResultado).sort().join("||") ? lecturasMatriz : undefined
+                lecturasMatrizKey === seleccionComparar.map(claveResultado).sort().join("||") ? lecturasMatriz : undefined,
+                matrizTematicaKey === seleccionComparar.map(claveResultado).sort().join("||") ? matrizTematica : undefined
               )} />
             </div>
           ) : (
@@ -3131,6 +3302,53 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
                 </tbody>
               </table>
             </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === "relaciones" && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col gap-5 animate-fade-in">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
+            <div>
+              <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                <Share2 className="w-5 h-5 text-blue-700" />
+                Mapa de Relaciones Conceptuales
+              </h3>
+              <p className="text-xs text-slate-500 mt-1 max-w-xl">
+                Órganos, mecanismos y funciones jurídicas reales que aparecen en las disposiciones de las normas seleccionadas, y cómo se conectan entre países ({seleccionComparar.length} seleccionadas).
+              </p>
+            </div>
+            <button
+              onClick={() => { setRelacionesKey(""); handleGenerarRelaciones(); }}
+              disabled={relacionesLoading || seleccionComparar.length < 2}
+              className="bg-blue-700 hover:bg-blue-800 disabled:bg-slate-300 text-white font-bold text-xs px-4 py-2.5 rounded-xl cursor-pointer shadow-xs flex items-center gap-2 shrink-0"
+            >
+              {relacionesLoading ? (
+                <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Analizando texto real...</>
+              ) : (
+                <><Share2 className="w-3.5 h-3.5" /> {relaciones.nodos.length > 0 ? "Regenerar" : "Generar Mapa de Relaciones"}</>
+              )}
+            </button>
+          </div>
+
+          {seleccionComparar.length < 2 ? (
+            <div className="p-10 text-center flex flex-col items-center justify-center gap-3">
+              <Share2 className="w-8 h-8 text-slate-300" />
+              <h4 className="text-sm font-bold text-slate-800">Selecciona al menos 2 normativas</h4>
+              <p className="text-xs text-slate-500 max-w-md">
+                Vuelva a "Búsqueda en Vivo Internacional" y marque las casillas "Comparar" (mínimo 2 países).
+              </p>
+            </div>
+          ) : relacionesLoading ? (
+            <div className="p-10 text-center text-xs text-slate-400 font-bold">
+              Extrayendo conceptos reales del texto de cada norma y sus relaciones...
+            </div>
+          ) : relaciones.nodos.length === 0 ? (
+            <div className="p-10 text-center text-xs text-slate-400 font-bold">
+              Haz clic en "Generar Mapa de Relaciones" para construirlo a partir del texto real de cada norma.
+            </div>
+          ) : (
+            renderRelacionesGrafo(relaciones.nodos, relaciones.enlaces, liveQuery)
           )}
         </div>
       )}

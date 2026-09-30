@@ -1445,6 +1445,119 @@ USA EXCLUSIVAMENTE lo entregado arriba; no inventes mecanismos, cifras, órganos
   res.json({});
 });
 
+// Matriz temática real: en vez de filas administrativas fijas (Tipo, Fecha,
+// Fuente -- ya visibles en la cabecera de cada columna), identifica las
+// dimensiones jurídicas SUSTANTIVAS realmente comparables para esta materia
+// específica (ej. "Titularidad", "Plazo y silencio", "Órgano garante" para
+// acceso a información pública; serían otras para protección de datos o
+// tenencia de mascotas) a partir de los puntos reales ya extraídos de cada
+// norma, con una celda por país basada exclusivamente en esos puntos.
+apiRouter.post("/derecho-comparado/matriz-tematica", async (req: Request, res: Response) => {
+  const { query, items } = req.body as {
+    query?: string;
+    items?: Array<{ pais: string; titulo: string; puntos?: string[]; descripcion?: string }>;
+  };
+  if (!query || !Array.isArray(items) || items.length < 2) {
+    return res.status(400).json({ error: "Se requiere 'query' y al menos 2 'items'." });
+  }
+
+  const conPuntos = items.filter((it) => it.puntos && it.puntos.length > 0);
+  if (conPuntos.length < 2) {
+    return res.json({ dimensiones: [] });
+  }
+
+  const bloque = conPuntos
+    .map((it) => `[${it.pais}] ${it.titulo}\nDescripción: ${it.descripcion || "(sin descripción)"}\nDisposiciones reales:\n${(it.puntos || []).map((p) => `  - ${p}`).join("\n")}`)
+    .join("\n\n");
+
+  const prompt = `Actúa como un analista de Asesoría Técnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile, construyendo una MATRIZ COMPARADA TEMÁTICA sobre "${query}" entre las siguientes jurisdicciones, a partir de las disposiciones REALES ya extraídas del texto de cada norma:
+
+${bloque}
+
+Identifica entre 4 y 6 DIMENSIONES JURÍDICAS SUSTANTIVAS que sean genuinamente comparables entre estas jurisdicciones para esta materia específica (por ejemplo, si la materia fuera acceso a información pública, dimensiones típicas serían "Titularidad", "Plazo y silencio", "Reserva y límites", "Órgano garante", "Transparencia activa"; para otra materia las dimensiones deben ser las que correspondan sustantivamente a ESA materia, no una lista genérica fija).
+
+Responde ÚNICAMENTE con un arreglo JSON válido, compacto, sin texto adicional, con este esquema exacto:
+[{"dimension":"Nombre corto de la dimensión (2-4 palabras)","valores":{"NombrePais1":"Celda breve (máx. 25 palabras) basada en sus disposiciones reales","NombrePais2":"..."},"lecturaJuridica":"Una oración (máx. 30 palabras) que sintetice el patrón o diferencia real entre países en esta dimensión"}]
+
+Reglas estrictas:
+- Usa EXCLUSIVAMENTE las disposiciones y descripciones entregadas arriba para cada país; no inventes plazos, órganos, cifras ni mecanismos que no estén respaldados por ese contenido.
+- Si para un país no hay disposición real que permita llenar una dimensión, escribe exactamente "No especificado en las disposiciones disponibles." en su celda -- nunca inventes contenido de relleno.
+- Los nombres de país en "valores" deben ser EXACTAMENTE iguales a los nombres de país entregados arriba (mismo texto).
+- No repitas como dimensión el tipo de norma, la fecha ni la fuente (esos datos ya se muestran aparte).`;
+
+  const texto = await generarContenidoUniversalIA(prompt, 2500);
+  if (texto) {
+    const parsed = safeJsonParse<Array<{ dimension?: string; valores?: Record<string, string>; lecturaJuridica?: string }>>(texto);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      const dimensiones = parsed
+        .filter((d) => d.dimension && d.valores)
+        .map((d) => ({ dimension: d.dimension!, valores: d.valores!, lecturaJuridica: d.lecturaJuridica || "" }));
+      if (dimensiones.length > 0) {
+        return res.json({ dimensiones });
+      }
+    }
+  }
+
+  res.json({ dimensiones: [] });
+});
+
+// Pestaña "Relaciones": mapa de conceptos reales (no genéricos) que conecta
+// las jurisdicciones seleccionadas con los mecanismos, órganos y funciones
+// jurídicas que efectivamente aparecen en sus disposiciones reales ya
+// extraídas -- para la visualización de red en el frontend.
+apiRouter.post("/derecho-comparado/relaciones", async (req: Request, res: Response) => {
+  const { query, items } = req.body as {
+    query?: string;
+    items?: Array<{ pais: string; puntos?: string[]; descripcion?: string }>;
+  };
+  if (!query || !Array.isArray(items) || items.length < 2) {
+    return res.status(400).json({ error: "Se requiere 'query' y al menos 2 'items'." });
+  }
+
+  const conPuntos = items.filter((it) => (it.puntos && it.puntos.length > 0) || it.descripcion);
+  if (conPuntos.length < 2) {
+    return res.json({ nodos: [], enlaces: [] });
+  }
+
+  const bloque = conPuntos
+    .map((it) => `[${it.pais}]\nDescripción: ${it.descripcion || "(sin descripción)"}\nDisposiciones:\n${(it.puntos || []).map((p) => `  - ${p}`).join("\n")}`)
+    .join("\n\n");
+
+  const prompt = `Actúa como un analista de Asesoría Técnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile, construyendo un MAPA DE RELACIONES CONCEPTUALES sobre "${query}" a partir de las disposiciones REALES ya extraídas de estas jurisdicciones:
+
+${bloque}
+
+Identifica los conceptos, mecanismos, órganos y funciones jurídicas REALES que aparecen en esas disposiciones (por ejemplo: un órgano fiscalizador mencionado, un mecanismo de registro, una obligación específica, un principio jurídico) y cómo se conectan con cada jurisdicción y entre sí.
+
+Responde ÚNICAMENTE con un objeto JSON válido, compacto, sin texto adicional, con este esquema exacto:
+{"nodos":[{"id":"identificador_corto_snake_case","etiqueta":"Texto visible del nodo","categoria":"jurisdiccion|macrotema|hub_regulatorio|dimension_estructural|funcion_juridica"}],"enlaces":[{"origen":"id_nodo_1","destino":"id_nodo_2"}]}
+
+Reglas estrictas:
+- Incluye un nodo "categoria":"macrotema" con id "tema_central" y etiqueta "${query}".
+- Incluye un nodo "categoria":"jurisdiccion" por cada país/jurisdicción entregado arriba (etiqueta = nombre del país).
+- Incluye entre 6 y 14 nodos adicionales de categoría "hub_regulatorio" (órganos, autoridades, registros), "dimension_estructural" (ejes temáticos comparables) o "funcion_juridica" (obligaciones, principios, mecanismos) -- SOLO conceptos que efectivamente aparezcan en las disposiciones o descripciones entregadas arriba, nunca inventados.
+- Cada nodo de jurisdicción debe tener al menos un enlace hacia "tema_central" y hacia los conceptos que efectivamente regula según sus disposiciones reales.
+- No inventes órganos, mecanismos ni conceptos que no estén respaldados por el texto entregado.`;
+
+  const texto = await generarContenidoUniversalIA(prompt, 2500);
+  if (texto) {
+    const parsed = safeJsonParse<{
+      nodos?: Array<{ id?: string; etiqueta?: string; categoria?: string }>;
+      enlaces?: Array<{ origen?: string; destino?: string }>;
+    }>(texto);
+    if (parsed && Array.isArray(parsed.nodos) && parsed.nodos.length > 0) {
+      const nodos = parsed.nodos.filter((n) => n.id && n.etiqueta && n.categoria);
+      const idsValidos = new Set(nodos.map((n) => n.id));
+      const enlaces = (parsed.enlaces || []).filter((e) => e.origen && e.destino && idsValidos.has(e.origen) && idsValidos.has(e.destino));
+      if (nodos.length > 0) {
+        return res.json({ nodos, enlaces });
+      }
+    }
+  }
+
+  res.json({ nodos: [], enlaces: [] });
+});
+
 apiRouter.get("/leychile/buscar", async (req: Request, res: Response) => {
   const q = req.query.q ? String(req.query.q).trim() : "";
   if (!q) {
