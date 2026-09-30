@@ -406,17 +406,28 @@ function buildInformeMarkdown(
     lines.push(redaccionIA);
   }
   lines.push("");
-  lines.push(`## ${n}. Matriz comparativa por país`);
+  lines.push(`## ${n}. Desarrollo por país`);
   n++;
-  lines.push(`| País | Normativa Oficial | Tipo | Fuente | Resumen / Puntos Clave | Enlace |`);
-  lines.push(`| :--- | :--- | :--- | :--- | :--- | :--- |`);
+  // Desarrollo artículo por artículo en prosa continua por país (estilo de
+  // los informes reales de "Legislación Comparada" de la BCN), en vez de
+  // aplastar los puntos reales extraídos del texto de cada norma dentro de
+  // una celda de tabla -- que los volvía ilegibles y muy distintos del
+  // formato de los documentos de referencia entregados.
   for (const r of resultados) {
     const detalle = comparacionDetalle ? comparacionDetalle[`${r.pais}|${r.titulo}`] : undefined;
-    const puntos = detalle?.puntos && detalle.puntos.length > 0
-      ? detalle.puntos.join("; ")
-      : (r.descripcion || "—");
-    const link = r.url ? `[Ver Gaceta](${r.url})` : "—";
-    lines.push(`| ${r.pais} | **${r.titulo.replace(/\|/g, "/")}** | ${r.tipo || "Ley"} | ${r.fuente} | ${puntos.replace(/\|/g, "/")} | ${link} |`);
+    lines.push("");
+    lines.push(`### ${r.pais} — ${r.titulo}`);
+    lines.push(`*${r.tipo || "Ley"} | ${r.fuente}${r.fecha ? ` | ${r.fecha}` : ""}*`);
+    lines.push("");
+    if (detalle?.disponible && detalle.puntos.length > 0) {
+      for (const p of detalle.puntos) {
+        lines.push(`- ${p}`);
+      }
+    } else if (detalle && detalle.disponible === false) {
+      lines.push(`*${detalle.mensaje || "No fue posible acceder a disposiciones sustantivas del texto oficial de esta norma."}*`);
+    } else {
+      lines.push(r.descripcion || "Sin descripción disponible en la fuente oficial.");
+    }
   }
   lines.push("");
   lines.push(`## ${n}. Fuentes consultadas`);
@@ -1575,15 +1586,57 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
     }
   };
 
-  // Combina en un solo clic lo que antes eran dos pasos separados: extraer
-  // los puntos reales de cada norma seleccionada (handleComparar) y generar
-  // de inmediato el Informe Técnico con esa misma selección, en vez de
-  // dejar al usuario dando un segundo clic aparte en otra pestaña.
+  // Combina en un solo clic lo que antes eran tres pasos separados: extraer
+  // los puntos reales de cada norma seleccionada (handleComparar), generar
+  // el análisis comparativo real en prosa a partir de esos puntos
+  // (sintetizar-comparacion) y recién entonces armar el Informe Técnico --
+  // antes este botón solo hacía el primer paso y el documento resultante
+  // salía sin el análisis redactado en prosa (estilo de los ejemplos BCN
+  // reales que se usaron de referencia), solo con la tabla de puntos crudos.
   const handleCompararYGenerarInforme = async () => {
     if (seleccionComparar.length < 2) return;
     const detalleActualizado = await handleComparar();
+    const detalleFinal = detalleActualizado || comparacionDetalle;
     const base = ordenarChilePrimero(seleccionComparar);
-    const md = buildInformeMarkdown(liveQuery, base, buildParrafoAutomatico(liveQuery, base), undefined, detalleActualizado || comparacionDetalle);
+
+    let analisisReal: string | undefined;
+    const items = base.map((r) => ({
+      pais: r.pais,
+      titulo: r.titulo,
+      puntos: detalleFinal[claveResultado(r)]?.puntos || []
+    })).filter((it) => it.puntos.length > 0);
+    if (items.length >= 2) {
+      try {
+        const res = await fetch("/api/derecho-comparado/sintetizar-comparacion", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: liveQuery, items })
+        });
+        if (res.ok) {
+          const data: { analisis: string } = await res.json();
+          analisisReal = data.analisis;
+        }
+      } catch {
+        // si falla, el informe se genera igual sin esta sección
+      }
+    }
+
+    let marcoConceptual: string | undefined;
+    try {
+      const resRedactar = await fetch("/api/derecho-comparado/redactar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: liveQuery, resultados: base })
+      });
+      if (resRedactar.ok) {
+        const dataRedactar: { texto: string; marcoConceptual?: string } = await resRedactar.json();
+        marcoConceptual = dataRedactar.marcoConceptual;
+      }
+    } catch {
+      // si falla, el informe se genera igual sin marco conceptual
+    }
+
+    const md = buildInformeMarkdown(liveQuery, base, buildParrafoAutomatico(liveQuery, base), analisisReal, detalleFinal, marcoConceptual);
     setInformeLiveMarkdown(md);
     setInformeLiveQuery(liveQuery);
     setActiveTab("documento");
