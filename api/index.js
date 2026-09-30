@@ -189398,6 +189398,19 @@ var CODIGO_PAIS = {
   "Jap\xF3n": "JP",
   "Luxemburgo": "LU"
 };
+var PORTALES_DATOS_ABIERTOS_REFERENCIA = {
+  "Espa\xF1a": { nombre: "datos.gob.es \u2014 Cat\xE1logo Nacional de Datos Abiertos de Espa\xF1a", url: "https://datos.gob.es" },
+  "Reino Unido": { nombre: "CKAN API del Gobierno del Reino Unido (data.gov.uk)", url: "https://ckan.publishing.service.gov.uk/api/3/action/package_list" },
+  "Francia": { nombre: "api.gouv.fr \u2014 Cat\xE1logo Nacional de APIs de Francia", url: "https://api.gouv.fr/" },
+  "Alemania": { nombre: "offenedaten.de \u2014 Cat\xE1logo de Datos Abiertos de Alemania", url: "https://offenedaten.de/" },
+  "Italia": { nombre: "dati.gov.it \u2014 Cat\xE1logo Nacional de Datos Abiertos de Italia", url: "https://www.dati.gov.it/api/3/action/package_list" },
+  "Pa\xEDses Bajos": { nombre: "data.overheid.nl \u2014 Cat\xE1logo de Datos Abiertos de los Pa\xEDses Bajos", url: "https://data.overheid.nl" },
+  "Irlanda": { nombre: "data.gov.ie \u2014 Cat\xE1logo Nacional de Datos Abiertos de Irlanda", url: "https://data.gov.ie/api/3/action/package_list" },
+  "Suecia": { nombre: "data.riksdagen.se \u2014 API oficial del Parlamento sueco (documentos, leyes y votaciones)", url: "https://data.riksdagen.se/data/dokument/" },
+  "Finlandia": { nombre: "avoindata.fi \u2014 Cat\xE1logo Nacional de Datos Abiertos de Finlandia", url: "https://www.avoindata.fi/data/en_GB/api/3" },
+  "Noruega": { nombre: "fellesdatakatalog.brreg.no \u2014 Cat\xE1logo Nacional de APIs de Noruega", url: "https://fellesdatakatalog.brreg.no/apis" },
+  "Dinamarca": { nombre: "datafordeler.dk \u2014 Cat\xE1logo de Datos de Dinamarca", url: "https://datafordeler.dk/dataoversigt/" }
+};
 function normalizarTexto2(s) {
   return s.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
@@ -189587,10 +189600,17 @@ async function buscarLeyChilePorNumero(numLey) {
   }
 }
 function construirPromptLoteComparado(query, lote) {
+  const conPortalReferencia = lote.filter((p) => PORTALES_DATOS_ABIERTOS_REFERENCIA[p]);
+  const bloquePortales = conPortalReferencia.length > 0 ? `
+
+Portales oficiales de datos/APIs gubernamentales VERIFICADOS (reales, no los inventes t\xFA) para algunas de estas jurisdicciones, por si te sirven de referencia del dominio oficial o como enlace de respaldo cuando no identifiques la p\xE1gina espec\xEDfica de la norma:
+${conPortalReferencia.map((p) => `- ${p}: ${PORTALES_DATOS_ABIERTOS_REFERENCIA[p].nombre} (${PORTALES_DATOS_ABIERTOS_REFERENCIA[p].url})`).join("\n")}
+Estos portales son cat\xE1logos de datos abiertos generales, no el texto de una norma espec\xEDfica --\xFAsalos solo si no puedes identificar un enlace m\xE1s espec\xEDfico a la norma misma; prioriza siempre un enlace directo a la norma cuando lo conozcas.` : "";
   return `Act\xFAa como un analista experto en Derecho Comparado y Asesor\xEDa T\xE9cnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile (BCN).
 Para la materia, concepto o \xE1mbito regulatorio: "${query}", eval\xFAa CADA UNA de las siguientes ${lote.length} jurisdicciones e identifica, para cada una en que exista, un marco normativo o iniciativa legal REAL, VIGENTE O EN TR\xC1MITE relacionado con la materia:
 
 ${lote.join(", ")}
+${bloquePortales}
 
 Incluye en tu respuesta a TODAS las jurisdicciones de esta lista para las que puedas identificar honestamente una norma real y espec\xEDfica sobre "${query}". Omite del arreglo \xFAnicamente aquellas para las que genuinamente no exista o no puedas identificar una norma espec\xEDfica sobre la materia -- nunca inventes un t\xEDtulo, n\xFAmero o fecha para rellenar una jurisdicci\xF3n.
 
@@ -189855,7 +189875,8 @@ async function buscarDerechoComparado(q) {
       "Francia (L\xE9gifrance)",
       "Reino Unido (Legislation.gov.uk)",
       "Iberoam\xE9rica (Colombia, Argentina, M\xE9xico)",
-      "OCDE / Global (Asesor\xEDa T\xE9cnica Parlamentaria BCN)"
+      "OCDE / Global (Asesor\xEDa T\xE9cnica Parlamentaria BCN)",
+      "Portales de datos abiertos UE/OCDE verificados (cat\xE1logo APIs4DGov \u2014 Joint Research Centre, Comisi\xF3n Europea)"
     ];
     const fuentesFallidas = [];
     const aiAttempts = [];

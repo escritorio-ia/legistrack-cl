@@ -52,6 +52,30 @@ export const CODIGO_PAIS: Record<string, string> = {
   "Luxemburgo": "LU"
 };
 
+// Portales oficiales de datos/APIs gubernamentales verificados para países
+// UE/OCDE, curados a partir del catálogo "API-cases" del estudio APIs4DGov
+// del Joint Research Centre de la Comisión Europea (data.europa.eu, dataset
+// 45ca8d82-ac31-4360-b3a1-ba43b0b07377, CC-BY-4.0). Solo se incluyó un
+// portal nacional "de propósito general" por país cuando el catálogo lo
+// documentaba (se excluyeron las entradas que solo cubrían geodatos, para
+// no dar una falsa impresión de que sirven para buscar texto legal). Se usan
+// como referencia REAL y verificada para que la IA no tenga que adivinar el
+// dominio oficial de cada país al construir sus resultados -- no reemplazan
+// LeyChile/EUR-Lex/BOE como fuente de texto legal en sí.
+export const PORTALES_DATOS_ABIERTOS_REFERENCIA: Record<string, { nombre: string; url: string }> = {
+  "España": { nombre: "datos.gob.es — Catálogo Nacional de Datos Abiertos de España", url: "https://datos.gob.es" },
+  "Reino Unido": { nombre: "CKAN API del Gobierno del Reino Unido (data.gov.uk)", url: "https://ckan.publishing.service.gov.uk/api/3/action/package_list" },
+  "Francia": { nombre: "api.gouv.fr — Catálogo Nacional de APIs de Francia", url: "https://api.gouv.fr/" },
+  "Alemania": { nombre: "offenedaten.de — Catálogo de Datos Abiertos de Alemania", url: "https://offenedaten.de/" },
+  "Italia": { nombre: "dati.gov.it — Catálogo Nacional de Datos Abiertos de Italia", url: "https://www.dati.gov.it/api/3/action/package_list" },
+  "Países Bajos": { nombre: "data.overheid.nl — Catálogo de Datos Abiertos de los Países Bajos", url: "https://data.overheid.nl" },
+  "Irlanda": { nombre: "data.gov.ie — Catálogo Nacional de Datos Abiertos de Irlanda", url: "https://data.gov.ie/api/3/action/package_list" },
+  "Suecia": { nombre: "data.riksdagen.se — API oficial del Parlamento sueco (documentos, leyes y votaciones)", url: "https://data.riksdagen.se/data/dokument/" },
+  "Finlandia": { nombre: "avoindata.fi — Catálogo Nacional de Datos Abiertos de Finlandia", url: "https://www.avoindata.fi/data/en_GB/api/3" },
+  "Noruega": { nombre: "fellesdatakatalog.brreg.no — Catálogo Nacional de APIs de Noruega", url: "https://fellesdatakatalog.brreg.no/apis" },
+  "Dinamarca": { nombre: "datafordeler.dk — Catálogo de Datos de Dinamarca", url: "https://datafordeler.dk/dataoversigt/" }
+};
+
 export function normalizarTexto(s: string): string {
   return s.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
@@ -309,10 +333,16 @@ export async function buscarLeyChilePorNumero(numLey: string): Promise<Resultado
  * Motor de IA para identificar legislación comparada internacional precisa
  */
 function construirPromptLoteComparado(query: string, lote: string[]): string {
+  const conPortalReferencia = lote.filter((p) => PORTALES_DATOS_ABIERTOS_REFERENCIA[p]);
+  const bloquePortales = conPortalReferencia.length > 0
+    ? `\n\nPortales oficiales de datos/APIs gubernamentales VERIFICADOS (reales, no los inventes tú) para algunas de estas jurisdicciones, por si te sirven de referencia del dominio oficial o como enlace de respaldo cuando no identifiques la página específica de la norma:\n${conPortalReferencia.map((p) => `- ${p}: ${PORTALES_DATOS_ABIERTOS_REFERENCIA[p].nombre} (${PORTALES_DATOS_ABIERTOS_REFERENCIA[p].url})`).join("\n")}\nEstos portales son catálogos de datos abiertos generales, no el texto de una norma específica --úsalos solo si no puedes identificar un enlace más específico a la norma misma; prioriza siempre un enlace directo a la norma cuando lo conozcas.`
+    : "";
+
   return `Actúa como un analista experto en Derecho Comparado y Asesoría Técnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile (BCN).
 Para la materia, concepto o ámbito regulatorio: "${query}", evalúa CADA UNA de las siguientes ${lote.length} jurisdicciones e identifica, para cada una en que exista, un marco normativo o iniciativa legal REAL, VIGENTE O EN TRÁMITE relacionado con la materia:
 
 ${lote.join(", ")}
+${bloquePortales}
 
 Incluye en tu respuesta a TODAS las jurisdicciones de esta lista para las que puedas identificar honestamente una norma real y específica sobre "${query}". Omite del arreglo únicamente aquellas para las que genuinamente no exista o no puedas identificar una norma específica sobre la materia -- nunca inventes un título, número o fecha para rellenar una jurisdicción.
 
@@ -631,7 +661,8 @@ export async function buscarDerechoComparado(q: string): Promise<{
       "Francia (Légifrance)",
       "Reino Unido (Legislation.gov.uk)",
       "Iberoamérica (Colombia, Argentina, México)",
-      "OCDE / Global (Asesoría Técnica Parlamentaria BCN)"
+      "OCDE / Global (Asesoría Técnica Parlamentaria BCN)",
+      "Portales de datos abiertos UE/OCDE verificados (catálogo APIs4DGov — Joint Research Centre, Comisión Europea)"
     ];
     const fuentesFallidas: string[] = [];
     const aiAttempts: AIProviderAttempt[] = [];
