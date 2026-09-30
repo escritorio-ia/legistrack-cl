@@ -1254,7 +1254,7 @@ const CATEGORIA_LABEL: Record<string, string> = {
 // intermedio -- suficiente para visualizar las conexiones reales extraídas
 // sin depender de una librería de grafos adicional.
 function renderRelacionesGrafo(
-  nodos: Array<{ id: string; etiqueta: string; categoria: string }>,
+  nodos: Array<{ id: string; etiqueta: string; categoria: string; descripcion?: string }>,
   enlaces: Array<{ origen: string; destino: string }>,
   query: string
 ) {
@@ -1325,6 +1325,27 @@ function renderRelacionesGrafo(
       <p className="text-[10px] text-slate-400 text-center">
         Conceptos extraídos de las disposiciones reales ya analizadas de cada norma seleccionada -- no es un mapa genérico.
       </p>
+
+      {/* Explicación de cada nodo del grafo, agrupada por categoría -- el
+          grafo por sí solo (colores + líneas) no dice QUÉ es cada concepto
+          ni por qué se conecta como lo hace. */}
+      <div className="grid sm:grid-cols-2 gap-3 border-t border-slate-100 pt-4">
+        {categoriasPresentes.map((cat) => (
+          <div key={cat} className="flex flex-col gap-1.5">
+            <h5 className="text-[10px] font-extrabold uppercase tracking-wide flex items-center gap-1.5" style={{ color: CATEGORIA_COLOR[cat] || "#64748b" }}>
+              <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: CATEGORIA_COLOR[cat] || "#94a3b8" }} />
+              {CATEGORIA_LABEL[cat] || cat}
+            </h5>
+            <ul className="flex flex-col gap-1.5">
+              {nodos.filter((n) => n.categoria === cat).map((n) => (
+                <li key={n.id} className="text-[11px] text-slate-600 leading-snug">
+                  <span className="font-bold text-slate-800">{n.etiqueta}:</span> {n.descripcion || "Sin descripción disponible."}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1447,7 +1468,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
   // Pestaña "Relaciones": mapa de conceptos reales (órganos, mecanismos,
   // funciones jurídicas) que efectivamente aparecen en las disposiciones de
   // las normas seleccionadas, y cómo se conectan entre países.
-  const [relaciones, setRelaciones] = useState<{ nodos: Array<{ id: string; etiqueta: string; categoria: string }>; enlaces: Array<{ origen: string; destino: string }> }>({ nodos: [], enlaces: [] });
+  const [relaciones, setRelaciones] = useState<{ nodos: Array<{ id: string; etiqueta: string; categoria: string; descripcion?: string }>; enlaces: Array<{ origen: string; destino: string }> }>({ nodos: [], enlaces: [] });
   const [relacionesKey, setRelacionesKey] = useState<string>("");
   const [relacionesLoading, setRelacionesLoading] = useState(false);
 
@@ -1772,7 +1793,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
         body: JSON.stringify({ query: liveQuery, items })
       });
       if (res.ok) {
-        const data: { nodos: Array<{ id: string; etiqueta: string; categoria: string }>; enlaces: Array<{ origen: string; destino: string }> } = await res.json();
+        const data: { nodos: Array<{ id: string; etiqueta: string; categoria: string; descripcion?: string }>; enlaces: Array<{ origen: string; destino: string }> } = await res.json();
         setRelaciones(data);
         setRelacionesKey(key);
       }

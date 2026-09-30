@@ -1530,19 +1530,19 @@ ${bloque}
 Identifica los conceptos, mecanismos, órganos y funciones jurídicas REALES que aparecen en esas disposiciones (por ejemplo: un órgano fiscalizador mencionado, un mecanismo de registro, una obligación específica, un principio jurídico) y cómo se conectan con cada jurisdicción y entre sí.
 
 Responde ÚNICAMENTE con un objeto JSON válido, compacto, sin texto adicional, con este esquema exacto:
-{"nodos":[{"id":"identificador_corto_snake_case","etiqueta":"Texto visible del nodo","categoria":"jurisdiccion|macrotema|hub_regulatorio|dimension_estructural|funcion_juridica"}],"enlaces":[{"origen":"id_nodo_1","destino":"id_nodo_2"}]}
+{"nodos":[{"id":"identificador_corto_snake_case","etiqueta":"Texto visible del nodo","categoria":"jurisdiccion|macrotema|hub_regulatorio|dimension_estructural|funcion_juridica","descripcion":"1 oración (máx. 25 palabras) que explique qué es este nodo y de dónde sale, basada solo en el texto entregado"}],"enlaces":[{"origen":"id_nodo_1","destino":"id_nodo_2"}]}
 
 Reglas estrictas:
-- Incluye un nodo "categoria":"macrotema" con id "tema_central" y etiqueta "${query}".
-- Incluye un nodo "categoria":"jurisdiccion" por cada país/jurisdicción entregado arriba (etiqueta = nombre del país).
-- Incluye entre 6 y 14 nodos adicionales de categoría "hub_regulatorio" (órganos, autoridades, registros), "dimension_estructural" (ejes temáticos comparables) o "funcion_juridica" (obligaciones, principios, mecanismos) -- SOLO conceptos que efectivamente aparezcan en las disposiciones o descripciones entregadas arriba, nunca inventados.
+- Incluye un nodo "categoria":"macrotema" con id "tema_central", etiqueta "${query}" y "descripcion" que resuma en 1 oración de qué trata la materia comparada.
+- Incluye un nodo "categoria":"jurisdiccion" por cada país/jurisdicción entregado arriba (etiqueta = nombre del país), con "descripcion" que resuma en 1 oración su enfoque regulatorio real según lo entregado.
+- Incluye entre 6 y 14 nodos adicionales de categoría "hub_regulatorio" (órganos, autoridades, registros), "dimension_estructural" (ejes temáticos comparables) o "funcion_juridica" (obligaciones, principios, mecanismos) -- SOLO conceptos que efectivamente aparezcan en las disposiciones o descripciones entregadas arriba, nunca inventados. Cada uno con su "descripcion" explicando qué es y en qué país(es) aparece.
 - Cada nodo de jurisdicción debe tener al menos un enlace hacia "tema_central" y hacia los conceptos que efectivamente regula según sus disposiciones reales.
 - No inventes órganos, mecanismos ni conceptos que no estén respaldados por el texto entregado.`;
 
   const texto = await generarContenidoUniversalIA(prompt, 2500);
   if (texto) {
     const parsed = safeJsonParse<{
-      nodos?: Array<{ id?: string; etiqueta?: string; categoria?: string }>;
+      nodos?: Array<{ id?: string; etiqueta?: string; categoria?: string; descripcion?: string }>;
       enlaces?: Array<{ origen?: string; destino?: string }>;
     }>(texto);
     if (parsed && Array.isArray(parsed.nodos) && parsed.nodos.length > 0) {
