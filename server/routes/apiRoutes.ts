@@ -1149,11 +1149,19 @@ Responde ÚNICAMENTE con un array JSON válido, sin texto adicional, con este es
 
 Si no hay ninguna coincidencia real, responde exactamente: []`;
 
-    const texto = await generarContenidoUniversalIA(prompt, 1800);
+    const attempts: AIProviderAttempt[] = [];
+    const texto = await generarContenidoUniversalIA(prompt, 1800, attempts);
     const matches = texto ? safeJsonParse<Array<{ numero: number; topico: string; razon: string }>>(texto) : null;
 
     if (!Array.isArray(matches)) {
-      return res.json({ alertas: [], aiDisponible: false, totalCitacionesRevisadas: candidatos.length });
+      return res.json({
+        alertas: [],
+        aiDisponible: false,
+        totalCitacionesRevisadas: candidatos.length,
+        debugPromptChars: prompt.length,
+        debugAttempts: attempts,
+        debugTextoCrudo: texto ? texto.slice(0, 300) : null
+      });
     }
 
     const alertas = matches

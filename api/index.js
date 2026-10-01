@@ -193056,10 +193056,18 @@ Responde \xDANICAMENTE con un array JSON v\xE1lido, sin texto adicional, con est
 [{"numero": 3, "topico": "ciberseguridad", "razon": "La materia trata sobre infraestructura cr\xEDtica de telecomunicaciones."}]
 
 Si no hay ninguna coincidencia real, responde exactamente: []`;
-    const texto = await generarContenidoUniversalIA(prompt, 1800);
+    const attempts = [];
+    const texto = await generarContenidoUniversalIA(prompt, 1800, attempts);
     const matches = texto ? safeJsonParse(texto) : null;
     if (!Array.isArray(matches)) {
-      return res.json({ alertas: [], aiDisponible: false, totalCitacionesRevisadas: candidatos.length });
+      return res.json({
+        alertas: [],
+        aiDisponible: false,
+        totalCitacionesRevisadas: candidatos.length,
+        debugPromptChars: prompt.length,
+        debugAttempts: attempts,
+        debugTextoCrudo: texto ? texto.slice(0, 300) : null
+      });
     }
     const alertas = matches.map((m) => {
       const c = candidatos[(m.numero || 0) - 1];
