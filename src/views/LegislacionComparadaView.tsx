@@ -1896,16 +1896,17 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
       };
 
       // Al seleccionar países y pedir la comparación, se genera TODO de una
-      // vez (Informe, Relaciones y Evolución Legal) en paralelo -- antes cada
-      // pestaña había que abrirla y generarla por separado a mano, y la
-      // matriz temática (que depende de comparacionDetalle, ya extraído
-      // arriba) quedaba con las filas de respaldo genéricas hasta que el
-      // usuario pasaba, pestaña por pestaña, generando cada cosa.
-      await Promise.all([
-        generarAnalisisYRedaccion(),
-        handleGenerarRelaciones(detalleFinal),
-        handleGenerarEvolucion()
-      ]);
+      // vez (Informe, Relaciones y Evolución Legal) -- antes cada pestaña
+      // había que abrirla y generarla por separado a mano. Se hace en
+      // SECUENCIA, no en paralelo: lanzar las ~8-9 llamadas de IA que
+      // implican Informe+Relaciones+Evolución todas a la vez satura la
+      // cuota gratuita de los proveedores (mismo problema detectado antes
+      // con los lotes de países) y Relaciones fallaba en silencio, quedando
+      // vacía aunque los datos reales sí estaban disponibles. Es más lento,
+      // pero cada pestaña queda confiablemente generada al terminar.
+      await generarAnalisisYRedaccion();
+      await handleGenerarRelaciones(detalleFinal);
+      await handleGenerarEvolucion();
 
       // El Informe Técnico, Relaciones y Evolución Legal quedan listos para
       // cuando el usuario abra esas pestañas, pero lo primero que debe VER
