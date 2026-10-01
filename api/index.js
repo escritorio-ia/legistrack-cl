@@ -188193,6 +188193,49 @@ async function generarConOpenRouter(prompt, maxTokens = 1500) {
   }
   throw new Error(lastError || "OpenRouter no devolvi\xF3 contenido");
 }
+var CEREBRAS_MODELOS_CANDIDATOS = ["llama-3.3-70b", "llama3.1-8b", "qwen-3-32b"];
+async function llamarCerebrasConModelo(prompt, maxTokens, apiKey, model) {
+  const res = await fetch("https://api.cerebras.ai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.15,
+      max_tokens: maxTokens
+    }),
+    signal: AbortSignal.timeout(15e3)
+  });
+  if (!res.ok) {
+    const err = await res.text().catch(() => "");
+    throw new Error(`Cerebras (${model}) HTTP ${res.status}: ${err.slice(0, 150)}`);
+  }
+  const data = await res.json();
+  const text = data?.choices?.[0]?.message?.content;
+  if (!text) throw new Error("Cerebras no devolvi\xF3 texto");
+  return String(text).trim();
+}
+async function generarConCerebras(prompt, maxTokens = 2e3) {
+  const apiKey = process.env.CEREBRAS_API_KEY;
+  if (!apiKey || apiKey === "MY_CEREBRAS_API_KEY") throw new Error("CEREBRAS_API_KEY no configurada");
+  const modeloFijado = process.env.CEREBRAS_MODEL;
+  if (modeloFijado) return llamarCerebrasConModelo(prompt, maxTokens, apiKey, modeloFijado);
+  let lastErr;
+  for (const model of CEREBRAS_MODELOS_CANDIDATOS) {
+    try {
+      return await llamarCerebrasConModelo(prompt, maxTokens, apiKey, model);
+    } catch (e) {
+      lastErr = e;
+      if (!/model.*(not exist|does not exist|no access|invalid_request_error|decommissioned)/i.test(e.message)) {
+        throw e;
+      }
+    }
+  }
+  throw lastErr;
+}
 async function intentarGemini(prompt, maxTokens) {
   const configured = !!(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY");
   if (!configured) return { provider: "gemini", configured };
@@ -188213,6 +188256,17 @@ async function intentarOpenRouter(prompt, maxTokens) {
   } catch (e) {
     console.log(`[OpenRouter Info]: ${e?.message || e}`);
     return { provider: "openrouter", configured, error: e?.message || String(e) };
+  }
+}
+async function intentarCerebras(prompt, maxTokens) {
+  const configured = !!(process.env.CEREBRAS_API_KEY && process.env.CEREBRAS_API_KEY !== "MY_CEREBRAS_API_KEY");
+  if (!configured) return { provider: "cerebras", configured };
+  try {
+    const text = await generarConCerebras(prompt, maxTokens);
+    return text ? { provider: "cerebras", configured, text } : { provider: "cerebras", configured, error: "respuesta vac\xEDa" };
+  } catch (e) {
+    console.log(`[Cerebras Free Info]: ${e?.message || e}`);
+    return { provider: "cerebras", configured, error: e?.message || String(e) };
   }
 }
 async function intentarGroq(prompt, maxTokens) {
@@ -188244,11 +188298,12 @@ async function intentarClaude(prompt, maxTokens) {
   }
 }
 async function generarContenidoUniversalIA(prompt, maxTokens = 2e3, attempts) {
-  const [geminiRes, openrouterRes] = await Promise.all([
+  const [geminiRes, openrouterRes, cerebrasRes] = await Promise.all([
     intentarGemini(prompt, maxTokens),
-    intentarOpenRouter(prompt, maxTokens)
+    intentarOpenRouter(prompt, maxTokens),
+    intentarCerebras(prompt, maxTokens)
   ]);
-  const primeraRonda = [geminiRes, openrouterRes];
+  const primeraRonda = [geminiRes, openrouterRes, cerebrasRes];
   for (const r of primeraRonda) {
     attempts?.push({ provider: r.provider, configured: r.configured, error: r.error });
   }
@@ -188314,15 +188369,17 @@ function getAIProvidersStatus() {
     gemini: Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY"),
     groq: Boolean(process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== "MY_GROQ_API_KEY"),
     openrouter: Boolean(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY !== "MY_OPENROUTER_API_KEY"),
+    cerebras: Boolean(process.env.CEREBRAS_API_KEY && process.env.CEREBRAS_API_KEY !== "MY_CEREBRAS_API_KEY"),
     claude: Boolean(process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_API_KEY !== "MY_ANTHROPIC_API_KEY" && !isClaudeQuotaExceeded),
     claudeQuotaExceeded: isClaudeQuotaExceeded
   };
 }
 async function testearProveedoresIAReal() {
   const promptTrivial = 'Responde solo con: {"ok":true}';
-  const [gemini, openrouter, groq, claude] = await Promise.all([
+  const [gemini, openrouter, cerebras, groq, claude] = await Promise.all([
     intentarGemini(promptTrivial, 30),
     intentarOpenRouter(promptTrivial, 30),
+    intentarCerebras(promptTrivial, 30),
     // Groq: se le da más presupuesto porque el modelo por defecto (gpt-oss, de
     // razonamiento) puede consumir tokens en pensar antes de responder.
     intentarGroq(promptTrivial, 200),
@@ -188332,6 +188389,7 @@ async function testearProveedoresIAReal() {
   return {
     gemini: toResult(gemini),
     openrouter: toResult(openrouter),
+    cerebras: toResult(cerebras),
     groq: toResult(groq),
     claude: toResult(claude)
   };

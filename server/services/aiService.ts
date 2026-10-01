@@ -267,6 +267,58 @@ export async function generarConOpenRouter(prompt: string, maxTokens = 1500): Pr
   throw new Error(lastError || "OpenRouter no devolvió contenido");
 }
 
+// Cerebras tiene un tier gratis bastante más generoso que el de Groq (y una API
+// compatible con OpenAI, igual que Groq), así que se agrega como otro proveedor
+// gratuito más en la ronda paralela inicial -- más chances de que al menos uno
+// responda cuando Gemini está con su cuota diaria agotada.
+const CEREBRAS_MODELOS_CANDIDATOS = ["llama-3.3-70b", "llama3.1-8b", "qwen-3-32b"];
+
+async function llamarCerebrasConModelo(prompt: string, maxTokens: number, apiKey: string, model: string): Promise<string> {
+  const res = await fetch("https://api.cerebras.ai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.15,
+      max_tokens: maxTokens
+    }),
+    signal: AbortSignal.timeout(15000)
+  });
+  if (!res.ok) {
+    const err = await res.text().catch(() => "");
+    throw new Error(`Cerebras (${model}) HTTP ${res.status}: ${err.slice(0, 150)}`);
+  }
+  const data: any = await res.json();
+  const text = data?.choices?.[0]?.message?.content;
+  if (!text) throw new Error("Cerebras no devolvió texto");
+  return String(text).trim();
+}
+
+export async function generarConCerebras(prompt: string, maxTokens = 2000): Promise<string> {
+  const apiKey = process.env.CEREBRAS_API_KEY;
+  if (!apiKey || apiKey === "MY_CEREBRAS_API_KEY") throw new Error("CEREBRAS_API_KEY no configurada");
+
+  const modeloFijado = process.env.CEREBRAS_MODEL;
+  if (modeloFijado) return llamarCerebrasConModelo(prompt, maxTokens, apiKey, modeloFijado);
+
+  let lastErr: any;
+  for (const model of CEREBRAS_MODELOS_CANDIDATOS) {
+    try {
+      return await llamarCerebrasConModelo(prompt, maxTokens, apiKey, model);
+    } catch (e: any) {
+      lastErr = e;
+      if (!/model.*(not exist|does not exist|no access|invalid_request_error|decommissioned)/i.test(e.message)) {
+        throw e;
+      }
+    }
+  }
+  throw lastErr;
+}
+
 export interface AIProviderAttempt {
   provider: string;
   configured: boolean;
@@ -311,6 +363,18 @@ async function intentarOpenRouter(prompt: string, maxTokens: number): Promise<Pr
   }
 }
 
+async function intentarCerebras(prompt: string, maxTokens: number): Promise<ProviderRunResult> {
+  const configured = !!(process.env.CEREBRAS_API_KEY && process.env.CEREBRAS_API_KEY !== "MY_CEREBRAS_API_KEY");
+  if (!configured) return { provider: "cerebras", configured };
+  try {
+    const text = await generarConCerebras(prompt, maxTokens);
+    return text ? { provider: "cerebras", configured, text } : { provider: "cerebras", configured, error: "respuesta vacía" };
+  } catch (e: any) {
+    console.log(`[Cerebras Free Info]: ${e?.message || e}`);
+    return { provider: "cerebras", configured, error: e?.message || String(e) };
+  }
+}
+
 async function intentarGroq(prompt: string, maxTokens: number): Promise<ProviderRunResult> {
   const configured = !!(process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== "MY_GROQ_API_KEY");
   if (!configured) return { provider: "groq", configured };
@@ -347,14 +411,15 @@ export async function generarContenidoUniversalIA(prompt: string, maxTokens = 20
   // no hace esperar al otro -- el que responda primero con éxito gana. Antes,
   // una cascada secuencial con timeouts largos podía sumar varios minutos de
   // espera cuando el primero fallaba.
-  const [geminiRes, openrouterRes] = await Promise.all([
+  const [geminiRes, openrouterRes, cerebrasRes] = await Promise.all([
     intentarGemini(prompt, maxTokens),
-    intentarOpenRouter(prompt, maxTokens)
+    intentarOpenRouter(prompt, maxTokens),
+    intentarCerebras(prompt, maxTokens)
   ]);
 
-  // Se prioriza Gemini por calidad si ambos tuvieron éxito; si no, se usa el
+  // Se prioriza Gemini por calidad si varios tuvieron éxito; si no, se usa el
   // que haya respondido.
-  const primeraRonda = [geminiRes, openrouterRes];
+  const primeraRonda = [geminiRes, openrouterRes, cerebrasRes];
   for (const r of primeraRonda) {
     attempts?.push({ provider: r.provider, configured: r.configured, error: r.error });
   }
@@ -437,6 +502,7 @@ export function getAIProvidersStatus() {
     gemini: Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY"),
     groq: Boolean(process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== "MY_GROQ_API_KEY"),
     openrouter: Boolean(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY !== "MY_OPENROUTER_API_KEY"),
+    cerebras: Boolean(process.env.CEREBRAS_API_KEY && process.env.CEREBRAS_API_KEY !== "MY_CEREBRAS_API_KEY"),
     claude: Boolean(process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_API_KEY !== "MY_ANTHROPIC_API_KEY" && !isClaudeQuotaExceeded),
     claudeQuotaExceeded: isClaudeQuotaExceeded
   };
@@ -452,9 +518,10 @@ export function getAIProvidersStatus() {
  */
 export async function testearProveedoresIAReal(): Promise<Record<string, { configured: boolean; ok: boolean; error?: string }>> {
   const promptTrivial = 'Responde solo con: {"ok":true}';
-  const [gemini, openrouter, groq, claude] = await Promise.all([
+  const [gemini, openrouter, cerebras, groq, claude] = await Promise.all([
     intentarGemini(promptTrivial, 30),
     intentarOpenRouter(promptTrivial, 30),
+    intentarCerebras(promptTrivial, 30),
     // Groq: se le da más presupuesto porque el modelo por defecto (gpt-oss, de
     // razonamiento) puede consumir tokens en pensar antes de responder.
     intentarGroq(promptTrivial, 200),
@@ -464,6 +531,7 @@ export async function testearProveedoresIAReal(): Promise<Record<string, { confi
   return {
     gemini: toResult(gemini),
     openrouter: toResult(openrouter),
+    cerebras: toResult(cerebras),
     groq: toResult(groq),
     claude: toResult(claude)
   };
