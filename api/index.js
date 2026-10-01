@@ -193154,7 +193154,7 @@ Redacta un an\xE1lisis comparativo en prosa formal (entre 500 y 700 palabras -- 
 USA EXCLUSIVAMENTE los puntos entregados arriba; no inventes disposiciones, cifras, citas ni mecanismos que no est\xE9n respaldados por ellos. No menciones sentencias, fallos judiciales ni jurisprudencia de ning\xFAn tribunal salvo que aparezcan expl\xEDcitamente citados en los puntos entregados -- no tienes acceso a bases de jurisprudencia y no debes inventar casos ni referencias judiciales. Si los puntos no permiten comparar alg\xFAn aspecto, om\xEDtelo en vez de inventarlo.
 
 Responde solo con el an\xE1lisis, sin encabezados ni markdown.`;
-  const texto = await generarContenidoUniversalIA(prompt, 1400);
+  const texto = await generarContenidoUniversalIA(prompt, 2e3);
   if (texto) {
     return res.json({ analisis: texto });
   }
@@ -193183,7 +193183,7 @@ Responde \xDANICAMENTE con un objeto JSON v\xE1lido, compacto, sin texto adicion
 - "lecturaDisposiciones": una oraci\xF3n (m\xE1x. 35 palabras) que sintetice, a partir de los puntos/disposiciones entregados, qu\xE9 mecanismo, obligaci\xF3n o diferencia sustantiva m\xE1s relevante surge al comparar esas disposiciones entre pa\xEDses. Si para la mayor\xEDa de los pa\xEDses no hay puntos extra\xEDdos todav\xEDa, responde exactamente: "A\xFAn no hay suficientes disposiciones extra\xEDdas de los pa\xEDses seleccionados para una lectura jur\xEDdica comparativa; genera el an\xE1lisis por pa\xEDs primero."
 
 USA EXCLUSIVAMENTE lo entregado arriba; no inventes mecanismos, cifras, \xF3rganos fiscalizadores ni disposiciones que no est\xE9n respaldados por ese contenido.`;
-  const texto = await generarContenidoUniversalIA(prompt, 500);
+  const texto = await generarContenidoUniversalIA(prompt, 800);
   if (texto) {
     const parsed = safeJsonParse(texto);
     if (parsed && (parsed.lecturaObjeto || parsed.lecturaDisposiciones)) {
@@ -193222,7 +193222,7 @@ Reglas estrictas:
 - Si para un pa\xEDs no hay disposici\xF3n real que permita llenar una dimensi\xF3n, escribe exactamente "No especificado en las disposiciones disponibles." en su celda -- nunca inventes contenido de relleno.
 - Los nombres de pa\xEDs en "valores" deben ser EXACTAMENTE iguales a los nombres de pa\xEDs entregados arriba (mismo texto).
 - No repitas como dimensi\xF3n el tipo de norma, la fecha ni la fuente (esos datos ya se muestran aparte).`;
-  const texto = await generarContenidoUniversalIA(prompt, 2500);
+  const texto = await generarContenidoUniversalIA(prompt, 4e3);
   if (texto) {
     const parsed = safeJsonParse(texto);
     if (Array.isArray(parsed) && parsed.length > 0) {
@@ -193259,10 +193259,10 @@ Responde \xDANICAMENTE con un objeto JSON v\xE1lido, compacto, sin texto adicion
 Reglas estrictas:
 - Incluye un nodo "categoria":"macrotema" con id "tema_central", etiqueta "${query}" y "descripcion" que resuma en 1 oraci\xF3n de qu\xE9 trata la materia comparada.
 - Incluye un nodo "categoria":"jurisdiccion" por cada pa\xEDs/jurisdicci\xF3n entregado arriba (etiqueta = nombre del pa\xEDs), con "descripcion" que resuma en 1 oraci\xF3n su enfoque regulatorio real seg\xFAn lo entregado.
-- Incluye entre 6 y 14 nodos adicionales de categor\xEDa "hub_regulatorio" (\xF3rganos, autoridades, registros), "dimension_estructural" (ejes tem\xE1ticos comparables) o "funcion_juridica" (obligaciones, principios, mecanismos) -- SOLO conceptos que efectivamente aparezcan en las disposiciones o descripciones entregadas arriba, nunca inventados. Cada uno con su "descripcion" explicando qu\xE9 es y en qu\xE9 pa\xEDs(es) aparece.
+- Incluye entre 6 y 20 nodos adicionales (m\xE1s si hay m\xE1s jurisdicciones) de categor\xEDa "hub_regulatorio" (\xF3rganos, autoridades, registros), "dimension_estructural" (ejes tem\xE1ticos comparables) o "funcion_juridica" (obligaciones, principios, mecanismos) -- SOLO conceptos que efectivamente aparezcan en las disposiciones o descripciones entregadas arriba, nunca inventados. Cada uno con su "descripcion" explicando qu\xE9 es y en qu\xE9 pa\xEDs(es) aparece.
 - Cada nodo de jurisdicci\xF3n debe tener al menos un enlace hacia "tema_central" y hacia los conceptos que efectivamente regula seg\xFAn sus disposiciones reales.
 - No inventes \xF3rganos, mecanismos ni conceptos que no est\xE9n respaldados por el texto entregado.`;
-  const texto = await generarContenidoUniversalIA(prompt, 2500);
+  const texto = await generarContenidoUniversalIA(prompt, 4e3);
   if (texto) {
     const parsed = safeJsonParse(texto);
     if (parsed && Array.isArray(parsed.nodos) && parsed.nodos.length > 0) {
