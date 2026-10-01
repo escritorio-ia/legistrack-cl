@@ -319,6 +319,59 @@ export async function generarConCerebras(prompt: string, maxTokens = 2000): Prom
   throw lastErr;
 }
 
+// GitHub Models: gratis con solo un Personal Access Token de GitHub (scope
+// "models: read") -- sin crear ninguna cuenta nueva, ya que este mismo repo
+// vive en GitHub. Da acceso a GPT-4o mini, Llama y otros, vía un endpoint
+// compatible con OpenAI. Los límites son bajos (decenas de requests/día en el
+// tier gratuito) pero es otra red de respaldo más cuando los demás fallan.
+const GITHUB_MODELS_CANDIDATOS = ["openai/gpt-4o-mini", "meta/llama-3.3-70b-instruct", "mistral-ai/mistral-small-2503"];
+
+async function llamarGithubModelsConModelo(prompt: string, maxTokens: number, token: string, model: string): Promise<string> {
+  const res = await fetch("https://models.github.ai/inference/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.15,
+      max_tokens: maxTokens
+    }),
+    signal: AbortSignal.timeout(15000)
+  });
+  if (!res.ok) {
+    const err = await res.text().catch(() => "");
+    throw new Error(`GitHub Models (${model}) HTTP ${res.status}: ${err.slice(0, 150)}`);
+  }
+  const data: any = await res.json();
+  const text = data?.choices?.[0]?.message?.content;
+  if (!text) throw new Error("GitHub Models no devolvió texto");
+  return String(text).trim();
+}
+
+export async function generarConGithubModels(prompt: string, maxTokens = 2000): Promise<string> {
+  const token = process.env.GITHUB_MODELS_TOKEN;
+  if (!token || token === "MY_GITHUB_MODELS_TOKEN") throw new Error("GITHUB_MODELS_TOKEN no configurada");
+
+  const modeloFijado = process.env.GITHUB_MODELS_MODEL;
+  if (modeloFijado) return llamarGithubModelsConModelo(prompt, maxTokens, token, modeloFijado);
+
+  let lastErr: any;
+  for (const model of GITHUB_MODELS_CANDIDATOS) {
+    try {
+      return await llamarGithubModelsConModelo(prompt, maxTokens, token, model);
+    } catch (e: any) {
+      lastErr = e;
+      if (!/model.*(not exist|does not exist|no access|invalid_request_error|decommissioned)|403/i.test(e.message)) {
+        throw e;
+      }
+    }
+  }
+  throw lastErr;
+}
+
 export interface AIProviderAttempt {
   provider: string;
   configured: boolean;
@@ -375,6 +428,18 @@ async function intentarCerebras(prompt: string, maxTokens: number): Promise<Prov
   }
 }
 
+async function intentarGithubModels(prompt: string, maxTokens: number): Promise<ProviderRunResult> {
+  const configured = !!(process.env.GITHUB_MODELS_TOKEN && process.env.GITHUB_MODELS_TOKEN !== "MY_GITHUB_MODELS_TOKEN");
+  if (!configured) return { provider: "github_models", configured };
+  try {
+    const text = await generarConGithubModels(prompt, maxTokens);
+    return text ? { provider: "github_models", configured, text } : { provider: "github_models", configured, error: "respuesta vacía" };
+  } catch (e: any) {
+    console.log(`[GitHub Models Free Info]: ${e?.message || e}`);
+    return { provider: "github_models", configured, error: e?.message || String(e) };
+  }
+}
+
 async function intentarGroq(prompt: string, maxTokens: number): Promise<ProviderRunResult> {
   const configured = !!(process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== "MY_GROQ_API_KEY");
   if (!configured) return { provider: "groq", configured };
@@ -411,15 +476,16 @@ export async function generarContenidoUniversalIA(prompt: string, maxTokens = 20
   // no hace esperar al otro -- el que responda primero con éxito gana. Antes,
   // una cascada secuencial con timeouts largos podía sumar varios minutos de
   // espera cuando el primero fallaba.
-  const [geminiRes, openrouterRes, cerebrasRes] = await Promise.all([
+  const [geminiRes, openrouterRes, cerebrasRes, githubRes] = await Promise.all([
     intentarGemini(prompt, maxTokens),
     intentarOpenRouter(prompt, maxTokens),
-    intentarCerebras(prompt, maxTokens)
+    intentarCerebras(prompt, maxTokens),
+    intentarGithubModels(prompt, maxTokens)
   ]);
 
   // Se prioriza Gemini por calidad si varios tuvieron éxito; si no, se usa el
   // que haya respondido.
-  const primeraRonda = [geminiRes, openrouterRes, cerebrasRes];
+  const primeraRonda = [geminiRes, openrouterRes, cerebrasRes, githubRes];
   for (const r of primeraRonda) {
     attempts?.push({ provider: r.provider, configured: r.configured, error: r.error });
   }
@@ -503,6 +569,7 @@ export function getAIProvidersStatus() {
     groq: Boolean(process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== "MY_GROQ_API_KEY"),
     openrouter: Boolean(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY !== "MY_OPENROUTER_API_KEY"),
     cerebras: Boolean(process.env.CEREBRAS_API_KEY && process.env.CEREBRAS_API_KEY !== "MY_CEREBRAS_API_KEY"),
+    githubModels: Boolean(process.env.GITHUB_MODELS_TOKEN && process.env.GITHUB_MODELS_TOKEN !== "MY_GITHUB_MODELS_TOKEN"),
     claude: Boolean(process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_API_KEY !== "MY_ANTHROPIC_API_KEY" && !isClaudeQuotaExceeded),
     claudeQuotaExceeded: isClaudeQuotaExceeded
   };
@@ -518,10 +585,11 @@ export function getAIProvidersStatus() {
  */
 export async function testearProveedoresIAReal(): Promise<Record<string, { configured: boolean; ok: boolean; error?: string }>> {
   const promptTrivial = 'Responde solo con: {"ok":true}';
-  const [gemini, openrouter, cerebras, groq, claude] = await Promise.all([
+  const [gemini, openrouter, cerebras, githubModels, groq, claude] = await Promise.all([
     intentarGemini(promptTrivial, 30),
     intentarOpenRouter(promptTrivial, 30),
     intentarCerebras(promptTrivial, 30),
+    intentarGithubModels(promptTrivial, 30),
     // Groq: se le da más presupuesto porque el modelo por defecto (gpt-oss, de
     // razonamiento) puede consumir tokens en pensar antes de responder.
     intentarGroq(promptTrivial, 200),
@@ -532,6 +600,7 @@ export async function testearProveedoresIAReal(): Promise<Record<string, { confi
     gemini: toResult(gemini),
     openrouter: toResult(openrouter),
     cerebras: toResult(cerebras),
+    githubModels: toResult(githubModels),
     groq: toResult(groq),
     claude: toResult(claude)
   };
