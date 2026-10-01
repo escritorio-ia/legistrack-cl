@@ -289,7 +289,13 @@ const REGION_MAP: Record<string, string[]> = {
   "Iberoamérica": ["Chile", "España", "Brasil", "Argentina", "Uruguay", "Colombia", "Panamá", "Portugal"],
   "Unión Europea": ["Unión Europea", "España", "Francia", "Alemania", "Italia", "Portugal", "Polonia", "Suecia", "Finlandia", "Dinamarca", "Países Bajos", "Irlanda", "Luxemburgo"],
   "OCDE / Global": ["Estados Unidos", "Reino Unido", "Canadá", "Australia", "Nueva Zelanda", "Alemania", "Francia", "Italia", "Suiza", "Noruega", "Japón"],
-  "Chile": ["Chile"]
+  "Chile": ["Chile"],
+  // Agrupaciones por continente -- complementan las agrupaciones temáticas
+  // de arriba (Iberoamérica, UE, OCDE), que no cubren "todo un continente"
+  // sino bloques político-económicos específicos.
+  "Europa": ["España", "Unión Europea", "Reino Unido", "Francia", "Alemania", "Italia", "Portugal", "Suiza", "Suecia", "Finlandia", "Noruega", "Dinamarca", "Países Bajos", "Irlanda", "Polonia", "Luxemburgo"],
+  "América": ["Chile", "Estados Unidos", "Brasil", "Argentina", "Uruguay", "Colombia", "México", "Perú", "Panamá", "Canadá"],
+  "Asia-Pacífico": ["Japón", "Australia", "Nueva Zelanda"]
 };
 
 const TIPO_ESTILO: Record<string, string> = {
@@ -2360,49 +2366,62 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
             </div>
           )}
 
-          {/* Summary bar */}
-          <div className="bg-slate-50 border-l-4 border-blue-700 p-5 rounded-r-2xl border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex flex-col gap-1">
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-extrabold uppercase font-mono bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
-                  Materia: {liveQuery}
-                </span>
-                <span className="text-xs text-slate-500 font-mono">
-                  {paisesDisponibles.length} países con resultados · {liveResultados.length} normativas oficiales
-                </span>
+          {/* Summary bar -- antes se renderizaba de inmediato apenas se
+              fijaba "liveQuery" (sincrónico, al tipear/hacer clic), mostrando
+              "0 países · 0 normativas" con los resultados vacíos/obsoletos
+              de la búsqueda anterior MIENTRAS el fetch real todavía estaba en
+              curso -- no era un error real, pero parecía que la búsqueda
+              hubiera fallado al instante. Ahora muestra un estado de carga
+              explícito en vez del resumen de "0 resultados". */}
+          {liveLoading ? (
+            <div className="bg-slate-50 border-l-4 border-blue-700 p-5 rounded-r-2xl border border-slate-200 flex items-center gap-3">
+              <RefreshCw className="w-4 h-4 text-blue-700 animate-spin shrink-0" />
+              <span className="text-xs text-slate-600 font-bold">Buscando "{liveQuery}" en Chile y las jurisdicciones internacionales...</span>
+            </div>
+          ) : (
+            <div className="bg-slate-50 border-l-4 border-blue-700 p-5 rounded-r-2xl border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-extrabold uppercase font-mono bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
+                    Materia: {liveQuery}
+                  </span>
+                  <span className="text-xs text-slate-500 font-mono">
+                    {paisesDisponibles.length} países con resultados · {liveResultados.length} normativas oficiales
+                  </span>
+                </div>
+                <p className="text-xs text-slate-700 leading-relaxed font-medium">
+                  {buildParrafoAutomatico(liveQuery, liveResultados)}
+                </p>
+
+                {liveResultados.length > 0 && (
+                  <div className="pt-2 border-t border-slate-200/80 mt-1">
+                    <ExportToolbar
+                      query={liveQuery}
+                      resultados={liveResultados}
+                      parrafoAuto={buildParrafoAutomatico(liveQuery, liveResultados)}
+                      onNotify={(msg) => {
+                        setSuccessMessage(msg);
+                        setTimeout(() => setSuccessMessage(null), 3500);
+                      }}
+                      label="Exportar Consulta:"
+                    />
+                  </div>
+                )}
               </div>
-              <p className="text-xs text-slate-700 leading-relaxed font-medium">
-                {buildParrafoAutomatico(liveQuery, liveResultados)}
-              </p>
-              
+
               {liveResultados.length > 0 && (
-                <div className="pt-2 border-t border-slate-200/80 mt-1">
-                  <ExportToolbar
-                    query={liveQuery}
-                    resultados={liveResultados}
-                    parrafoAuto={buildParrafoAutomatico(liveQuery, liveResultados)}
-                    onNotify={(msg) => {
-                      setSuccessMessage(msg);
-                      setTimeout(() => setSuccessMessage(null), 3500);
-                    }}
-                    label="Exportar Consulta:"
-                  />
+                <div className="shrink-0 flex items-center gap-2 self-start md:self-auto">
+                  <button
+                    onClick={handleGuardarInformeBCN}
+                    className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-colors flex items-center gap-2 cursor-pointer shadow-xs"
+                  >
+                    <Bookmark className="w-3.5 h-3.5" />
+                    <span>Archivar en Guardados</span>
+                  </button>
                 </div>
               )}
             </div>
-
-            {liveResultados.length > 0 && (
-              <div className="shrink-0 flex items-center gap-2 self-start md:self-auto">
-                <button
-                  onClick={handleGuardarInformeBCN}
-                  className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-colors flex items-center gap-2 cursor-pointer shadow-xs"
-                >
-                  <Bookmark className="w-3.5 h-3.5" />
-                  <span>Archivar en Guardados</span>
-                </button>
-              </div>
-            )}
-          </div>
+          )}
 
           {/* Filter & Sorting Controls */}
           <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex flex-col gap-4">
@@ -2413,7 +2432,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
                 <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
                   <Filter className="w-3.5 h-3.5 text-blue-700" /> Región:
                 </span>
-                {["Todos", "Iberoamérica", "Unión Europea", "OCDE / Global", "Chile"].map((region) => (
+                {["Todos", "Chile", "Europa", "América", "Asia-Pacífico", "Iberoamérica", "Unión Europea", "OCDE / Global"].map((region) => (
                   <button
                     key={region}
                     onClick={() => { setFiltroRegion(region); setPaginaResultados(1); }}
