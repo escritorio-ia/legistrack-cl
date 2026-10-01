@@ -193057,29 +193057,35 @@ Descripci\xF3n oficial: ${it.descripcion || "(no disponible)"}
 Disposiciones reales extra\xEDdas del texto:
 ${it.puntos && it.puntos.length > 0 ? it.puntos.map((p) => `   - ${p}`).join("\n") : "   (no se pudo extraer texto sustantivo de la fuente oficial para este pa\xEDs)"}`).join("\n\n");
   const casosEsperados = conContenido.map((it) => it.pais).join(", ");
+  const ENFOQUE_POR_POSICION = [
+    "Describe el marco regulatorio principal y las leyes aplicables mencionadas en el texto; detalla la institucionalidad u organismos encargados de la supervisi\xF3n y fiscalizaci\xF3n; explica los mecanismos clave, enfoques o instrumentos espec\xEDficos que utiliza este pa\xEDs.",
+    "Describe el contexto regulatorio (por ejemplo, si es de alcance federal, estatal/provincial o nacional \xFAnico, seg\xFAn lo que indique el texto); detalla las normativas, instrumentos o pol\xEDticas espec\xEDficas mencionadas en el texto; destaca cualquier particularidad o innovaci\xF3n regulatoria de este pa\xEDs.",
+    "Describe el marco normativo y las etapas o procesos regulados; detalla las instituciones involucradas y c\xF3mo se articulan entre s\xED; analiza las reformas recientes y los desaf\xEDos pr\xE1cticos o de implementaci\xF3n mencionados en el texto.",
+    "Explica el enfoque regulatorio del pa\xEDs; describe los planes, obligaciones o normativas exigidas a los actores involucrados; desarrolla casos pr\xE1cticos o ejemplos de \xE9xito o fracaso que ilustren c\xF3mo funciona su sistema en la realidad, si el texto lo permite."
+  ];
   const prompt = `Act\xFAa como un analista experto en pol\xEDticas p\xFAblicas y regulaci\xF3n comparada. Tu tarea es redactar un informe t\xE9cnico, exhaustivo y bien desarrollado sobre "${query}", basado \xDANICAMENTE en el texto que se te proporciona a continuaci\xF3n (descripciones oficiales y disposiciones reales ya extra\xEDdas del texto de cada norma).
 
-El objetivo del informe es comparar los distintos marcos regulatorios y modelos aplicados en los pa\xEDses mencionados, identificando c\xF3mo cada uno aborda los principales desaf\xEDos de la materia.
+El objetivo del informe es comparar los distintos marcos regulatorios y modelos aplicados en los pa\xEDses mencionados en el texto, identificando c\xF3mo cada uno aborda los principales desaf\xEDos de la materia.
 
 Instrucciones de formato y estilo:
 - Tono: formal, acad\xE9mico, objetivo e institucional.
 - Extensi\xF3n: desarrolla cada secci\xF3n con p\xE1rrafos completos y explicaciones detalladas; evita los res\xFAmenes superficiales.
-- Precisi\xF3n: no inventes ni asumas informaci\xF3n que no est\xE9 en el texto entregado. Si un dato no est\xE1 disponible para un pa\xEDs (por ejemplo, no se pudo extraer texto sustantivo), dilo expl\xEDcitamente en esa secci\xF3n en vez de rellenarla con contenido gen\xE9rico o inventado.
+- Precisi\xF3n: no inventes ni asumas informaci\xF3n que no est\xE9 en el texto base. Si un dato no est\xE1 en el texto (por ejemplo, no se pudo extraer texto sustantivo para un pa\xEDs), om\xEDtelo o dilo expl\xEDcitamente en esa secci\xF3n en vez de rellenarla con contenido gen\xE9rico o inventado.
 
 Estructura obligatoria del informe (usa estos encabezados exactos, en Markdown con "##"):
 
 ## Resumen e Introducci\xF3n
-Explica el contexto general de la materia, los objetivos de la regulaci\xF3n en esta materia y el prop\xF3sito de este an\xE1lisis comparado.
+Redacta una introducci\xF3n que explique el contexto general de la materia, los objetivos de la regulaci\xF3n en esta materia y el prop\xF3sito de este an\xE1lisis comparado.
 
-${conContenido.map((it) => `## Caso ${it.pais}
-Describe el marco regulatorio principal y las normas aplicables mencionadas en el texto para ${it.pais}; detalla la institucionalidad u organismos encargados de la supervisi\xF3n y fiscalizaci\xF3n que aparezcan en el texto; explica los mecanismos clave, enfoques o instrumentos espec\xEDficos que utiliza este pa\xEDs seg\xFAn las disposiciones entregadas.`).join("\n\n")}
+${conContenido.map((it, i) => `## Caso ${it.pais}
+${ENFOQUE_POR_POSICION[Math.min(i, ENFOQUE_POR_POSICION.length - 1)]} Basa todo lo anterior \xFAnicamente en lo que aparezca en el texto entregado para ${it.pais}.`).join("\n\n")}
 
 ## Conclusiones y An\xE1lisis Comparado
 Sintetiza los hallazgos de los pa\xEDses analizados (${casosEsperados}). Destaca las similitudes, diferencias, mejores pr\xE1cticas y lecciones aprendidas sobre c\xF3mo cada modelo aborda la materia, bas\xE1ndote exclusivamente en lo expuesto en las secciones anteriores.
 
 Cuando el texto entregado incluya una cita textual entre comillas, puedes incorporarla literalmente (sin alterarla) para respaldar una afirmaci\xF3n, en vez de solo parafrasearla.
 
-Texto base para redactar el informe:
+A continuaci\xF3n, el texto base para redactar el informe:
 """
 ${bloque}
 """

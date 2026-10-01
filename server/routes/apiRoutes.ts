@@ -1255,28 +1255,39 @@ apiRouter.post("/derecho-comparado/informe-completo", async (req: Request, res: 
 
   const casosEsperados = conContenido.map((it) => it.pais).join(", ");
 
+  // Por cada posición de país se varía ligeramente el enfoque pedido (igual
+  // que la plantilla genérica de referencia: 1° marco regulatorio base,
+  // 2° contexto federal/estatal si aplica, 3° reformas recientes y desafíos
+  // de implementación, 4° casos prácticos de éxito o fracaso).
+  const ENFOQUE_POR_POSICION = [
+    "Describe el marco regulatorio principal y las leyes aplicables mencionadas en el texto; detalla la institucionalidad u organismos encargados de la supervisión y fiscalización; explica los mecanismos clave, enfoques o instrumentos específicos que utiliza este país.",
+    "Describe el contexto regulatorio (por ejemplo, si es de alcance federal, estatal/provincial o nacional único, según lo que indique el texto); detalla las normativas, instrumentos o políticas específicas mencionadas en el texto; destaca cualquier particularidad o innovación regulatoria de este país.",
+    "Describe el marco normativo y las etapas o procesos regulados; detalla las instituciones involucradas y cómo se articulan entre sí; analiza las reformas recientes y los desafíos prácticos o de implementación mencionados en el texto.",
+    "Explica el enfoque regulatorio del país; describe los planes, obligaciones o normativas exigidas a los actores involucrados; desarrolla casos prácticos o ejemplos de éxito o fracaso que ilustren cómo funciona su sistema en la realidad, si el texto lo permite."
+  ];
+
   const prompt = `Actúa como un analista experto en políticas públicas y regulación comparada. Tu tarea es redactar un informe técnico, exhaustivo y bien desarrollado sobre "${query}", basado ÚNICAMENTE en el texto que se te proporciona a continuación (descripciones oficiales y disposiciones reales ya extraídas del texto de cada norma).
 
-El objetivo del informe es comparar los distintos marcos regulatorios y modelos aplicados en los países mencionados, identificando cómo cada uno aborda los principales desafíos de la materia.
+El objetivo del informe es comparar los distintos marcos regulatorios y modelos aplicados en los países mencionados en el texto, identificando cómo cada uno aborda los principales desafíos de la materia.
 
 Instrucciones de formato y estilo:
 - Tono: formal, académico, objetivo e institucional.
 - Extensión: desarrolla cada sección con párrafos completos y explicaciones detalladas; evita los resúmenes superficiales.
-- Precisión: no inventes ni asumas información que no esté en el texto entregado. Si un dato no está disponible para un país (por ejemplo, no se pudo extraer texto sustantivo), dilo explícitamente en esa sección en vez de rellenarla con contenido genérico o inventado.
+- Precisión: no inventes ni asumas información que no esté en el texto base. Si un dato no está en el texto (por ejemplo, no se pudo extraer texto sustantivo para un país), omítelo o dilo explícitamente en esa sección en vez de rellenarla con contenido genérico o inventado.
 
 Estructura obligatoria del informe (usa estos encabezados exactos, en Markdown con "##"):
 
 ## Resumen e Introducción
-Explica el contexto general de la materia, los objetivos de la regulación en esta materia y el propósito de este análisis comparado.
+Redacta una introducción que explique el contexto general de la materia, los objetivos de la regulación en esta materia y el propósito de este análisis comparado.
 
-${conContenido.map((it) => `## Caso ${it.pais}\nDescribe el marco regulatorio principal y las normas aplicables mencionadas en el texto para ${it.pais}; detalla la institucionalidad u organismos encargados de la supervisión y fiscalización que aparezcan en el texto; explica los mecanismos clave, enfoques o instrumentos específicos que utiliza este país según las disposiciones entregadas.`).join("\n\n")}
+${conContenido.map((it, i) => `## Caso ${it.pais}\n${ENFOQUE_POR_POSICION[Math.min(i, ENFOQUE_POR_POSICION.length - 1)]} Basa todo lo anterior únicamente en lo que aparezca en el texto entregado para ${it.pais}.`).join("\n\n")}
 
 ## Conclusiones y Análisis Comparado
 Sintetiza los hallazgos de los países analizados (${casosEsperados}). Destaca las similitudes, diferencias, mejores prácticas y lecciones aprendidas sobre cómo cada modelo aborda la materia, basándote exclusivamente en lo expuesto en las secciones anteriores.
 
 Cuando el texto entregado incluya una cita textual entre comillas, puedes incorporarla literalmente (sin alterarla) para respaldar una afirmación, en vez de solo parafrasearla.
 
-Texto base para redactar el informe:
+A continuación, el texto base para redactar el informe:
 """
 ${bloque}
 """

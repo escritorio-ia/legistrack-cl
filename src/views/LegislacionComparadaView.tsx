@@ -1714,8 +1714,8 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
     setSeleccionComparar((prev) => {
       const yaEsta = prev.some((x) => claveResultado(x) === claveResultado(r));
       if (yaEsta) return prev.filter((x) => claveResultado(x) !== claveResultado(r));
-      if (prev.length >= 8) {
-        setSuccessMessage("Máximo 8 normativas para comparar lado a lado.");
+      if (prev.length >= 4) {
+        setSuccessMessage("Máximo 4 normativas para comparar lado a lado.");
         setTimeout(() => setSuccessMessage(null), 3000);
         return prev;
       }
@@ -3228,7 +3228,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
               <SlidersHorizontal className="w-8 h-8 text-slate-300" />
               <h4 className="text-sm font-bold text-slate-800">No ha seleccionado normativas para comparar</h4>
               <p className="text-xs text-slate-500 max-w-md">
-                Vuelva a la pestaña "Búsqueda en Vivo Internacional" y marque las casillas "Comparar" (hasta 8 leyes de distintos países).
+                Vuelva a la pestaña "Búsqueda en Vivo Internacional" y marque las casillas "Comparar" (hasta 4 leyes de distintos países).
               </p>
               <button
                 onClick={() => setActiveTab("live")}
