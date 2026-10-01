@@ -52,7 +52,8 @@ export const COLLECTIONS = {
   NOTAS_COLABORATIVAS: "notas_colaborativas",
   HISTORIAL_PROYECTOS: "historial_proyectos",
   DERECHO_COMPARADO_INFORMES: "derecho_comparado_informes",
-  DATASETS_ESTADISTICOS: "datasets_estadisticos"
+  DATASETS_ESTADISTICOS: "datasets_estadisticos",
+  TOPICOS_ALERTAS: "topicos_alertas"
 };
 
 export interface NotaColaborativa {
@@ -434,6 +435,92 @@ export async function getDatasetsEstadisticosFromFirestore(maxResultados = 50): 
   } catch (err) {
     console.warn("Error fetching datasets estadísticos from Firestore:", err);
     return [];
+  }
+}
+
+/**
+ * Tópicos de alerta suscritos por el equipo (antes vivían solo en localStorage
+ * de cada navegador, sin compartirse ni evaluarse de verdad). Se guardan en un
+ * único documento compartido por el equipo, igual que las keywords antes en
+ * localStorage pero ahora visibles para todos los analistas.
+ */
+const TOPICOS_DOC_ID = "equipo";
+
+export async function saveTopicosAlertasToFirestore(keywords: string[]): Promise<boolean> {
+  if (!db) return false;
+  try {
+    const docRef = doc(db, COLLECTIONS.TOPICOS_ALERTAS, TOPICOS_DOC_ID);
+    await setDoc(docRef, { keywords, updatedAt: new Date().toISOString() }, { merge: true });
+    return true;
+  } catch (err) {
+    console.warn("Error saving topicos de alerta to Firestore:", err);
+    return false;
+  }
+}
+
+export async function getTopicosAlertasFromFirestore(): Promise<string[]> {
+  if (!db) return [];
+  try {
+    const docRef = doc(db, COLLECTIONS.TOPICOS_ALERTAS, TOPICOS_DOC_ID);
+    const snap = await getDoc(docRef);
+    return snap.exists() ? (snap.data().keywords || []) : [];
+  } catch (err) {
+    console.warn("Error fetching topicos de alerta from Firestore:", err);
+    return [];
+  }
+}
+
+/** Alertas reales generadas por IA a partir de los tópicos suscritos (ver evaluar-topicos). */
+export interface AlertaTopicoGenerada {
+  id: string;
+  titulo: string;
+  subtitulo: string;
+  boletinId?: string;
+  tipo: "citacion";
+  fecha?: string;
+  tiempo?: string;
+  leida?: boolean;
+  createdAt: string;
+}
+
+export async function saveAlertasTopicoToFirestore(alertas: Omit<AlertaTopicoGenerada, "createdAt">[]): Promise<boolean> {
+  if (!db || alertas.length === 0) return false;
+  try {
+    await Promise.all(
+      alertas.map((a) =>
+        setDoc(doc(db, COLLECTIONS.ALERTAS_LEGISLATIVAS, a.id), { ...a, createdAt: new Date().toISOString() }, { merge: true })
+      )
+    );
+    return true;
+  } catch (err) {
+    console.warn("Error saving alertas de tópico to Firestore:", err);
+    return false;
+  }
+}
+
+export async function getAlertasTopicoFromFirestore(maxResultados = 50): Promise<AlertaTopicoGenerada[]> {
+  if (!db) return [];
+  try {
+    const colRef = collection(db, COLLECTIONS.ALERTAS_LEGISLATIVAS);
+    const q = query(colRef, orderBy("createdAt", "desc"), limit(maxResultados));
+    const snap = await getDocs(q);
+    const out: AlertaTopicoGenerada[] = [];
+    snap.forEach((d) => out.push(d.data() as AlertaTopicoGenerada));
+    return out;
+  } catch (err) {
+    console.warn("Error fetching alertas de tópico from Firestore:", err);
+    return [];
+  }
+}
+
+export async function marcarAlertaTopicoLeidaEnFirestore(id: string): Promise<boolean> {
+  if (!db) return false;
+  try {
+    await setDoc(doc(db, COLLECTIONS.ALERTAS_LEGISLATIVAS, id), { leida: true }, { merge: true });
+    return true;
+  } catch (err) {
+    console.warn("Error marking alerta de tópico as read in Firestore:", err);
+    return false;
   }
 }
 

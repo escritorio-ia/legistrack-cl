@@ -30,6 +30,7 @@ import {
   fetchCamaraCitacionesSemanalesLive,
   searchCamaraYouTubeVideos,
   fetchYouTubeVideoTranscript,
+  fetchYouTubeLiveCaptionsSnapshot,
   SENADO_COMISIONES_REALES,
   DIPUTADOS_COMISIONES_REALES
 } from "../services/camaraService";
@@ -1089,6 +1090,96 @@ apiRouter.post("/alertas/crear", (req: Request, res: Response) => {
   res.json({ success: true, alert: newAlert });
 });
 
+// Alertas por tópico: en vez de un filtro de palabras clave en el cliente
+// (lo que había antes), se le pasa a la IA la lista real de citaciones de la
+// semana (Cámara + Senado) con su materia textual, y se le pide que identifique
+// cuáles tienen relación real con los tópicos suscritos -- citando el número
+// exacto de la citación de la lista, para que no pueda inventar una sesión que
+// no existe. Si la IA no responde, se devuelve una lista vacía (no fallback
+// inventado), igual que en Derecho Comparado.
+apiRouter.post("/alertas/evaluar-topicos", async (req: Request, res: Response) => {
+  const { keywords } = req.body as { keywords?: string[] };
+  if (!Array.isArray(keywords) || keywords.length === 0) {
+    return res.json({ alertas: [], aiDisponible: true, totalCitacionesRevisadas: 0 });
+  }
+
+  try {
+    const [camaraData, senadoData] = await Promise.all([
+      fetchCamaraCitacionesSemanalesLive(false).catch(() => ({ todas: [] as any[] })),
+      fetchSenadoCitacionesLive(false).catch(() => ({ citaciones: [] as any[] }))
+    ]);
+
+    const candidatos = [
+      ...(((camaraData as any).todas || []) as any[]).map((c: any) => ({
+        chamber: "Cámara de Diputados",
+        comision: c.comisionNombre || "Comisión",
+        fecha: c.fecha || "",
+        materia: String(c.materia || "").slice(0, 400),
+        boletines: Array.isArray(c.boletinesRelacionados) ? c.boletinesRelacionados : []
+      })),
+      ...(((senadoData as any).citaciones || []) as any[]).map((c: any) => ({
+        chamber: "Senado",
+        comision: c.comision || "Comisión",
+        fecha: c.fecha || "",
+        materia: String(c.materia || "").slice(0, 400),
+        boletines: Array.isArray(c.boletines) ? c.boletines : []
+      }))
+    ].filter((c) => c.materia.trim().length > 0);
+
+    if (candidatos.length === 0) {
+      return res.json({ alertas: [], aiDisponible: true, totalCitacionesRevisadas: 0 });
+    }
+
+    const listado = candidatos
+      .map((c, i) => `${i + 1}. [${c.chamber}] ${c.comision} — ${c.fecha}\nMateria: ${c.materia}\nBoletines: ${c.boletines.join(", ") || "ninguno"}`)
+      .join("\n\n");
+
+    const prompt = `Eres un analista legislativo del Congreso de Chile. A continuación hay una lista numerada de citaciones REALES de comisiones de esta semana (Cámara de Diputados y Senado), y una lista de tópicos que un equipo de asuntos públicos quiere monitorear.
+
+TÓPICOS A MONITOREAR:
+${keywords.map((k) => `- ${k}`).join("\n")}
+
+CITACIONES (numeradas):
+${listado}
+
+Identifica ÚNICAMENTE las citaciones cuya "Materia" tenga relación real y directa con alguno de los tópicos -- no fuerces coincidencias genéricas o forzadas. Usa SIEMPRE el número exacto de la citación tal como aparece en la lista.
+
+Responde ÚNICAMENTE con un array JSON válido, sin texto adicional, con este esquema exacto:
+[{"numero": 3, "topico": "ciberseguridad", "razon": "La materia trata sobre infraestructura crítica de telecomunicaciones."}]
+
+Si no hay ninguna coincidencia real, responde exactamente: []`;
+
+    const texto = await generarContenidoUniversalIA(prompt, 1800);
+    const matches = texto ? safeJsonParse<Array<{ numero: number; topico: string; razon: string }>>(texto) : null;
+
+    if (!Array.isArray(matches)) {
+      return res.json({ alertas: [], aiDisponible: false, totalCitacionesRevisadas: candidatos.length });
+    }
+
+    const alertas = matches
+      .map((m) => {
+        const c = candidatos[(m.numero || 0) - 1];
+        if (!c || !m.topico) return null;
+        return {
+          id: `alerta-topico-${c.chamber}-${c.comision}-${c.fecha}-${m.topico}`.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+          titulo: `"${m.topico}" en tabla de ${c.comision}`,
+          subtitulo: `${m.razon || ""} (${c.chamber}, ${c.fecha})`,
+          boletinId: c.boletines[0] || "",
+          tipo: "citacion" as const,
+          fecha: c.fecha,
+          tiempo: c.fecha,
+          leida: false
+        };
+      })
+      .filter((a): a is NonNullable<typeof a> => a !== null);
+
+    res.json({ alertas, aiDisponible: true, totalCitacionesRevisadas: candidatos.length });
+  } catch (error: any) {
+    console.error("Error evaluando tópicos de alerta:", error);
+    res.status(500).json({ error: "Error al evaluar tópicos de alerta" });
+  }
+});
+
 apiRouter.get("/sala", (req: Request, res: Response) => {
   const sala: SalaVivo[] = [
     {
@@ -1687,6 +1778,23 @@ apiRouter.get("/comisiones/sesion/youtube-search", async (req: Request, res: Res
   } catch (err: any) {
     console.error("Error in /comisiones/sesion/youtube-search:", err);
     res.status(500).json({ error: err.message || "Error al buscar videos en YouTube" });
+  }
+});
+
+// Transcripción "casi en vivo": subtítulos reales de YouTube (auto-generados o
+// cuando existan), sondeados periódicamente por el cliente mientras la sesión
+// está en curso. Si YouTube bloquea la petición o la pista aún no existe, se
+// devuelve disponible:false con el motivo real -- nunca texto inventado.
+apiRouter.get("/comisiones/sesion/transcripcion-vivo", async (req: Request, res: Response) => {
+  const videoId = String(req.query.videoId || "").trim();
+  if (!videoId) {
+    return res.status(400).json({ error: "Se requiere 'videoId'." });
+  }
+  try {
+    const resultado = await fetchYouTubeLiveCaptionsSnapshot(videoId);
+    res.json({ videoId, ...resultado, updatedAt: new Date().toISOString() });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Error al obtener la transcripción en vivo" });
   }
 });
 

@@ -490,6 +490,125 @@ export async function fetchYouTubeVideoTranscript(videoId: string): Promise<Tran
   });
 }
 
+export interface TranscriptSegmentoVivo {
+  seconds: number;
+  timeFormatted: string;
+  text: string;
+}
+
+export interface TranscripcionVivoResult {
+  segments: TranscriptSegmentoVivo[];
+  text: string;
+  language: string;
+  auto: boolean;
+  disponible: boolean;
+  motivo?: string;
+}
+
+/**
+ * Variante de fetchYouTubeVideoTranscript pensada para sondeo repetido mientras
+ * una sesión está en vivo (o recién terminada): cache corto (20s, no 24h) para
+ * que cada sondeo refleje subtítulos nuevos, y sin truncar desde el inicio del
+ * texto -- para una transmisión larga interesa lo más reciente, no el comienzo.
+ * YouTube con frecuencia bloquea esta petición hecha desde un servidor sin
+ * sesión de navegador real (ver comentario en fetchYouTubeVideoTranscript);
+ * cuando eso ocurre se devuelve "disponible:false" con el motivo, en vez de
+ * inventar contenido -- igual que el resto de los flujos de IA del proyecto.
+ */
+export async function fetchYouTubeLiveCaptionsSnapshot(videoId: string): Promise<TranscripcionVivoResult> {
+  if (!videoId) {
+    return { segments: [], text: "", language: "es", auto: true, disponible: false, motivo: "No se indicó un videoId." };
+  }
+  const cacheKey = `yt_live_captions_${videoId}`;
+  return cache.wrap(cacheKey, 20 * 1000, async () => {
+    try {
+      const headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept-Language": "es-419,es;q=0.9"
+      };
+      const pageRes = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
+        headers,
+        signal: AbortSignal.timeout(8000)
+      });
+      if (!pageRes.ok) {
+        return { segments: [], text: "", language: "es", auto: true, disponible: false, motivo: `YouTube respondió HTTP ${pageRes.status} al pedir la página del video.` };
+      }
+      const html = await pageRes.text();
+
+      const marker = "ytInitialPlayerResponse = ";
+      const startIdx = html.indexOf(marker);
+      if (startIdx === -1) {
+        return { segments: [], text: "", language: "es", auto: true, disponible: false, motivo: "No se pudo leer la información del reproductor (posible bloqueo de YouTube a peticiones de servidor)." };
+      }
+      const jsonStart = startIdx + marker.length;
+      const scriptEnd = html.indexOf(";var meta", jsonStart);
+      const fallbackEnd = html.indexOf(";</script>", jsonStart);
+      const end = scriptEnd !== -1 && scriptEnd < (fallbackEnd === -1 ? Infinity : fallbackEnd) ? scriptEnd : fallbackEnd;
+      if (end === -1) {
+        return { segments: [], text: "", language: "es", auto: true, disponible: false, motivo: "No se pudo delimitar la información del reproductor." };
+      }
+
+      let playerResponse: any;
+      try {
+        playerResponse = JSON.parse(html.slice(jsonStart, end));
+      } catch {
+        return { segments: [], text: "", language: "es", auto: true, disponible: false, motivo: "Respuesta del reproductor de YouTube no es JSON válido." };
+      }
+
+      const tracks = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+      if (!Array.isArray(tracks) || tracks.length === 0) {
+        const esLive = playerResponse?.videoDetails?.isLiveContent;
+        return {
+          segments: [], text: "", language: "es", auto: true, disponible: false,
+          motivo: esLive
+            ? "La transmisión está en vivo pero YouTube todavía no generó subtítulos automáticos para ella."
+            : "Este video no tiene subtítulos (automáticos u oficiales) disponibles."
+        };
+      }
+
+      const track =
+        tracks.find((t: any) => (t.languageCode || "").startsWith("es") && t.kind !== "asr") ||
+        tracks.find((t: any) => (t.languageCode || "").startsWith("es")) ||
+        tracks.find((t: any) => t.kind !== "asr") ||
+        tracks[0];
+      if (!track?.baseUrl) {
+        return { segments: [], text: "", language: "es", auto: true, disponible: false, motivo: "La pista de subtítulos encontrada no tiene URL de descarga." };
+      }
+
+      const trackRes = await fetch(track.baseUrl, { headers, signal: AbortSignal.timeout(8000) });
+      if (!trackRes.ok) {
+        return { segments: [], text: "", language: "es", auto: true, disponible: false, motivo: `YouTube respondió HTTP ${trackRes.status} al pedir la pista de subtítulos.` };
+      }
+      const xml = await trackRes.text();
+
+      const segments: TranscriptSegmentoVivo[] = [];
+      const regex = /<text start="([\d.]+)"[^>]*>([\s\S]*?)<\/text>/g;
+      let m: RegExpExecArray | null;
+      while ((m = regex.exec(xml)) !== null) {
+        const startSec = Math.round(Number(m[1]));
+        const mm = String(Math.floor(startSec / 60)).padStart(2, "0");
+        const ss = String(startSec % 60).padStart(2, "0");
+        const content = decodeHtmlEntities(m[2]).trim();
+        if (content) segments.push({ seconds: startSec, timeFormatted: `${mm}:${ss}`, text: content });
+      }
+
+      if (segments.length === 0) {
+        return { segments: [], text: "", language: track.languageCode || "es", auto: track.kind === "asr", disponible: false, motivo: "La pista de subtítulos está vacía por ahora." };
+      }
+
+      return {
+        segments,
+        text: segments.map((s) => `[${s.timeFormatted}] ${s.text}`).join("\n"),
+        language: track.languageCode || "es",
+        auto: track.kind === "asr",
+        disponible: true
+      };
+    } catch (err: any) {
+      return { segments: [], text: "", language: "es", auto: true, disponible: false, motivo: `Error de red al consultar YouTube: ${err?.message || "desconocido"}` };
+    }
+  });
+}
+
 // ============================================================================
 // SESIONES REALES DE COMISIÓN (camara.cl) — citación, invitados, resultado
 // efectivo, votaciones y asistencia real, tal como quedaron registrados por la

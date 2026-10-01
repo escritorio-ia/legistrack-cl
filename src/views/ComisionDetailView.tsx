@@ -2671,12 +2671,29 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
                             <span>Ver Cédula Oficial y Bitácora</span>
                           </button>
                           <button
-                            onClick={() => setSelectedSesionForTranscript(comision.proximaSesion!)}
+                            onClick={async () => {
+                              const ses = comision.proximaSesion!;
+                              setSelectedSesionForTranscript(ses);
+                              // Si la sesión no tiene aún un video YouTube asociado, se busca
+                              // en el canal oficial (mismo mecanismo que el Generador de Informes)
+                              // para que la transcripción en vivo tenga un videoId real al cual
+                              // consultar subtítulos, en vez de quedar sin video identificado.
+                              if (!ses.videoUrl) {
+                                try {
+                                  const ytRes = await fetch(`/api/comisiones/sesion/youtube-search?query=${encodeURIComponent(comision?.nombre || "Comisión")}&fecha=${encodeURIComponent(ses.fecha)}&camara=${isSenado ? "senado" : "diputados"}`);
+                                  const ytData = await ytRes.json();
+                                  const video = ytData?.videos?.[0];
+                                  if (video?.id) {
+                                    setSelectedSesionForTranscript({ ...ses, videoUrl: `https://www.youtube.com/watch?v=${video.id}` });
+                                  }
+                                } catch {}
+                              }
+                            }}
                             className="bg-rose-600 hover:bg-rose-700 text-white font-bold py-2 px-3 rounded-xl text-xs transition-all cursor-pointer text-center shadow-md flex items-center justify-center gap-1.5"
-                            title="Ver Transcriptor Inteligente & Marcas de Tiempo"
+                            title="Ver Transcripción en Vivo (subtítulos reales de YouTube)"
                           >
                             <Tv className="w-3.5 h-3.5 text-rose-200" />
-                            <span>Transcripción & Citas</span>
+                            <span>Transcripción en Vivo</span>
                           </button>
                           {/* La "próxima citación" es solo el nombre de este bloque de la UI --
                               si el usuario le puso una fecha que ya pasó (p. ej. corrigió la
@@ -4922,8 +4939,7 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
           isOpen={true}
           onClose={() => setSelectedSesionForTranscript(null)}
           videoTitle={`Transmisión de Sesión - ${comision.nombre}`}
-          videoUrl={selectedSesionForTranscript.videoUrl || "https://www.youtube.com/watch?v=xehoHfI93oY"}
-          videoId="xehoHfI93oY"
+          videoUrl={selectedSesionForTranscript.videoUrl || ""}
           comisionNombre={comision.nombre}
           sesionFecha={selectedSesionForTranscript.fecha}
           materia={selectedSesionForTranscript.materia}

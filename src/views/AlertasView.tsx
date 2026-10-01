@@ -22,6 +22,13 @@ import {
 } from "lucide-react";
 import { Alerta, Proyecto } from "../types";
 import { getAllMasterProyectos } from "../utils/proyectosResolver";
+import {
+  getTopicosAlertasFromFirestore,
+  saveTopicosAlertasToFirestore,
+  getAlertasTopicoFromFirestore,
+  saveAlertasTopicoToFirestore,
+  marcarAlertaTopicoLeidaEnFirestore
+} from "../services/firebaseService";
 
 interface AlertasViewProps {
   followedProys?: string[];
@@ -89,17 +96,66 @@ export default function AlertasView({ followedProys = [], toggleFollowProy }: Al
 
   // Filter alert state
   const [typeFilter, setTypeFilter] = useState<"all" | "indicador" | "citacion" | "votacion">("all");
-  const [keywords, setKeywords] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem("alertas_keywords");
-      return saved ? JSON.parse(saved) : ["teletrabajo", "sala cuna", "inteligencia artificial", "impuesto", "seguridad ciudadana", "código de aguas", "subdivisiones rurales"];
-    } catch {
-      return ["teletrabajo", "sala cuna", "inteligencia artificial", "impuesto", "seguridad ciudadana", "código de aguas", "subdivisiones rurales"];
-    }
-  });
+  // Tópicos suscritos por el equipo -- compartidos vía Firestore (antes solo
+  // vivían en localStorage de cada navegador, sin evaluarse de verdad contra
+  // las citaciones reales de la semana).
+  const [keywords, setKeywords] = useState<string[]>([]);
+  const [topicosLoaded, setTopicosLoaded] = useState(false);
+  const [evaluandoTopicos, setEvaluandoTopicos] = useState(false);
+  const [ultimaEvaluacion, setUltimaEvaluacion] = useState<string | null>(null);
+
+  useEffect(() => {
+    getTopicosAlertasFromFirestore().then((kws) => {
+      setKeywords(kws.length > 0 ? kws : ["teletrabajo", "sala cuna", "inteligencia artificial", "impuesto", "seguridad ciudadana", "código de aguas", "subdivisiones rurales"]);
+      setTopicosLoaded(true);
+    });
+    getAlertasTopicoFromFirestore().then((persistidas) => {
+      if (persistidas.length > 0) {
+        setAlertas((prev) => {
+          const idsExistentes = new Set(prev.map((a) => a.id));
+          const nuevas = persistidas.filter((a) => !idsExistentes.has(a.id)).map((a) => ({ ...a, boletinId: a.boletinId || "" } as Alerta));
+          return nuevas.length > 0 ? [...nuevas, ...prev] : prev;
+        });
+      }
+    });
+  }, []);
+
   const guardarKeywords = (next: string[]) => {
     setKeywords(next);
-    try { localStorage.setItem("alertas_keywords", JSON.stringify(next)); } catch {}
+    saveTopicosAlertasToFirestore(next).catch(() => {});
+  };
+
+  const handleEvaluarTopicos = async () => {
+    if (keywords.length === 0 || evaluandoTopicos) return;
+    setEvaluandoTopicos(true);
+    try {
+      const res = await fetch("/api/alertas/evaluar-topicos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ keywords })
+      });
+      const data: { alertas?: Alerta[]; aiDisponible?: boolean } = await res.json();
+      const nuevas = data.alertas || [];
+      if (nuevas.length > 0) {
+        setAlertas((prev) => {
+          const idsExistentes = new Set(prev.map((a) => a.id));
+          const realmenteNuevas = nuevas.filter((a) => !idsExistentes.has(a.id));
+          return [...realmenteNuevas, ...prev];
+        });
+        saveAlertasTopicoToFirestore(nuevas as any).catch(() => {});
+      }
+      setUltimaEvaluacion(
+        data.aiDisponible === false
+          ? "El motor de IA no respondió (saturación temporal o límite de cuota). Vuelve a intentarlo en unos minutos."
+          : nuevas.length > 0
+            ? `${nuevas.length} coincidencia(s) real(es) encontrada(s) en la tabla de esta semana.`
+            : "Sin coincidencias reales esta vez en la tabla de comisiones de la semana."
+      );
+    } catch {
+      setUltimaEvaluacion("No se pudo evaluar los tópicos (error de red).");
+    } finally {
+      setEvaluandoTopicos(false);
+    }
   };
   const [prefsAlertas, setPrefsAlertas] = useState<Record<string, boolean>>(() => {
     try {
@@ -410,7 +466,10 @@ export default function AlertasView({ followedProys = [], toggleFollowProy }: Al
                   </div>
 
                   <button
-                    onClick={() => setAlertas(prev => prev.map(a => a.id === alerta.id ? { ...a, leida: true } : a))}
+                    onClick={() => {
+                      setAlertas(prev => prev.map(a => a.id === alerta.id ? { ...a, leida: true } : a));
+                      if (alerta.id.startsWith("alerta-topico-")) marcarAlertaTopicoLeidaEnFirestore(alerta.id).catch(() => {});
+                    }}
                     disabled={alerta.leida}
                     className={`p-1 px-3.5 text-[10px] font-semibold border rounded-lg transition-colors ${
                       alerta.leida
@@ -540,8 +599,22 @@ export default function AlertasView({ followedProys = [], toggleFollowProy }: Al
               </button>
             </div>
             <p className="text-[11px] text-slate-500 mt-3 font-medium leading-relaxed font-sans">
-              El sistema notificará automáticamente cuando se presenten mociones, indicaciones o proyectos que contengan estos conceptos clave.
+              La IA revisa la tabla real de citaciones de Cámara y Senado de esta semana y detecta cuáles tienen relación efectiva con estos tópicos -- sin inventar coincidencias.
             </p>
+
+            <button
+              onClick={handleEvaluarTopicos}
+              disabled={!topicosLoaded || keywords.length === 0 || evaluandoTopicos}
+              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold text-xs py-2.5 rounded-xl mt-3 text-center transition-all shadow-sm cursor-pointer flex items-center justify-center gap-1.5"
+            >
+              <Zap className="w-3.5 h-3.5" />
+              <span>{evaluandoTopicos ? "Evaluando tabla de la semana con IA..." : "Evaluar Tópicos Ahora con IA"}</span>
+            </button>
+            {ultimaEvaluacion && (
+              <p className="text-[10px] text-slate-500 mt-2 font-semibold leading-relaxed font-sans">
+                {ultimaEvaluacion}
+              </p>
+            )}
           </div>
 
           {/* Educational panel alert */}

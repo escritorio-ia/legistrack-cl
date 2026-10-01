@@ -189365,6 +189365,89 @@ async function fetchYouTubeVideoTranscript(videoId) {
     }
   });
 }
+async function fetchYouTubeLiveCaptionsSnapshot(videoId) {
+  if (!videoId) {
+    return { segments: [], text: "", language: "es", auto: true, disponible: false, motivo: "No se indic\xF3 un videoId." };
+  }
+  const cacheKey = `yt_live_captions_${videoId}`;
+  return cache.wrap(cacheKey, 20 * 1e3, async () => {
+    try {
+      const headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept-Language": "es-419,es;q=0.9"
+      };
+      const pageRes = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
+        headers,
+        signal: AbortSignal.timeout(8e3)
+      });
+      if (!pageRes.ok) {
+        return { segments: [], text: "", language: "es", auto: true, disponible: false, motivo: `YouTube respondi\xF3 HTTP ${pageRes.status} al pedir la p\xE1gina del video.` };
+      }
+      const html = await pageRes.text();
+      const marker = "ytInitialPlayerResponse = ";
+      const startIdx = html.indexOf(marker);
+      if (startIdx === -1) {
+        return { segments: [], text: "", language: "es", auto: true, disponible: false, motivo: "No se pudo leer la informaci\xF3n del reproductor (posible bloqueo de YouTube a peticiones de servidor)." };
+      }
+      const jsonStart = startIdx + marker.length;
+      const scriptEnd = html.indexOf(";var meta", jsonStart);
+      const fallbackEnd = html.indexOf(";</script>", jsonStart);
+      const end = scriptEnd !== -1 && scriptEnd < (fallbackEnd === -1 ? Infinity : fallbackEnd) ? scriptEnd : fallbackEnd;
+      if (end === -1) {
+        return { segments: [], text: "", language: "es", auto: true, disponible: false, motivo: "No se pudo delimitar la informaci\xF3n del reproductor." };
+      }
+      let playerResponse;
+      try {
+        playerResponse = JSON.parse(html.slice(jsonStart, end));
+      } catch {
+        return { segments: [], text: "", language: "es", auto: true, disponible: false, motivo: "Respuesta del reproductor de YouTube no es JSON v\xE1lido." };
+      }
+      const tracks = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+      if (!Array.isArray(tracks) || tracks.length === 0) {
+        const esLive = playerResponse?.videoDetails?.isLiveContent;
+        return {
+          segments: [],
+          text: "",
+          language: "es",
+          auto: true,
+          disponible: false,
+          motivo: esLive ? "La transmisi\xF3n est\xE1 en vivo pero YouTube todav\xEDa no gener\xF3 subt\xEDtulos autom\xE1ticos para ella." : "Este video no tiene subt\xEDtulos (autom\xE1ticos u oficiales) disponibles."
+        };
+      }
+      const track = tracks.find((t) => (t.languageCode || "").startsWith("es") && t.kind !== "asr") || tracks.find((t) => (t.languageCode || "").startsWith("es")) || tracks.find((t) => t.kind !== "asr") || tracks[0];
+      if (!track?.baseUrl) {
+        return { segments: [], text: "", language: "es", auto: true, disponible: false, motivo: "La pista de subt\xEDtulos encontrada no tiene URL de descarga." };
+      }
+      const trackRes = await fetch(track.baseUrl, { headers, signal: AbortSignal.timeout(8e3) });
+      if (!trackRes.ok) {
+        return { segments: [], text: "", language: "es", auto: true, disponible: false, motivo: `YouTube respondi\xF3 HTTP ${trackRes.status} al pedir la pista de subt\xEDtulos.` };
+      }
+      const xml = await trackRes.text();
+      const segments = [];
+      const regex = /<text start="([\d.]+)"[^>]*>([\s\S]*?)<\/text>/g;
+      let m;
+      while ((m = regex.exec(xml)) !== null) {
+        const startSec = Math.round(Number(m[1]));
+        const mm = String(Math.floor(startSec / 60)).padStart(2, "0");
+        const ss = String(startSec % 60).padStart(2, "0");
+        const content = decodeHtmlEntities(m[2]).trim();
+        if (content) segments.push({ seconds: startSec, timeFormatted: `${mm}:${ss}`, text: content });
+      }
+      if (segments.length === 0) {
+        return { segments: [], text: "", language: track.languageCode || "es", auto: track.kind === "asr", disponible: false, motivo: "La pista de subt\xEDtulos est\xE1 vac\xEDa por ahora." };
+      }
+      return {
+        segments,
+        text: segments.map((s) => `[${s.timeFormatted}] ${s.text}`).join("\n"),
+        language: track.languageCode || "es",
+        auto: track.kind === "asr",
+        disponible: true
+      };
+    } catch (err) {
+      return { segments: [], text: "", language: "es", auto: true, disponible: false, motivo: `Error de red al consultar YouTube: ${err?.message || "desconocido"}` };
+    }
+  });
+}
 async function getTodasComisiones() {
   const camaraLive = await fetchComisionesCamaraReal();
   const byId = /* @__PURE__ */ new Map();
@@ -192927,6 +193010,77 @@ apiRouter.post("/alertas/crear", (req, res) => {
   ALERTA_ITEMS.unshift(newAlert);
   res.json({ success: true, alert: newAlert });
 });
+apiRouter.post("/alertas/evaluar-topicos", async (req, res) => {
+  const { keywords } = req.body;
+  if (!Array.isArray(keywords) || keywords.length === 0) {
+    return res.json({ alertas: [], aiDisponible: true, totalCitacionesRevisadas: 0 });
+  }
+  try {
+    const [camaraData, senadoData] = await Promise.all([
+      fetchCamaraCitacionesSemanalesLive(false).catch(() => ({ todas: [] })),
+      fetchSenadoCitacionesLive(false).catch(() => ({ citaciones: [] }))
+    ]);
+    const candidatos = [
+      ...(camaraData.todas || []).map((c) => ({
+        chamber: "C\xE1mara de Diputados",
+        comision: c.comisionNombre || "Comisi\xF3n",
+        fecha: c.fecha || "",
+        materia: String(c.materia || "").slice(0, 400),
+        boletines: Array.isArray(c.boletinesRelacionados) ? c.boletinesRelacionados : []
+      })),
+      ...(senadoData.citaciones || []).map((c) => ({
+        chamber: "Senado",
+        comision: c.comision || "Comisi\xF3n",
+        fecha: c.fecha || "",
+        materia: String(c.materia || "").slice(0, 400),
+        boletines: Array.isArray(c.boletines) ? c.boletines : []
+      }))
+    ].filter((c) => c.materia.trim().length > 0);
+    if (candidatos.length === 0) {
+      return res.json({ alertas: [], aiDisponible: true, totalCitacionesRevisadas: 0 });
+    }
+    const listado = candidatos.map((c, i) => `${i + 1}. [${c.chamber}] ${c.comision} \u2014 ${c.fecha}
+Materia: ${c.materia}
+Boletines: ${c.boletines.join(", ") || "ninguno"}`).join("\n\n");
+    const prompt = `Eres un analista legislativo del Congreso de Chile. A continuaci\xF3n hay una lista numerada de citaciones REALES de comisiones de esta semana (C\xE1mara de Diputados y Senado), y una lista de t\xF3picos que un equipo de asuntos p\xFAblicos quiere monitorear.
+
+T\xD3PICOS A MONITOREAR:
+${keywords.map((k) => `- ${k}`).join("\n")}
+
+CITACIONES (numeradas):
+${listado}
+
+Identifica \xDANICAMENTE las citaciones cuya "Materia" tenga relaci\xF3n real y directa con alguno de los t\xF3picos -- no fuerces coincidencias gen\xE9ricas o forzadas. Usa SIEMPRE el n\xFAmero exacto de la citaci\xF3n tal como aparece en la lista.
+
+Responde \xDANICAMENTE con un array JSON v\xE1lido, sin texto adicional, con este esquema exacto:
+[{"numero": 3, "topico": "ciberseguridad", "razon": "La materia trata sobre infraestructura cr\xEDtica de telecomunicaciones."}]
+
+Si no hay ninguna coincidencia real, responde exactamente: []`;
+    const texto = await generarContenidoUniversalIA(prompt, 1800);
+    const matches = texto ? safeJsonParse(texto) : null;
+    if (!Array.isArray(matches)) {
+      return res.json({ alertas: [], aiDisponible: false, totalCitacionesRevisadas: candidatos.length });
+    }
+    const alertas = matches.map((m) => {
+      const c = candidatos[(m.numero || 0) - 1];
+      if (!c || !m.topico) return null;
+      return {
+        id: `alerta-topico-${c.chamber}-${c.comision}-${c.fecha}-${m.topico}`.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+        titulo: `"${m.topico}" en tabla de ${c.comision}`,
+        subtitulo: `${m.razon || ""} (${c.chamber}, ${c.fecha})`,
+        boletinId: c.boletines[0] || "",
+        tipo: "citacion",
+        fecha: c.fecha,
+        tiempo: c.fecha,
+        leida: false
+      };
+    }).filter((a) => a !== null);
+    res.json({ alertas, aiDisponible: true, totalCitacionesRevisadas: candidatos.length });
+  } catch (error) {
+    console.error("Error evaluando t\xF3picos de alerta:", error);
+    res.status(500).json({ error: "Error al evaluar t\xF3picos de alerta" });
+  }
+});
 apiRouter.get("/sala", (req, res) => {
   const sala = [
     {
@@ -193370,6 +193524,18 @@ apiRouter.get("/comisiones/sesion/youtube-search", async (req, res) => {
   } catch (err) {
     console.error("Error in /comisiones/sesion/youtube-search:", err);
     res.status(500).json({ error: err.message || "Error al buscar videos en YouTube" });
+  }
+});
+apiRouter.get("/comisiones/sesion/transcripcion-vivo", async (req, res) => {
+  const videoId = String(req.query.videoId || "").trim();
+  if (!videoId) {
+    return res.status(400).json({ error: "Se requiere 'videoId'." });
+  }
+  try {
+    const resultado = await fetchYouTubeLiveCaptionsSnapshot(videoId);
+    res.json({ videoId, ...resultado, updatedAt: (/* @__PURE__ */ new Date()).toISOString() });
+  } catch (err) {
+    res.status(500).json({ error: err.message || "Error al obtener la transcripci\xF3n en vivo" });
   }
 });
 apiRouter.post("/comisiones/sesion/generar-informe", async (req, res) => {
