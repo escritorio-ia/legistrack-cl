@@ -188053,7 +188053,11 @@ async function generarConGeminiUnaVez(prompt, maxTokens, apiKey, model, timeoutM
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { maxOutputTokens: maxTokens }
+      // Temperatura baja (no 0 -- algunos modelos rechazan temperatura
+      // exactamente 0) para tareas de búsqueda/extracción factual: reduce
+      // la variabilidad entre llamadas idénticas, que antes hacía que la
+      // misma búsqueda devolviera países/resultados distintos cada vez.
+      generationConfig: { maxOutputTokens: maxTokens, temperature: 0.15 }
     }),
     signal: AbortSignal.timeout(timeoutMs)
   });
@@ -188104,6 +188108,9 @@ async function llamarGroqConModelo(prompt, maxTokens, apiKey, model) {
     body: JSON.stringify({
       model,
       messages: [{ role: "user", content: prompt }],
+      // Temperatura baja para tareas de búsqueda/extracción factual -- ver
+      // nota en generarConGeminiUnaVez.
+      temperature: 0.15,
       // Los modelos "openai/gpt-oss-*" servidos por Groq exigen max_completion_tokens
       // en vez de (o además de) max_tokens; se envían ambos por compatibilidad.
       max_tokens: maxTokens,
@@ -188167,7 +188174,8 @@ async function generarConOpenRouter(prompt, maxTokens = 1500) {
         body: JSON.stringify({
           model,
           messages: [{ role: "user", content: prompt }],
-          max_tokens: maxTokens
+          max_tokens: maxTokens,
+          temperature: 0.15
         }),
         signal: AbortSignal.timeout(15e3)
       });
@@ -188225,6 +188233,7 @@ async function intentarClaude(prompt, maxTokens) {
     const resp = await claude.messages.create({
       model: "claude-3-5-haiku-20241022",
       max_tokens: maxTokens,
+      temperature: 0.15,
       messages: [{ role: "user", content: prompt }]
     });
     const text = resp.content[0].type === "text" ? resp.content[0].text : "";
@@ -189559,7 +189568,10 @@ async function buscarChile(q) {
         descripcion: descripcionFinal,
         tipo: inferirTipoNorma(tituloFinal)
       };
-    }).filter((r) => r.titulo && r.titulo !== "Norma sin t\xEDtulo").map((r) => ({ ...r, relevancia: relevanciaPorCoincidencia(q, r) })).sort((a, b) => (b.relevancia || 0) - (a.relevancia || 0)).slice(0, 6);
+    }).filter((r) => r.titulo && r.titulo !== "Norma sin t\xEDtulo").map((r) => ({ ...r, relevancia: relevanciaPorCoincidencia(q, r) })).sort((a, b) => (b.relevancia || 0) - (a.relevancia || 0)).filter((r, i, arr) => {
+      const prefijo = normalizarTexto2(r.titulo).slice(0, 40);
+      return arr.findIndex((x) => normalizarTexto2(x.titulo).slice(0, 40) === prefijo) === i;
+    }).slice(0, 4);
   } catch {
     return [];
   }
@@ -189927,7 +189939,7 @@ async function buscarDerechoComparado(q) {
     };
   })();
   if (resultado.fuentesFallidas.length === 0) {
-    cache.set(cacheKey, resultado, 15 * 60 * 1e3);
+    cache.set(cacheKey, resultado, 6 * 60 * 60 * 1e3);
   }
   return resultado;
 }

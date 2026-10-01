@@ -275,14 +275,21 @@ export async function buscarChile(q: string): Promise<ResultadoComparado[]> {
       })
       .filter((r) => r.titulo && r.titulo !== "Norma sin título")
       // La búsqueda de texto libre de LeyChile es más permisiva que la lista
-      // curada que devuelve la IA para el resto de los países (5-7 resultados) --
-      // sin este recorte, Chile aparecía con muchos más resultados sueltos que
-      // cualquier otro país aunque varios fueran poco relevantes a la materia
-      // buscada. Se puntúa por relevancia real y se deja solo el top 6, igual de
-      // acotado que el resto.
+      // curada que devuelve la IA para el resto de los países (5-7 resultados)
+      // y además suele traer varias ordenanzas municipales casi idénticas
+      // (misma "APRUEBA ORDENANZA DE TENENCIA RESPONSABLE..." repetida con
+      // solo la fecha distinta) -- sin recortar, Chile se veía con muchos más
+      // resultados sueltos y redundantes que cualquier otro país. Se puntúa
+      // por relevancia real, se descartan duplicados casi idénticos (mismo
+      // inicio de título) y se deja solo el top 4, más acotado y parejo con
+      // el resto de los países.
       .map((r) => ({ ...r, relevancia: relevanciaPorCoincidencia(q, r) }))
       .sort((a, b) => (b.relevancia || 0) - (a.relevancia || 0))
-      .slice(0, 6);
+      .filter((r, i, arr) => {
+        const prefijo = normalizarTexto(r.titulo).slice(0, 40);
+        return arr.findIndex((x) => normalizarTexto(x.titulo).slice(0, 40) === prefijo) === i;
+      })
+      .slice(0, 4);
   } catch {
     return [];
   }
@@ -733,11 +740,16 @@ export async function buscarDerechoComparado(q: string): Promise<{
   })();
 
   // Solo se cachean resultados con IA real (fuentesFallidas vacío): un
-  // resultado de respaldo genérico no debe quedar "pegado" 15 minutos para
+  // resultado de respaldo genérico no debe quedar "pegado" mucho tiempo para
   // cualquiera que pregunte lo mismo mientras tanto -- el siguiente intento
-  // merece la chance de tener éxito con la IA.
+  // merece la chance de tener éxito con la IA. El tiempo de cache se subió de
+  // 15 minutos a 6 horas: la normativa real no cambia de un minuto a otro, y
+  // antes la misma búsqueda ("tenencia de mascotas" dos veces en la misma
+  // tarde) volvía a tirar los dados con la IA cada vez que expiraba el
+  // cache, trayendo un conjunto de países distinto cada vez -- la fuente
+  // real de la inconsistencia percibida, más que una variación aceptable.
   if (resultado.fuentesFallidas.length === 0) {
-    cache.set(cacheKey, resultado, 15 * 60 * 1000);
+    cache.set(cacheKey, resultado, 6 * 60 * 60 * 1000);
   }
   return resultado;
 }

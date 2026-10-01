@@ -97,7 +97,11 @@ async function generarConGeminiUnaVez(prompt: string, maxTokens: number, apiKey:
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { maxOutputTokens: maxTokens }
+      // Temperatura baja (no 0 -- algunos modelos rechazan temperatura
+      // exactamente 0) para tareas de búsqueda/extracción factual: reduce
+      // la variabilidad entre llamadas idénticas, que antes hacía que la
+      // misma búsqueda devolviera países/resultados distintos cada vez.
+      generationConfig: { maxOutputTokens: maxTokens, temperature: 0.15 }
     }),
     signal: AbortSignal.timeout(timeoutMs)
   });
@@ -161,6 +165,9 @@ async function llamarGroqConModelo(prompt: string, maxTokens: number, apiKey: st
     body: JSON.stringify({
       model,
       messages: [{ role: "user", content: prompt }],
+      // Temperatura baja para tareas de búsqueda/extracción factual -- ver
+      // nota en generarConGeminiUnaVez.
+      temperature: 0.15,
       // Los modelos "openai/gpt-oss-*" servidos por Groq exigen max_completion_tokens
       // en vez de (o además de) max_tokens; se envían ambos por compatibilidad.
       max_tokens: maxTokens,
@@ -239,6 +246,7 @@ export async function generarConOpenRouter(prompt: string, maxTokens = 1500): Pr
           model,
           messages: [{ role: "user", content: prompt }],
           max_tokens: maxTokens,
+          temperature: 0.15,
         }),
         signal: AbortSignal.timeout(15000)
       });
@@ -322,6 +330,7 @@ async function intentarClaude(prompt: string, maxTokens: number): Promise<Provid
     const resp = await claude.messages.create({
       model: "claude-3-5-haiku-20241022",
       max_tokens: maxTokens,
+      temperature: 0.15,
       messages: [{ role: "user", content: prompt }]
     });
     const text = resp.content[0].type === "text" ? resp.content[0].text : "";
