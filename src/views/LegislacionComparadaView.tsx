@@ -1203,7 +1203,7 @@ function generarMatrizDinamica(
         valoresPunto[p][key] = puntosDisponibles[p]
           || (d?.disponible === false
             ? "No disponible: la fuente obtenida no contiene disposiciones sustantivas."
-            : "Aún no analizado — presiona \"Comparar y Generar Informe\" para extraer los puntos reales del texto de esta norma.");
+            : "Aún no analizado — presiona \"Comparar y Generar Todo\" para extraer los puntos reales del texto de esta norma.");
       }
     });
 
@@ -1212,14 +1212,14 @@ function generarMatrizDinamica(
         dimension: "Objeto y ámbito de la norma",
         icono: "🎯",
         valores: valoresObjeto,
-        lecturaJuridica: lecturas?.lecturaObjeto || "Presiona \"Comparar y Generar Informe\" para obtener la lectura jurídica comparativa de esta dimensión."
+        lecturaJuridica: lecturas?.lecturaObjeto || "Presiona \"Comparar y Generar Todo\" para obtener la lectura jurídica comparativa de esta dimensión."
       },
       ...valoresPunto.map((valores, idx) => ({
         dimension: `Disposición destacada ${idx + 1}`,
         icono: "📑",
         valores,
         lecturaJuridica: idx === 0
-          ? (lecturas?.lecturaDisposiciones || "Presiona \"Comparar y Generar Informe\" para obtener la lectura jurídica comparativa de las disposiciones reales.")
+          ? (lecturas?.lecturaDisposiciones || "Presiona \"Comparar y Generar Todo\" para obtener la lectura jurídica comparativa de las disposiciones reales.")
           : "Extraído del texto oficial de cada norma cuando el análisis por país ya fue generado; de lo contrario, se indica explícitamente.",
         isWarmRow: true
       }))
@@ -1451,6 +1451,12 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
   const [seleccionComparar, setSeleccionComparar] = useState<ResultadoComparado[]>([]);
   const [comparacionDetalle, setComparacionDetalle] = useState<Record<string, LeySeleccionada>>({});
   const [comparando, setComparando] = useState(false);
+  // Estado del botón "Comparar y Generar Informe", que ahora dispara TODO de
+  // una vez (matriz, informe, análisis comparado, relaciones y evolución
+  // legal) -- distinto de "comparando" (solo cubre la extracción de puntos +
+  // matriz) porque el resto de las piezas sigue generándose después de que
+  // "comparando" ya volvió a false.
+  const [generandoTodo, setGenerandoTodo] = useState(false);
   // Análisis comparativo REAL entre las normas seleccionadas (a partir de sus
   // puntos ya extraídos del texto real, no de los títulos) -- "analisisKey"
   // guarda para qué selección exacta se generó, para saber si quedó obsoleto.
@@ -1789,14 +1795,14 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
   // Pestaña "Relaciones": se genera bajo demanda (al entrar a la pestaña),
   // no automáticamente con cada comparación, porque es una llamada de IA
   // adicional y no todos los usuarios la van a abrir.
-  const handleGenerarRelaciones = async () => {
+  const handleGenerarRelaciones = async (detallePrecalculado?: Record<string, LeySeleccionada>) => {
     if (seleccionComparar.length < 2) return;
     const key = seleccionComparar.map(claveResultado).sort().join("||");
     if (relacionesKey === key) return;
     setRelacionesLoading(true);
     try {
-      let detalleActual = comparacionDetalle;
-      const faltaAnalisis = seleccionComparar.some((r) => !detalleActual[claveResultado(r)]?.disponible);
+      let detalleActual = detallePrecalculado || comparacionDetalle;
+      const faltaAnalisis = !detallePrecalculado && seleccionComparar.some((r) => !detalleActual[claveResultado(r)]?.disponible);
       if (faltaAnalisis) {
         detalleActual = (await handleComparar()) || detalleActual;
       }
@@ -1831,63 +1837,83 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
   // reales que se usaron de referencia), solo con la tabla de puntos crudos.
   const handleCompararYGenerarInforme = async () => {
     if (seleccionComparar.length < 2) return;
-    const detalleActualizado = await handleComparar();
-    const detalleFinal = detalleActualizado || comparacionDetalle;
-    const base = ordenarChilePrimero(seleccionComparar);
-
-    let analisisReal: string | undefined;
-    const items = base.map((r) => ({
-      pais: r.pais,
-      titulo: r.titulo,
-      puntos: detalleFinal[claveResultado(r)]?.puntos || []
-    })).filter((it) => it.puntos.length > 0);
-    if (items.length >= 2) {
-      try {
-        const res = await fetch("/api/derecho-comparado/sintetizar-comparacion", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query: liveQuery, items })
-        });
-        if (res.ok) {
-          const data: { analisis: string } = await res.json();
-          analisisReal = data.analisis;
-        }
-      } catch {
-        // si falla, el informe se genera igual sin esta sección
-      }
-    }
-
-    // El marco conceptual (vía /redactar) se pide con un timeout corto y sin
-    // bloquear el informe -- esa llamada a IA puede demorar mucho más que
-    // sintetizar-comparacion, y el usuario ya tiene lo esencial (desarrollo
-    // real por país + análisis comparado) sin necesidad de esperarla.
-    let marcoConceptual: string | undefined;
+    setGenerandoTodo(true);
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000);
-      const resRedactar = await fetch("/api/derecho-comparado/redactar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: liveQuery, resultados: base }),
-        signal: controller.signal
-      });
-      clearTimeout(timeoutId);
-      if (resRedactar.ok) {
-        const dataRedactar: { texto: string; marcoConceptual?: string } = await resRedactar.json();
-        marcoConceptual = dataRedactar.marcoConceptual;
-      }
-    } catch {
-      // si falla o se agota el tiempo, el informe se genera igual sin marco conceptual
-    }
+      const detalleActualizado = await handleComparar();
+      const detalleFinal = detalleActualizado || comparacionDetalle;
+      const base = ordenarChilePrimero(seleccionComparar);
 
-    const md = buildInformeMarkdown(liveQuery, base, buildParrafoAutomatico(liveQuery, base), analisisReal, detalleFinal, marcoConceptual);
-    setInformeLiveMarkdown(md);
-    setInformeLiveQuery(liveQuery);
-    // El Informe Técnico queda listo (markdown generado arriba) para cuando
-    // el usuario quiera abrirlo, pero lo primero que debe VER al comparar es
-    // la Matriz -- antes "Comparar y Generar Informe" saltaba directo al
-    // Informe Técnico, pasando por encima de la matriz recién construida.
-    setActiveTab("comparador");
+      const items = base.map((r) => ({
+        pais: r.pais,
+        titulo: r.titulo,
+        puntos: detalleFinal[claveResultado(r)]?.puntos || []
+      })).filter((it) => it.puntos.length > 0);
+
+      const generarAnalisisYRedaccion = async () => {
+        let analisisReal: string | undefined;
+        if (items.length >= 2) {
+          try {
+            const res = await fetch("/api/derecho-comparado/sintetizar-comparacion", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ query: liveQuery, items })
+            });
+            if (res.ok) {
+              const data: { analisis: string } = await res.json();
+              analisisReal = data.analisis;
+            }
+          } catch {
+            // si falla, el informe se genera igual sin esta sección
+          }
+        }
+
+        // El marco conceptual (vía /redactar) se pide con un timeout corto y
+        // sin bloquear el informe -- esa llamada a IA puede demorar mucho más
+        // que sintetizar-comparacion, y el usuario ya tiene lo esencial
+        // (desarrollo real por país + análisis comparado) sin esperarla.
+        let marcoConceptual: string | undefined;
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 6000);
+          const resRedactar = await fetch("/api/derecho-comparado/redactar", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ query: liveQuery, resultados: base }),
+            signal: controller.signal
+          });
+          clearTimeout(timeoutId);
+          if (resRedactar.ok) {
+            const dataRedactar: { texto: string; marcoConceptual?: string } = await resRedactar.json();
+            marcoConceptual = dataRedactar.marcoConceptual;
+          }
+        } catch {
+          // si falla o se agota el tiempo, el informe se genera igual sin marco conceptual
+        }
+
+        const md = buildInformeMarkdown(liveQuery, base, buildParrafoAutomatico(liveQuery, base), analisisReal, detalleFinal, marcoConceptual);
+        setInformeLiveMarkdown(md);
+        setInformeLiveQuery(liveQuery);
+      };
+
+      // Al seleccionar países y pedir la comparación, se genera TODO de una
+      // vez (Informe, Relaciones y Evolución Legal) en paralelo -- antes cada
+      // pestaña había que abrirla y generarla por separado a mano, y la
+      // matriz temática (que depende de comparacionDetalle, ya extraído
+      // arriba) quedaba con las filas de respaldo genéricas hasta que el
+      // usuario pasaba, pestaña por pestaña, generando cada cosa.
+      await Promise.all([
+        generarAnalisisYRedaccion(),
+        handleGenerarRelaciones(detalleFinal),
+        handleGenerarEvolucion()
+      ]);
+
+      // El Informe Técnico, Relaciones y Evolución Legal quedan listos para
+      // cuando el usuario abra esas pestañas, pero lo primero que debe VER
+      // al comparar es la Matriz.
+      setActiveTab("comparador");
+    } finally {
+      setGenerandoTodo(false);
+    }
   };
 
   // Genera el análisis comparativo real (prosa) entre las normas
@@ -2539,11 +2565,12 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
                 </button>
                 <button
                   onClick={handleCompararYGenerarInforme}
-                  disabled={seleccionComparar.length < 2 || comparando}
+                  disabled={seleccionComparar.length < 2 || generandoTodo}
+                  title="Genera de una vez la Matriz, el Informe Técnico, el Mapa de Relaciones y la Evolución Legal"
                   className="bg-white hover:bg-blue-50 text-blue-900 font-bold px-4 py-2 rounded-xl text-xs transition-colors flex items-center gap-2 cursor-pointer shadow-xs disabled:opacity-50"
                 >
                   <SlidersHorizontal className="w-3.5 h-3.5 text-blue-700" />
-                  <span>{comparando ? "Analizando..." : "Comparar y Generar Informe"}</span>
+                  <span>{generandoTodo ? "Generando Matriz, Informe, Relaciones y Evolución..." : "Comparar y Generar Todo"}</span>
                 </button>
               </div>
             </div>
