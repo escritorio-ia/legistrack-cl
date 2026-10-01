@@ -193043,6 +193043,54 @@ En ambos campos usa EXCLUSIVAMENTE los t\xEDtulos, pa\xEDses y fuentes entregado
   const textoFallback = `El examen de derecho comparado sobre "${query}" re\xFAne registros en ${paises.length} jurisdicciones (${paises.join(", ")}). ${chilenos.length > 0 ? `En Chile, el marco regulatorio central corresponde a ${chilenos.map((c) => c.titulo).join(", ")}. ` : ""}A nivel internacional, los ordenamientos consultados establecen directrices focalizadas en est\xE1ndares regulatorios, deberes de cumplimiento y reg\xEDmenes de fiscalizaci\xF3n.`;
   res.json({ texto: textoFallback });
 });
+apiRouter.post("/derecho-comparado/informe-completo", async (req, res) => {
+  const { query, items } = req.body;
+  if (!query || !Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: "Se requiere 'query' y al menos 1 'item'." });
+  }
+  const conContenido = items.filter((it) => it.puntos && it.puntos.length > 0 || it.descripcion);
+  if (conContenido.length === 0) {
+    return res.json({ informe: null });
+  }
+  const bloque = conContenido.map((it, i) => `${i + 1}. CASO ${it.pais.toUpperCase()} \u2014 ${it.titulo}
+Descripci\xF3n oficial: ${it.descripcion || "(no disponible)"}
+Disposiciones reales extra\xEDdas del texto:
+${it.puntos && it.puntos.length > 0 ? it.puntos.map((p) => `   - ${p}`).join("\n") : "   (no se pudo extraer texto sustantivo de la fuente oficial para este pa\xEDs)"}`).join("\n\n");
+  const casosEsperados = conContenido.map((it) => it.pais).join(", ");
+  const prompt = `Act\xFAa como un analista experto en pol\xEDticas p\xFAblicas y regulaci\xF3n comparada. Tu tarea es redactar un informe t\xE9cnico, exhaustivo y bien desarrollado sobre "${query}", basado \xDANICAMENTE en el texto que se te proporciona a continuaci\xF3n (descripciones oficiales y disposiciones reales ya extra\xEDdas del texto de cada norma).
+
+El objetivo del informe es comparar los distintos marcos regulatorios y modelos aplicados en los pa\xEDses mencionados, identificando c\xF3mo cada uno aborda los principales desaf\xEDos de la materia.
+
+Instrucciones de formato y estilo:
+- Tono: formal, acad\xE9mico, objetivo e institucional.
+- Extensi\xF3n: desarrolla cada secci\xF3n con p\xE1rrafos completos y explicaciones detalladas; evita los res\xFAmenes superficiales.
+- Precisi\xF3n: no inventes ni asumas informaci\xF3n que no est\xE9 en el texto entregado. Si un dato no est\xE1 disponible para un pa\xEDs (por ejemplo, no se pudo extraer texto sustantivo), dilo expl\xEDcitamente en esa secci\xF3n en vez de rellenarla con contenido gen\xE9rico o inventado.
+
+Estructura obligatoria del informe (usa estos encabezados exactos, en Markdown con "##"):
+
+## Resumen e Introducci\xF3n
+Explica el contexto general de la materia, los objetivos de la regulaci\xF3n en esta materia y el prop\xF3sito de este an\xE1lisis comparado.
+
+${conContenido.map((it) => `## Caso ${it.pais}
+Describe el marco regulatorio principal y las normas aplicables mencionadas en el texto para ${it.pais}; detalla la institucionalidad u organismos encargados de la supervisi\xF3n y fiscalizaci\xF3n que aparezcan en el texto; explica los mecanismos clave, enfoques o instrumentos espec\xEDficos que utiliza este pa\xEDs seg\xFAn las disposiciones entregadas.`).join("\n\n")}
+
+## Conclusiones y An\xE1lisis Comparado
+Sintetiza los hallazgos de los pa\xEDses analizados (${casosEsperados}). Destaca las similitudes, diferencias, mejores pr\xE1cticas y lecciones aprendidas sobre c\xF3mo cada modelo aborda la materia, bas\xE1ndote exclusivamente en lo expuesto en las secciones anteriores.
+
+Cuando el texto entregado incluya una cita textual entre comillas, puedes incorporarla literalmente (sin alterarla) para respaldar una afirmaci\xF3n, en vez de solo parafrasearla.
+
+Texto base para redactar el informe:
+"""
+${bloque}
+"""
+
+Responde \xDANICAMENTE con el informe en Markdown (usando "##" para cada secci\xF3n en el orden indicado), sin texto adicional antes o despu\xE9s.`;
+  const texto = await generarContenidoUniversalIA(prompt, 4500);
+  if (texto) {
+    return res.json({ informe: texto.trim() });
+  }
+  res.json({ informe: null });
+});
 apiRouter.post("/derecho-comparado/analizar", async (req, res) => {
   const { query, resultado } = req.body;
   if (!query || !resultado || !resultado.titulo) {

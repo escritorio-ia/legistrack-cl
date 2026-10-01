@@ -1228,6 +1228,69 @@ En ambos campos usa EXCLUSIVAMENTE los títulos, países y fuentes entregados ar
   res.json({ texto: textoFallback });
 });
 
+// Informe Técnico completo en un solo llamado de IA, con la estructura
+// (Resumen e Introducción / Caso [País] por cada jurisdicción seleccionada /
+// Conclusiones y Análisis Comparado) pedida explícitamente por el usuario --
+// basada ÚNICAMENTE en los puntos/disposiciones reales ya extraídos del
+// texto de cada norma (mismos que "Ver puntos clave"), nunca en los títulos
+// solos. Reemplaza el ensamblado de fragmentos (síntesis + desarrollo por
+// país por separado) por un informe redactado de corrido por la IA.
+apiRouter.post("/derecho-comparado/informe-completo", async (req: Request, res: Response) => {
+  const { query, items } = req.body as {
+    query?: string;
+    items?: Array<{ pais: string; titulo: string; puntos?: string[]; descripcion?: string }>;
+  };
+  if (!query || !Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: "Se requiere 'query' y al menos 1 'item'." });
+  }
+
+  const conContenido = items.filter((it) => (it.puntos && it.puntos.length > 0) || it.descripcion);
+  if (conContenido.length === 0) {
+    return res.json({ informe: null });
+  }
+
+  const bloque = conContenido
+    .map((it, i) => `${i + 1}. CASO ${it.pais.toUpperCase()} — ${it.titulo}\nDescripción oficial: ${it.descripcion || "(no disponible)"}\nDisposiciones reales extraídas del texto:\n${(it.puntos && it.puntos.length > 0) ? it.puntos.map((p) => `   - ${p}`).join("\n") : "   (no se pudo extraer texto sustantivo de la fuente oficial para este país)"}`)
+    .join("\n\n");
+
+  const casosEsperados = conContenido.map((it) => it.pais).join(", ");
+
+  const prompt = `Actúa como un analista experto en políticas públicas y regulación comparada. Tu tarea es redactar un informe técnico, exhaustivo y bien desarrollado sobre "${query}", basado ÚNICAMENTE en el texto que se te proporciona a continuación (descripciones oficiales y disposiciones reales ya extraídas del texto de cada norma).
+
+El objetivo del informe es comparar los distintos marcos regulatorios y modelos aplicados en los países mencionados, identificando cómo cada uno aborda los principales desafíos de la materia.
+
+Instrucciones de formato y estilo:
+- Tono: formal, académico, objetivo e institucional.
+- Extensión: desarrolla cada sección con párrafos completos y explicaciones detalladas; evita los resúmenes superficiales.
+- Precisión: no inventes ni asumas información que no esté en el texto entregado. Si un dato no está disponible para un país (por ejemplo, no se pudo extraer texto sustantivo), dilo explícitamente en esa sección en vez de rellenarla con contenido genérico o inventado.
+
+Estructura obligatoria del informe (usa estos encabezados exactos, en Markdown con "##"):
+
+## Resumen e Introducción
+Explica el contexto general de la materia, los objetivos de la regulación en esta materia y el propósito de este análisis comparado.
+
+${conContenido.map((it) => `## Caso ${it.pais}\nDescribe el marco regulatorio principal y las normas aplicables mencionadas en el texto para ${it.pais}; detalla la institucionalidad u organismos encargados de la supervisión y fiscalización que aparezcan en el texto; explica los mecanismos clave, enfoques o instrumentos específicos que utiliza este país según las disposiciones entregadas.`).join("\n\n")}
+
+## Conclusiones y Análisis Comparado
+Sintetiza los hallazgos de los países analizados (${casosEsperados}). Destaca las similitudes, diferencias, mejores prácticas y lecciones aprendidas sobre cómo cada modelo aborda la materia, basándote exclusivamente en lo expuesto en las secciones anteriores.
+
+Cuando el texto entregado incluya una cita textual entre comillas, puedes incorporarla literalmente (sin alterarla) para respaldar una afirmación, en vez de solo parafrasearla.
+
+Texto base para redactar el informe:
+"""
+${bloque}
+"""
+
+Responde ÚNICAMENTE con el informe en Markdown (usando "##" para cada sección en el orden indicado), sin texto adicional antes o después.`;
+
+  const texto = await generarContenidoUniversalIA(prompt, 4500);
+  if (texto) {
+    return res.json({ informe: texto.trim() });
+  }
+
+  res.json({ informe: null });
+});
+
 apiRouter.post("/derecho-comparado/analizar", async (req: Request, res: Response) => {
   const { query, resultado } = req.body as { query?: string; resultado?: ResultadoComparado };
   if (!query || !resultado || !resultado.titulo) {

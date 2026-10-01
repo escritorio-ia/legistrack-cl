@@ -382,7 +382,8 @@ function buildInformeMarkdown(
   parrafoAuto: string,
   redaccionIA?: string,
   comparacionDetalle?: Record<string, { resultado: ResultadoComparado; puntos: string[]; disponible: boolean; mensaje?: string }>,
-  marcoConceptual?: string
+  marcoConceptual?: string,
+  cuerpoCompletoIA?: string
 ): string {
   const fecha = new Date().toLocaleDateString("es-CL", { day: "2-digit", month: "long", year: "numeric" });
   const tituloCase = query.charAt(0).toUpperCase() + query.slice(1);
@@ -393,46 +394,62 @@ function buildInformeMarkdown(
   lines.push(`**Asesoría Técnica Parlamentaria**`);
   lines.push(`*Fecha de emisión: ${fecha}* | *Jurisdicciones consultadas: ${paises.length}* | *Normas analizadas: ${resultados.length}*`);
   lines.push("");
-  lines.push(`## Introducción`);
-  lines.push(`De acuerdo a lo consultado, este documento analiza el tratamiento normativo de "${query}" en la experiencia comparada, a partir de registros obtenidos en tiempo real desde repositorios legislativos oficiales (${fuentes.join(", ") || "fuentes oficiales"}). El tema que aborda y sus contenidos están delimitados por la información efectivamente disponible en esas fuentes al momento de la consulta y por el alcance de una minuta de apoyo, no de un estudio académico exhaustivo. Este documento fue generado con asistencia de inteligencia artificial a partir de fuentes oficiales en tiempo real; no reemplaza el análisis de un informe elaborado por un asesor de la BCN y su contenido debe contrastarse con las fuentes originales antes de su uso.`);
+
   let n = 1;
-  if (marcoConceptual) {
+  if (cuerpoCompletoIA) {
+    // Informe completo redactado por la IA en un solo llamado (Resumen e
+    // Introducción / Caso [País] por cada jurisdicción / Conclusiones y
+    // Análisis Comparado), basado exclusivamente en las disposiciones reales
+    // ya extraídas -- reemplaza el ensamblado de fragmentos (Introducción +
+    // Síntesis + Desarrollo por país) por un informe redactado de corrido,
+    // según el formato pedido explícitamente para este informe.
+    lines.push(cuerpoCompletoIA.trim());
+    // Nota aclaratoria de IA, ya que el bloque anterior reemplaza la
+    // introducción fija que normalmente la incluía.
     lines.push("");
-    lines.push(`## ${n}. Marco conceptual`);
-    lines.push(marcoConceptual);
+    lines.push(`*Este documento fue generado con asistencia de inteligencia artificial a partir de fuentes oficiales en tiempo real; no reemplaza el análisis de un informe elaborado por un asesor de la BCN y su contenido debe contrastarse con las fuentes originales antes de su uso.*`);
+    n = 2;
+  } else {
+    lines.push(`## Introducción`);
+    lines.push(`De acuerdo a lo consultado, este documento analiza el tratamiento normativo de "${query}" en la experiencia comparada, a partir de registros obtenidos en tiempo real desde repositorios legislativos oficiales (${fuentes.join(", ") || "fuentes oficiales"}). El tema que aborda y sus contenidos están delimitados por la información efectivamente disponible en esas fuentes al momento de la consulta y por el alcance de una minuta de apoyo, no de un estudio académico exhaustivo. Este documento fue generado con asistencia de inteligencia artificial a partir de fuentes oficiales en tiempo real; no reemplaza el análisis de un informe elaborado por un asesor de la BCN y su contenido debe contrastarse con las fuentes originales antes de su uso.`);
+    if (marcoConceptual) {
+      lines.push("");
+      lines.push(`## ${n}. Marco conceptual`);
+      lines.push(marcoConceptual);
+      n++;
+    }
+    lines.push("");
+    lines.push(`## ${n}. Síntesis`);
     n++;
-  }
-  lines.push("");
-  lines.push(`## ${n}. Síntesis`);
-  n++;
-  lines.push(parrafoAuto);
-  if (redaccionIA) {
+    lines.push(parrafoAuto);
+    if (redaccionIA) {
+      lines.push("");
+      lines.push(`### Análisis y lecciones para Chile`);
+      lines.push(redaccionIA);
+    }
     lines.push("");
-    lines.push(`### Análisis y lecciones para Chile`);
-    lines.push(redaccionIA);
-  }
-  lines.push("");
-  lines.push(`## ${n}. Desarrollo por país`);
-  n++;
-  // Desarrollo artículo por artículo en prosa continua por país (estilo de
-  // los informes reales de "Legislación Comparada" de la BCN), en vez de
-  // aplastar los puntos reales extraídos del texto de cada norma dentro de
-  // una celda de tabla -- que los volvía ilegibles y muy distintos del
-  // formato de los documentos de referencia entregados.
-  for (const r of resultados) {
-    const detalle = comparacionDetalle ? comparacionDetalle[`${r.pais}|${r.titulo}`] : undefined;
-    lines.push("");
-    lines.push(`### ${r.pais} — ${r.titulo}`);
-    lines.push(`*${r.tipo || "Ley"} | ${r.fuente}${r.fecha ? ` | ${r.fecha}` : ""}*`);
-    lines.push("");
-    if (detalle?.disponible && detalle.puntos.length > 0) {
-      for (const p of detalle.puntos) {
-        lines.push(`- ${p}`);
+    lines.push(`## ${n}. Desarrollo por país`);
+    n++;
+    // Desarrollo artículo por artículo en prosa continua por país (estilo de
+    // los informes reales de "Legislación Comparada" de la BCN), en vez de
+    // aplastar los puntos reales extraídos del texto de cada norma dentro de
+    // una celda de tabla -- que los volvía ilegibles y muy distintos del
+    // formato de los documentos de referencia entregados.
+    for (const r of resultados) {
+      const detalle = comparacionDetalle ? comparacionDetalle[`${r.pais}|${r.titulo}`] : undefined;
+      lines.push("");
+      lines.push(`### ${r.pais} — ${r.titulo}`);
+      lines.push(`*${r.tipo || "Ley"} | ${r.fuente}${r.fecha ? ` | ${r.fecha}` : ""}*`);
+      lines.push("");
+      if (detalle?.disponible && detalle.puntos.length > 0) {
+        for (const p of detalle.puntos) {
+          lines.push(`- ${p}`);
+        }
+      } else if (detalle && detalle.disponible === false) {
+        lines.push(`*${detalle.mensaje || "No fue posible acceder a disposiciones sustantivas del texto oficial de esta norma."}*`);
+      } else {
+        lines.push(r.descripcion || "Sin descripción disponible en la fuente oficial.");
       }
-    } else if (detalle && detalle.disponible === false) {
-      lines.push(`*${detalle.mensaje || "No fue posible acceder a disposiciones sustantivas del texto oficial de esta norma."}*`);
-    } else {
-      lines.push(r.descripcion || "Sin descripción disponible en la fuente oficial.");
     }
   }
   lines.push("");
@@ -1866,47 +1883,37 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
       })).filter((it) => it.puntos.length > 0);
 
       const generarAnalisisYRedaccion = async () => {
-        let analisisReal: string | undefined;
-        if (items.length >= 2) {
-          try {
-            const res = await fetch("/api/derecho-comparado/sintetizar-comparacion", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ query: liveQuery, items })
-            });
-            if (res.ok) {
-              const data: { analisis: string } = await res.json();
-              analisisReal = data.analisis;
-            }
-          } catch {
-            // si falla, el informe se genera igual sin esta sección
-          }
-        }
-
-        // El marco conceptual (vía /redactar) se pide con un timeout corto y
-        // sin bloquear el informe -- esa llamada a IA puede demorar mucho más
-        // que sintetizar-comparacion, y el usuario ya tiene lo esencial
-        // (desarrollo real por país + análisis comparado) sin esperarla.
-        let marcoConceptual: string | undefined;
+        // Informe completo (Resumen e Introducción / Caso [País] por cada
+        // jurisdicción / Conclusiones y Análisis Comparado) en un solo
+        // llamado de IA, con la estructura pedida explícitamente para este
+        // informe -- reemplaza los dos llamados anteriores (sintetizar-
+        // comparacion + redactar) por uno solo, basado en los mismos datos
+        // reales ya extraídos (items), lo que además reduce la cantidad de
+        // llamadas de IA necesarias para generar "Todo".
+        let cuerpoCompletoIA: string | undefined;
         try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 6000);
-          const resRedactar = await fetch("/api/derecho-comparado/redactar", {
+          const res = await fetch("/api/derecho-comparado/informe-completo", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ query: liveQuery, resultados: base }),
-            signal: controller.signal
+            body: JSON.stringify({
+              query: liveQuery,
+              items: base.map((r) => ({
+                pais: r.pais,
+                titulo: r.titulo,
+                descripcion: r.descripcion,
+                puntos: detalleFinal[claveResultado(r)]?.puntos || []
+              }))
+            })
           });
-          clearTimeout(timeoutId);
-          if (resRedactar.ok) {
-            const dataRedactar: { texto: string; marcoConceptual?: string } = await resRedactar.json();
-            marcoConceptual = dataRedactar.marcoConceptual;
+          if (res.ok) {
+            const data: { informe: string | null } = await res.json();
+            cuerpoCompletoIA = data.informe || undefined;
           }
         } catch {
-          // si falla o se agota el tiempo, el informe se genera igual sin marco conceptual
+          // si falla, el informe se genera igual con el ensamblado de respaldo
         }
 
-        const md = buildInformeMarkdown(liveQuery, base, buildParrafoAutomatico(liveQuery, base), analisisReal, detalleFinal, marcoConceptual);
+        const md = buildInformeMarkdown(liveQuery, base, buildParrafoAutomatico(liveQuery, base), undefined, detalleFinal, undefined, cuerpoCompletoIA);
         setInformeLiveMarkdown(md);
         setInformeLiveQuery(liveQuery);
       };
