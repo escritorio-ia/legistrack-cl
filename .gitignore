@@ -9,3 +9,6 @@ coverage/
 scratch/
 .claude/settings.local.json
 
+
+.vercel
+.env*
