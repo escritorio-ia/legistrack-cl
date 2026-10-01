@@ -331,7 +331,11 @@ async function llamarGithubModelsConModelo(prompt: string, maxTokens: number, to
     method: "POST",
     headers: {
       "Authorization": `Bearer ${token}`,
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
+      // Sin este header GitHub puede responder con un simple "OK" de texto
+      // plano en vez del JSON esperado por el endpoint REST de inferencia.
+      "Accept": "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28"
     },
     body: JSON.stringify({
       model,
@@ -341,11 +345,16 @@ async function llamarGithubModelsConModelo(prompt: string, maxTokens: number, to
     }),
     signal: AbortSignal.timeout(15000)
   });
+  const bodyText = await res.text().catch(() => "");
   if (!res.ok) {
-    const err = await res.text().catch(() => "");
-    throw new Error(`GitHub Models (${model}) HTTP ${res.status}: ${err.slice(0, 150)}`);
+    throw new Error(`GitHub Models (${model}) HTTP ${res.status}: ${bodyText.slice(0, 150)}`);
   }
-  const data: any = await res.json();
+  let data: any;
+  try {
+    data = JSON.parse(bodyText);
+  } catch {
+    throw new Error(`GitHub Models (${model}) devolvió una respuesta no-JSON (HTTP ${res.status}): ${bodyText.slice(0, 150)}`);
+  }
   const text = data?.choices?.[0]?.message?.content;
   if (!text) throw new Error("GitHub Models no devolvió texto");
   return String(text).trim();
