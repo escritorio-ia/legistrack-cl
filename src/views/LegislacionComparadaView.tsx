@@ -1811,13 +1811,29 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
         descripcion: r.descripcion,
         puntos: detalleActual[claveResultado(r)]?.puntos || []
       }));
-      const res = await fetch("/api/derecho-comparado/relaciones", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: liveQuery, items })
-      });
-      if (res.ok) {
-        const data: { nodos: Array<{ id: string; etiqueta: string; categoria: string; descripcion?: string }>; enlaces: Array<{ origen: string; destino: string }> } = await res.json();
+      const tieneDatosReales = items.filter((it) => it.puntos.length > 0).length >= 2;
+
+      const pedirRelaciones = async () => {
+        const res = await fetch("/api/derecho-comparado/relaciones", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: liveQuery, items })
+        });
+        if (!res.ok) return null;
+        return (await res.json()) as { nodos: Array<{ id: string; etiqueta: string; categoria: string; descripcion?: string }>; enlaces: Array<{ origen: string; destino: string }> };
+      };
+
+      let data = await pedirRelaciones();
+      // Cuando se genera junto con el Informe y la Evolución Legal en la
+      // misma corrida ("Comparar y Generar Todo"), la cuota gratuita de IA
+      // ya viene exigida por las llamadas anteriores y esta puede volver
+      // vacía ({nodos:[],enlaces:[]}) aunque sí haya datos reales -- se
+      // reintenta una vez tras una breve espera antes de rendirse.
+      if (data && data.nodos.length === 0 && tieneDatosReales) {
+        await new Promise((r) => setTimeout(r, 4000));
+        data = await pedirRelaciones();
+      }
+      if (data && data.nodos.length > 0) {
         setRelaciones(data);
         setRelacionesKey(key);
       }
