@@ -1703,7 +1703,12 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
   const handleComparar = async () => {
     if (seleccionComparar.length < 2) return;
     setComparando(true);
-    setActiveTab("comparador");
+    // OJO: no cambiar activeTab acá -- handleComparar se usa como helper
+    // desde handleGenerarAnalisisComparado, handleCompararYGenerarInforme y
+    // handleGenerarRelaciones, cada uno con su propio destino de pestaña (o
+    // ninguno). Antes forzaba la pestaña "comparador" (Matriz) sin condición,
+    // así que al abrir "Relaciones" sin análisis previo, terminaba
+    // devolviendo al usuario a la Matriz en vez de quedarse en Relaciones.
     try {
       const entradas = await Promise.all(
         seleccionComparar.map(async (r) => {
@@ -1722,7 +1727,14 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
       );
       const detalleActualizado = Object.fromEntries(entradas) as Record<string, LeySeleccionada>;
       setComparacionDetalle(detalleActualizado);
-      handleGenerarLecturasMatriz(seleccionComparar, detalleActualizado);
+      // Se espera a que termine la lectura jurídica + matriz temática antes
+      // de soltar "comparando" -- antes esto corría en paralelo sin esperar,
+      // así que la pestaña Matriz mostraba de inmediato las filas de
+      // respaldo genéricas (Objeto/Disposición) y recién después, sin aviso,
+      // se reemplazaban por las dimensiones reales. Ahora el usuario ve el
+      // estado de carga hasta que la matriz está lista con la información
+      // definitiva, en vez de un resultado a medias que cambia solo.
+      await handleGenerarLecturasMatriz(seleccionComparar, detalleActualizado);
       return detalleActualizado;
     } finally {
       setComparando(false);
@@ -1730,9 +1742,9 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
   };
 
   // Lectura jurídica real (no genérica) al pie de las filas "Objeto y
-  // ámbito" y "Disposición destacada" de la Matriz -- se dispara en paralelo
-  // apenas se tienen los datos reales (descripción + puntos), sin bloquear
-  // el resto del flujo.
+  // ámbito" y "Disposición destacada" de la Matriz, y las dimensiones
+  // jurídicas temáticas reales -- se espera a que ambas terminen (ver nota
+  // en handleComparar) antes de mostrar la matriz como lista.
   const handleGenerarLecturasMatriz = async (seleccion: ResultadoComparado[], detalle: Record<string, LeySeleccionada>) => {
     if (seleccion.length < 2) return;
     const key = seleccion.map(claveResultado).sort().join("||");
@@ -3171,15 +3183,25 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
               </button>
             </div>
           ) : vistaComparador === "matriz" ? (
-            <div className="flex flex-col gap-4">
-              <MatrizComparadaTable data={generarMatrizDinamica(
-                liveQuery,
-                seleccionComparar,
-                comparacionDetalle,
-                lecturasMatrizKey === seleccionComparar.map(claveResultado).sort().join("||") ? lecturasMatriz : undefined,
-                matrizTematicaKey === seleccionComparar.map(claveResultado).sort().join("||") ? matrizTematica : undefined
-              )} />
-            </div>
+            comparando ? (
+              <div className="p-14 text-center flex flex-col items-center justify-center gap-3">
+                <RefreshCw className="w-7 h-7 text-blue-700 animate-spin" />
+                <h4 className="text-sm font-bold text-slate-800">Construyendo la matriz comparada...</h4>
+                <p className="text-xs text-slate-500 max-w-md">
+                  Extrayendo el texto real de cada norma y generando las dimensiones jurídicas propias de esta materia -- puede tardar unos segundos para mostrar la matriz completa de una vez.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-4">
+                <MatrizComparadaTable data={generarMatrizDinamica(
+                  liveQuery,
+                  seleccionComparar,
+                  comparacionDetalle,
+                  lecturasMatrizKey === seleccionComparar.map(claveResultado).sort().join("||") ? lecturasMatriz : undefined,
+                  matrizTematicaKey === seleccionComparar.map(claveResultado).sort().join("||") ? matrizTematica : undefined
+                )} />
+              </div>
+            )
           ) : (
             <div 
               className="grid gap-4" 
