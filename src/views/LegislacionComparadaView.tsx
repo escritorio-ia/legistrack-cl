@@ -1883,7 +1883,11 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
     const md = buildInformeMarkdown(liveQuery, base, buildParrafoAutomatico(liveQuery, base), analisisReal, detalleFinal, marcoConceptual);
     setInformeLiveMarkdown(md);
     setInformeLiveQuery(liveQuery);
-    setActiveTab("documento");
+    // El Informe Técnico queda listo (markdown generado arriba) para cuando
+    // el usuario quiera abrirlo, pero lo primero que debe VER al comparar es
+    // la Matriz -- antes "Comparar y Generar Informe" saltaba directo al
+    // Informe Técnico, pasando por encima de la matriz recién construida.
+    setActiveTab("comparador");
   };
 
   // Genera el análisis comparativo real (prosa) entre las normas
