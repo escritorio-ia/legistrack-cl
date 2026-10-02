@@ -188001,6 +188001,10 @@ function getClaudeClient() {
     if (key && key !== "MY_ANTHROPIC_API_KEY") {
       aiClient = new Anthropic({
         apiKey: key,
+        // El SDK por defecto espera hasta 10 min y reintenta 2 veces: una sola
+        // llamada colgada dejaba la generación congelada indefinidamente.
+        timeout: 3e4,
+        maxRetries: 0,
         defaultHeaders: {
           "User-Agent": "aistudio-build"
         }
@@ -188297,7 +188301,14 @@ async function intentarClaude(prompt, maxTokens) {
     return { provider: "claude", configured: true, error: err?.message || String(err) };
   }
 }
+var LIMITE_TOTAL_IA_MS = 75e3;
 async function generarContenidoUniversalIA(prompt, maxTokens = 2e3, attempts) {
+  return Promise.race([
+    generarContenidoUniversalIAInterno(prompt, maxTokens, attempts),
+    new Promise((resolve) => setTimeout(() => resolve(null), LIMITE_TOTAL_IA_MS))
+  ]);
+}
+async function generarContenidoUniversalIAInterno(prompt, maxTokens, attempts) {
   const [geminiRes, openrouterRes, cerebrasRes] = await Promise.all([
     intentarGemini(prompt, maxTokens),
     intentarOpenRouter(prompt, maxTokens),

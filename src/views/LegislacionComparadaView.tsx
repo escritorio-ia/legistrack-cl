@@ -1737,6 +1737,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
         seleccionComparar.map(async (r) => {
           try {
             const res = await fetch("/api/derecho-comparado/analizar", {
+              signal: AbortSignal.timeout(100000),
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ query: liveQuery, resultado: r }),
@@ -1778,6 +1779,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
     }));
     try {
       const res = await fetch("/api/derecho-comparado/lectura-matriz", {
+        signal: AbortSignal.timeout(100000),
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: liveQuery, items })
@@ -1793,6 +1795,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
 
     try {
       const resTematica = await fetch("/api/derecho-comparado/matriz-tematica", {
+        signal: AbortSignal.timeout(100000),
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: liveQuery, items: seleccion.map((r) => ({ pais: r.pais, titulo: r.titulo, descripcion: r.descripcion, puntos: detalle[claveResultado(r)]?.puntos || [] })) })
@@ -1832,6 +1835,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
 
       const pedirRelaciones = async () => {
         const res = await fetch("/api/derecho-comparado/relaciones", {
+          signal: AbortSignal.timeout(100000),
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ query: liveQuery, items })
@@ -1893,6 +1897,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
         let cuerpoCompletoIA: string | undefined;
         try {
           const res = await fetch("/api/derecho-comparado/informe-completo", {
+            signal: AbortSignal.timeout(100000),
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -1927,9 +1932,11 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
       // con los lotes de países) y Relaciones fallaba en silencio, quedando
       // vacía aunque los datos reales sí estaban disponibles. Es más lento,
       // pero cada pestaña queda confiablemente generada al terminar.
-      await generarAnalisisYRedaccion();
-      await handleGenerarRelaciones(detalleFinal);
-      await handleGenerarEvolucion();
+      // Cada etapa falla de forma aislada (timeout/red): una etapa colgada no
+      // debe cancelar las siguientes ni dejar el botón en "Generando...".
+      await generarAnalisisYRedaccion().catch(() => {});
+      await handleGenerarRelaciones(detalleFinal).catch(() => {});
+      await handleGenerarEvolucion().catch(() => {});
 
       // El Informe Técnico, Relaciones y Evolución Legal quedan listos para
       // cuando el usuario abra esas pestañas, pero lo primero que debe VER
@@ -1969,6 +1976,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
       }
 
       const res = await fetch("/api/derecho-comparado/sintetizar-comparacion", {
+        signal: AbortSignal.timeout(100000),
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: liveQuery, items })
@@ -1994,6 +2002,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
         seleccionComparar.map(async (r) => {
           try {
             const res = await fetch("/api/derecho-comparado/evolucion", {
+              signal: AbortSignal.timeout(100000),
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ query: liveQuery, resultado: r })
@@ -2021,6 +2030,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
     setModalNorma(r);
     try {
       const res = await fetch("/api/derecho-comparado/analizar", {
+        signal: AbortSignal.timeout(100000),
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: liveQuery, resultado: r }),
@@ -2078,6 +2088,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
     setRedactingIdx(idx);
     try {
       const res = await fetch("/api/derecho-comparado/redactar", {
+        signal: AbortSignal.timeout(100000),
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: rep.query, resultados: rep.resultados }),

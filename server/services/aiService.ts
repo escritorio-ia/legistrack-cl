@@ -39,6 +39,10 @@ export function getClaudeClient(): Anthropic | null {
     if (key && key !== "MY_ANTHROPIC_API_KEY") {
       aiClient = new Anthropic({
         apiKey: key,
+        // El SDK por defecto espera hasta 10 min y reintenta 2 veces: una sola
+        // llamada colgada dejaba la generación congelada indefinidamente.
+        timeout: 30000,
+        maxRetries: 0,
         defaultHeaders: {
           'User-Agent': 'aistudio-build',
         }
@@ -405,7 +409,19 @@ async function intentarClaude(prompt: string, maxTokens: number): Promise<Provid
   }
 }
 
+const LIMITE_TOTAL_IA_MS = 75000;
+
+// Tope de tiempo total de toda la cadena de proveedores: si alguno se cuelga,
+// se devuelve null (el llamador ya maneja "IA no disponible") en vez de dejar
+// la petición abierta hasta que expire la función o el navegador.
 export async function generarContenidoUniversalIA(prompt: string, maxTokens = 2000, attempts?: AIProviderAttempt[]): Promise<string | null> {
+  return Promise.race([
+    generarContenidoUniversalIAInterno(prompt, maxTokens, attempts),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), LIMITE_TOTAL_IA_MS))
+  ]);
+}
+
+async function generarContenidoUniversalIAInterno(prompt: string, maxTokens: number, attempts?: AIProviderAttempt[]): Promise<string | null> {
   // Gemini y OpenRouter (ambos de capa gratuita, con cuotas/demanda variables)
   // se corren en PARALELO en vez de en cascada: si uno se satura o se demora,
   // no hace esperar al otro -- el que responda primero con éxito gana. Antes,
