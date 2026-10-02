@@ -83,6 +83,27 @@ import { cache } from "../services/cacheService";
 
 export const apiRouter = Router();
 
+// Express 4 no captura las excepciones de handlers async: si safeJsonParse (u otra
+// cosa) lanza porque la IA respondió texto que no es JSON, la petición quedaba
+// abierta para siempre (el cliente veía el botón en "Generando..." indefinidamente).
+// Este envoltorio convierte cualquier excepción en un 500 JSON inmediato.
+for (const metodo of ["get", "post", "put", "delete", "patch"] as const) {
+  const original = (apiRouter as any)[metodo].bind(apiRouter);
+  (apiRouter as any)[metodo] = (ruta: any, ...handlers: any[]) =>
+    original(
+      ruta,
+      ...handlers.map((h) =>
+        typeof h === "function" && h.length < 4
+          ? (req: Request, res: Response, next: any) =>
+              Promise.resolve(h(req, res, next)).catch((err: any) => {
+                console.error(`[apiRouter] Error no controlado en ${metodo.toUpperCase()} ${req.path}:`, err?.message || err);
+                if (!res.headersSent) res.status(500).json({ error: err?.message || "Error interno del servidor" });
+              })
+          : h
+      )
+    );
+}
+
 const ALERTA_ITEMS: Alerta[] = [];
 const liveDiscoveredProyectos: Proyecto[] = [];
 

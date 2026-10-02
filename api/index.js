@@ -192237,6 +192237,18 @@ function getSernapescaCatalog() {
 
 // server/routes/apiRoutes.ts
 var apiRouter = Router();
+for (const metodo of ["get", "post", "put", "delete", "patch"]) {
+  const original = apiRouter[metodo].bind(apiRouter);
+  apiRouter[metodo] = (ruta, ...handlers) => original(
+    ruta,
+    ...handlers.map(
+      (h) => typeof h === "function" && h.length < 4 ? (req, res, next) => Promise.resolve(h(req, res, next)).catch((err) => {
+        console.error(`[apiRouter] Error no controlado en ${metodo.toUpperCase()} ${req.path}:`, err?.message || err);
+        if (!res.headersSent) res.status(500).json({ error: err?.message || "Error interno del servidor" });
+      }) : h
+    )
+  );
+}
 var ALERTA_ITEMS = [];
 var liveDiscoveredProyectos = [];
 apiRouter.get("/health", async (req, res) => {
