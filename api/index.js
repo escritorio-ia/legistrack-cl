@@ -193379,54 +193379,6 @@ No inventes disposiciones que no est\xE9n en el texto entregado bajo ninguna cir
   const puntosHeuristicos = extraerPuntosHeuristicos(query, resultado, textoFuente);
   res.json({ puntos: puntosHeuristicos, disponible: true });
 });
-apiRouter.post("/derecho-comparado/evolucion", async (req, res) => {
-  const { query, resultado } = req.body;
-  if (!query || !resultado || !resultado.titulo) {
-    return res.status(400).json({ error: "Se requiere 'query' y 'resultado'." });
-  }
-  const textoNormaCompleto = resultado.pais === "Chile" && resultado.url ? await fetchTextoNormaLeyChileCompleto(resultado.url) : null;
-  const textoFuente = textoNormaCompleto || (resultado.url ? await fetchTextoFuente(resultado.url) : null);
-  if (!textoFuente) {
-    return res.json({
-      objetivo: resultado.descripcion || `Norma de ${resultado.pais} sobre "${query}"; no fue posible acceder al texto oficial para un an\xE1lisis m\xE1s detallado.`,
-      modificaciones: "No fue posible acceder al texto oficial de esta norma para determinar si ha sido modificada.",
-      disponible: false
-    });
-  }
-  const prompt = `Eres un asesor t\xE9cnico de la Biblioteca del Congreso Nacional de Chile. A continuaci\xF3n se entrega el TEXTO REAL de la norma oficial "${resultado.titulo}" (${resultado.pais}), en relaci\xF3n a la materia "${query}".
-
-Texto de la fuente:
-"""
-${textoFuente}
-"""
-
-Responde \xDANICAMENTE con un objeto JSON v\xE1lido, compacto, sin texto adicional, con este esquema exacto:
-{"objetivo":"...","modificaciones":"..."}
-
-- "objetivo": 1-2 oraciones en prosa formal que resuman el objeto y \xE1mbito de esta norma, bas\xE1ndote exclusivamente en el texto entregado.
-- "modificaciones": bas\xE1ndote EXCLUSIVAMENTE en lo que el texto entregado diga expl\xEDcitamente de s\xED mismo, indica si esta norma modifica, deroga, sustituye o complementa otra norma anterior, y/o si el propio texto menciona que ha sido modificada por una norma posterior (cita el nombre/n\xFAmero de esa norma si aparece). Si el texto no contiene ninguna menci\xF3n expl\xEDcita de modificaciones, responde exactamente: "El texto disponible no menciona expl\xEDcitamente modificaciones a esta norma." No inventes leyes, n\xFAmeros ni fechas que no est\xE9n en el texto entregado.
-
-Redacta SIEMPRE ambos campos en espa\xF1ol, incluso si el texto de la fuente original est\xE1 en otro idioma -- traduce el contenido, no lo copies en el idioma original.`;
-  const textoIA = await generarContenidoUniversalIA(prompt, 900);
-  if (textoIA) {
-    try {
-      const parsed = safeJsonParse(textoIA);
-      if (parsed && parsed.objetivo) {
-        return res.json({
-          objetivo: parsed.objetivo,
-          modificaciones: parsed.modificaciones || "El texto disponible no menciona expl\xEDcitamente modificaciones a esta norma.",
-          disponible: true
-        });
-      }
-    } catch {
-    }
-  }
-  res.json({
-    objetivo: resultado.descripcion || `Norma de ${resultado.pais} sobre "${query}".`,
-    modificaciones: "No fue posible generar este an\xE1lisis con IA en este momento.",
-    disponible: false
-  });
-});
 apiRouter.post("/derecho-comparado/sintetizar-comparacion", async (req, res) => {
   const { query, items } = req.body;
   if (!query || !Array.isArray(items) || items.length < 2) {

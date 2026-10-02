@@ -1480,69 +1480,6 @@ No inventes disposiciones que no estén en el texto entregado bajo ninguna circu
   res.json({ puntos: puntosHeuristicos, disponible: true });
 });
 
-// Pestaña "Evolución Legal": para UNA norma seleccionada, extrae su objetivo
-// y si el texto real menciona explícitamente que la norma modificó, derogó o
-// fue modificada/derogada por otra. No existe una fuente estructurada de
-// "historial de modificaciones" para todos los países (ver investigación de
-// APIs de jurisprudencia/LeyChile) -- esto se limita a lo que el propio texto
-// de la norma diga de sí misma, de forma honesta cuando no hay esa mención.
-apiRouter.post("/derecho-comparado/evolucion", async (req: Request, res: Response) => {
-  const { query, resultado } = req.body as { query?: string; resultado?: ResultadoComparado };
-  if (!query || !resultado || !resultado.titulo) {
-    return res.status(400).json({ error: "Se requiere 'query' y 'resultado'." });
-  }
-
-  const textoNormaCompleto = resultado.pais === "Chile" && resultado.url
-    ? await fetchTextoNormaLeyChileCompleto(resultado.url)
-    : null;
-  const textoFuente = textoNormaCompleto || (resultado.url ? await fetchTextoFuente(resultado.url) : null);
-
-  if (!textoFuente) {
-    return res.json({
-      objetivo: resultado.descripcion || `Norma de ${resultado.pais} sobre "${query}"; no fue posible acceder al texto oficial para un análisis más detallado.`,
-      modificaciones: "No fue posible acceder al texto oficial de esta norma para determinar si ha sido modificada.",
-      disponible: false
-    });
-  }
-
-  const prompt = `Eres un asesor técnico de la Biblioteca del Congreso Nacional de Chile. A continuación se entrega el TEXTO REAL de la norma oficial "${resultado.titulo}" (${resultado.pais}), en relación a la materia "${query}".
-
-Texto de la fuente:
-"""
-${textoFuente}
-"""
-
-Responde ÚNICAMENTE con un objeto JSON válido, compacto, sin texto adicional, con este esquema exacto:
-{"objetivo":"...","modificaciones":"..."}
-
-- "objetivo": 1-2 oraciones en prosa formal que resuman el objeto y ámbito de esta norma, basándote exclusivamente en el texto entregado.
-- "modificaciones": basándote EXCLUSIVAMENTE en lo que el texto entregado diga explícitamente de sí mismo, indica si esta norma modifica, deroga, sustituye o complementa otra norma anterior, y/o si el propio texto menciona que ha sido modificada por una norma posterior (cita el nombre/número de esa norma si aparece). Si el texto no contiene ninguna mención explícita de modificaciones, responde exactamente: "El texto disponible no menciona explícitamente modificaciones a esta norma." No inventes leyes, números ni fechas que no estén en el texto entregado.
-
-Redacta SIEMPRE ambos campos en español, incluso si el texto de la fuente original está en otro idioma -- traduce el contenido, no lo copies en el idioma original.`;
-
-  const textoIA = await generarContenidoUniversalIA(prompt, 900);
-  if (textoIA) {
-    try {
-      const parsed = safeJsonParse<{ objetivo?: string; modificaciones?: string }>(textoIA);
-      if (parsed && parsed.objetivo) {
-        return res.json({
-          objetivo: parsed.objetivo,
-          modificaciones: parsed.modificaciones || "El texto disponible no menciona explícitamente modificaciones a esta norma.",
-          disponible: true
-        });
-      }
-    } catch {
-      // cae al respaldo heurístico abajo
-    }
-  }
-
-  res.json({
-    objetivo: resultado.descripcion || `Norma de ${resultado.pais} sobre "${query}".`,
-    modificaciones: "No fue posible generar este análisis con IA en este momento.",
-    disponible: false
-  });
-});
-
 // Redacta un análisis comparativo REAL entre las normas que el usuario
 // seleccionó para comparar, a partir de los puntos ya extraídos del texto
 // real de cada una (por /derecho-comparado/analizar) -- no de los títulos.
