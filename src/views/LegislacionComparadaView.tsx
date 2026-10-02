@@ -1895,27 +1895,33 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
         // reales ya extraídos (items), lo que además reduce la cantidad de
         // llamadas de IA necesarias para generar "Todo".
         let cuerpoCompletoIA: string | undefined;
-        try {
-          const res = await fetch("/api/derecho-comparado/informe-completo", {
-            signal: AbortSignal.timeout(100000),
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              query: liveQuery,
-              items: base.map((r) => ({
-                pais: r.pais,
-                titulo: r.titulo,
-                descripcion: r.descripcion,
-                puntos: detalleFinal[claveResultado(r)]?.puntos || []
-              }))
-            })
-          });
-          if (res.ok) {
-            const data: { informe: string | null } = await res.json();
-            cuerpoCompletoIA = data.informe || undefined;
+        // Hasta 2 intentos: los análisis por país recién hechos suelen agotar el
+        // cupo por minuto de los proveedores gratuitos, y el informe (la llamada
+        // más pesada) falla con 429; esperar ~25s deja que el cupo se renueve.
+        for (let intento = 1; intento <= 2 && !cuerpoCompletoIA; intento++) {
+          if (intento === 2) await new Promise((r) => setTimeout(r, 25000));
+          try {
+            const res = await fetch("/api/derecho-comparado/informe-completo", {
+              signal: AbortSignal.timeout(100000),
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                query: liveQuery,
+                items: base.map((r) => ({
+                  pais: r.pais,
+                  titulo: r.titulo,
+                  descripcion: r.descripcion,
+                  puntos: detalleFinal[claveResultado(r)]?.puntos || []
+                }))
+              })
+            });
+            if (res.ok) {
+              const data: { informe: string | null } = await res.json();
+              cuerpoCompletoIA = data.informe || undefined;
+            }
+          } catch {
+            // si falla, se reintenta una vez y luego se usa el ensamblado de respaldo
           }
-        } catch {
-          // si falla, el informe se genera igual con el ensamblado de respaldo
         }
 
         const md = buildInformeMarkdown(liveQuery, base, buildParrafoAutomatico(liveQuery, base), undefined, detalleFinal, undefined, cuerpoCompletoIA);

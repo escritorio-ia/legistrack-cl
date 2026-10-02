@@ -153,10 +153,7 @@ export async function generarConGemini(prompt: string, maxTokens = 2000): Promis
 const GROQ_MODELOS_CANDIDATOS = [
   "openai/gpt-oss-120b",
   "llama-3.3-70b-versatile",
-  "llama-3.1-8b-instant",
-  "llama3-70b-8192",
-  "llama3-8b-8192",
-  "gemma2-9b-it"
+  "llama-3.1-8b-instant"
 ];
 
 async function llamarGroqConModelo(prompt: string, maxTokens: number, apiKey: string, model: string): Promise<string> {
