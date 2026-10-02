@@ -228,10 +228,12 @@ export async function generarConOpenRouter(prompt: string, maxTokens = 1500): Pr
   const configuredModel = process.env.OPENROUTER_MODEL;
   const models = [
     configuredModel && !configuredModel.includes("claude-3.5-haiku") ? configuredModel : undefined,
-    "liquid/lfm-2.5-2.6b:free",
-    "nvidia/nemotron-3-ultra-550b-a55b:free",
+    // Orden por capacidad (verificados contra el catálogo público de OpenRouter);
+    // el modelo pequeño de 2.6B queda de último recurso.
+    "nvidia/nemotron-3-super-120b-a12b:free",
     "google/gemma-4-31b-it:free",
-    "google/gemma-4-26b-a4b-it:free"
+    "qwen/qwen3.8-27b:free",
+    "nvidia/nemotron-3-ultra-550b-a55b:free"
   ].filter((m): m is string => Boolean(m));
 
   let lastError = "";
