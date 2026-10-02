@@ -188236,58 +188236,6 @@ async function generarConCerebras(prompt, maxTokens = 2e3) {
   }
   throw lastErr;
 }
-var GITHUB_MODELS_CANDIDATOS = ["openai/gpt-4o-mini", "meta/llama-3.3-70b-instruct", "mistral-ai/mistral-small-2503"];
-async function llamarGithubModelsConModelo(prompt, maxTokens, token, model) {
-  const res = await fetch("https://models.github.ai/inference/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${token}`,
-      "Content-Type": "application/json",
-      // Sin este header GitHub puede responder con un simple "OK" de texto
-      // plano en vez del JSON esperado por el endpoint REST de inferencia.
-      "Accept": "application/vnd.github+json",
-      "X-GitHub-Api-Version": "2022-11-28"
-    },
-    body: JSON.stringify({
-      model,
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.15,
-      max_tokens: maxTokens
-    }),
-    signal: AbortSignal.timeout(15e3)
-  });
-  const bodyText = await res.text().catch(() => "");
-  if (!res.ok) {
-    throw new Error(`GitHub Models (${model}) HTTP ${res.status}: ${bodyText.slice(0, 150)}`);
-  }
-  let data;
-  try {
-    data = JSON.parse(bodyText);
-  } catch {
-    throw new Error(`GitHub Models (${model}) devolvi\xF3 una respuesta no-JSON (HTTP ${res.status}): ${bodyText.slice(0, 150)}`);
-  }
-  const text = data?.choices?.[0]?.message?.content;
-  if (!text) throw new Error("GitHub Models no devolvi\xF3 texto");
-  return String(text).trim();
-}
-async function generarConGithubModels(prompt, maxTokens = 2e3) {
-  const token = process.env.GITHUB_MODELS_TOKEN;
-  if (!token || token === "MY_GITHUB_MODELS_TOKEN") throw new Error("GITHUB_MODELS_TOKEN no configurada");
-  const modeloFijado = process.env.GITHUB_MODELS_MODEL;
-  if (modeloFijado) return llamarGithubModelsConModelo(prompt, maxTokens, token, modeloFijado);
-  let lastErr;
-  for (const model of GITHUB_MODELS_CANDIDATOS) {
-    try {
-      return await llamarGithubModelsConModelo(prompt, maxTokens, token, model);
-    } catch (e) {
-      lastErr = e;
-      if (!/model.*(not exist|does not exist|no access|invalid_request_error|decommissioned)|403/i.test(e.message)) {
-        throw e;
-      }
-    }
-  }
-  throw lastErr;
-}
 async function intentarGemini(prompt, maxTokens) {
   const configured = !!(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY");
   if (!configured) return { provider: "gemini", configured };
@@ -188321,17 +188269,6 @@ async function intentarCerebras(prompt, maxTokens) {
     return { provider: "cerebras", configured, error: e?.message || String(e) };
   }
 }
-async function intentarGithubModels(prompt, maxTokens) {
-  const configured = !!(process.env.GITHUB_MODELS_TOKEN && process.env.GITHUB_MODELS_TOKEN !== "MY_GITHUB_MODELS_TOKEN");
-  if (!configured) return { provider: "github_models", configured };
-  try {
-    const text = await generarConGithubModels(prompt, maxTokens);
-    return text ? { provider: "github_models", configured, text } : { provider: "github_models", configured, error: "respuesta vac\xEDa" };
-  } catch (e) {
-    console.log(`[GitHub Models Free Info]: ${e?.message || e}`);
-    return { provider: "github_models", configured, error: e?.message || String(e) };
-  }
-}
 async function intentarGroq(prompt, maxTokens) {
   const configured = !!(process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== "MY_GROQ_API_KEY");
   if (!configured) return { provider: "groq", configured };
@@ -188361,13 +188298,12 @@ async function intentarClaude(prompt, maxTokens) {
   }
 }
 async function generarContenidoUniversalIA(prompt, maxTokens = 2e3, attempts) {
-  const [geminiRes, openrouterRes, cerebrasRes, githubRes] = await Promise.all([
+  const [geminiRes, openrouterRes, cerebrasRes] = await Promise.all([
     intentarGemini(prompt, maxTokens),
     intentarOpenRouter(prompt, maxTokens),
-    intentarCerebras(prompt, maxTokens),
-    intentarGithubModels(prompt, maxTokens)
+    intentarCerebras(prompt, maxTokens)
   ]);
-  const primeraRonda = [geminiRes, openrouterRes, cerebrasRes, githubRes];
+  const primeraRonda = [geminiRes, openrouterRes, cerebrasRes];
   for (const r of primeraRonda) {
     attempts?.push({ provider: r.provider, configured: r.configured, error: r.error });
   }
@@ -188434,18 +188370,16 @@ function getAIProvidersStatus() {
     groq: Boolean(process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== "MY_GROQ_API_KEY"),
     openrouter: Boolean(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY !== "MY_OPENROUTER_API_KEY"),
     cerebras: Boolean(process.env.CEREBRAS_API_KEY && process.env.CEREBRAS_API_KEY !== "MY_CEREBRAS_API_KEY"),
-    githubModels: Boolean(process.env.GITHUB_MODELS_TOKEN && process.env.GITHUB_MODELS_TOKEN !== "MY_GITHUB_MODELS_TOKEN"),
     claude: Boolean(process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_API_KEY !== "MY_ANTHROPIC_API_KEY" && !isClaudeQuotaExceeded),
     claudeQuotaExceeded: isClaudeQuotaExceeded
   };
 }
 async function testearProveedoresIAReal() {
   const promptTrivial = 'Responde solo con: {"ok":true}';
-  const [gemini, openrouter, cerebras, githubModels, groq, claude] = await Promise.all([
+  const [gemini, openrouter, cerebras, groq, claude] = await Promise.all([
     intentarGemini(promptTrivial, 30),
     intentarOpenRouter(promptTrivial, 30),
     intentarCerebras(promptTrivial, 30),
-    intentarGithubModels(promptTrivial, 30),
     // Groq: se le da más presupuesto porque el modelo por defecto (gpt-oss, de
     // razonamiento) puede consumir tokens en pensar antes de responder.
     intentarGroq(promptTrivial, 200),
@@ -188456,7 +188390,6 @@ async function testearProveedoresIAReal() {
     gemini: toResult(gemini),
     openrouter: toResult(openrouter),
     cerebras: toResult(cerebras),
-    githubModels: toResult(githubModels),
     groq: toResult(groq),
     claude: toResult(claude)
   };
