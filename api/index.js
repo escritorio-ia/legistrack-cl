@@ -188146,7 +188146,7 @@ async function generarConGroq(prompt, maxTokens = 2e3) {
       return await llamarGroqConModelo(prompt, maxTokens, apiKey, model);
     } catch (e) {
       lastErr = e;
-      if (!/model.*(not exist|does not exist|no access|invalid_request_error|decommissioned)/i.test(e.message)) {
+      if (!/model.*(not exist|does not exist|no access|invalid_request_error|decommissioned)|HTTP 429/i.test(e.message)) {
         throw e;
       }
     }

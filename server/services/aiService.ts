@@ -207,9 +207,11 @@ export async function generarConGroq(prompt: string, maxTokens = 2000): Promise<
       return await llamarGroqConModelo(prompt, maxTokens, apiKey, model);
     } catch (e: any) {
       lastErr = e;
-      // Solo seguimos probando el siguiente modelo si el error es "modelo no
-      // encontrado/sin acceso"; otros errores (auth, rate limit) se propagan de inmediato.
-      if (!/model.*(not exist|does not exist|no access|invalid_request_error|decommissioned)/i.test(e.message)) {
+      // Se sigue con el siguiente modelo si el error es "modelo no encontrado/sin
+      // acceso" o un rate limit (429): Groq limita tokens/minuto POR MODELO, así
+      // que otro modelo de la lista suele tener cupo libre. Auth y otros errores
+      // se propagan de inmediato.
+      if (!/model.*(not exist|does not exist|no access|invalid_request_error|decommissioned)|HTTP 429/i.test(e.message)) {
         throw e;
       }
     }
