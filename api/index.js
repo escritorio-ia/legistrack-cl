@@ -193314,11 +193314,12 @@ ${bloque}
 """
 
 Responde \xDANICAMENTE con el informe en Markdown (usando "##" para cada secci\xF3n en el orden indicado), sin texto adicional antes o despu\xE9s.`;
-  const texto = await generarContenidoUniversalIA(prompt, 4500);
+  const attempts = [];
+  const texto = await generarContenidoUniversalIA(prompt, 4500, attempts);
   if (texto) {
     return res.json({ informe: texto.trim() });
   }
-  res.json({ informe: null });
+  res.json({ informe: null, aiDiagnostics: attempts });
 });
 apiRouter.post("/derecho-comparado/analizar", async (req, res) => {
   const { query, resultado } = req.body;

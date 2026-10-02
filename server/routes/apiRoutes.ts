@@ -1385,12 +1385,13 @@ ${bloque}
 
 Responde ÚNICAMENTE con el informe en Markdown (usando "##" para cada sección en el orden indicado), sin texto adicional antes o después.`;
 
-  const texto = await generarContenidoUniversalIA(prompt, 4500);
+  const attempts: AIProviderAttempt[] = [];
+  const texto = await generarContenidoUniversalIA(prompt, 4500, attempts);
   if (texto) {
     return res.json({ informe: texto.trim() });
   }
 
-  res.json({ informe: null });
+  res.json({ informe: null, aiDiagnostics: attempts });
 });
 
 apiRouter.post("/derecho-comparado/analizar", async (req: Request, res: Response) => {
