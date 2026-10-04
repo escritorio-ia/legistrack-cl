@@ -1632,66 +1632,6 @@ Reglas estrictas:
   res.json({ dimensiones: [] });
 });
 
-// Pestaña "Relaciones": mapa de conceptos reales (no genéricos) que conecta
-// las jurisdicciones seleccionadas con los mecanismos, órganos y funciones
-// jurídicas que efectivamente aparecen en sus disposiciones reales ya
-// extraídas -- para la visualización de red en el frontend.
-apiRouter.post("/derecho-comparado/relaciones", async (req: Request, res: Response) => {
-  const { query, items } = req.body as {
-    query?: string;
-    items?: Array<{ pais: string; puntos?: string[]; descripcion?: string }>;
-  };
-  if (!query || !Array.isArray(items) || items.length < 2) {
-    return res.status(400).json({ error: "Se requiere 'query' y al menos 2 'items'." });
-  }
-
-  const conPuntos = items.filter((it) => (it.puntos && it.puntos.length > 0) || it.descripcion);
-  if (conPuntos.length < 2) {
-    return res.json({ nodos: [], enlaces: [] });
-  }
-
-  const bloque = conPuntos
-    .map((it) => `[${it.pais}]\nDescripción: ${it.descripcion || "(sin descripción)"}\nDisposiciones:\n${(it.puntos || []).map((p) => `  - ${p}`).join("\n")}`)
-    .join("\n\n");
-
-  const prompt = `Actúa como un analista de Asesoría Técnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile, construyendo un MAPA DE RELACIONES CONCEPTUALES sobre "${query}" a partir de las disposiciones REALES ya extraídas de estas jurisdicciones:
-
-${bloque}
-
-Identifica los conceptos, mecanismos, órganos y funciones jurídicas REALES que aparecen en esas disposiciones (por ejemplo: un órgano fiscalizador mencionado, un mecanismo de registro, una obligación específica, un principio jurídico) y cómo se conectan con cada jurisdicción y entre sí.
-
-Responde ÚNICAMENTE con un objeto JSON válido, compacto, sin texto adicional, con este esquema exacto:
-{"nodos":[{"id":"identificador_corto_snake_case","etiqueta":"Texto visible del nodo","categoria":"jurisdiccion|macrotema|hub_regulatorio|dimension_estructural|funcion_juridica","descripcion":"1 oración (máx. 25 palabras) que explique qué es este nodo y de dónde sale, basada solo en el texto entregado"}],"enlaces":[{"origen":"id_nodo_1","destino":"id_nodo_2"}]}
-
-Reglas estrictas:
-- Incluye un nodo "categoria":"macrotema" con id "tema_central", etiqueta "${query}" y "descripcion" que resuma en 1 oración de qué trata la materia comparada.
-- Incluye un nodo "categoria":"jurisdiccion" por cada país/jurisdicción entregado arriba (etiqueta = nombre del país), con "descripcion" que resuma en 1 oración su enfoque regulatorio real según lo entregado.
-- Incluye entre 6 y 20 nodos adicionales (más si hay más jurisdicciones) de categoría "hub_regulatorio" (órganos, autoridades, registros), "dimension_estructural" (ejes temáticos comparables) o "funcion_juridica" (obligaciones, principios, mecanismos) -- SOLO conceptos que efectivamente aparezcan en las disposiciones o descripciones entregadas arriba, nunca inventados. Cada uno con su "descripcion" explicando qué es y en qué país(es) aparece.
-- Cada nodo de jurisdicción debe tener al menos un enlace hacia "tema_central" y hacia los conceptos que efectivamente regula según sus disposiciones reales.
-- No inventes órganos, mecanismos ni conceptos que no estén respaldados por el texto entregado.`;
-
-  // Con hasta 8 jurisdicciones (antes 4) hay mas nodos y enlaces reales que
-  // extraer, asi que se sube el presupuesto de salida para no truncar el
-  // JSON del grafo a mitad de un nodo.
-  const texto = await generarContenidoUniversalIA(prompt, 4000);
-  if (texto) {
-    const parsed = safeJsonParse<{
-      nodos?: Array<{ id?: string; etiqueta?: string; categoria?: string; descripcion?: string }>;
-      enlaces?: Array<{ origen?: string; destino?: string }>;
-    }>(texto);
-    if (parsed && Array.isArray(parsed.nodos) && parsed.nodos.length > 0) {
-      const nodos = parsed.nodos.filter((n) => n.id && n.etiqueta && n.categoria);
-      const idsValidos = new Set(nodos.map((n) => n.id));
-      const enlaces = (parsed.enlaces || []).filter((e) => e.origen && e.destino && idsValidos.has(e.origen) && idsValidos.has(e.destino));
-      if (nodos.length > 0) {
-        return res.json({ nodos, enlaces });
-      }
-    }
-  }
-
-  res.json({ nodos: [], enlaces: [] });
-});
-
 apiRouter.get("/leychile/buscar", async (req: Request, res: Response) => {
   const q = req.query.q ? String(req.query.q).trim() : "";
   if (!q) {

@@ -1253,126 +1253,6 @@ function generarMatrizDinamica(
   };
 }
 
-const CATEGORIA_COLOR: Record<string, string> = {
-  jurisdiccion: "#ec4899",
-  macrotema: "#0ea5e9",
-  hub_regulatorio: "#f97316",
-  dimension_estructural: "#84cc16",
-  funcion_juridica: "#a855f7",
-  forma_regulatoria: "#64748b"
-};
-
-const CATEGORIA_LABEL: Record<string, string> = {
-  jurisdiccion: "Jurisdicción",
-  macrotema: "Macrotema",
-  hub_regulatorio: "Hub regulatorio",
-  dimension_estructural: "Dimensión estructural",
-  funcion_juridica: "Función jurídica",
-  forma_regulatoria: "Forma regulatoria"
-};
-
-// Layout radial fijo (sin simulación de físicas): el macrotema va al centro,
-// las jurisdicciones (países) en el anillo exterior, y el resto de los
-// conceptos reales (órganos, mecanismos, funciones jurídicas) en un anillo
-// intermedio -- suficiente para visualizar las conexiones reales extraídas
-// sin depender de una librería de grafos adicional.
-function renderRelacionesGrafo(
-  nodos: Array<{ id: string; etiqueta: string; categoria: string; descripcion?: string }>,
-  enlaces: Array<{ origen: string; destino: string }>,
-  query: string
-) {
-  const W = 800, H = 560;
-  const cx = W / 2, cy = H / 2;
-  const central = nodos.find((n) => n.categoria === "macrotema") || { id: "tema_central", etiqueta: query, categoria: "macrotema" };
-  const jurisdicciones = nodos.filter((n) => n.categoria === "jurisdiccion");
-  const conceptos = nodos.filter((n) => n.categoria !== "macrotema" && n.categoria !== "jurisdiccion");
-
-  const posiciones: Record<string, { x: number; y: number }> = { [central.id]: { x: cx, y: cy } };
-  const radioJurisdicciones = 230;
-  jurisdicciones.forEach((n, i) => {
-    const angulo = (i / Math.max(jurisdicciones.length, 1)) * 2 * Math.PI - Math.PI / 2;
-    posiciones[n.id] = { x: cx + radioJurisdicciones * Math.cos(angulo), y: cy + radioJurisdicciones * Math.sin(angulo) * 0.78 };
-  });
-  const radioConceptos = 125;
-  conceptos.forEach((n, i) => {
-    const angulo = (i / Math.max(conceptos.length, 1)) * 2 * Math.PI + Math.PI / 6;
-    posiciones[n.id] = { x: cx + radioConceptos * Math.cos(angulo), y: cy + radioConceptos * Math.sin(angulo) * 0.78 };
-  });
-
-  const categoriasPresentes = Array.from(new Set(nodos.map((n) => n.categoria)));
-
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="overflow-x-auto bg-slate-50 rounded-xl border border-slate-100">
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ minWidth: 640 }}>
-          {enlaces.map((e, i) => {
-            const a = posiciones[e.origen];
-            const b = posiciones[e.destino];
-            if (!a || !b) return null;
-            const origenNodo = nodos.find((n) => n.id === e.origen);
-            const color = CATEGORIA_COLOR[origenNodo?.categoria || ""] || "#94a3b8";
-            return <line key={i} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={color} strokeOpacity={0.35} strokeWidth={1.5} />;
-          })}
-          {nodos.map((n) => {
-            const p = posiciones[n.id];
-            if (!p) return null;
-            const color = CATEGORIA_COLOR[n.categoria] || "#94a3b8";
-            const esCentral = n.id === central.id;
-            const r = esCentral ? 34 : n.categoria === "jurisdiccion" ? 22 : 16;
-            return (
-              <g key={n.id}>
-                <circle cx={p.x} cy={p.y} r={r} fill={color} fillOpacity={esCentral ? 0.9 : 0.75} stroke="white" strokeWidth={2} />
-                <text
-                  x={p.x}
-                  y={p.y + r + 12}
-                  textAnchor="middle"
-                  fontSize={esCentral ? 12 : 10}
-                  fontWeight={esCentral || n.categoria === "jurisdiccion" ? 700 : 500}
-                  fill="#334155"
-                >
-                  {n.etiqueta.length > 26 ? `${n.etiqueta.slice(0, 24)}…` : n.etiqueta}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
-      </div>
-      <div className="flex flex-wrap gap-x-4 gap-y-1.5 justify-center border-t border-slate-100 pt-3">
-        {categoriasPresentes.map((cat) => (
-          <div key={cat} className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500">
-            <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: CATEGORIA_COLOR[cat] || "#94a3b8" }} />
-            {CATEGORIA_LABEL[cat] || cat}
-          </div>
-        ))}
-      </div>
-      <p className="text-[10px] text-slate-400 text-center">
-        Conceptos extraídos de las disposiciones reales ya analizadas de cada norma seleccionada -- no es un mapa genérico.
-      </p>
-
-      {/* Explicación de cada nodo del grafo, agrupada por categoría -- el
-          grafo por sí solo (colores + líneas) no dice QUÉ es cada concepto
-          ni por qué se conecta como lo hace. */}
-      <div className="grid sm:grid-cols-2 gap-3 border-t border-slate-100 pt-4">
-        {categoriasPresentes.map((cat) => (
-          <div key={cat} className="flex flex-col gap-1.5">
-            <h5 className="text-[10px] font-extrabold uppercase tracking-wide flex items-center gap-1.5" style={{ color: CATEGORIA_COLOR[cat] || "#64748b" }}>
-              <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: CATEGORIA_COLOR[cat] || "#94a3b8" }} />
-              {CATEGORIA_LABEL[cat] || cat}
-            </h5>
-            <ul className="flex flex-col gap-1.5">
-              {nodos.filter((n) => n.categoria === cat).map((n) => (
-                <li key={n.id} className="text-[11px] text-slate-600 leading-snug">
-                  <span className="font-bold text-slate-800">{n.etiqueta}:</span> {n.descripcion || "Sin descripción disponible."}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 interface LegislacionComparadaViewProps {
   // Navega al detalle de un proyecto de ley por su Boletín -- permite vincular
   // un informe de Derecho Comparado directamente al proyecto chileno relacionado.
@@ -1438,7 +1318,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
   // "documento": Informe oficial BCN (Estructura formal)
   // "comparador": Comparador lado a lado / matriz dinámica de leyes seleccionadas
   // "guardados": Informes guardados
-  const [activeTab, setActiveTab] = useState<"live" | "documento" | "comparador" | "relaciones" | "guardados">("live");
+  const [activeTab, setActiveTab] = useState<"live" | "documento" | "comparador" | "guardados">("live");
   const [vistaComparador, setVistaComparador] = useState<"matriz" | "fichas">("matriz");
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -1469,8 +1349,8 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
   const [comparacionDetalle, setComparacionDetalle] = useState<Record<string, LeySeleccionada>>({});
   const [comparando, setComparando] = useState(false);
   // Estado del botón "Comparar y Generar Informe", que ahora dispara TODO de
-  // una vez (matriz, informe, análisis comparado, relaciones
-  // legal) -- distinto de "comparando" (solo cubre la extracción de puntos +
+  // una vez (matriz, informe, análisis comparado)
+  // -- distinto de "comparando" (solo cubre la extracción de puntos +
   // matriz) porque el resto de las piezas sigue generándose después de que
   // "comparando" ya volvió a false.
   const [generandoTodo, setGenerandoTodo] = useState(false);
@@ -1494,12 +1374,6 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
   const [matrizTematica, setMatrizTematica] = useState<Array<{ dimension: string; valores: Record<string, string>; lecturaJuridica: string }>>([]);
   const [matrizTematicaKey, setMatrizTematicaKey] = useState<string>("");
 
-  // Pestaña "Relaciones": mapa de conceptos reales (órganos, mecanismos,
-  // funciones jurídicas) que efectivamente aparecen en las disposiciones de
-  // las normas seleccionadas, y cómo se conectan entre países.
-  const [relaciones, setRelaciones] = useState<{ nodos: Array<{ id: string; etiqueta: string; categoria: string; descripcion?: string }>; enlaces: Array<{ origen: string; destino: string }> }>({ nodos: [], enlaces: [] });
-  const [relacionesKey, setRelacionesKey] = useState<string>("");
-  const [relacionesLoading, setRelacionesLoading] = useState(false);
 
 
   // Search history
@@ -1632,7 +1506,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
   // selección activa), lo devuelve a "Búsqueda en Vivo" en vez de dejarlo en
   // una pestaña cuyo botón ya no está visible.
   useEffect(() => {
-    if (seleccionComparar.length === 0 && (activeTab === "documento" || activeTab === "comparador" || activeTab === "relaciones")) {
+    if (seleccionComparar.length === 0 && (activeTab === "documento" || activeTab === "comparador")) {
       setActiveTab("live");
     }
   }, [seleccionComparar, activeTab]);
@@ -1723,11 +1597,8 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
     if (seleccionComparar.length < 2) return;
     setComparando(true);
     // OJO: no cambiar activeTab acá -- handleComparar se usa como helper
-    // desde handleGenerarAnalisisComparado, handleCompararYGenerarInforme y
-    // handleGenerarRelaciones, cada uno con su propio destino de pestaña (o
-    // ninguno). Antes forzaba la pestaña "comparador" (Matriz) sin condición,
-    // así que al abrir "Relaciones" sin análisis previo, terminaba
-    // devolviendo al usuario a la Matriz en vez de quedarse en Relaciones.
+    // desde handleGenerarAnalisisComparado y handleCompararYGenerarInforme,
+    // cada uno con su propio destino de pestaña.
     try {
       const entradas = await Promise.all(
         seleccionComparar.map(async (r) => {
@@ -1808,59 +1679,6 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
     }
   };
 
-  // Pestaña "Relaciones": se genera bajo demanda (al entrar a la pestaña),
-  // no automáticamente con cada comparación, porque es una llamada de IA
-  // adicional y no todos los usuarios la van a abrir.
-  const handleGenerarRelaciones = async (detallePrecalculado?: Record<string, LeySeleccionada>) => {
-    if (seleccionComparar.length < 2) return;
-    const key = seleccionComparar.map(claveResultado).sort().join("||");
-    if (relacionesKey === key) return;
-    setRelacionesLoading(true);
-    try {
-      let detalleActual = detallePrecalculado || comparacionDetalle;
-      const faltaAnalisis = !detallePrecalculado && seleccionComparar.some((r) => !detalleActual[claveResultado(r)]?.disponible);
-      if (faltaAnalisis) {
-        detalleActual = (await handleComparar()) || detalleActual;
-      }
-      const items = seleccionComparar.map((r) => ({
-        pais: r.pais,
-        descripcion: r.descripcion,
-        puntos: detalleActual[claveResultado(r)]?.puntos || []
-      }));
-      const tieneDatosReales = items.filter((it) => it.puntos.length > 0).length >= 2;
-
-      const pedirRelaciones = async () => {
-        const res = await fetch("/api/derecho-comparado/relaciones", {
-          signal: AbortSignal.timeout(100000),
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query: liveQuery, items })
-        });
-        if (!res.ok) return null;
-        return (await res.json()) as { nodos: Array<{ id: string; etiqueta: string; categoria: string; descripcion?: string }>; enlaces: Array<{ origen: string; destino: string }> };
-      };
-
-      let data = await pedirRelaciones();
-      // Cuando se genera junto con el Informe en la
-      // misma corrida ("Comparar y Generar Todo"), la cuota gratuita de IA
-      // ya viene exigida por las llamadas anteriores y esta puede volver
-      // vacía ({nodos:[],enlaces:[]}) aunque sí haya datos reales -- se
-      // reintenta una vez tras una breve espera antes de rendirse.
-      if (data && data.nodos.length === 0 && tieneDatosReales) {
-        await new Promise((r) => setTimeout(r, 4000));
-        data = await pedirRelaciones();
-      }
-      if (data && data.nodos.length > 0) {
-        setRelaciones(data);
-        setRelacionesKey(key);
-      }
-    } catch {
-      // si falla, la pestaña muestra el estado honesto de "no disponible"
-    } finally {
-      setRelacionesLoading(false);
-    }
-  };
-
   // Combina en un solo clic lo que antes eran tres pasos separados: extraer
   // los puntos reales de cada norma seleccionada (handleComparar), generar
   // el análisis comparativo real en prosa a partir de esos puntos
@@ -1925,23 +1743,13 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
         setInformeLiveQuery(liveQuery);
       };
 
-      // Al seleccionar países y pedir la comparación, se genera TODO de una
-      // vez (Informe y Relaciones) -- antes cada pestaña
-      // había que abrirla y generarla por separado a mano. Se hace en
-      // SECUENCIA, no en paralelo: lanzar las ~8-9 llamadas de IA que
-      // implican Informe+Relaciones todas a la vez satura la
-      // cuota gratuita de los proveedores (mismo problema detectado antes
-      // con los lotes de países) y Relaciones fallaba en silencio, quedando
-      // vacía aunque los datos reales sí estaban disponibles. Es más lento,
-      // pero cada pestaña queda confiablemente generada al terminar.
-      // Cada etapa falla de forma aislada (timeout/red): una etapa colgada no
-      // debe cancelar las siguientes ni dejar el botón en "Generando...".
+      // Al seleccionar países y pedir la comparación, se genera Matriz e
+      // Informe de una vez. Cada etapa falla de forma aislada (timeout/red):
+      // una etapa colgada no debe dejar el botón en "Generando...".
       await generarAnalisisYRedaccion().catch(() => {});
-      await handleGenerarRelaciones(detalleFinal).catch(() => {});
 
-      // El Informe Técnico y Relaciones quedan listos para
-      // cuando el usuario abra esas pestañas, pero lo primero que debe VER
-      // al comparar es la Matriz.
+      // El Informe Técnico queda listo para cuando el usuario abra esa
+      // pestaña, pero lo primero que debe VER al comparar es la Matriz.
       setActiveTab("comparador");
     } finally {
       setGenerandoTodo(false);
@@ -2318,18 +2126,6 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
           <SlidersHorizontal className="w-4 h-4" />
           <span>Matriz ({seleccionComparar.length})</span>
         </button>
-
-        <button
-          onClick={() => { setActiveTab("relaciones"); handleGenerarRelaciones(); }}
-          className={`text-xs font-bold px-4 py-2.5 rounded-xl transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
-            activeTab === "relaciones"
-              ? "bg-blue-700 text-white shadow-xs"
-              : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
-          }`}
-        >
-          <Share2 className="w-4 h-4" />
-          <span>Relaciones</span>
-        </button>
         </>
         )}
 
@@ -2559,11 +2355,11 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
                 <button
                   onClick={handleCompararYGenerarInforme}
                   disabled={seleccionComparar.length < 2 || generandoTodo}
-                  title="Genera de una vez la Matriz, el Informe Técnico y el Mapa de Relaciones"
+                  title="Genera de una vez la Matriz comparada y el Informe Técnico"
                   className="bg-white hover:bg-blue-50 text-blue-900 font-bold px-4 py-2 rounded-xl text-xs transition-colors flex items-center gap-2 cursor-pointer shadow-xs disabled:opacity-50"
                 >
                   <SlidersHorizontal className="w-3.5 h-3.5 text-blue-700" />
-                  <span>{generandoTodo ? "Generando Matriz, Informe y Relaciones..." : "Comparar y Generar Todo"}</span>
+                  <span>{generandoTodo ? "Generando Matriz e Informe..." : "Comparar y Generar Todo"}</span>
                 </button>
               </div>
             </div>
@@ -3300,53 +3096,6 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
                 );
               })}
             </div>
-          )}
-        </div>
-      )}
-
-      {activeTab === "relaciones" && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col gap-5 animate-fade-in">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
-            <div>
-              <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-                <Share2 className="w-5 h-5 text-blue-700" />
-                Mapa de Relaciones Conceptuales
-              </h3>
-              <p className="text-xs text-slate-500 mt-1 max-w-xl">
-                Órganos, mecanismos y funciones jurídicas reales que aparecen en las disposiciones de las normas seleccionadas, y cómo se conectan entre países ({seleccionComparar.length} seleccionadas).
-              </p>
-            </div>
-            <button
-              onClick={() => { setRelacionesKey(""); handleGenerarRelaciones(); }}
-              disabled={relacionesLoading || seleccionComparar.length < 2}
-              className="bg-blue-700 hover:bg-blue-800 disabled:bg-slate-300 text-white font-bold text-xs px-4 py-2.5 rounded-xl cursor-pointer shadow-xs flex items-center gap-2 shrink-0"
-            >
-              {relacionesLoading ? (
-                <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Analizando texto real...</>
-              ) : (
-                <><Share2 className="w-3.5 h-3.5" /> {relaciones.nodos.length > 0 ? "Regenerar" : "Generar Mapa de Relaciones"}</>
-              )}
-            </button>
-          </div>
-
-          {seleccionComparar.length < 2 ? (
-            <div className="p-10 text-center flex flex-col items-center justify-center gap-3">
-              <Share2 className="w-8 h-8 text-slate-300" />
-              <h4 className="text-sm font-bold text-slate-800">Selecciona al menos 2 normativas</h4>
-              <p className="text-xs text-slate-500 max-w-md">
-                Vuelva a "Búsqueda en Vivo Internacional" y marque las casillas "Comparar" (mínimo 2 países).
-              </p>
-            </div>
-          ) : relacionesLoading ? (
-            <div className="p-10 text-center text-xs text-slate-400 font-bold">
-              Extrayendo conceptos reales del texto de cada norma y sus relaciones...
-            </div>
-          ) : relaciones.nodos.length === 0 ? (
-            <div className="p-10 text-center text-xs text-slate-400 font-bold">
-              Haz clic en "Generar Mapa de Relaciones" para construirlo a partir del texto real de cada norma.
-            </div>
-          ) : (
-            renderRelacionesGrafo(relaciones.nodos, relaciones.enlaces, liveQuery)
           )}
         </div>
       )}

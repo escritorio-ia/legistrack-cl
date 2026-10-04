@@ -193475,48 +193475,6 @@ Reglas estrictas:
   }
   res.json({ dimensiones: [] });
 });
-apiRouter.post("/derecho-comparado/relaciones", async (req, res) => {
-  const { query, items } = req.body;
-  if (!query || !Array.isArray(items) || items.length < 2) {
-    return res.status(400).json({ error: "Se requiere 'query' y al menos 2 'items'." });
-  }
-  const conPuntos = items.filter((it) => it.puntos && it.puntos.length > 0 || it.descripcion);
-  if (conPuntos.length < 2) {
-    return res.json({ nodos: [], enlaces: [] });
-  }
-  const bloque = conPuntos.map((it) => `[${it.pais}]
-Descripci\xF3n: ${it.descripcion || "(sin descripci\xF3n)"}
-Disposiciones:
-${(it.puntos || []).map((p) => `  - ${p}`).join("\n")}`).join("\n\n");
-  const prompt = `Act\xFAa como un analista de Asesor\xEDa T\xE9cnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile, construyendo un MAPA DE RELACIONES CONCEPTUALES sobre "${query}" a partir de las disposiciones REALES ya extra\xEDdas de estas jurisdicciones:
-
-${bloque}
-
-Identifica los conceptos, mecanismos, \xF3rganos y funciones jur\xEDdicas REALES que aparecen en esas disposiciones (por ejemplo: un \xF3rgano fiscalizador mencionado, un mecanismo de registro, una obligaci\xF3n espec\xEDfica, un principio jur\xEDdico) y c\xF3mo se conectan con cada jurisdicci\xF3n y entre s\xED.
-
-Responde \xDANICAMENTE con un objeto JSON v\xE1lido, compacto, sin texto adicional, con este esquema exacto:
-{"nodos":[{"id":"identificador_corto_snake_case","etiqueta":"Texto visible del nodo","categoria":"jurisdiccion|macrotema|hub_regulatorio|dimension_estructural|funcion_juridica","descripcion":"1 oraci\xF3n (m\xE1x. 25 palabras) que explique qu\xE9 es este nodo y de d\xF3nde sale, basada solo en el texto entregado"}],"enlaces":[{"origen":"id_nodo_1","destino":"id_nodo_2"}]}
-
-Reglas estrictas:
-- Incluye un nodo "categoria":"macrotema" con id "tema_central", etiqueta "${query}" y "descripcion" que resuma en 1 oraci\xF3n de qu\xE9 trata la materia comparada.
-- Incluye un nodo "categoria":"jurisdiccion" por cada pa\xEDs/jurisdicci\xF3n entregado arriba (etiqueta = nombre del pa\xEDs), con "descripcion" que resuma en 1 oraci\xF3n su enfoque regulatorio real seg\xFAn lo entregado.
-- Incluye entre 6 y 20 nodos adicionales (m\xE1s si hay m\xE1s jurisdicciones) de categor\xEDa "hub_regulatorio" (\xF3rganos, autoridades, registros), "dimension_estructural" (ejes tem\xE1ticos comparables) o "funcion_juridica" (obligaciones, principios, mecanismos) -- SOLO conceptos que efectivamente aparezcan en las disposiciones o descripciones entregadas arriba, nunca inventados. Cada uno con su "descripcion" explicando qu\xE9 es y en qu\xE9 pa\xEDs(es) aparece.
-- Cada nodo de jurisdicci\xF3n debe tener al menos un enlace hacia "tema_central" y hacia los conceptos que efectivamente regula seg\xFAn sus disposiciones reales.
-- No inventes \xF3rganos, mecanismos ni conceptos que no est\xE9n respaldados por el texto entregado.`;
-  const texto = await generarContenidoUniversalIA(prompt, 4e3);
-  if (texto) {
-    const parsed = safeJsonParse(texto);
-    if (parsed && Array.isArray(parsed.nodos) && parsed.nodos.length > 0) {
-      const nodos = parsed.nodos.filter((n) => n.id && n.etiqueta && n.categoria);
-      const idsValidos = new Set(nodos.map((n) => n.id));
-      const enlaces = (parsed.enlaces || []).filter((e) => e.origen && e.destino && idsValidos.has(e.origen) && idsValidos.has(e.destino));
-      if (nodos.length > 0) {
-        return res.json({ nodos, enlaces });
-      }
-    }
-  }
-  res.json({ nodos: [], enlaces: [] });
-});
 apiRouter.get("/leychile/buscar", async (req, res) => {
   const q = req.query.q ? String(req.query.q).trim() : "";
   if (!q) {
