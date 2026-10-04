@@ -804,7 +804,7 @@ export async function fetchTextoFuente(url: string): Promise<string | null> {
       .replace(/&nbsp;/gi, " ")
       .replace(/\s+/g, " ")
       .trim();
-    return texto.length > 200 ? texto.slice(0, 6000) : null;
+    return texto.length > 200 ? texto.slice(0, 10000) : null;
   } catch {
     return null;
   }

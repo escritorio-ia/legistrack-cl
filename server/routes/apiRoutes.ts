@@ -77,6 +77,7 @@ import {
   getAIProvidersStatus,
   testearProveedoresIAReal,
   safeJsonParse,
+  rescatarObjetosJson,
   AIProviderAttempt
 } from "../services/aiService";
 import { cache } from "../services/cacheService";
@@ -1442,7 +1443,7 @@ Primero evalúa si el texto entregado corresponde efectivamente al CUERPO de la 
 Responde ÚNICAMENTE con un objeto JSON válido, compacto, sin texto adicional, con uno de estos dos esquemas:
 
 - Si el texto SÍ contiene disposiciones sustantivas: {"disponible":true,"puntos":["- Artículo 8: Registro de mascotas: Establece la obligación de inscribir a los animales en un registro municipal dentro de los 30 días siguientes a su adquisición.", "..."]}
-  Identifica entre 4 y 8 artículos, secciones o disposiciones sustantivos EN RELACIÓN A LA MATERIA CONSULTADA, basándote EXCLUSIVAMENTE en el texto entregado, cada uno identificando el artículo o sección (número o nombre tal como aparece en el texto) seguido de una explicación breve en prosa de qué prohíbe, permite, obliga o establece. Para al menos 2 de esos puntos, incluye una cita textual breve (máx. 30 palabras) entre comillas del pasaje exacto del texto -- no la parafrasees, cópiala literal.
+  Identifica entre 8 y 12 artículos, secciones o disposiciones sustantivos EN RELACIÓN A LA MATERIA CONSULTADA, basándote EXCLUSIVAMENTE en el texto entregado. Procura cubrir, cuando el texto lo permita, ejes distintos: objeto y ámbito de aplicación, definiciones clave, sujetos obligados y destinatarios, derechos o garantías, obligaciones y deberes, autoridad u organismo competente, fiscalización, infracciones y sanciones, procedimientos y plazos, y entrada en vigencia o normas transitorias. Cada punto identifica el artículo o sección (número o nombre tal como aparece en el texto) seguido de una explicación de 1 a 3 oraciones en prosa de qué prohíbe, permite, obliga o establece, incluyendo cifras, plazos, montos y nombres de organismos EXACTAMENTE como aparecen. Para al menos 4 de esos puntos, incluye una cita textual breve (máx. 30 palabras) entre comillas del pasaje exacto del texto -- no la parafrasees, cópiala literal.
 - Si el texto NO contiene disposiciones sustantivas (es una página de archivo/índice/buscador/menú): {"disponible":false,"motivo":"Explicación breve de qué es efectivamente el texto obtenido (ej. página de índice del archivo oficial) y que no permite identificar disposiciones sobre la materia consultada."}
 
 Redacta SIEMPRE en español, incluso si el texto de la fuente original está en otro idioma (portugués, inglés, alemán, francés, etc.): traduce tu explicación de cada disposición al español. Las citas textuales entre comillas puedes mantenerlas en el idioma original del texto, agregando inmediatamente después su traducción al español entre paréntesis.
@@ -1453,7 +1454,7 @@ No inventes disposiciones que no estén en el texto entregado bajo ninguna circu
     // que ahora se pide (antes 600, ya se había subido una vez por el mismo
     // problema con modelos de razonamiento que gastan presupuesto "pensando"
     // antes de responder -- ver nota en generarConGroq/aiService.ts).
-    const textoIA = await generarContenidoUniversalIA(prompt, 2000);
+    const textoIA = await generarContenidoUniversalIA(prompt, 3500);
     if (textoIA) {
       const parsed = safeJsonParse<{ disponible?: boolean; puntos?: string[]; motivo?: string }>(textoIA);
       if (parsed && parsed.disponible === false) {
@@ -1602,10 +1603,16 @@ apiRouter.post("/derecho-comparado/matriz-tematica", async (req: Request, res: R
 
 ${bloque}
 
-Identifica entre 4 y 6 DIMENSIONES JURÍDICAS SUSTANTIVAS que sean genuinamente comparables entre estas jurisdicciones para esta materia específica (por ejemplo, si la materia fuera acceso a información pública, dimensiones típicas serían "Titularidad", "Plazo y silencio", "Reserva y límites", "Órgano garante", "Transparencia activa"; para otra materia las dimensiones deben ser las que correspondan sustantivamente a ESA materia, no una lista genérica fija).
+Identifica entre 8 y 10 DIMENSIONES JURÍDICAS SUSTANTIVAS que sean genuinamente comparables entre estas jurisdicciones para esta materia específica. Ejes típicos que puedes adaptar a la materia (usa solo los que tengan respaldo en las disposiciones entregadas, y agrega otros propios de ESA materia): objeto y ámbito de aplicación; definiciones clave; sujetos obligados y destinatarios; derechos y garantías; obligaciones y deberes; autoridad u organismo competente; fiscalización y control; infracciones y sanciones; procedimientos y plazos; entrada en vigencia y normas transitorias. Ordénalas de lo más general a lo más específico. Para otra materia las dimensiones deben ser las que correspondan sustantivamente a ESA materia, no una lista genérica fija.
 
 Responde ÚNICAMENTE con un arreglo JSON válido, compacto, sin texto adicional, con este esquema exacto:
-[{"dimension":"Nombre corto de la dimensión (2-4 palabras)","valores":{"NombrePais1":"Celda breve (máx. 25 palabras) basada en sus disposiciones reales","NombrePais2":"..."},"lecturaJuridica":"Una oración (máx. 30 palabras) que sintetice el patrón o diferencia real entre países en esta dimensión"}]
+[{"dimension":"Nombre corto de la dimensión (2-4 palabras)","valores":{"NombrePais1":"Celda argumentada (35 a 70 palabras) basada en sus disposiciones reales","NombrePais2":"..."},"lecturaJuridica":"Análisis comparativo de 2 oraciones (máx. 60 palabras): qué tienen en común los países y en qué difieren sustantivamente en esta dimensión, nombrándolos"}]
+
+Cómo redactar cada celda (esto es lo que da valor a la matriz):
+- Cita el artículo, sección o disposición concreta cuando aparezca en los puntos entregados (ej. "Art. 8:", "Sección 3").
+- Incluye los datos específicos que consten: plazos, montos, porcentajes, nombres exactos de organismos, umbrales y excepciones.
+- Si los puntos incluyen una cita textual entre comillas pertinente a la dimensión, incorpórala literalmente entre comillas.
+- Redacta en prosa clara de 2 a 3 oraciones; no uses frases vagas como "regula aspectos relacionados".
 
 Reglas estrictas:
 - Usa EXCLUSIVAMENTE las disposiciones y descripciones entregadas arriba para cada país; no inventes plazos, órganos, cifras ni mecanismos que no estén respaldados por ese contenido.
@@ -1616,9 +1623,18 @@ Reglas estrictas:
   // Con hasta 8 paises seleccionados cada dimension trae mas celdas, asi que
   // se sube el presupuesto de salida para no truncar el JSON a mitad de un
   // pais (antes 2500, pensado para un maximo de 4).
-  const texto = await generarContenidoUniversalIA(prompt, 4000);
+  const texto = await generarContenidoUniversalIA(prompt, 8000);
   if (texto) {
-    const parsed = safeJsonParse<Array<{ dimension?: string; valores?: Record<string, string>; lecturaJuridica?: string }>>(texto);
+    type DimMatriz = { dimension?: string; valores?: Record<string, string>; lecturaJuridica?: string };
+    let parsed: DimMatriz[] | null = null;
+    try {
+      parsed = safeJsonParse<DimMatriz[]>(texto);
+    } catch {
+      // Con 8-10 dimensiones argumentadas la respuesta es larga y puede quedar
+      // truncada a mitad de una dimensión: se rescatan las dimensiones que sí
+      // llegaron completas en vez de descartar toda la matriz.
+      parsed = rescatarObjetosJson<DimMatriz>(texto);
+    }
     if (Array.isArray(parsed) && parsed.length > 0) {
       const dimensiones = parsed
         .filter((d) => d.dimension && d.valores)

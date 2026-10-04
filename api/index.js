@@ -188050,6 +188050,42 @@ function safeJsonParse(text) {
   }
   throw new Error(`Could not find valid JSON boundaries in response text.`);
 }
+function rescatarObjetosJson(text) {
+  const inicio = text.indexOf("[");
+  if (inicio === -1) return [];
+  const out = [];
+  let profundidad = 0;
+  let enString = false;
+  let escape = false;
+  let desde = -1;
+  for (let i = inicio + 1; i < text.length; i++) {
+    const c = text[i];
+    if (enString) {
+      if (escape) escape = false;
+      else if (c === "\\") escape = true;
+      else if (c === '"') enString = false;
+      continue;
+    }
+    if (c === '"') {
+      enString = true;
+      continue;
+    }
+    if (c === "{") {
+      if (profundidad === 0) desde = i;
+      profundidad++;
+    } else if (c === "}") {
+      profundidad--;
+      if (profundidad === 0 && desde !== -1) {
+        try {
+          out.push(JSON.parse(text.slice(desde, i + 1)));
+        } catch {
+        }
+        desde = -1;
+      }
+    }
+  }
+  return out;
+}
 async function generarConGeminiUnaVez(prompt, maxTokens, apiKey, model, timeoutMs) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
   const res = await fetch(url, {
@@ -190128,7 +190164,7 @@ async function fetchTextoFuente(url) {
     if (!res.ok) return null;
     const raw = await res.text();
     const texto = raw.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]*>/g, " ").replace(/&nbsp;/gi, " ").replace(/\s+/g, " ").trim();
-    return texto.length > 200 ? texto.slice(0, 6e3) : null;
+    return texto.length > 200 ? texto.slice(0, 1e4) : null;
   } catch {
     return null;
   }
@@ -193352,13 +193388,13 @@ Primero eval\xFAa si el texto entregado corresponde efectivamente al CUERPO de l
 Responde \xDANICAMENTE con un objeto JSON v\xE1lido, compacto, sin texto adicional, con uno de estos dos esquemas:
 
 - Si el texto S\xCD contiene disposiciones sustantivas: {"disponible":true,"puntos":["- Art\xEDculo 8: Registro de mascotas: Establece la obligaci\xF3n de inscribir a los animales en un registro municipal dentro de los 30 d\xEDas siguientes a su adquisici\xF3n.", "..."]}
-  Identifica entre 4 y 8 art\xEDculos, secciones o disposiciones sustantivos EN RELACI\xD3N A LA MATERIA CONSULTADA, bas\xE1ndote EXCLUSIVAMENTE en el texto entregado, cada uno identificando el art\xEDculo o secci\xF3n (n\xFAmero o nombre tal como aparece en el texto) seguido de una explicaci\xF3n breve en prosa de qu\xE9 proh\xEDbe, permite, obliga o establece. Para al menos 2 de esos puntos, incluye una cita textual breve (m\xE1x. 30 palabras) entre comillas del pasaje exacto del texto -- no la parafrasees, c\xF3piala literal.
+  Identifica entre 8 y 12 art\xEDculos, secciones o disposiciones sustantivos EN RELACI\xD3N A LA MATERIA CONSULTADA, bas\xE1ndote EXCLUSIVAMENTE en el texto entregado. Procura cubrir, cuando el texto lo permita, ejes distintos: objeto y \xE1mbito de aplicaci\xF3n, definiciones clave, sujetos obligados y destinatarios, derechos o garant\xEDas, obligaciones y deberes, autoridad u organismo competente, fiscalizaci\xF3n, infracciones y sanciones, procedimientos y plazos, y entrada en vigencia o normas transitorias. Cada punto identifica el art\xEDculo o secci\xF3n (n\xFAmero o nombre tal como aparece en el texto) seguido de una explicaci\xF3n de 1 a 3 oraciones en prosa de qu\xE9 proh\xEDbe, permite, obliga o establece, incluyendo cifras, plazos, montos y nombres de organismos EXACTAMENTE como aparecen. Para al menos 4 de esos puntos, incluye una cita textual breve (m\xE1x. 30 palabras) entre comillas del pasaje exacto del texto -- no la parafrasees, c\xF3piala literal.
 - Si el texto NO contiene disposiciones sustantivas (es una p\xE1gina de archivo/\xEDndice/buscador/men\xFA): {"disponible":false,"motivo":"Explicaci\xF3n breve de qu\xE9 es efectivamente el texto obtenido (ej. p\xE1gina de \xEDndice del archivo oficial) y que no permite identificar disposiciones sobre la materia consultada."}
 
 Redacta SIEMPRE en espa\xF1ol, incluso si el texto de la fuente original est\xE1 en otro idioma (portugu\xE9s, ingl\xE9s, alem\xE1n, franc\xE9s, etc.): traduce tu explicaci\xF3n de cada disposici\xF3n al espa\xF1ol. Las citas textuales entre comillas puedes mantenerlas en el idioma original del texto, agregando inmediatamente despu\xE9s su traducci\xF3n al espa\xF1ol entre par\xE9ntesis.
 
 No inventes disposiciones que no est\xE9n en el texto entregado bajo ninguna circunstancia.`;
-    const textoIA = await generarContenidoUniversalIA(prompt, 2e3);
+    const textoIA = await generarContenidoUniversalIA(prompt, 3500);
     if (textoIA) {
       const parsed = safeJsonParse(textoIA);
       if (parsed && parsed.disponible === false) {
@@ -193453,19 +193489,30 @@ ${(it.puntos || []).map((p) => `  - ${p}`).join("\n")}`).join("\n\n");
 
 ${bloque}
 
-Identifica entre 4 y 6 DIMENSIONES JUR\xCDDICAS SUSTANTIVAS que sean genuinamente comparables entre estas jurisdicciones para esta materia espec\xEDfica (por ejemplo, si la materia fuera acceso a informaci\xF3n p\xFAblica, dimensiones t\xEDpicas ser\xEDan "Titularidad", "Plazo y silencio", "Reserva y l\xEDmites", "\xD3rgano garante", "Transparencia activa"; para otra materia las dimensiones deben ser las que correspondan sustantivamente a ESA materia, no una lista gen\xE9rica fija).
+Identifica entre 8 y 10 DIMENSIONES JUR\xCDDICAS SUSTANTIVAS que sean genuinamente comparables entre estas jurisdicciones para esta materia espec\xEDfica. Ejes t\xEDpicos que puedes adaptar a la materia (usa solo los que tengan respaldo en las disposiciones entregadas, y agrega otros propios de ESA materia): objeto y \xE1mbito de aplicaci\xF3n; definiciones clave; sujetos obligados y destinatarios; derechos y garant\xEDas; obligaciones y deberes; autoridad u organismo competente; fiscalizaci\xF3n y control; infracciones y sanciones; procedimientos y plazos; entrada en vigencia y normas transitorias. Ord\xE9nalas de lo m\xE1s general a lo m\xE1s espec\xEDfico. Para otra materia las dimensiones deben ser las que correspondan sustantivamente a ESA materia, no una lista gen\xE9rica fija.
 
 Responde \xDANICAMENTE con un arreglo JSON v\xE1lido, compacto, sin texto adicional, con este esquema exacto:
-[{"dimension":"Nombre corto de la dimensi\xF3n (2-4 palabras)","valores":{"NombrePais1":"Celda breve (m\xE1x. 25 palabras) basada en sus disposiciones reales","NombrePais2":"..."},"lecturaJuridica":"Una oraci\xF3n (m\xE1x. 30 palabras) que sintetice el patr\xF3n o diferencia real entre pa\xEDses en esta dimensi\xF3n"}]
+[{"dimension":"Nombre corto de la dimensi\xF3n (2-4 palabras)","valores":{"NombrePais1":"Celda argumentada (35 a 70 palabras) basada en sus disposiciones reales","NombrePais2":"..."},"lecturaJuridica":"An\xE1lisis comparativo de 2 oraciones (m\xE1x. 60 palabras): qu\xE9 tienen en com\xFAn los pa\xEDses y en qu\xE9 difieren sustantivamente en esta dimensi\xF3n, nombr\xE1ndolos"}]
+
+C\xF3mo redactar cada celda (esto es lo que da valor a la matriz):
+- Cita el art\xEDculo, secci\xF3n o disposici\xF3n concreta cuando aparezca en los puntos entregados (ej. "Art. 8:", "Secci\xF3n 3").
+- Incluye los datos espec\xEDficos que consten: plazos, montos, porcentajes, nombres exactos de organismos, umbrales y excepciones.
+- Si los puntos incluyen una cita textual entre comillas pertinente a la dimensi\xF3n, incorp\xF3rala literalmente entre comillas.
+- Redacta en prosa clara de 2 a 3 oraciones; no uses frases vagas como "regula aspectos relacionados".
 
 Reglas estrictas:
 - Usa EXCLUSIVAMENTE las disposiciones y descripciones entregadas arriba para cada pa\xEDs; no inventes plazos, \xF3rganos, cifras ni mecanismos que no est\xE9n respaldados por ese contenido.
 - Si para un pa\xEDs no hay disposici\xF3n real que permita llenar una dimensi\xF3n, escribe exactamente "No especificado en las disposiciones disponibles." en su celda -- nunca inventes contenido de relleno.
 - Los nombres de pa\xEDs en "valores" deben ser EXACTAMENTE iguales a los nombres de pa\xEDs entregados arriba (mismo texto).
 - No repitas como dimensi\xF3n el tipo de norma, la fecha ni la fuente (esos datos ya se muestran aparte).`;
-  const texto = await generarContenidoUniversalIA(prompt, 4e3);
+  const texto = await generarContenidoUniversalIA(prompt, 8e3);
   if (texto) {
-    const parsed = safeJsonParse(texto);
+    let parsed = null;
+    try {
+      parsed = safeJsonParse(texto);
+    } catch {
+      parsed = rescatarObjetosJson(texto);
+    }
     if (Array.isArray(parsed) && parsed.length > 0) {
       const dimensiones = parsed.filter((d) => d.dimension && d.valores).map((d) => ({ dimension: d.dimension, valores: d.valores, lecturaJuridica: d.lecturaJuridica || "" }));
       if (dimensiones.length > 0) {

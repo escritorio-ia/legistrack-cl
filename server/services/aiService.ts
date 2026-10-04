@@ -94,6 +94,43 @@ export function safeJsonParse<T>(text: string): T {
   throw new Error(`Could not find valid JSON boundaries in response text.`);
 }
 
+/**
+ * Rescata los objetos `{...}` completos de un arreglo JSON que quedó truncado
+ * (el modelo se quedó sin tokens a mitad de un elemento). Recorre el texto
+ * respetando strings y llaves anidadas, y devuelve solo los elementos de
+ * primer nivel que parsean bien.
+ */
+export function rescatarObjetosJson<T>(text: string): T[] {
+  const inicio = text.indexOf("[");
+  if (inicio === -1) return [];
+  const out: T[] = [];
+  let profundidad = 0;
+  let enString = false;
+  let escape = false;
+  let desde = -1;
+  for (let i = inicio + 1; i < text.length; i++) {
+    const c = text[i];
+    if (enString) {
+      if (escape) escape = false;
+      else if (c === "\\") escape = true;
+      else if (c === '"') enString = false;
+      continue;
+    }
+    if (c === '"') { enString = true; continue; }
+    if (c === "{") {
+      if (profundidad === 0) desde = i;
+      profundidad++;
+    } else if (c === "}") {
+      profundidad--;
+      if (profundidad === 0 && desde !== -1) {
+        try { out.push(JSON.parse(text.slice(desde, i + 1)) as T); } catch {}
+        desde = -1;
+      }
+    }
+  }
+  return out;
+}
+
 async function generarConGeminiUnaVez(prompt: string, maxTokens: number, apiKey: string, model: string, timeoutMs: number): Promise<string> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
   const res = await fetch(url, {
