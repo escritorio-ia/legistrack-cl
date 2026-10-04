@@ -190158,13 +190158,136 @@ function extraerPuntosHeuristicos(query, resultado, texto) {
   }
   return puntos.slice(0, 6);
 }
-async function fetchTextoFuente(url) {
+var ENTIDADES_HTML = {
+  nbsp: " ",
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  ordm: "\xBA",
+  ordf: "\xAA",
+  sect: "\xA7",
+  laquo: "\xAB",
+  raquo: "\xBB",
+  aacute: "\xE1",
+  eacute: "\xE9",
+  iacute: "\xED",
+  oacute: "\xF3",
+  uacute: "\xFA",
+  Aacute: "\xC1",
+  Eacute: "\xC9",
+  Iacute: "\xCD",
+  Oacute: "\xD3",
+  Uacute: "\xDA",
+  agrave: "\xE0",
+  egrave: "\xE8",
+  ograve: "\xF2",
+  acirc: "\xE2",
+  ecirc: "\xEA",
+  ocirc: "\xF4",
+  atilde: "\xE3",
+  otilde: "\xF5",
+  ccedil: "\xE7",
+  Ccedil: "\xC7",
+  ntilde: "\xF1",
+  Ntilde: "\xD1",
+  uuml: "\xFC",
+  ouml: "\xF6",
+  auml: "\xE4",
+  szlig: "\xDF",
+  ndash: "\u2013",
+  mdash: "\u2014",
+  hellip: "\u2026",
+  ldquo: "\u201C",
+  rdquo: "\u201D",
+  lsquo: "\u2018",
+  rsquo: "\u2019"
+};
+function decodificarEntidadesHtml(s) {
+  return s.replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16))).replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n))).replace(/&([a-zA-Z]+);/g, (m, nombre) => ENTIDADES_HTML[nombre] ?? m);
+}
+async function descargarHtmlDecodificado(url, headers, ms) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
   try {
-    const res = await fetchConTimeout(url, 8e3);
+    const res = await fetch(url, { signal: controller.signal, headers, redirect: "follow" });
     if (!res.ok) return null;
-    const raw = await res.text();
-    const texto = raw.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]*>/g, " ").replace(/&nbsp;/gi, " ").replace(/\s+/g, " ").trim();
-    return texto.length > 200 ? texto.slice(0, 1e4) : null;
+    const buf = await res.arrayBuffer();
+    if (buf.byteLength === 0) return null;
+    const ct = res.headers.get("content-type") || "";
+    let charset = (ct.match(/charset=([\w-]+)/i) || [])[1];
+    if (!charset) {
+      const cabecera = new TextDecoder("latin1").decode(buf.slice(0, 4096));
+      charset = (cabecera.match(/<meta[^>]+charset=["']?([\w-]+)/i) || [])[1];
+    }
+    try {
+      return new TextDecoder("utf-8", { fatal: true }).decode(buf);
+    } catch {
+      const alternativa = charset && !/utf-?8/i.test(charset) ? charset.toLowerCase() : "windows-1252";
+      try {
+        return new TextDecoder(alternativa).decode(buf);
+      } catch {
+        return new TextDecoder("windows-1252").decode(buf);
+      }
+    }
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+function htmlATextoLegible(html) {
+  return decodificarEntidadesHtml(
+    html.replace(/<!--[\s\S]*?-->/g, " ").replace(/<!\[[^\]]*\]>/g, " ").replace(/<(script|style|noscript|nav|header|footer|aside|svg|form)[\s\S]*?<\/\1>/gi, " ").replace(/<\/(p|div|li|tr|h[1-6]|br)>/gi, "\n").replace(/<[^>]*>/g, " ")
+  ).replace(/[ \t\f\v ]+/g, " ").replace(/\s*\n\s*/g, "\n").trim();
+}
+var PALABRAS_JURIDICAS = /sanci|multa|infracci|autoridad|agencia|organismo|derecho|obligaci|deber|plazo|fiscaliz|vigencia|definici|responsable|titular|consentimiento|penalt|fine|authority|right|obligation|controller|processor|penalty|supervis|prazo|san[cç]|autoridade|direito|dever/i;
+function seleccionarFragmentosRelevantes(texto, query, max) {
+  if (texto.length <= max) return texto;
+  const terminos = (query || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").split(/[^a-z0-9]+/).filter((w) => w.length >= 4);
+  const TAM = 1400;
+  const trozos = [];
+  for (let i = 0, k = 0; i < texto.length; i += TAM, k++) {
+    const txt = texto.slice(i, i + TAM);
+    const plano = txt.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+    const hits = terminos.reduce((n, w) => n + (plano.includes(w) ? 1 : 0), 0);
+    const juridico = (txt.match(new RegExp(PALABRAS_JURIDICAS.source, "gi")) || []).length;
+    trozos.push({ i: k, txt, score: hits * 3 + Math.min(juridico, 6) });
+  }
+  const elegidos = /* @__PURE__ */ new Set([0, 1, 2]);
+  let largo = trozos.slice(0, 3).reduce((n, t) => n + t.txt.length, 0);
+  for (const t of [...trozos].sort((a, b) => b.score - a.score)) {
+    if (largo >= max) break;
+    if (elegidos.has(t.i) || t.score === 0) continue;
+    elegidos.add(t.i);
+    largo += t.txt.length;
+  }
+  return trozos.filter((t) => elegidos.has(t.i)).map((t) => t.txt).join("\n[...]\n").slice(0, max);
+}
+var IDIOMA_CELLAR = { ES: "spa", EN: "eng", FR: "fra", DE: "deu", PT: "por", IT: "ita" };
+async function fetchTextoFuente(url, query) {
+  const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+  try {
+    let html = null;
+    const eur = url.match(/eur-lex\.europa\.eu\/legal-content\/([A-Za-z]{2})\/[^?]*\?uri=CELEX(?:%3A|:)(\w+)/i);
+    if (eur) {
+      html = await descargarHtmlDecodificado(
+        `https://publications.europa.eu/resource/celex/${eur[2]}`,
+        { "User-Agent": UA, Accept: "application/xhtml+xml, text/html", "Accept-Language": IDIOMA_CELLAR[eur[1].toUpperCase()] || "eng" },
+        2e4
+      );
+    } else {
+      html = await descargarHtmlDecodificado(url, { "User-Agent": UA, Accept: "text/html,application/xhtml+xml,*/*;q=0.8", "Accept-Language": "es,en;q=0.8" }, 12e3);
+    }
+    if (!html) return null;
+    let texto = htmlATextoLegible(html);
+    const inicioArticulado = texto.search(/(^|\n)\s*(Art[íi]culo|Article|Artigo|Artikel|Articolo|Art\.)\s*(1|primero|único)\s*(\n|[.º°ª-])/i);
+    if (inicioArticulado > 0 && inicioArticulado < texto.length * 0.7) {
+      texto = texto.slice(Math.max(0, inicioArticulado - 300));
+    }
+    texto = texto.replace(/\s+/g, " ");
+    return texto.length > 200 ? seleccionarFragmentosRelevantes(texto, query, 12e3) : null;
   } catch {
     return null;
   }
@@ -193374,7 +193497,7 @@ apiRouter.post("/derecho-comparado/analizar", async (req, res) => {
     return res.status(400).json({ error: "Se requiere 'query' y 'resultado'." });
   }
   const textoNormaCompleto = resultado.pais === "Chile" && resultado.url ? await fetchTextoNormaLeyChileCompleto(resultado.url) : null;
-  const textoFuente = textoNormaCompleto || (resultado.url ? await fetchTextoFuente(resultado.url) : null);
+  const textoFuente = textoNormaCompleto || (resultado.url ? await fetchTextoFuente(resultado.url, query) : null);
   if (textoFuente) {
     const prompt = `Eres un analista de Asesor\xEDa T\xE9cnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile, redactando la secci\xF3n de un pa\xEDs en un informe de legislaci\xF3n comparada. A continuaci\xF3n se entrega el TEXTO REAL extra\xEDdo de la fuente oficial "${resultado.titulo}" (${resultado.pais}), en relaci\xF3n a la materia "${query}".
 

@@ -1428,7 +1428,7 @@ apiRouter.post("/derecho-comparado/analizar", async (req: Request, res: Response
   const textoNormaCompleto = resultado.pais === "Chile" && resultado.url
     ? await fetchTextoNormaLeyChileCompleto(resultado.url)
     : null;
-  const textoFuente = textoNormaCompleto || (resultado.url ? await fetchTextoFuente(resultado.url) : null);
+  const textoFuente = textoNormaCompleto || (resultado.url ? await fetchTextoFuente(resultado.url, query) : null);
 
   if (textoFuente) {
     const prompt = `Eres un analista de Asesoría Técnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile, redactando la sección de un país en un informe de legislación comparada. A continuación se entrega el TEXTO REAL extraído de la fuente oficial "${resultado.titulo}" (${resultado.pais}), en relación a la materia "${query}".
