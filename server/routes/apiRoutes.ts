@@ -1363,7 +1363,7 @@ apiRouter.post("/derecho-comparado/informe-seccion", async (req: Request, res: R
   const ESTILO = `Actúa como un analista experto en políticas públicas y regulación comparada, redactando una sección de un informe técnico de Asesoría Técnica Parlamentaria sobre "${query}".
 
 Estilo: formal, académico, objetivo e institucional. Escribe párrafos completos y bien desarrollados (nada de listas de viñetas ni frases sueltas): cada párrafo de 4 a 7 oraciones, con una idea central, conectores lógicos y terminología jurídica precisa.
-Precisión: basa TODO únicamente en el material entregado; no inventes artículos, cifras, plazos, organismos ni sanciones. Cita el artículo o sección cuando aparezca en el material e incorpora literalmente, entre comillas, las citas textuales que ahí figuren. Si un dato no está disponible, dilo en una frase explícita (por ejemplo "El texto analizado no precisa los plazos...") en vez de rellenar con generalidades.
+Precisión: basa TODO únicamente en el material entregado; no inventes artículos, cifras, plazos, organismos ni sanciones. Cita el artículo o sección cuando aparezca en el material e incorpora literalmente, entre comillas, las citas textuales que ahí figuren. Si un dato no está disponible, dilo en una frase explícita (por ejemplo "El texto analizado no precisa los plazos...") en vez de rellenar con generalidades. No agregues atribuciones, ámbitos, efectos ni funciones que no consten en el material, aunque sean habituales en este tipo de normas o los conozcas por otras fuentes: si el material no lo dice, no lo afirmes.
 Formato: Markdown. Responde ÚNICAMENTE con la sección pedida, sin preámbulo ni cierre, y usa exactamente los subtítulos de nivel 3 ("###") indicados.`;
 
   let prompt = "";
