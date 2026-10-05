@@ -1363,7 +1363,7 @@ apiRouter.post("/derecho-comparado/informe-seccion", async (req: Request, res: R
   const ESTILO = `Actúa como un analista experto en políticas públicas y regulación comparada, redactando una sección de un informe técnico de Asesoría Técnica Parlamentaria sobre "${query}".
 
 Estilo: formal, académico, objetivo e institucional. Escribe párrafos completos y bien desarrollados (nada de listas de viñetas ni frases sueltas): cada párrafo de 4 a 7 oraciones, con una idea central, conectores lógicos y terminología jurídica precisa.
-Precisión: basa TODO únicamente en el material entregado; no inventes artículos, cifras, plazos, organismos ni sanciones. Cita el artículo o sección cuando aparezca en el material e incorpora literalmente, entre comillas, las citas textuales que ahí figuren. Si un dato no está disponible, dilo en una frase explícita (por ejemplo "El texto analizado no precisa los plazos...") en vez de rellenar con generalidades. No agregues atribuciones, ámbitos, efectos ni funciones que no consten en el material, aunque sean habituales en este tipo de normas o los conozcas por otras fuentes: si el material no lo dice, no lo afirmes.
+Precisión: basa TODO únicamente en el material entregado; no inventes artículos, cifras, plazos, organismos ni sanciones. Cita el artículo o sección cuando aparezca en el material e incorpora literalmente, entre comillas, las citas textuales que ahí figuren. Si un dato no está disponible, dilo en una frase explícita (por ejemplo "El texto analizado no precisa los plazos...") en vez de rellenar con generalidades. No agregues atribuciones, ámbitos, efectos ni funciones que no consten en el material, aunque sean habituales en este tipo de normas o los conozcas por otras fuentes: si el material no lo dice, no lo afirmes. Además, el material es un extracto parcial de la norma: que un dato NO figure en el material NO significa que la norma no lo establezca. Nunca afirmes que una norma "carece de", "no regula" o "no define" algo; di únicamente que "el material analizado no lo detalla".
 Formato: Markdown. Responde ÚNICAMENTE con la sección pedida, sin preámbulo ni cierre, y usa exactamente los subtítulos de nivel 3 ("###") indicados.`;
 
   let prompt = "";
@@ -1432,7 +1432,7 @@ Divergencias sustantivas de diseño, alcance, institucionalidad y sanciones, nom
 ### Buenas prácticas
 Soluciones normativas o institucionales que destacan, indicando en qué país se observan.
 ### Lecciones para Chile
-${hayChile ? "Contrasta el régimen chileno con los demás países analizados y señala qué elementos de estos podría considerar Chile, o qué aspectos del modelo chileno destacan." : "Señala qué elementos de los regímenes analizados podría considerar el legislador chileno."} Formula las lecciones como consideraciones fundadas únicamente en lo expuesto en las secciones anteriores (por ejemplo "podría considerarse..."), sin inventar hechos nuevos.
+${hayChile ? "Contrasta el régimen chileno con los demás países analizados y señala qué elementos de estos podría considerar Chile, o qué aspectos del modelo chileno destacan." : "Señala qué elementos de los regímenes analizados podría considerar el legislador chileno."} Formula las lecciones como consideraciones fundadas únicamente en lo expuesto en las secciones anteriores (por ejemplo "podría considerarse..."), sin inventar hechos nuevos. IMPORTANTE: no atribuyas deficiencias ni vacíos a ningún régimen (incluido el chileno) por el simple hecho de que el material extraído no detalle un aspecto; solo contrasta diferencias que consten expresamente en las secciones anteriores y, cuando un aspecto no pueda contrastarse por falta de información, indícalo así.
 
 Extensión total: entre 550 y 750 palabras.`;
     maxTokens = 2600;
@@ -1486,9 +1486,25 @@ No inventes disposiciones que no estén en el texto entregado bajo ninguna circu
     // que ahora se pide (antes 600, ya se había subido una vez por el mismo
     // problema con modelos de razonamiento que gastan presupuesto "pensando"
     // antes de responder -- ver nota en generarConGroq/aiService.ts).
-    const textoIA = await generarContenidoUniversalIA(prompt, 3500);
-    if (textoIA) {
-      const parsed = safeJsonParse<{ disponible?: boolean; puntos?: string[]; motivo?: string }>(textoIA);
+    // Hasta 2 intentos: la extracción por IA falla de forma intermitente (cuota,
+    // respuesta truncada o no JSON) y caer a la heurística deja la sección de la
+    // norma sin artículos concretos; un segundo intento suele resolverlo.
+    for (let intento = 1; intento <= 2; intento++) {
+      const textoIA = await generarContenidoUniversalIA(prompt, 3500);
+      if (!textoIA) continue;
+      let parsed: { disponible?: boolean; puntos?: string[]; motivo?: string } | null = null;
+      try {
+        parsed = safeJsonParse<{ disponible?: boolean; puntos?: string[]; motivo?: string }>(textoIA);
+      } catch {
+        // Respuesta truncada: se rescatan los puntos (strings) completos que sí llegaron.
+        const m = textoIA.match(/"puntos"\s*:\s*\[([\s\S]*)/);
+        if (m) {
+          const rescatados = [...m[1].matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((x) => {
+            try { return JSON.parse('"' + x[1] + '"') as string; } catch { return ""; }
+          }).filter((x) => x.length > 20);
+          if (rescatados.length >= 3) parsed = { disponible: true, puntos: rescatados };
+        }
+      }
       if (parsed && parsed.disponible === false) {
         // La IA determinó honestamente que la fuente obtenida no es el texto
         // de la norma (ej. una página de archivo/índice) -- se muestra como
@@ -1501,7 +1517,7 @@ No inventes disposiciones que no estén en el texto entregado bajo ninguna circu
         });
       }
       if (parsed && parsed.disponible && Array.isArray(parsed.puntos) && parsed.puntos.length > 0) {
-        const puntos = parsed.puntos.map((l) => l.replace(/^[-•]\s*/, "").trim()).filter((l) => l.length > 0);
+        const puntos = parsed.puntos.map((l) => String(l).replace(/^[-•]\s*/, "").trim()).filter((l) => l.length > 0);
         if (puntos.length > 0) {
           return res.json({ puntos, disponible: true });
         }
@@ -1510,7 +1526,7 @@ No inventes disposiciones que no estén en el texto entregado bajo ninguna circu
   }
 
   const puntosHeuristicos = extraerPuntosHeuristicos(query, resultado, textoFuente);
-  res.json({ puntos: puntosHeuristicos, disponible: true });
+  res.json({ puntos: puntosHeuristicos, disponible: true, heuristico: true });
 });
 
 // Redacta un análisis comparativo REAL entre las normas que el usuario

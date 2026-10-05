@@ -193444,7 +193444,7 @@ apiRouter.post("/derecho-comparado/informe-seccion", async (req, res) => {
   const ESTILO = `Act\xFAa como un analista experto en pol\xEDticas p\xFAblicas y regulaci\xF3n comparada, redactando una secci\xF3n de un informe t\xE9cnico de Asesor\xEDa T\xE9cnica Parlamentaria sobre "${query}".
 
 Estilo: formal, acad\xE9mico, objetivo e institucional. Escribe p\xE1rrafos completos y bien desarrollados (nada de listas de vi\xF1etas ni frases sueltas): cada p\xE1rrafo de 4 a 7 oraciones, con una idea central, conectores l\xF3gicos y terminolog\xEDa jur\xEDdica precisa.
-Precisi\xF3n: basa TODO \xFAnicamente en el material entregado; no inventes art\xEDculos, cifras, plazos, organismos ni sanciones. Cita el art\xEDculo o secci\xF3n cuando aparezca en el material e incorpora literalmente, entre comillas, las citas textuales que ah\xED figuren. Si un dato no est\xE1 disponible, dilo en una frase expl\xEDcita (por ejemplo "El texto analizado no precisa los plazos...") en vez de rellenar con generalidades. No agregues atribuciones, \xE1mbitos, efectos ni funciones que no consten en el material, aunque sean habituales en este tipo de normas o los conozcas por otras fuentes: si el material no lo dice, no lo afirmes.
+Precisi\xF3n: basa TODO \xFAnicamente en el material entregado; no inventes art\xEDculos, cifras, plazos, organismos ni sanciones. Cita el art\xEDculo o secci\xF3n cuando aparezca en el material e incorpora literalmente, entre comillas, las citas textuales que ah\xED figuren. Si un dato no est\xE1 disponible, dilo en una frase expl\xEDcita (por ejemplo "El texto analizado no precisa los plazos...") en vez de rellenar con generalidades. No agregues atribuciones, \xE1mbitos, efectos ni funciones que no consten en el material, aunque sean habituales en este tipo de normas o los conozcas por otras fuentes: si el material no lo dice, no lo afirmes. Adem\xE1s, el material es un extracto parcial de la norma: que un dato NO figure en el material NO significa que la norma no lo establezca. Nunca afirmes que una norma "carece de", "no regula" o "no define" algo; di \xFAnicamente que "el material analizado no lo detalla".
 Formato: Markdown. Responde \xDANICAMENTE con la secci\xF3n pedida, sin pre\xE1mbulo ni cierre, y usa exactamente los subt\xEDtulos de nivel 3 ("###") indicados.`;
   let prompt = "";
   let maxTokens = 2e3;
@@ -193514,7 +193514,7 @@ Divergencias sustantivas de dise\xF1o, alcance, institucionalidad y sanciones, n
 ### Buenas pr\xE1cticas
 Soluciones normativas o institucionales que destacan, indicando en qu\xE9 pa\xEDs se observan.
 ### Lecciones para Chile
-${hayChile ? "Contrasta el r\xE9gimen chileno con los dem\xE1s pa\xEDses analizados y se\xF1ala qu\xE9 elementos de estos podr\xEDa considerar Chile, o qu\xE9 aspectos del modelo chileno destacan." : "Se\xF1ala qu\xE9 elementos de los reg\xEDmenes analizados podr\xEDa considerar el legislador chileno."} Formula las lecciones como consideraciones fundadas \xFAnicamente en lo expuesto en las secciones anteriores (por ejemplo "podr\xEDa considerarse..."), sin inventar hechos nuevos.
+${hayChile ? "Contrasta el r\xE9gimen chileno con los dem\xE1s pa\xEDses analizados y se\xF1ala qu\xE9 elementos de estos podr\xEDa considerar Chile, o qu\xE9 aspectos del modelo chileno destacan." : "Se\xF1ala qu\xE9 elementos de los reg\xEDmenes analizados podr\xEDa considerar el legislador chileno."} Formula las lecciones como consideraciones fundadas \xFAnicamente en lo expuesto en las secciones anteriores (por ejemplo "podr\xEDa considerarse..."), sin inventar hechos nuevos. IMPORTANTE: no atribuyas deficiencias ni vac\xEDos a ning\xFAn r\xE9gimen (incluido el chileno) por el simple hecho de que el material extra\xEDdo no detalle un aspecto; solo contrasta diferencias que consten expresamente en las secciones anteriores y, cuando un aspecto no pueda contrastarse por falta de informaci\xF3n, ind\xEDcalo as\xED.
 
 Extensi\xF3n total: entre 550 y 750 palabras.`;
     maxTokens = 2600;
@@ -193554,9 +193554,25 @@ Responde \xDANICAMENTE con un objeto JSON v\xE1lido, compacto, sin texto adicion
 Redacta SIEMPRE en espa\xF1ol, incluso si el texto de la fuente original est\xE1 en otro idioma (portugu\xE9s, ingl\xE9s, alem\xE1n, franc\xE9s, etc.): traduce tu explicaci\xF3n de cada disposici\xF3n al espa\xF1ol. Las citas textuales entre comillas puedes mantenerlas en el idioma original del texto, agregando inmediatamente despu\xE9s su traducci\xF3n al espa\xF1ol entre par\xE9ntesis.
 
 No inventes disposiciones que no est\xE9n en el texto entregado bajo ninguna circunstancia.`;
-    const textoIA = await generarContenidoUniversalIA(prompt, 3500);
-    if (textoIA) {
-      const parsed = safeJsonParse(textoIA);
+    for (let intento = 1; intento <= 2; intento++) {
+      const textoIA = await generarContenidoUniversalIA(prompt, 3500);
+      if (!textoIA) continue;
+      let parsed = null;
+      try {
+        parsed = safeJsonParse(textoIA);
+      } catch {
+        const m = textoIA.match(/"puntos"\s*:\s*\[([\s\S]*)/);
+        if (m) {
+          const rescatados = [...m[1].matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((x) => {
+            try {
+              return JSON.parse('"' + x[1] + '"');
+            } catch {
+              return "";
+            }
+          }).filter((x) => x.length > 20);
+          if (rescatados.length >= 3) parsed = { disponible: true, puntos: rescatados };
+        }
+      }
       if (parsed && parsed.disponible === false) {
         return res.json({
           puntos: [],
@@ -193565,7 +193581,7 @@ No inventes disposiciones que no est\xE9n en el texto entregado bajo ninguna cir
         });
       }
       if (parsed && parsed.disponible && Array.isArray(parsed.puntos) && parsed.puntos.length > 0) {
-        const puntos = parsed.puntos.map((l) => l.replace(/^[-•]\s*/, "").trim()).filter((l) => l.length > 0);
+        const puntos = parsed.puntos.map((l) => String(l).replace(/^[-•]\s*/, "").trim()).filter((l) => l.length > 0);
         if (puntos.length > 0) {
           return res.json({ puntos, disponible: true });
         }
@@ -193573,7 +193589,7 @@ No inventes disposiciones que no est\xE9n en el texto entregado bajo ninguna cir
     }
   }
   const puntosHeuristicos = extraerPuntosHeuristicos(query, resultado, textoFuente);
-  res.json({ puntos: puntosHeuristicos, disponible: true });
+  res.json({ puntos: puntosHeuristicos, disponible: true, heuristico: true });
 });
 apiRouter.post("/derecho-comparado/sintetizar-comparacion", async (req, res) => {
   const { query, items } = req.body;
