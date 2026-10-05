@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { 
   Globe, Scale, FileText, BookOpen, Search, ArrowRight, 
   CheckCircle, Sparkles, Layers, Shield, Building2, ExternalLink, Download, 
@@ -1354,6 +1354,10 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
   // matriz) porque el resto de las piezas sigue generándose después de que
   // "comparando" ya volvió a false.
   const [generandoTodo, setGenerandoTodo] = useState(false);
+  const [etapaInforme, setEtapaInforme] = useState("");
+  // Dimensiones de la matriz temática más recientes: el informe las usa como insumo
+  // por país, y el estado de React no está disponible dentro de la misma ejecución.
+  const matrizTematicaRef = useRef<Array<{ dimension: string; valores: Record<string, string>; lecturaJuridica: string }>>([]);
   // Análisis comparativo REAL entre las normas seleccionadas (a partir de sus
   // puntos ya extraídos del texto real, no de los títulos) -- "analisisKey"
   // guarda para qué selección exacta se generó, para saber si quedó obsoleto.
@@ -1671,6 +1675,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
         const dataTematica: { dimensiones?: Array<{ dimension: string; valores: Record<string, string>; lecturaJuridica: string }> } = await resTematica.json();
         if (dataTematica.dimensiones && dataTematica.dimensiones.length > 0) {
           setMatrizTematica(dataTematica.dimensiones);
+          matrizTematicaRef.current = dataTematica.dimensiones as Array<{ dimension: string; valores: Record<string, string>; lecturaJuridica: string }>;
           setMatrizTematicaKey(key);
         }
       }
@@ -1689,6 +1694,8 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
   const handleCompararYGenerarInforme = async () => {
     if (seleccionComparar.length < 2) return;
     setGenerandoTodo(true);
+    matrizTematicaRef.current = [];
+    setEtapaInforme("Analizando las normas y construyendo la matriz...");
     try {
       const detalleActualizado = await handleComparar();
       const detalleFinal = detalleActualizado || comparacionDetalle;
@@ -1701,41 +1708,75 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
       })).filter((it) => it.puntos.length > 0);
 
       const generarAnalisisYRedaccion = async () => {
-        // Informe completo (Resumen e Introducción / Caso [País] por cada
-        // jurisdicción / Conclusiones y Análisis Comparado) en un solo
-        // llamado de IA, con la estructura pedida explícitamente para este
-        // informe -- reemplaza los dos llamados anteriores (sintetizar-
-        // comparacion + redactar) por uno solo, basado en los mismos datos
-        // reales ya extraídos (items), lo que además reduce la cantidad de
-        // llamadas de IA necesarias para generar "Todo".
-        let cuerpoCompletoIA: string | undefined;
-        // Hasta 2 intentos: los análisis por país recién hechos suelen agotar el
-        // cupo por minuto de los proveedores gratuitos, y el informe (la llamada
-        // más pesada) falla con 429; esperar ~25s deja que el cupo se renueve.
-        for (let intento = 1; intento <= 2 && !cuerpoCompletoIA; intento++) {
-          if (intento === 2) await new Promise((r) => setTimeout(r, 25000));
-          try {
-            const res = await fetch("/api/derecho-comparado/informe-completo", {
-              signal: AbortSignal.timeout(100000),
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                query: liveQuery,
-                items: base.map((r) => ({
-                  pais: r.pais,
-                  titulo: r.titulo,
-                  descripcion: r.descripcion,
-                  puntos: detalleFinal[claveResultado(r)]?.puntos || []
-                }))
-              })
-            });
-            if (res.ok) {
-              const data: { informe: string | null } = await res.json();
-              cuerpoCompletoIA = data.informe || undefined;
+        // Informe Técnico por secciones (una llamada de IA por país, más
+        // introducción y conclusiones): un solo llamado para todo el informe
+        // topaba el límite de tokens de salida de los modelos gratuitos y salía
+        // corto y genérico. Es secuencial para no saturar la cuota por minuto.
+        const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms));
+        const pedirSeccion = async (payload: Record<string, unknown>): Promise<string | null> => {
+          for (let intento = 1; intento <= 2; intento++) {
+            if (intento === 2) await dormir(15000);
+            try {
+              const res = await fetch("/api/derecho-comparado/informe-seccion", {
+                signal: AbortSignal.timeout(100000),
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ query: liveQuery, ...payload })
+              });
+              if (res.ok) {
+                const data: { texto: string | null } = await res.json();
+                if (data.texto) return data.texto;
+              }
+            } catch {
+              // se reintenta una vez; si vuelve a fallar la sección queda con su aviso honesto
             }
-          } catch {
-            // si falla, se reintenta una vez y luego se usa el ensamblado de respaldo
           }
+          return null;
+        };
+
+        const itemsCompletos = base.map((r) => ({
+          pais: r.pais,
+          titulo: r.titulo,
+          descripcion: r.descripcion,
+          puntos: detalleFinal[claveResultado(r)]?.puntos || []
+        }));
+        const dimensiones = matrizTematicaRef.current;
+
+        const secciones: Array<{ pais: string; titulo: string; texto: string | null }> = [];
+        for (let i = 0; i < itemsCompletos.length; i++) {
+          const it = itemsCompletos[i];
+          setEtapaInforme(`Redactando informe: ${it.pais} (${i + 1} de ${itemsCompletos.length})...`);
+          const matrizPais = dimensiones
+            .map((d) => ({ dimension: d.dimension, valor: d.valores[it.pais] || "" }))
+            .filter((m) => m.valor);
+          const texto = await pedirSeccion({ tipo: "pais", item: it, matrizPais });
+          secciones.push({ pais: it.pais, titulo: it.titulo, texto });
+        }
+
+        setEtapaInforme("Redactando introducción...");
+        const introduccion = await pedirSeccion({ tipo: "introduccion", items: itemsCompletos });
+
+        const previas = secciones.filter((s) => s.texto).map((s) => ({ pais: s.pais, texto: s.texto as string }));
+        let conclusiones: string | null = null;
+        if (previas.length >= 2) {
+          setEtapaInforme("Redactando conclusiones...");
+          conclusiones = await pedirSeccion({ tipo: "conclusiones", seccionesPrevias: previas });
+        }
+
+        let cuerpoCompletoIA: string | undefined;
+        if (previas.length > 0) {
+          const NOTA = "*No fue posible redactar esta sección con IA en este momento (límite de capacidad de los modelos). Las disposiciones extraídas de la norma están disponibles en la Matriz Comparada.*";
+          const tituloCorto = (t: string) => {
+            const l = t.replace(/\s+/g, " ").trim();
+            return l.length > 90 ? l.slice(0, 87).trimEnd() + "…" : l;
+          };
+          cuerpoCompletoIA = [
+            "## Resumen e Introducción",
+            introduccion || NOTA,
+            ...secciones.flatMap((s) => [`## ${s.pais} — ${tituloCorto(s.titulo)}`, s.texto || NOTA]),
+            "## Conclusiones y Análisis Comparado",
+            conclusiones || NOTA
+          ].join("\n\n");
         }
 
         const md = buildInformeMarkdown(liveQuery, base, buildParrafoAutomatico(liveQuery, base), undefined, detalleFinal, undefined, cuerpoCompletoIA);
@@ -1753,6 +1794,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
       setActiveTab("comparador");
     } finally {
       setGenerandoTodo(false);
+      setEtapaInforme("");
     }
   };
 
@@ -2359,7 +2401,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
                   className="bg-white hover:bg-blue-50 text-blue-900 font-bold px-4 py-2 rounded-xl text-xs transition-colors flex items-center gap-2 cursor-pointer shadow-xs disabled:opacity-50"
                 >
                   <SlidersHorizontal className="w-3.5 h-3.5 text-blue-700" />
-                  <span>{generandoTodo ? "Generando Matriz e Informe..." : "Comparar y Generar Todo"}</span>
+                  <span>{generandoTodo ? (etapaInforme || "Generando Matriz e Informe...") : "Comparar y Generar Todo"}</span>
                 </button>
               </div>
             </div>

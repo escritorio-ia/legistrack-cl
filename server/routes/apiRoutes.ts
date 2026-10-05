@@ -1341,79 +1341,111 @@ En ambos campos usa EXCLUSIVAMENTE los títulos, países y fuentes entregados ar
   res.json({ texto: textoFallback });
 });
 
-// Informe Técnico completo en un solo llamado de IA, con la estructura
-// (Resumen e Introducción / Caso [País] por cada jurisdicción seleccionada /
-// Conclusiones y Análisis Comparado) pedida explícitamente por el usuario --
-// basada ÚNICAMENTE en los puntos/disposiciones reales ya extraídos del
-// texto de cada norma (mismos que "Ver puntos clave"), nunca en los títulos
-// solos. Reemplaza el ensamblado de fragmentos (síntesis + desarrollo por
-// país por separado) por un informe redactado de corrido por la IA.
-apiRouter.post("/derecho-comparado/informe-completo", async (req: Request, res: Response) => {
-  const { query, items } = req.body as {
+// Informe Técnico por SECCIONES: cada llamada redacta una parte (introducción,
+// un país, o conclusiones). Un solo llamado para todo el informe topaba el
+// límite de tokens de salida de los modelos gratuitos y producía textos cortos
+// y genéricos; por secciones cada parte se desarrolla con párrafos completos.
+// Todo se basa ÚNICAMENTE en las disposiciones reales ya extraídas del texto de
+// cada norma (y las celdas de la matriz), nunca en los títulos solos.
+apiRouter.post("/derecho-comparado/informe-seccion", async (req: Request, res: Response) => {
+  const { query, tipo, items, item, matrizPais, seccionesPrevias } = req.body as {
     query?: string;
-    items?: Array<{ pais: string; titulo: string; puntos?: string[]; descripcion?: string }>;
+    tipo?: "introduccion" | "pais" | "conclusiones";
+    items?: Array<{ pais: string; titulo: string; descripcion?: string; puntos?: string[] }>;
+    item?: { pais: string; titulo: string; descripcion?: string; puntos?: string[] };
+    matrizPais?: Array<{ dimension: string; valor: string }>;
+    seccionesPrevias?: Array<{ pais: string; texto: string }>;
   };
-  if (!query || !Array.isArray(items) || items.length === 0) {
-    return res.status(400).json({ error: "Se requiere 'query' y al menos 1 'item'." });
+  if (!query || !tipo) {
+    return res.status(400).json({ error: "Se requiere 'query' y 'tipo'." });
   }
 
-  const conContenido = items.filter((it) => (it.puntos && it.puntos.length > 0) || it.descripcion);
-  if (conContenido.length === 0) {
-    return res.json({ informe: null });
-  }
+  const ESTILO = `Actúa como un analista experto en políticas públicas y regulación comparada, redactando una sección de un informe técnico de Asesoría Técnica Parlamentaria sobre "${query}".
 
-  const bloque = conContenido
-    .map((it, i) => `${i + 1}. CASO ${it.pais.toUpperCase()} — ${it.titulo}\nDescripción oficial: ${it.descripcion || "(no disponible)"}\nDisposiciones reales extraídas del texto:\n${(it.puntos && it.puntos.length > 0) ? it.puntos.map((p) => `   - ${p}`).join("\n") : "   (no se pudo extraer texto sustantivo de la fuente oficial para este país)"}`)
-    .join("\n\n");
+Estilo: formal, académico, objetivo e institucional. Escribe párrafos completos y bien desarrollados (nada de listas de viñetas ni frases sueltas): cada párrafo de 4 a 7 oraciones, con una idea central, conectores lógicos y terminología jurídica precisa.
+Precisión: basa TODO únicamente en el material entregado; no inventes artículos, cifras, plazos, organismos ni sanciones. Cita el artículo o sección cuando aparezca en el material e incorpora literalmente, entre comillas, las citas textuales que ahí figuren. Si un dato no está disponible, dilo en una frase explícita (por ejemplo "El texto analizado no precisa los plazos...") en vez de rellenar con generalidades.
+Formato: Markdown. Responde ÚNICAMENTE con la sección pedida, sin preámbulo ni cierre, y usa exactamente los subtítulos de nivel 3 ("###") indicados.`;
 
-  const casosEsperados = conContenido.map((it) => it.pais).join(", ");
+  let prompt = "";
+  let maxTokens = 2000;
 
-  // Por cada posición de país se varía ligeramente el enfoque pedido (igual
-  // que la plantilla genérica de referencia: 1° marco regulatorio base,
-  // 2° contexto federal/estatal si aplica, 3° reformas recientes y desafíos
-  // de implementación, 4° casos prácticos de éxito o fracaso).
-  const ENFOQUE_POR_POSICION = [
-    "Describe el marco regulatorio principal y las leyes aplicables mencionadas en el texto; detalla la institucionalidad u organismos encargados de la supervisión y fiscalización; explica los mecanismos clave, enfoques o instrumentos específicos que utiliza este país.",
-    "Describe el contexto regulatorio (por ejemplo, si es de alcance federal, estatal/provincial o nacional único, según lo que indique el texto); detalla las normativas, instrumentos o políticas específicas mencionadas en el texto; destaca cualquier particularidad o innovación regulatoria de este país.",
-    "Describe el marco normativo y las etapas o procesos regulados; detalla las instituciones involucradas y cómo se articulan entre sí; analiza las reformas recientes y los desafíos prácticos o de implementación mencionados en el texto.",
-    "Explica el enfoque regulatorio del país; describe los planes, obligaciones o normativas exigidas a los actores involucrados; desarrolla casos prácticos o ejemplos de éxito o fracaso que ilustren cómo funciona su sistema en la realidad, si el texto lo permite."
-  ];
+  if (tipo === "pais") {
+    if (!item || !item.pais) return res.status(400).json({ error: "Se requiere 'item'." });
+    const puntos = (item.puntos || []).map((p) => `- ${p}`).join("\n") || "(no se pudo extraer texto sustantivo de la fuente oficial)";
+    const matriz = (matrizPais || []).filter((m) => m.valor && !/^No especificado/i.test(m.valor)).map((m) => `- ${m.dimension}: ${m.valor}`).join("\n");
+    prompt = `${ESTILO}
 
-  const prompt = `Actúa como un analista experto en políticas públicas y regulación comparada. Tu tarea es redactar un informe técnico, exhaustivo y bien desarrollado sobre "${query}", basado ÚNICAMENTE en el texto que se te proporciona a continuación (descripciones oficiales y disposiciones reales ya extraídas del texto de cada norma).
+SECCIÓN A REDACTAR: el régimen de ${item.pais} (${item.titulo}).
 
-El objetivo del informe es comparar los distintos marcos regulatorios y modelos aplicados en los países mencionados en el texto, identificando cómo cada uno aborda los principales desafíos de la materia.
+Descripción oficial: ${item.descripcion || "(no disponible)"}
 
-Instrucciones de formato y estilo:
-- Tono: formal, académico, objetivo e institucional.
-- Extensión: desarrolla cada sección con párrafos completos y explicaciones detalladas; evita los resúmenes superficiales.
-- Precisión: no inventes ni asumas información que no esté en el texto base. Si un dato no está en el texto (por ejemplo, no se pudo extraer texto sustantivo para un país), omítelo o dilo explícitamente en esa sección en vez de rellenarla con contenido genérico o inventado.
+Disposiciones reales extraídas del texto de la norma:
+${puntos}
+${matriz ? `\nSíntesis por dimensión ya elaborada a partir de esa norma:\n${matriz}\n` : ""}
+Estructura obligatoria (cada subtítulo seguido de 1 a 2 párrafos):
+### Marco normativo
+La norma principal, su objeto, ámbito de aplicación, definiciones clave y sujetos alcanzados.
+### Institucionalidad y fiscalización
+Los organismos o autoridades que intervienen, sus atribuciones y cómo se articula la supervisión.
+### Derechos y obligaciones
+Los derechos o garantías reconocidos y los deberes impuestos a los sujetos obligados, con los mecanismos o instrumentos específicos.
+### Sanciones, plazos y vigencia
+El régimen de infracciones y sanciones, los plazos relevantes y la entrada en vigencia o normas transitorias.
 
-Estructura obligatoria del informe (usa estos encabezados exactos, en Markdown con "##"):
+Extensión total de la sección: entre 450 y 650 palabras.`;
+    maxTokens = 2200;
+  } else if (tipo === "introduccion") {
+    if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ error: "Se requiere 'items'." });
+    const bloque = items
+      .map((it) => `- ${it.pais} — ${it.titulo}: ${it.descripcion || "(sin descripción)"}${it.puntos && it.puntos.length > 0 ? `\n  Disposiciones destacadas: ${it.puntos.slice(0, 3).join(" | ")}` : ""}`)
+      .join("\n");
+    prompt = `${ESTILO}
 
-## Resumen e Introducción
-Redacta una introducción que explique el contexto general de la materia, los objetivos de la regulación en esta materia y el propósito de este análisis comparado.
+SECCIÓN A REDACTAR: resumen e introducción del informe, que compara los regímenes de ${items.map((i) => i.pais).join(", ")}.
 
-${conContenido.map((it, i) => `## Caso ${it.pais}\n${ENFOQUE_POR_POSICION[Math.min(i, ENFOQUE_POR_POSICION.length - 1)]} Basa todo lo anterior únicamente en lo que aparezca en el texto entregado para ${it.pais}.`).join("\n\n")}
-
-## Conclusiones y Análisis Comparado
-Sintetiza los hallazgos de los países analizados (${casosEsperados}). Destaca las similitudes, diferencias, mejores prácticas y lecciones aprendidas sobre cómo cada modelo aborda la materia, basándote exclusivamente en lo expuesto en las secciones anteriores.
-
-Cuando el texto entregado incluya una cita textual entre comillas, puedes incorporarla literalmente (sin alterarla) para respaldar una afirmación, en vez de solo parafrasearla.
-
-A continuación, el texto base para redactar el informe:
-"""
+Material (normas analizadas):
 ${bloque}
-"""
 
-Responde ÚNICAMENTE con el informe en Markdown (usando "##" para cada sección en el orden indicado), sin texto adicional antes o después.`;
+Estructura obligatoria:
+### Resumen
+Un único párrafo de 100 a 140 palabras que sintetice qué se compara y los principales hallazgos que surgen del material.
+### Introducción
+Tres párrafos: (1) contexto general y relevancia de la materia; (2) objetivos de la regulación en esta materia; (3) propósito, alcance y fuentes del análisis comparado, mencionando las normas analizadas por país.
+
+Extensión total: entre 350 y 450 palabras.`;
+    maxTokens = 1800;
+  } else if (tipo === "conclusiones") {
+    if (!Array.isArray(seccionesPrevias) || seccionesPrevias.length === 0) return res.status(400).json({ error: "Se requiere 'seccionesPrevias'." });
+    const bloque = seccionesPrevias.map((s) => `[${s.pais}]\n${s.texto.slice(0, 2600)}`).join("\n\n");
+    const hayChile = seccionesPrevias.some((s) => /chile/i.test(s.pais));
+    prompt = `${ESTILO}
+
+SECCIÓN A REDACTAR: conclusiones y análisis comparado, a partir EXCLUSIVAMENTE de las secciones ya redactadas de cada país:
+
+${bloque}
+
+Estructura obligatoria (cada subtítulo seguido de 1 a 2 párrafos):
+### Similitudes
+Elementos comunes entre los regímenes (principios, instituciones, instrumentos), nombrando los países.
+### Diferencias
+Divergencias sustantivas de diseño, alcance, institucionalidad y sanciones, nombrando los países.
+### Buenas prácticas
+Soluciones normativas o institucionales que destacan, indicando en qué país se observan.
+### Lecciones para Chile
+${hayChile ? "Contrasta el régimen chileno con los demás países analizados y señala qué elementos de estos podría considerar Chile, o qué aspectos del modelo chileno destacan." : "Señala qué elementos de los regímenes analizados podría considerar el legislador chileno."} Formula las lecciones como consideraciones fundadas únicamente en lo expuesto en las secciones anteriores (por ejemplo "podría considerarse..."), sin inventar hechos nuevos.
+
+Extensión total: entre 550 y 750 palabras.`;
+    maxTokens = 2600;
+  } else {
+    return res.status(400).json({ error: "'tipo' inválido." });
+  }
 
   const attempts: AIProviderAttempt[] = [];
-  const texto = await generarContenidoUniversalIA(prompt, 4500, attempts);
-  if (texto) {
-    return res.json({ informe: texto.trim() });
+  const texto = await generarContenidoUniversalIA(prompt, maxTokens, attempts);
+  if (texto && texto.trim().length > 80) {
+    return res.json({ texto: texto.trim() });
   }
-
-  res.json({ informe: null, aiDiagnostics: attempts });
+  res.json({ texto: null, aiDiagnostics: attempts });
 });
 
 apiRouter.post("/derecho-comparado/analizar", async (req: Request, res: Response) => {
