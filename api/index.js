@@ -193535,6 +193535,7 @@ apiRouter.post("/derecho-comparado/analizar", async (req, res) => {
   }
   const textoNormaCompleto = resultado.pais === "Chile" && resultado.url ? await fetchTextoNormaLeyChileCompleto(resultado.url) : null;
   const textoFuente = textoNormaCompleto || (resultado.url ? await fetchTextoFuente(resultado.url, query) : null);
+  const diagnosticoIA = [];
   if (textoFuente) {
     const prompt = `Eres un analista de Asesor\xEDa T\xE9cnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile, redactando la secci\xF3n de un pa\xEDs en un informe de legislaci\xF3n comparada. A continuaci\xF3n se entrega el TEXTO REAL extra\xEDdo de la fuente oficial "${resultado.titulo}" (${resultado.pais}), en relaci\xF3n a la materia "${query}".
 
@@ -193555,7 +193556,7 @@ Redacta SIEMPRE en espa\xF1ol, incluso si el texto de la fuente original est\xE1
 
 No inventes disposiciones que no est\xE9n en el texto entregado bajo ninguna circunstancia.`;
     for (let intento = 1; intento <= 2; intento++) {
-      const textoIA = await generarContenidoUniversalIA(prompt, 3500);
+      const textoIA = await generarContenidoUniversalIA(prompt, 3500, diagnosticoIA);
       if (!textoIA) continue;
       let parsed = null;
       try {
@@ -193589,7 +193590,7 @@ No inventes disposiciones que no est\xE9n en el texto entregado bajo ninguna cir
     }
   }
   const puntosHeuristicos = extraerPuntosHeuristicos(query, resultado, textoFuente);
-  res.json({ puntos: puntosHeuristicos, disponible: true, heuristico: true });
+  res.json({ puntos: puntosHeuristicos, disponible: true, heuristico: true, aiDiagnostics: diagnosticoIA });
 });
 apiRouter.post("/derecho-comparado/sintetizar-comparacion", async (req, res) => {
   const { query, items } = req.body;

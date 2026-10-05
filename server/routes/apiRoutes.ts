@@ -1462,6 +1462,7 @@ apiRouter.post("/derecho-comparado/analizar", async (req: Request, res: Response
     : null;
   const textoFuente = textoNormaCompleto || (resultado.url ? await fetchTextoFuente(resultado.url, query) : null);
 
+  const diagnosticoIA: AIProviderAttempt[] = [];
   if (textoFuente) {
     const prompt = `Eres un analista de Asesoría Técnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile, redactando la sección de un país en un informe de legislación comparada. A continuación se entrega el TEXTO REAL extraído de la fuente oficial "${resultado.titulo}" (${resultado.pais}), en relación a la materia "${query}".
 
@@ -1490,7 +1491,7 @@ No inventes disposiciones que no estén en el texto entregado bajo ninguna circu
     // respuesta truncada o no JSON) y caer a la heurística deja la sección de la
     // norma sin artículos concretos; un segundo intento suele resolverlo.
     for (let intento = 1; intento <= 2; intento++) {
-      const textoIA = await generarContenidoUniversalIA(prompt, 3500);
+      const textoIA = await generarContenidoUniversalIA(prompt, 3500, diagnosticoIA);
       if (!textoIA) continue;
       let parsed: { disponible?: boolean; puntos?: string[]; motivo?: string } | null = null;
       try {
@@ -1526,7 +1527,7 @@ No inventes disposiciones que no estén en el texto entregado bajo ninguna circu
   }
 
   const puntosHeuristicos = extraerPuntosHeuristicos(query, resultado, textoFuente);
-  res.json({ puntos: puntosHeuristicos, disponible: true, heuristico: true });
+  res.json({ puntos: puntosHeuristicos, disponible: true, heuristico: true, aiDiagnostics: diagnosticoIA });
 });
 
 // Redacta un análisis comparativo REAL entre las normas que el usuario
