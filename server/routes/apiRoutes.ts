@@ -81,6 +81,18 @@ import {
   AIProviderAttempt
 } from "../services/aiService";
 import { cache } from "../services/cacheService";
+import {
+  obtenerDatos,
+  guardarImportacion,
+  restablecerDemo,
+  parsearInvestigacionesCsv,
+  parsearAsignacionesCsv,
+  detectarConexiones,
+  semanaActual,
+  normalizarBoletin,
+  enmascarar,
+  PLANTILLA_CSV
+} from "../services/pizarraService";
 
 export const apiRouter = Router();
 
@@ -1089,6 +1101,114 @@ apiRouter.get("/comision/:id", async (req: Request, res: Response) => {
   };
 
   res.json(enriched);
+});
+
+// ============================================================================
+// 3.9 PIZARRA ATP -- visión transversal de investigaciones, demanda y agenda
+// legislativa. La fuente de datos es intercambiable (ver pizarraService.ts).
+// Si se define PIZARRA_TOKEN, todas las rutas /pizarra exigen ese token.
+// ============================================================================
+const exigirTokenPizarra = (req: Request, res: Response, next: () => void) => {
+  const esperado = process.env.PIZARRA_TOKEN;
+  if (!esperado) return next();
+  const recibido = String(req.headers["x-pizarra-token"] || String(req.headers.authorization || "").replace(/^Bearer\s+/i, ""));
+  if (recibido === esperado) return next();
+  res.status(401).json({ error: "Acceso restringido: falta o es inválido el token de la Pizarra ATP.", requiereToken: true });
+};
+
+apiRouter.get("/pizarra", exigirTokenPizarra, async (req: Request, res: Response) => {
+  const { datos, fuente } = obtenerDatos();
+  const semana = semanaActual();
+
+  // Agenda legislativa real de la semana (Cámara + Senado).
+  const porComision = new Map<string, Set<string>>();
+  const porBoletin = new Map<string, string[]>();
+  let agendaDisponible = true;
+  try {
+    const [camara, senado] = await Promise.all([
+      fetchCamaraCitacionesSemanalesLive(false),
+      fetchSenadoCitacionesLive(false)
+    ]);
+    const registrar = (comision: string, boletines: unknown) => {
+      if (!comision) return;
+      const set = porComision.get(comision) || new Set<string>();
+      for (const b of Array.isArray(boletines) ? boletines : []) {
+        const bol = normalizarBoletin(String(b));
+        set.add(bol);
+        porBoletin.set(bol, [...(porBoletin.get(bol) || []), comision]);
+      }
+      porComision.set(comision, set);
+    };
+    for (const c of ((camara as any).todas || []) as any[]) registrar(c.comisionNombre, c.boletinesRelacionados);
+    for (const c of ((senado as any).citaciones || (senado as any).todas || []) as any[]) registrar(c.comision, c.boletines);
+  } catch {
+    agendaDisponible = false;
+  }
+  const boletinesAgenda = new Set<string>(porBoletin.keys());
+
+  const conexiones = detectarConexiones(datos, { boletines: boletinesAgenda, porBoletin });
+
+  const desdeIso = semana.desde.toISOString().slice(0, 10);
+  const nuevos = datos.investigaciones.filter((i) => i.fechaIngreso >= desdeIso);
+  const activas = datos.investigaciones.filter((i) => i.estado === "en_curso");
+  const areas = new Map<string, number>();
+  for (const i of activas) areas.set(i.area, (areas.get(i.area) || 0) + 1);
+
+  res.json({
+    fuente,
+    semana: { etiqueta: semana.etiqueta, desde: desdeIso, hasta: semana.hasta.toISOString().slice(0, 10) },
+    agenda: {
+      disponible: agendaDisponible,
+      comisiones: porComision.size,
+      proyectos: boletinesAgenda.size,
+      porComision: [...porComision.entries()].map(([comision, b]) => ({ comision, boletines: [...b] })).sort((a, b) => b.boletines.length - a.boletines.length)
+    },
+    demanda: {
+      nuevos: nuevos.length,
+      comisiones: new Set(nuevos.filter((i) => i.comision).map((i) => i.comision)).size,
+      parlamentarios: nuevos.filter((i) => i.tipo === "parlamentario").length
+    },
+    trabajo: {
+      activas: activas.length,
+      areas: [...areas.entries()].map(([area, cantidad]) => ({ area, cantidad })).sort((a, b) => b.cantidad - a.cantidad)
+    },
+    conexiones,
+    investigaciones: datos.investigaciones.map(enmascarar),
+    asignaciones: datos.asignaciones
+  });
+});
+
+apiRouter.post("/pizarra/importar", exigirTokenPizarra, async (req: Request, res: Response) => {
+  const { csv, tipo = "investigaciones", modo = "reemplazar" } = req.body as {
+    csv?: string;
+    tipo?: "investigaciones" | "asignaciones";
+    modo?: "reemplazar" | "agregar";
+  };
+  if (!csv || typeof csv !== "string" || csv.trim().length < 10) {
+    return res.status(400).json({ error: "Se requiere el contenido CSV en 'csv'." });
+  }
+  const modoFinal = modo === "agregar" ? "agregar" : "reemplazar";
+  if (tipo === "asignaciones") {
+    const r = parsearAsignacionesCsv(csv);
+    if (r.registros.length === 0) return res.status(422).json({ error: "No se encontraron filas válidas.", rechazados: r.rechazados.slice(0, 20) });
+    const out = guardarImportacion({ asignaciones: r.registros }, "agregar");
+    return res.json({ aceptados: r.registros.length, rechazados: r.rechazados.slice(0, 20), ...out });
+  }
+  const r = parsearInvestigacionesCsv(csv);
+  if (r.registros.length === 0) return res.status(422).json({ error: "No se encontraron filas válidas.", rechazados: r.rechazados.slice(0, 20) });
+  const out = guardarImportacion({ investigaciones: r.registros }, modoFinal);
+  res.json({ aceptados: r.registros.length, rechazados: r.rechazados.slice(0, 20), ...out });
+});
+
+apiRouter.post("/pizarra/restablecer-demo", exigirTokenPizarra, (req: Request, res: Response) => {
+  restablecerDemo();
+  res.json({ ok: true });
+});
+
+apiRouter.get("/pizarra/plantilla", exigirTokenPizarra, (req: Request, res: Response) => {
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", 'attachment; filename="plantilla_pizarra_atp.csv"');
+  res.send("﻿" + PLANTILLA_CSV);
 });
 
 // ============================================================================

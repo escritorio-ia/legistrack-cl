@@ -190245,13 +190245,13 @@ function htmlATextoLegible(html) {
 var PALABRAS_JURIDICAS = /sanci|multa|infracci|autoridad|agencia|organismo|derecho|obligaci|deber|plazo|fiscaliz|vigencia|definici|responsable|titular|consentimiento|penalt|fine|authority|right|obligation|controller|processor|penalty|supervis|prazo|san[cç]|autoridade|direito|dever/i;
 function seleccionarFragmentosRelevantes(texto, query, max) {
   if (texto.length <= max) return texto;
-  const terminos = (query || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").split(/[^a-z0-9]+/).filter((w) => w.length >= 4);
+  const terminos2 = (query || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").split(/[^a-z0-9]+/).filter((w) => w.length >= 4);
   const TAM = 1400;
   const trozos = [];
   for (let i = 0, k = 0; i < texto.length; i += TAM, k++) {
     const txt = texto.slice(i, i + TAM);
     const plano = txt.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
-    const hits = terminos.reduce((n, w) => n + (plano.includes(w) ? 1 : 0), 0);
+    const hits = terminos2.reduce((n, w) => n + (plano.includes(w) ? 1 : 0), 0);
     const juridico = (txt.match(new RegExp(PALABRAS_JURIDICAS.source, "gi")) || []).length;
     trozos.push({ i: k, txt, score: hits * 3 + Math.min(juridico, 6) });
   }
@@ -192394,6 +192394,449 @@ function getSernapescaCatalog() {
   return SERNAPESCA_CATALOG;
 }
 
+// server/services/pizarraService.ts
+import fs from "fs";
+import path from "path";
+import Papa from "papaparse";
+var sinAcentos = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "");
+var norm = (s) => sinAcentos(s).toLowerCase().trim();
+function normalizarBoletin(b) {
+  return b.replace(/\./g, "").replace(/\s+/g, "").replace(/-0+(\d)/, "-$1").trim();
+}
+function normalizarNorma(n) {
+  return norm(n).replace(/\./g, "").replace(/\s+/g, " ");
+}
+var STOPWORDS = /* @__PURE__ */ new Set([
+  "sobre",
+  "entre",
+  "desde",
+  "hasta",
+  "para",
+  "como",
+  "donde",
+  "cuando",
+  "segun",
+  "desde",
+  "hacia",
+  "tambien",
+  "proyecto",
+  "proyectos",
+  "informe",
+  "informes",
+  "analisis",
+  "antecedentes",
+  "materia",
+  "materias",
+  "chile",
+  "chilena",
+  "chileno",
+  "nacional",
+  "legal",
+  "legales",
+  "estudio",
+  "estudios",
+  "comparada",
+  "comparado",
+  "regulacion"
+]);
+function raiz(p) {
+  if (p.length > 6 && p.endsWith("es")) return p.slice(0, -2);
+  if (p.length > 5 && p.endsWith("s")) return p.slice(0, -1);
+  return p;
+}
+function terminos(inv) {
+  const out = /* @__PURE__ */ new Set();
+  const fuentes = [...inv.palabrasClave, inv.materia];
+  for (const f of fuentes) {
+    for (const w of norm(f).split(/[^a-z0-9ñ]+/)) {
+      if (w.length >= 5 && !STOPWORDS.has(w)) out.add(raiz(w));
+    }
+  }
+  return out;
+}
+function compartidos(a, b) {
+  return [...a].filter((x) => b.has(x));
+}
+function jaccard(a, b) {
+  if (a.size === 0 || b.size === 0) return 0;
+  const inter = compartidos(a, b).length;
+  return inter / (a.size + b.size - inter);
+}
+function inicioDeSemana(ref) {
+  const d = new Date(ref);
+  d.setHours(0, 0, 0, 0);
+  const dow = (d.getDay() + 6) % 7;
+  d.setDate(d.getDate() - dow);
+  return d;
+}
+var MESES2 = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+function semanaActual(ref = /* @__PURE__ */ new Date()) {
+  const desde = inicioDeSemana(ref);
+  const hasta = new Date(desde);
+  hasta.setDate(hasta.getDate() + 6);
+  const f = (d) => `${d.getDate()} ${MESES2[d.getMonth()].toUpperCase()}`;
+  return { desde, hasta, etiqueta: `${f(desde)} \u2013 ${f(hasta)}` };
+}
+function iso(base, diasOffset) {
+  const d = new Date(base);
+  d.setDate(d.getDate() + diasOffset);
+  return d.toISOString().slice(0, 10);
+}
+function datosDemo() {
+  const lunes = semanaActual().desde;
+  const inv = (x) => ({
+    tipo: "comision",
+    solicitante: "",
+    boletines: [],
+    palabrasClave: [],
+    normas: [],
+    estado: "en_curso",
+    fechaIngreso: iso(lunes, -3),
+    ...x
+  });
+  const investigaciones = [
+    inv({ id: "DEMO-001", area: "Econom\xEDa", investigador: "Investigador Econom\xEDa 1", materia: "IA, empleo y productividad", tipo: "comision", solicitante: "Comisi\xF3n de Trabajo y Previsi\xF3n Social", comision: "Comisi\xF3n de Trabajo y Previsi\xF3n Social", palabrasClave: ["inteligencia artificial", "empleo", "productividad", "automatizaci\xF3n"], fechaIngreso: iso(lunes, -4) }),
+    inv({ id: "DEMO-002", area: "Legal", investigador: "Investigador Legal 1", materia: "IA y derechos fundamentales", tipo: "parlamentario", solicitante: "Parlamentario (demo)", palabrasClave: ["inteligencia artificial", "sesgos", "privacidad", "transparencia", "responsabilidad"], fechaIngreso: iso(lunes, -2) }),
+    inv({ id: "DEMO-003", area: "Pol\xEDticas Sociales", investigador: "Investigador Pol. Sociales 1", materia: "IA en la sala de clases", comision: "Comisi\xF3n de Educaci\xF3n", solicitante: "Comisi\xF3n de Educaci\xF3n", palabrasClave: ["inteligencia artificial", "educaci\xF3n", "estudiantes", "evaluaci\xF3n"], fechaIngreso: iso(lunes, -1) }),
+    inv({ id: "DEMO-004", area: "Ciencia y Recursos Naturales", investigador: "Investigador Ciencia 1", materia: "IA para anticipar riesgos ambientales", tipo: "parlamentario", solicitante: "Parlamentario (demo)", palabrasClave: ["inteligencia artificial", "incendios", "sequ\xEDa", "monitoreo"], fechaIngreso: iso(lunes, 0) }),
+    inv({ id: "DEMO-005", area: "Gobierno y Defensa", investigador: "Investigador Defensa 1", materia: "IA y nuevas capacidades de defensa", comision: "Comisi\xF3n de Defensa Nacional", solicitante: "Comisi\xF3n de Defensa Nacional", palabrasClave: ["inteligencia artificial", "defensa", "sistemas aut\xF3nomos", "ciberdefensa"], fechaIngreso: iso(lunes, 0) }),
+    inv({ id: "DEMO-006", area: "Pol\xEDticas Sociales", investigador: "Investigador Pol. Sociales 2", materia: "Protecci\xF3n de ni\xF1os, ni\xF1as y adolescentes en plataformas digitales", comision: "Comisi\xF3n de Familia", solicitante: "Comisi\xF3n de Familia", palabrasClave: ["plataformas digitales", "ni\xF1os y adolescentes", "protecci\xF3n", "derechos"], fechaIngreso: iso(lunes, -1) }),
+    inv({ id: "DEMO-007", area: "Legal", investigador: "Investigador Legal 2", materia: "Retiro de contenidos y responsabilidad de plataformas digitales", tipo: "parlamentario", solicitante: "Parlamentario (demo)", palabrasClave: ["plataformas digitales", "retiro de contenidos", "responsabilidad", "jurisprudencia", "derechos"], fechaIngreso: iso(lunes, 0) }),
+    inv({ id: "DEMO-008", area: "Legal", investigador: "Investigador Legal 3", materia: "Regulaci\xF3n de plataformas digitales (primer tr\xE1mite)", boletines: ["18456-7"], comision: "Comisi\xF3n de Educaci\xF3n (C\xE1mara)", solicitante: "Comisi\xF3n de Educaci\xF3n (C\xE1mara)", palabrasClave: ["plataformas digitales", "regulaci\xF3n"], estado: "entregada", fechaIngreso: iso(lunes, -150), fechaEntrega: iso(lunes, -120), etapa: "Primer tr\xE1mite \xB7 C\xE1mara \xB7 Comisi\xF3n de Educaci\xF3n" }),
+    inv({ id: "DEMO-009", area: "Pol\xEDticas Sociales", investigador: "Investigador Pol. Sociales 3", materia: "Regulaci\xF3n de plataformas digitales (segundo tr\xE1mite)", boletines: ["18456-7"], comision: "Comisi\xF3n de Cultura (Senado)", solicitante: "Comisi\xF3n de Cultura (Senado)", palabrasClave: ["plataformas digitales", "regulaci\xF3n"], fechaIngreso: iso(lunes, -2), etapa: "Segundo tr\xE1mite \xB7 Senado \xB7 Comisi\xF3n de Cultura" }),
+    inv({ id: "DEMO-010", area: "Econom\xEDa", investigador: "Investigador Econom\xEDa 2", materia: "Costo fiscal de la sala cuna universal", boletines: ["14782-13"], comision: "Comisi\xF3n de Hacienda", solicitante: "Comisi\xF3n de Hacienda", palabrasClave: ["sala cuna", "costo fiscal", "cuidado infantil"], fechaIngreso: iso(lunes, -1) }),
+    inv({ id: "DEMO-011", area: "Legal", investigador: "Investigador Legal 4", materia: "Teletrabajo y cuidados: derecho comparado", boletines: ["16621-13"], comision: "Comisi\xF3n de Trabajo y Previsi\xF3n Social", solicitante: "Comisi\xF3n de Trabajo y Previsi\xF3n Social", palabrasClave: ["teletrabajo", "cuidados", "conciliaci\xF3n"], fechaIngreso: iso(lunes, -2) }),
+    inv({ id: "DEMO-012", area: "Ciencia y Recursos Naturales", investigador: "Investigador Ciencia 2", materia: "Gesti\xF3n del recurso h\xEDdrico en zonas de sequ\xEDa", tipo: "parlamentario", solicitante: "Parlamentario (demo)", palabrasClave: ["recursos h\xEDdricos", "sequ\xEDa", "gesti\xF3n del agua"], estado: "entregada", fechaIngreso: iso(lunes, -30), fechaEntrega: iso(lunes, -10) })
+  ];
+  const asignaciones = [
+    { investigador: "Investigador Pol. Sociales 4", area: "Pol\xEDticas Sociales", comision: "Comisi\xF3n de Familia" },
+    { investigador: "Investigador Legal 3", area: "Legal", comision: "Comisi\xF3n de Educaci\xF3n (C\xE1mara)" },
+    { investigador: "Investigador Pol. Sociales 3", area: "Pol\xEDticas Sociales", comision: "Comisi\xF3n de Cultura (Senado)" },
+    { investigador: "Investigador Econom\xEDa 3", area: "Econom\xEDa", comision: "Comisi\xF3n de Hacienda" }
+  ];
+  return { investigaciones, asignaciones };
+}
+var lista = (v) => String(v ?? "").split(/[;|]/).map((x) => x.trim()).filter(Boolean);
+function aEstado(v) {
+  const s = norm(String(v ?? ""));
+  if (s.startsWith("entreg") || s === "cerrada" || s === "finalizada") return "entregada";
+  if (s.startsWith("archiv")) return "archivada";
+  return "en_curso";
+}
+function aFechaIso(v) {
+  const s = String(v ?? "").trim();
+  if (!s) return void 0;
+  const dmy = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+  if (dmy) return `${dmy[3]}-${dmy[2].padStart(2, "0")}-${dmy[1].padStart(2, "0")}`;
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? void 0 : d.toISOString().slice(0, 10);
+}
+function parsearInvestigacionesCsv(texto) {
+  const parsed = Papa.parse(texto.replace(/^﻿/, ""), {
+    header: true,
+    skipEmptyLines: true,
+    transformHeader: (h) => norm(h).replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")
+  });
+  const registros = [];
+  const rechazados = [];
+  parsed.data.forEach((r, idx) => {
+    const fila = idx + 2;
+    const id = (r.id || r.id_pedido || r.pedido || "").trim();
+    const area = (r.area || "").trim();
+    const materia = (r.materia || r.titulo || "").trim();
+    if (!id || !area || !materia) {
+      rechazados.push({ fila, motivo: "Faltan campos obligatorios (id, area, materia)." });
+      return;
+    }
+    registros.push({
+      id,
+      area,
+      investigador: (r.investigador || "").trim() || "(sin asignar)",
+      tipo: norm(r.tipo || "").startsWith("parl") ? "parlamentario" : "comision",
+      solicitante: (r.solicitante || r.comision || "").trim(),
+      comision: (r.comision || "").trim() || void 0,
+      boletines: lista(r.boletines || r.boletin).map(normalizarBoletin),
+      materia,
+      descripcion: (r.descripcion || "").trim() || void 0,
+      palabrasClave: lista(r.palabras_clave || r.palabrasclave),
+      normas: lista(r.normas),
+      estado: aEstado(r.estado),
+      fechaIngreso: aFechaIso(r.fecha_ingreso || r.ingreso) || (/* @__PURE__ */ new Date()).toISOString().slice(0, 10),
+      fechaEntrega: aFechaIso(r.fecha_entrega || r.entrega),
+      etapa: (r.etapa || "").trim() || void 0
+    });
+  });
+  return { registros, rechazados };
+}
+function parsearAsignacionesCsv(texto) {
+  const parsed = Papa.parse(texto.replace(/^﻿/, ""), {
+    header: true,
+    skipEmptyLines: true,
+    transformHeader: (h) => norm(h).replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")
+  });
+  const registros = [];
+  const rechazados = [];
+  parsed.data.forEach((r, idx) => {
+    const investigador = (r.investigador || "").trim();
+    const comision = (r.comision || "").trim();
+    if (!investigador || !comision) {
+      rechazados.push({ fila: idx + 2, motivo: "Faltan campos obligatorios (investigador, comision)." });
+      return;
+    }
+    registros.push({ investigador, area: (r.area || "").trim(), comision });
+  });
+  return { registros, rechazados };
+}
+function sanear(inv) {
+  return {
+    ...inv,
+    boletines: (inv.boletines || []).map(normalizarBoletin),
+    palabrasClave: inv.palabrasClave || [],
+    normas: inv.normas || [],
+    estado: inv.estado || "en_curso",
+    tipo: inv.tipo === "parlamentario" ? "parlamentario" : "comision",
+    solicitante: inv.solicitante || ""
+  };
+}
+var memoria = null;
+var fuenteMemoria = null;
+var archivoCache = null;
+function dirDatos() {
+  return process.env.PIZARRA_DATA_DIR ? path.resolve(process.env.PIZARRA_DATA_DIR) : null;
+}
+function leerDisco() {
+  const dir = dirDatos();
+  if (!dir) return null;
+  try {
+    const f = path.join(dir, "pizarra.json");
+    if (!fs.existsSync(f)) return null;
+    const j = JSON.parse(fs.readFileSync(f, "utf8"));
+    return { investigaciones: (j.investigaciones || []).map(sanear), asignaciones: j.asignaciones || [] };
+  } catch {
+    return null;
+  }
+}
+function escribirDisco(datos) {
+  const dir = dirDatos();
+  if (!dir) return false;
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, "pizarra.json"), JSON.stringify(datos, null, 2), "utf8");
+    return true;
+  } catch {
+    return false;
+  }
+}
+function leerArchivoConfigurado() {
+  const ruta = process.env.PIZARRA_ARCHIVO;
+  if (!ruta) return null;
+  try {
+    const abs = path.resolve(ruta);
+    const mtime = fs.statSync(abs).mtimeMs;
+    if (archivoCache && archivoCache.mtime === mtime) return archivoCache.datos;
+    const texto = fs.readFileSync(abs, "utf8");
+    let datos;
+    if (abs.toLowerCase().endsWith(".json")) {
+      const j = JSON.parse(texto);
+      datos = Array.isArray(j) ? { investigaciones: j.map(sanear), asignaciones: [] } : { investigaciones: (j.investigaciones || []).map(sanear), asignaciones: j.asignaciones || [] };
+    } else {
+      datos = { investigaciones: parsearInvestigacionesCsv(texto).registros, asignaciones: [] };
+      const rutaAsig = process.env.PIZARRA_ASIGNACIONES_ARCHIVO;
+      if (rutaAsig && fs.existsSync(path.resolve(rutaAsig))) {
+        datos.asignaciones = parsearAsignacionesCsv(fs.readFileSync(path.resolve(rutaAsig), "utf8")).registros;
+      }
+    }
+    archivoCache = { mtime, datos };
+    return datos;
+  } catch (e) {
+    console.warn("[Pizarra] No se pudo leer PIZARRA_ARCHIVO:", e.message);
+    return null;
+  }
+}
+function obtenerDatos() {
+  const modo = (process.env.PIZARRA_FUENTE || "demo").toLowerCase();
+  const ahora = (/* @__PURE__ */ new Date()).toISOString();
+  if (modo === "archivo") {
+    const datos = leerArchivoConfigurado();
+    if (datos) {
+      return { datos, fuente: { tipo: "archivo", nombre: `Archivo del servidor (${path.basename(process.env.PIZARRA_ARCHIVO || "")})`, demo: false, persistente: true, actualizado: ahora } };
+    }
+  }
+  const guardado = memoria || leerDisco();
+  if (guardado && guardado.investigaciones.length > 0) {
+    memoria = guardado;
+    return {
+      datos: guardado,
+      fuente: { tipo: "archivo", nombre: "Importaci\xF3n manual", demo: false, persistente: !!dirDatos(), actualizado: fuenteMemoria?.actualizado || ahora }
+    };
+  }
+  return { datos: datosDemo(), fuente: { tipo: "demo", nombre: "Datos de demostraci\xF3n (ficticios)", demo: true, persistente: false, actualizado: ahora } };
+}
+function guardarImportacion(nuevos, modo) {
+  let base = { investigaciones: [], asignaciones: [] };
+  if (modo === "agregar") {
+    const actual = obtenerDatos();
+    if (!actual.fuente.demo) base = actual.datos;
+  }
+  const porId = new Map(base.investigaciones.map((i) => [i.id, i]));
+  for (const i of nuevos.investigaciones || []) porId.set(i.id, sanear(i));
+  const asig = nuevos.asignaciones && nuevos.asignaciones.length > 0 ? nuevos.asignaciones : base.asignaciones;
+  memoria = { investigaciones: [...porId.values()], asignaciones: asig };
+  fuenteMemoria = { tipo: "archivo", nombre: "Importaci\xF3n manual", demo: false, persistente: !!dirDatos(), actualizado: (/* @__PURE__ */ new Date()).toISOString() };
+  const persistido = escribirDisco(memoria);
+  return { total: memoria.investigaciones.length, asignaciones: memoria.asignaciones.length, persistido };
+}
+function restablecerDemo() {
+  memoria = null;
+  fuenteMemoria = null;
+  const dir = dirDatos();
+  if (dir) {
+    try {
+      fs.rmSync(path.join(dir, "pizarra.json"), { force: true });
+    } catch {
+    }
+  }
+}
+var PLANTILLA_CSV = "id;area;investigador;tipo;solicitante;comision;boletines;materia;descripcion;palabras_clave;normas;estado;fecha_ingreso;fecha_entrega;etapa\nP-0001;Legal;Nombre Apellido;comision;Comisi\xF3n de Familia;Comisi\xF3n de Familia;18456-7;Regulaci\xF3n de plataformas digitales;Descripci\xF3n breve;plataformas digitales|ni\xF1os y adolescentes;Ley 21.719;en_curso;2026-09-28;;Primer tr\xE1mite \xB7 C\xE1mara\n";
+function enMarcha(i) {
+  return i.estado === "en_curso";
+}
+function detectarConexiones(datos, agenda) {
+  const activas = datos.investigaciones.filter(enMarcha);
+  const term = new Map(datos.investigaciones.map((i) => [i.id, terminos(i)]));
+  const coordinacion = [];
+  const paresFuertes = /* @__PURE__ */ new Set();
+  for (let a = 0; a < activas.length; a++) {
+    for (let b = a + 1; b < activas.length; b++) {
+      const A = activas[a], B = activas[b];
+      if (A.id === B.id) continue;
+      const ta = term.get(A.id), tb = term.get(B.id);
+      const compBol = A.boletines.filter((x) => B.boletines.includes(x));
+      const compNor = A.normas.map(normalizarNorma).filter((x) => B.normas.map(normalizarNorma).includes(x));
+      const compTerm = compartidos(ta, tb);
+      const jac = jaccard(ta, tb);
+      const mismoBoletinMismaEtapa = compBol.length > 0 && (A.comision || "") === (B.comision || "");
+      const fuerte = mismoBoletinMismaEtapa || compNor.length > 0 || compBol.length === 0 && (compTerm.length >= 3 || compTerm.length >= 2 && jac >= 0.3);
+      if (!fuerte) continue;
+      if (A.investigador === B.investigador && A.area === B.area) continue;
+      paresFuertes.add([A.id, B.id].sort().join("|"));
+      const motivos = [];
+      if (compBol.length) motivos.push(`mismo bolet\xEDn ${compBol.join(", ")}`);
+      if (compNor.length) motivos.push(`norma(s) com\xFAn(es): ${compNor.join(", ")}`);
+      if (compTerm.length) motivos.push(`materia compartida: ${compTerm.slice(0, 5).join(", ")}`);
+      coordinacion.push({
+        id: `coord-${A.id}-${B.id}`,
+        tipo: "coordinacion",
+        titulo: `${A.area} \u2194 ${B.area}`,
+        mensaje: "Esto tambi\xE9n se est\xE1 trabajando ahora. Con\xE9ctense.",
+        motivo: motivos.join(" \xB7 "),
+        investigaciones: [A.id, B.id]
+      });
+    }
+  }
+  for (const inv of activas) {
+    if (!inv.comision) continue;
+    const seguidores = datos.asignaciones.filter(
+      (s) => norm(s.comision) === norm(inv.comision) && norm(s.investigador) !== norm(inv.investigador)
+    );
+    for (const s of seguidores) {
+      coordinacion.push({
+        id: `com-${inv.id}-${norm(s.investigador).replace(/\s+/g, "-")}`,
+        tipo: "coordinacion",
+        titulo: `Informe para ${inv.comision}`,
+        mensaje: `${s.investigador} (${s.area || "ATP"}) acompa\xF1a esta comisi\xF3n y quiz\xE1 no sabe que se est\xE1 elaborando este trabajo.`,
+        motivo: `Pedido ${inv.id} de ${inv.area} destinado a una comisi\xF3n que sigue otro investigador`,
+        investigaciones: [inv.id]
+      });
+    }
+  }
+  const continuidad = [];
+  const porBoletin = /* @__PURE__ */ new Map();
+  for (const i of datos.investigaciones) for (const b of i.boletines) porBoletin.set(b, [...porBoletin.get(b) || [], i]);
+  for (const [bol, lista2] of porBoletin) {
+    const ordenadas = [...lista2].sort((x, y) => x.fechaIngreso.localeCompare(y.fechaIngreso));
+    for (let k = 1; k < ordenadas.length; k++) {
+      const nueva = ordenadas[k];
+      const previas = ordenadas.slice(0, k).filter((p) => (p.comision || "") !== (nueva.comision || ""));
+      if (previas.length === 0) continue;
+      continuidad.push({
+        id: `cont-${bol}-${nueva.id}`,
+        tipo: "continuidad",
+        titulo: `Bolet\xEDn ${bol}`,
+        mensaje: "Ojo: este proyecto ya fue trabajado antes por ATP; no partas de cero.",
+        motivo: `Antes: ${previas.map((p) => `${p.area} (${p.etapa || p.comision || "etapa previa"})`).join("; ")} \u2192 Ahora: ${nueva.etapa || nueva.comision || "nueva etapa"}`,
+        investigaciones: [...previas.map((p) => p.id), nueva.id]
+      });
+    }
+  }
+  for (const bol of agenda.boletines) {
+    const previas = porBoletin.get(bol);
+    if (!previas || previas.length === 0) continue;
+    const comisionesAgenda = agenda.porBoletin.get(bol) || [];
+    const yaCubierto = continuidad.some((c) => c.id.startsWith(`cont-${bol}-`));
+    const comisionesATP = new Set(previas.map((p) => norm(p.comision || "")));
+    const nuevaComision = comisionesAgenda.find((c) => !comisionesATP.has(norm(c)));
+    if (yaCubierto || !nuevaComision) continue;
+    continuidad.push({
+      id: `cont-agenda-${bol}`,
+      tipo: "continuidad",
+      titulo: `Bolet\xEDn ${bol} en tabla esta semana`,
+      mensaje: "Este proyecto est\xE1 en discusi\xF3n en una comisi\xF3n nueva y ATP ya tiene trabajo previo sobre \xE9l.",
+      motivo: `En tabla: ${nuevaComision}. Trabajo previo: ${previas.map((p) => `${p.area} (${p.id})`).join("; ")}`,
+      investigaciones: previas.map((p) => p.id)
+    });
+  }
+  const padre = new Map(activas.map((i) => [i.id, i.id]));
+  const raizDe = (x) => {
+    let r = x;
+    while (padre.get(r) !== r) r = padre.get(r);
+    return r;
+  };
+  const unidos = /* @__PURE__ */ new Set();
+  for (let a = 0; a < activas.length; a++) {
+    for (let b = a + 1; b < activas.length; b++) {
+      const A = activas[a], B = activas[b];
+      if (A.area === B.area) continue;
+      const comp = compartidos(term.get(A.id), term.get(B.id));
+      if (comp.length >= 2 || jaccard(term.get(A.id), term.get(B.id)) >= 0.2) {
+        padre.set(raizDe(A.id), raizDe(B.id));
+        unidos.add(A.id);
+        unidos.add(B.id);
+      }
+    }
+  }
+  const grupos = /* @__PURE__ */ new Map();
+  for (const i of activas) {
+    if (!unidos.has(i.id)) continue;
+    const r = raizDe(i.id);
+    grupos.set(r, [...grupos.get(r) || [], i]);
+  }
+  const cruces = [];
+  for (const [, miembros] of grupos) {
+    const areas = new Set(miembros.map((m) => m.area));
+    if (areas.size < 2) continue;
+    const cuenta = /* @__PURE__ */ new Map();
+    for (const m of miembros) for (const t of term.get(m.id)) cuenta.set(t, (cuenta.get(t) || 0) + 1);
+    const comunes = [...cuenta.entries()].filter(([, n]) => n >= Math.max(2, Math.ceil(miembros.length / 2))).sort((a, b) => b[1] - a[1]).map(([t]) => t);
+    cruces.push({
+      id: `cruce-${miembros.map((m) => m.id).sort().join("-")}`,
+      tipo: "cruce",
+      titulo: comunes.slice(0, 3).join(" \xB7 ") || "Tem\xE1tica com\xFAn",
+      mensaje: "Distintas \xE1reas investigan materias relacionadas. \xBFQu\xE9 conocimiento podemos compartir?",
+      motivo: `${areas.size} \xE1reas: ${[...areas].join(", ")}`,
+      investigaciones: miembros.map((m) => m.id)
+    });
+  }
+  const crucesFiltrados = cruces.filter((c) => !(c.investigaciones.length === 2 && paresFuertes.has([...c.investigaciones].sort().join("|"))));
+  return { cruces: crucesFiltrados, continuidad, coordinacion };
+}
+function enmascarar(inv) {
+  if (process.env.PIZARRA_OCULTAR_SOLICITANTE === "true" && inv.tipo === "parlamentario") {
+    return { ...inv, solicitante: "Parlamentario (reservado)" };
+  }
+  return inv;
+}
+
 // server/routes/apiRoutes.ts
 var apiRouter = Router();
 for (const metodo of ["get", "post", "put", "delete", "patch"]) {
@@ -193232,6 +193675,95 @@ apiRouter.get("/comision/:id", async (req, res) => {
     proyectos: pMateria.slice(0, 5)
   };
   res.json(enriched);
+});
+var exigirTokenPizarra = (req, res, next) => {
+  const esperado = process.env.PIZARRA_TOKEN;
+  if (!esperado) return next();
+  const recibido = String(req.headers["x-pizarra-token"] || String(req.headers.authorization || "").replace(/^Bearer\s+/i, ""));
+  if (recibido === esperado) return next();
+  res.status(401).json({ error: "Acceso restringido: falta o es inv\xE1lido el token de la Pizarra ATP.", requiereToken: true });
+};
+apiRouter.get("/pizarra", exigirTokenPizarra, async (req, res) => {
+  const { datos, fuente } = obtenerDatos();
+  const semana = semanaActual();
+  const porComision = /* @__PURE__ */ new Map();
+  const porBoletin = /* @__PURE__ */ new Map();
+  let agendaDisponible = true;
+  try {
+    const [camara, senado] = await Promise.all([
+      fetchCamaraCitacionesSemanalesLive(false),
+      fetchSenadoCitacionesLive(false)
+    ]);
+    const registrar = (comision, boletines) => {
+      if (!comision) return;
+      const set = porComision.get(comision) || /* @__PURE__ */ new Set();
+      for (const b of Array.isArray(boletines) ? boletines : []) {
+        const bol = normalizarBoletin(String(b));
+        set.add(bol);
+        porBoletin.set(bol, [...porBoletin.get(bol) || [], comision]);
+      }
+      porComision.set(comision, set);
+    };
+    for (const c of camara.todas || []) registrar(c.comisionNombre, c.boletinesRelacionados);
+    for (const c of senado.citaciones || senado.todas || []) registrar(c.comision, c.boletines);
+  } catch {
+    agendaDisponible = false;
+  }
+  const boletinesAgenda = new Set(porBoletin.keys());
+  const conexiones = detectarConexiones(datos, { boletines: boletinesAgenda, porBoletin });
+  const desdeIso = semana.desde.toISOString().slice(0, 10);
+  const nuevos = datos.investigaciones.filter((i) => i.fechaIngreso >= desdeIso);
+  const activas = datos.investigaciones.filter((i) => i.estado === "en_curso");
+  const areas = /* @__PURE__ */ new Map();
+  for (const i of activas) areas.set(i.area, (areas.get(i.area) || 0) + 1);
+  res.json({
+    fuente,
+    semana: { etiqueta: semana.etiqueta, desde: desdeIso, hasta: semana.hasta.toISOString().slice(0, 10) },
+    agenda: {
+      disponible: agendaDisponible,
+      comisiones: porComision.size,
+      proyectos: boletinesAgenda.size,
+      porComision: [...porComision.entries()].map(([comision, b]) => ({ comision, boletines: [...b] })).sort((a, b) => b.boletines.length - a.boletines.length)
+    },
+    demanda: {
+      nuevos: nuevos.length,
+      comisiones: new Set(nuevos.filter((i) => i.comision).map((i) => i.comision)).size,
+      parlamentarios: nuevos.filter((i) => i.tipo === "parlamentario").length
+    },
+    trabajo: {
+      activas: activas.length,
+      areas: [...areas.entries()].map(([area, cantidad]) => ({ area, cantidad })).sort((a, b) => b.cantidad - a.cantidad)
+    },
+    conexiones,
+    investigaciones: datos.investigaciones.map(enmascarar),
+    asignaciones: datos.asignaciones
+  });
+});
+apiRouter.post("/pizarra/importar", exigirTokenPizarra, async (req, res) => {
+  const { csv, tipo = "investigaciones", modo = "reemplazar" } = req.body;
+  if (!csv || typeof csv !== "string" || csv.trim().length < 10) {
+    return res.status(400).json({ error: "Se requiere el contenido CSV en 'csv'." });
+  }
+  const modoFinal = modo === "agregar" ? "agregar" : "reemplazar";
+  if (tipo === "asignaciones") {
+    const r2 = parsearAsignacionesCsv(csv);
+    if (r2.registros.length === 0) return res.status(422).json({ error: "No se encontraron filas v\xE1lidas.", rechazados: r2.rechazados.slice(0, 20) });
+    const out2 = guardarImportacion({ asignaciones: r2.registros }, "agregar");
+    return res.json({ aceptados: r2.registros.length, rechazados: r2.rechazados.slice(0, 20), ...out2 });
+  }
+  const r = parsearInvestigacionesCsv(csv);
+  if (r.registros.length === 0) return res.status(422).json({ error: "No se encontraron filas v\xE1lidas.", rechazados: r.rechazados.slice(0, 20) });
+  const out = guardarImportacion({ investigaciones: r.registros }, modoFinal);
+  res.json({ aceptados: r.registros.length, rechazados: r.rechazados.slice(0, 20), ...out });
+});
+apiRouter.post("/pizarra/restablecer-demo", exigirTokenPizarra, (req, res) => {
+  restablecerDemo();
+  res.json({ ok: true });
+});
+apiRouter.get("/pizarra/plantilla", exigirTokenPizarra, (req, res) => {
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", 'attachment; filename="plantilla_pizarra_atp.csv"');
+  res.send("\uFEFF" + PLANTILLA_CSV);
 });
 apiRouter.get("/alertas", (req, res) => {
   res.json(ALERTA_ITEMS);

@@ -13,6 +13,7 @@ import ComisionDetailView from "./views/ComisionDetailView";
 import SalaLiveView from "./views/SalaLiveView";
 import AlertasView from "./views/AlertasView";
 import LegislacionComparadaView from "./views/LegislacionComparadaView";
+import PizarraView from "./views/PizarraView";
 import SearchResultsView from "./views/SearchResultsView";
 import SettingsView from "./views/SettingsView";
 import EscritorioHubView from "./views/EscritorioHubView";
@@ -146,6 +147,8 @@ export default function App() {
         setView("alertas");
       } else if (rawHash === "derecho-comparado" || rawHash === "comparado" || rawHash === "legislacion-comparada" || rawHash === "comparative") {
         setView("legislacion-comparada");
+      } else if (rawHash === "pizarra" || rawHash === "pizarra-atp") {
+        setView("pizarra");
       } else if (rawHash === "configuracion" || rawHash === "settings") {
         setView("configuracion");
       }
@@ -187,6 +190,8 @@ export default function App() {
       window.location.hash = "#/alertas";
     } else if (newView === "legislacion-comparada") {
       window.location.hash = "#/derecho-comparado";
+    } else if (newView === "pizarra") {
+      window.location.hash = "#/pizarra";
     } else if (newView === "configuracion") {
       window.location.hash = "#/configuracion";
     } else if (newView === "search-results") {
@@ -776,6 +781,8 @@ export default function App() {
             initialQuery={comparadoInitialQuery}
           />
         )}
+
+        {view === "pizarra" && <PizarraView />}
 
         {view === "search-results" && (
           <SearchResultsView 

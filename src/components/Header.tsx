@@ -22,7 +22,8 @@ import {
   SlidersHorizontal,
   ChevronRight,
   Database,
-  ExternalLink
+  ExternalLink,
+  LayoutDashboard
 } from "lucide-react";
 
 import { performUnifiedSearch, FuenteDatoItem } from "../utils/searchEngine";
@@ -111,6 +112,19 @@ export default function Header({
             >
               <Globe className="w-3.5 h-3.5" />
               <span>Derecho Comparado++</span>
+            </button>
+
+            <button
+              onClick={() => handleNavigate("pizarra")}
+              className={`font-bold text-xs transition-all relative py-5 flex items-center gap-1.5 cursor-pointer ${
+                currentView === "pizarra"
+                  ? "text-violet-600 border-b-2 border-violet-600 font-extrabold"
+                  : "text-slate-500 hover:text-slate-900"
+              }`}
+              id="nav-pizarra"
+            >
+              <LayoutDashboard className="w-3.5 h-3.5" />
+              <span>Pizarra ATP</span>
             </button>
 
             <button
@@ -256,6 +270,24 @@ export default function Header({
                     <div>
                       <span className="text-xs font-bold block">Derecho Comparado++</span>
                       <span className={`text-[10px] ${currentView === "legislacion-comparada" ? "text-indigo-100" : "text-slate-500"}`}>27 países y homologaciones</span>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 opacity-70" />
+                </button>
+
+                <button
+                  onClick={() => handleNavigate("pizarra")}
+                  className={`w-full p-3 rounded-2xl text-left flex items-center justify-between transition-all cursor-pointer ${
+                    currentView === "pizarra" ? "bg-violet-600 text-white font-bold shadow-sm" : "bg-slate-50 hover:bg-slate-100 text-slate-800"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${currentView === "pizarra" ? "bg-white/20 text-white" : "bg-violet-600 text-white"}`}>
+                      <LayoutDashboard className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold block">Pizarra ATP</span>
+                      <span className={`text-[10px] ${currentView === "pizarra" ? "text-violet-100" : "text-slate-500"}`}>Agenda, demanda y conexiones</span>
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 opacity-70" />
