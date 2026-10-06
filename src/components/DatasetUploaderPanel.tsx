@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { BUSCADOR_DATASETS_UE_VISIBLE } from "../config/features";
 import { useEffect, useRef, useState } from "react";
 import { UploadCloud, FileSpreadsheet, Loader2, AlertTriangle, ChevronDown, Trash2, Download, Sparkles, Globe2, Search } from "lucide-react";
 import { parseDatasetFile, calcularStatsColumnas, combinarDatasetsParaAnalisis } from "../utils/datasetAnalysis";
@@ -414,106 +415,104 @@ export default function DatasetUploaderPanel() {
         </div>
       )}
 
-      <div className="border border-slate-200 rounded-2xl overflow-hidden">
-        <button
-          onClick={() => setEuAbierto((v) => !v)}
-          className="w-full flex items-center justify-between gap-2 px-4 py-3 bg-slate-50 hover:bg-slate-100 cursor-pointer transition-colors"
-        >
-          <span className="flex items-center gap-2 text-xs font-extrabold text-slate-700">
-            <Globe2 className="w-4 h-4 text-blue-600" />
-            Buscar dataset real en data.europa.eu (portal oficial de la UE)
-          </span>
-          <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform ${euAbierto ? "rotate-180" : ""}`} />
-        </button>
-
-        {euAbierto && (
-          <div className="p-4 space-y-3 border-t border-slate-200">
-            <p className="text-[11px] text-slate-500">
-              Busca en el catálogo oficial de datos abiertos de la Unión Europea (data.europa.eu) y trae directamente el archivo real al análisis -- sin descargar y volver a subir manualmente.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-2">
-              <input
-                type="text"
-                value={euQuery}
-                onChange={(e) => setEuQuery(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") handleBuscarEuropa(); }}
-                placeholder="Ej. desempleo, presupuesto municipal, emisiones CO2..."
-                className="flex-1 text-xs px-3 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-              />
-              <select
-                value={euPais}
-                onChange={(e) => setEuPais(e.target.value)}
-                className="text-xs px-3 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/30 bg-white"
-              >
-                <option value="">Todos los países</option>
-                {PAISES_EU_FILTRO.map((p) => (
-                  <option key={p.code} value={p.code}>{p.label}</option>
-                ))}
-              </select>
-              <button
-                onClick={handleBuscarEuropa}
-                disabled={euBuscando || !euQuery.trim()}
-                className="bg-blue-700 hover:bg-blue-800 disabled:bg-slate-300 text-white font-bold text-xs px-4 py-2.5 rounded-xl cursor-pointer flex items-center gap-2 justify-center shrink-0"
-              >
-                {euBuscando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
-                Buscar
-              </button>
-            </div>
-
-            {euError && (
-              <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-3 py-2.5 text-[11px]">
-                {euError}
+      {BUSCADOR_DATASETS_UE_VISIBLE && (
+        <div className="border border-slate-200 rounded-2xl overflow-hidden">
+          <button
+            onClick={() => setEuAbierto((v) => !v)}
+            className="w-full flex items-center justify-between gap-2 px-4 py-3 bg-slate-50 hover:bg-slate-100 cursor-pointer transition-colors"
+          >
+            <span className="flex items-center gap-2 text-xs font-extrabold text-slate-700">
+              <Globe2 className="w-4 h-4 text-blue-600" />
+              Buscar dataset real en data.europa.eu (portal oficial de la UE)
+            </span>
+            <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform ${euAbierto ? "rotate-180" : ""}`} />
+          </button>
+  
+          {euAbierto && (
+            <div className="p-4 space-y-3 border-t border-slate-200">
+              <p className="text-[11px] text-slate-500">
+                Busca en el catálogo oficial de datos abiertos de la Unión Europea (data.europa.eu) y trae directamente el archivo real al análisis -- sin descargar y volver a subir manualmente.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="text"
+                  value={euQuery}
+                  onChange={(e) => setEuQuery(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleBuscarEuropa(); }}
+                  placeholder="Ej. desempleo, presupuesto municipal, emisiones CO2..."
+                  className="flex-1 text-xs px-3 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                />
+                <select
+                  value={euPais}
+                  onChange={(e) => setEuPais(e.target.value)}
+                  className="text-xs px-3 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/30 bg-white"
+                >
+                  <option value="">Todos los países</option>
+                  {PAISES_EU_FILTRO.map((p) => (
+                    <option key={p.code} value={p.code}>{p.label}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={handleBuscarEuropa}
+                  disabled={euBuscando || !euQuery.trim()}
+                  className="bg-blue-700 hover:bg-blue-800 disabled:bg-slate-300 text-white font-bold text-xs px-4 py-2.5 rounded-xl cursor-pointer flex items-center gap-2 justify-center shrink-0"
+                >
+                  {euBuscando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+                  Buscar
+                </button>
               </div>
-            )}
-
-            {euResultados.length > 0 && (
-              <div className="flex flex-col gap-2 max-h-96 overflow-y-auto">
-                {euResultados.map((r) => (
-                  <div key={r.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <h5 className="text-xs font-extrabold text-slate-800 truncate">{r.titulo}</h5>
-                        <p className="text-[10px] text-slate-500 mt-0.5">
-                          {r.paisLabel || "Sin país"} {r.publicador ? `· ${r.publicador}` : ""}
-                        </p>
-                        {r.descripcion && <p className="text-[11px] text-slate-600 mt-1 line-clamp-2">{r.descripcion}</p>}
+  
+              {euError && (
+                <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-3 py-2.5 text-[11px]">
+                  {euError}
+                </div>
+              )}
+  
+              {euResultados.length > 0 && (
+                <div className="flex flex-col gap-2 max-h-96 overflow-y-auto">
+                  {euResultados.map((r) => (
+                    <div key={r.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <h5 className="text-xs font-extrabold text-slate-800 truncate">{r.titulo}</h5>
+                          <p className="text-[10px] text-slate-500 mt-0.5">
+                            {r.paisLabel || "Sin país"} {r.publicador ? `· ${r.publicador}` : ""}
+                          </p>
+                          {r.descripcion && <p className="text-[11px] text-slate-600 mt-1 line-clamp-2">{r.descripcion}</p>}
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {r.distribuciones.map((d) => (
+                          <button
+                            key={d.id}
+                            onClick={() => handleImportarDistribucion(r, d)}
+                            disabled={euImportandoId !== null || subiendo}
+                            className="text-[10px] font-bold bg-white border border-slate-300 hover:border-blue-500 hover:text-blue-700 disabled:opacity-50 text-slate-600 px-2.5 py-1.5 rounded-lg cursor-pointer flex items-center gap-1.5"
+                          >
+                            {euImportandoId === d.id ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <Download className="w-3 h-3" />
+                            )}
+                            {d.formato}{d.tamanoBytes ? ` · ${formatFileSize(d.tamanoBytes)}` : ""}
+                          </button>
+                        ))}
                       </div>
                     </div>
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {r.distribuciones.map((d) => (
-                        <button
-                          key={d.id}
-                          onClick={() => handleImportarDistribucion(r, d)}
-                          disabled={euImportandoId !== null || subiendo}
-                          className="text-[10px] font-bold bg-white border border-slate-300 hover:border-blue-500 hover:text-blue-700 disabled:opacity-50 text-slate-600 px-2.5 py-1.5 rounded-lg cursor-pointer flex items-center gap-1.5"
-                        >
-                          {euImportandoId === d.id ? (
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                          ) : (
-                            <Download className="w-3 h-3" />
-                          )}
-                          {d.formato}{d.tamanoBytes ? ` · ${formatFileSize(d.tamanoBytes)}` : ""}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="space-y-3">
         {cargandoLista ? (
           <div className="text-center py-6 text-xs text-slate-400 font-bold flex items-center justify-center gap-2">
             <Loader2 className="w-4 h-4 animate-spin" /> Cargando datasets guardados...
           </div>
-        ) : datasets.length === 0 ? (
-          <div className="text-center py-6 text-xs text-slate-400 font-bold">
-            Aún no hay datasets subidos por el equipo.
-          </div>
-        ) : (
+        ) : datasets.length === 0 ? null : (
           datasets.map((d) => <DatasetCard key={d.id} dataset={d} onDelete={handleDelete} />)
         )}
       </div>
