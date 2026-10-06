@@ -14,6 +14,7 @@ import SalaLiveView from "./views/SalaLiveView";
 import AlertasView from "./views/AlertasView";
 import LegislacionComparadaView from "./views/LegislacionComparadaView";
 import PizarraView from "./views/PizarraView";
+import { PIZARRA_VISIBLE } from "./config/features";
 import SearchResultsView from "./views/SearchResultsView";
 import SettingsView from "./views/SettingsView";
 import EscritorioHubView from "./views/EscritorioHubView";
@@ -148,7 +149,8 @@ export default function App() {
       } else if (rawHash === "derecho-comparado" || rawHash === "comparado" || rawHash === "legislacion-comparada" || rawHash === "comparative") {
         setView("legislacion-comparada");
       } else if (rawHash === "pizarra" || rawHash === "pizarra-atp") {
-        setView("pizarra");
+        if (PIZARRA_VISIBLE) setView("pizarra");
+        else window.location.hash = "#/escritorio";
       } else if (rawHash === "configuracion" || rawHash === "settings") {
         setView("configuracion");
       }
@@ -782,7 +784,7 @@ export default function App() {
           />
         )}
 
-        {view === "pizarra" && <PizarraView />}
+        {view === "pizarra" && PIZARRA_VISIBLE && <PizarraView />}
 
         {view === "search-results" && (
           <SearchResultsView 

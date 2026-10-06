@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { PIZARRA_VISIBLE } from "../config/features";
 import { 
   Search, 
   Bell, 
@@ -114,6 +115,7 @@ export default function Header({
               <span>Derecho Comparado++</span>
             </button>
 
+            {PIZARRA_VISIBLE && (
             <button
               onClick={() => handleNavigate("pizarra")}
               className={`font-bold text-xs transition-all relative py-5 flex items-center gap-1.5 cursor-pointer ${
@@ -126,6 +128,7 @@ export default function Header({
               <LayoutDashboard className="w-3.5 h-3.5" />
               <span>Pizarra ATP</span>
             </button>
+            )}
 
             <button
               onClick={() => handleNavigate("static")}
@@ -275,6 +278,7 @@ export default function Header({
                   <ChevronRight className="w-4 h-4 opacity-70" />
                 </button>
 
+                {PIZARRA_VISIBLE && (
                 <button
                   onClick={() => handleNavigate("pizarra")}
                   className={`w-full p-3 rounded-2xl text-left flex items-center justify-between transition-all cursor-pointer ${
@@ -292,6 +296,7 @@ export default function Header({
                   </div>
                   <ChevronRight className="w-4 h-4 opacity-70" />
                 </button>
+                )}
 
                 <button
                   onClick={() => handleNavigate("static")}
