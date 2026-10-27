@@ -169395,11 +169395,11 @@ export function getProyectosForComision(meta: ComisionMeta): Proyecto[] {
           resumen: `Proyecto de ley radicado en la ${meta.nombre} del Senado de la República.`,
           estado: p.estado || "En tramitación",
           etapa: stage,
-          fechaIngreso: p.fecha || "2024-03-15",
+          fechaIngreso: p.fecha || "",
           materia: meta.temas && meta.temas[0] ? meta.temas[0] : "Legislación",
-          autores: meta.integrantes && meta.integrantes[0] ? meta.integrantes[0].nombre : "Senadores de la Comisión",
+          autores: "No informado en la fuente",
           iniciativa: "Moción" as const,
-          patrocinantes: 5,
+          patrocinantes: 0,
           urgencia: "Sin urgencia" as const,
           camaraOrigen: "Senado" as const,
           comisionActual: meta.nombre,
@@ -169407,7 +169407,7 @@ export function getProyectosForComision(meta: ComisionMeta): Proyecto[] {
           timeline: [
             {
               id: `act-${p.boletin}-1`,
-              fecha: p.fecha || "02 Sep 2026",
+              fecha: p.fecha || "",
               titulo: "Radicado en Comisión",
               descripcion: `En tramitación legislativa en ${meta.nombre}.`,
               tipo: "sesion"
@@ -169418,7 +169418,7 @@ export function getProyectosForComision(meta: ComisionMeta): Proyecto[] {
               id: `doc-${p.boletin}-1`,
               titulo: `Ficha de Tramitación Oficial (Boletín ${p.boletin})`,
               tipo: "Ficha Oficial",
-              fecha: p.fecha || "2026-09-01",
+              fecha: p.fecha || "",
               url: p.url
             }
           ],
@@ -169440,11 +169440,11 @@ export function getProyectosForComision(meta: ComisionMeta): Proyecto[] {
           resumen: `Proyecto de ley en tramitación ante la ${meta.nombre} de la Cámara de Diputadas y Diputados.`,
           estado: p.estado || "En tramitación",
           etapa: stage,
-          fechaIngreso: p.fecha || "2024-03-15",
+          fechaIngreso: p.fecha || "",
           materia: meta.temas && meta.temas[0] ? meta.temas[0] : "Legislación",
-          autores: meta.integrantes && meta.integrantes[0] ? meta.integrantes[0].nombre : "Diputados de la Comisión",
+          autores: "No informado en la fuente",
           iniciativa: "Moción" as const,
-          patrocinantes: 8,
+          patrocinantes: 0,
           urgencia: "Sin urgencia" as const,
           camaraOrigen: "Diputados" as const,
           comisionActual: meta.nombre,
@@ -169452,7 +169452,7 @@ export function getProyectosForComision(meta: ComisionMeta): Proyecto[] {
           timeline: [
             {
               id: `act-${p.boletin}-1`,
-              fecha: p.fecha || "02 Sep 2026",
+              fecha: p.fecha || "",
               titulo: "Radicado en Comisión",
               descripcion: `En tramitación legislativa en ${meta.nombre}.`,
               tipo: "sesion"
@@ -169463,7 +169463,7 @@ export function getProyectosForComision(meta: ComisionMeta): Proyecto[] {
               id: `doc-${p.boletin}-1`,
               titulo: `Ficha de Tramitación Oficial (Boletín ${p.boletin})`,
               tipo: "Ficha Oficial",
-              fecha: p.fecha || "2026-09-01",
+              fecha: p.fecha || "",
               url: p.url
             }
           ],
@@ -169473,174 +169473,16 @@ export function getProyectosForComision(meta: ComisionMeta): Proyecto[] {
     }
   }
 
-  // 3. Fallback priority generator if commission has no mapped bills
-  const baseProyectos: Proyecto[] = [];
-
-  const addP = (p: {
-    id: string;
-    titulo: string;
-    resumen: string;
-    estado?: string;
-    etapa?: string;
-    fechaIngreso?: string;
-    materia: string;
-    autores?: string;
-    iniciativa?: "Mensaje" | "Moción";
-    patrocinantes?: number;
-    urgencia?: "Discusión Inmediata" | "Suma" | "Simple" | "Sin urgencia";
-    timeline?: any[];
-  }) => {
-    baseProyectos.push({
-      id: p.id,
-      titulo: p.titulo,
-      resumen: p.resumen,
-      estado: p.estado || "En discusión",
-      etapa: p.etapa || "Primer Trámite Constitucional",
-      fechaIngreso: p.fechaIngreso || "2024-03-15",
-      materia: p.materia,
-      autores: p.autores || (meta.integrantes && meta.integrantes[0] ? meta.integrantes[0].nombre : "Parlamentarios de la Comisión"),
-      iniciativa: p.iniciativa || "Moción",
-      patrocinantes: p.patrocinantes || 8,
-      urgencia: p.urgencia || "Suma",
-      camaraOrigen: camaraStr,
-      comisionActual: meta.nombre,
-      timeline: p.timeline || [
-        { id: "act-1", fecha: "02 Sep 2026", titulo: "Discusión en particular de indicaciones", descripcion: "Debate técnico de enmiendas al articulado.", tipo: "sesion" }
-      ],
-      documentos: [],
-      votaciones: []
-    });
-  };
-
-  if (idLower.includes("gobierno") || nombreLower.includes("gobierno interior")) {
-    addP({
-      id: "18.525-06",
-      titulo: "Fortalece la institucionalidad municipal en materia de seguridad pública y prevención del delito.",
-      resumen: "Otorga mayores facultades preventivas y equipamiento a inspectores municipales.",
-      estado: "En discusión",
-      etapa: "Primer Trámite Constitucional",
-      materia: "Seguridad Municipal y Gobiernos Locales",
-      urgencia: "Discusión Inmediata"
-    });
-  }
-
-  if (baseProyectos.length === 0) {
-    addP({
-      id: "18.100-01",
-      titulo: `Modifica la legislación aplicable en materias propias de la ${meta.nombre}.`,
-      resumen: `Iniciativa orientada a actualizar normativas y procedimientos sectoriales.`,
-      estado: "En estudio",
-      etapa: "Primer Trámite Constitucional",
-      materia: meta.temas && meta.temas[0] ? meta.temas[0] : "Legislación",
-      urgencia: "Simple"
-    });
-  }
-
-  return baseProyectos;
+  // 3. Sin lista oficial cargada para esta comisión: se devuelve vacío. Antes se
+  // generaban proyectos genéricos inventados (boletines y títulos ficticios).
+  return [];
 }
 
 
-export function generateFullComisionData(meta: ComisionMeta): Comision {
-  const isSenado = meta.chamber === "SR" || meta.prefix === "senado-";
-  const periodoStr = isSenado ? "Senado de la República (2022 - 2030)" : "56º Período Legislativo (2022 - 2026)";
-
-  const sampleDate1 = "02 de septiembre de 2026";
-  const sampleDate2 = "26 de agosto de 2026";
-  const sampleDate3 = "19 de agosto de 2026";
-
-  const proyectosLista = getProyectosForComision(meta);
-
-  // All official sessions & citaciones of the entire week for this commission (Cámara & Senado)
-  const weekCitaciones = isSenado
-    ? (meta.senadoId && SENADO_CITACIONES_POR_COMISION_ID[meta.senadoId] ? SENADO_CITACIONES_POR_COMISION_ID[meta.senadoId] : [])
-    : (CAMARA_CITACIONES_POR_COMISION[meta.id] || []);
-
-  const proximaReal = weekCitaciones.length > 0 ? weekCitaciones[0] : null;
-
-  return {
-    id: `${meta.prefix}${meta.id}`,
-    nombre: meta.nombre,
-    descripcion: meta.descripcion,
-    periodo: periodoStr,
-    officialUrl: isSenado 
-      ? `https://www.senado.cl/comisiones/${meta.id}`
-      : `https://www.camara.cl/legislacion/comisiones/integrantes.aspx?prmID=${meta.prmID || meta.id}`,
-    citacionesUrl: isSenado
-      ? "https://www.senado.cl/actividad-legislativa/comisiones/citaciones"
-      : "https://www.camara.cl/legislacion/comisiones/citaciones_semana.aspx",
-    tramitacionUrl: isSenado
-      ? (meta.senadoId ? `https://tramitacion.senado.cl/appsenado/index.php?mo=tramitacion&ac=boletin_x_fecha&comiid=${meta.senadoId}&titulo=${encodeURIComponent("Senado: Com. " + meta.nombre)}` : "https://tramitacion.senado.cl/appsenado/templates/tramitacion/index.php")
-      : (meta.prmID ? `https://www.camara.cl/legislacion/comisiones/proyectos.aspx?prmID=${meta.prmID}` : "https://www.camara.cl/legislacion/comisiones/"),
-    sesionesRealizadas: 48,
-    proyectosContados: proyectosLista.length,
-    audienciasSostenidas: 34,
-    documentosContados: 76,
-    alertasActivas: 2,
-    prmID: meta.prmID,
-    telefono: meta.telefono,
-    email: meta.email,
-    staff: meta.staff,
-    integrantes: meta.integrantes,
-    temas: meta.temas || ["Legislación", "Trámite Constitucional", "Debate Técnico"],
-    proyectos: proyectosLista,
-    proyectosIds: proyectosLista.map(p => p.id),
-    audiencias: {
-      sectorPublico: 18,
-      sociedadCivil: 11,
-      academia: 5,
-      ultimasAsistencias: [
-        { entidad: "Ministerio de Hacienda / DIPRES", expositores: 3 },
-        { entidad: "Colegio de Abogados de Chile", expositores: 2 },
-        { entidad: "Asociación Chilena de Municipalidades (AChM)", expositores: 2 },
-        { entidad: "Centro de Estudios Públicos (CEP)", expositores: 1 }
-      ]
-    },
-    proximaSesion: proximaReal ? {
-      id: proximaReal.id || "ses-prox-real",
-      fecha: proximaReal.fecha,
-      hora: proximaReal.hora,
-      lugar: proximaReal.lugar,
-      modalidad: "Presencial",
-      citacionNumero: proximaReal.citacionNumero,
-      tipo: proximaReal.tipo,
-      materia: proximaReal.materia,
-      invitados: proximaReal.invitados,
-      acuerdosCount: 0,
-      tabla: proximaReal.tabla && proximaReal.tabla.length > 0 ? proximaReal.tabla : [proximaReal.materia]
-    } : {
-      id: "ses-prox-01",
-      fecha: "Martes 08 de septiembre de 2026",
-      hora: "10:30 a 13:00 hrs.",
-      lugar: "Sala N° 3 del Congreso Nacional, Valparaíso (Híbrida)",
-      modalidad: "Presencial y Telemática",
-      citacionNumero: "Citación Ordinaria N° 142/56",
-      tipo: "Sesión Ordinaria",
-      materia: `Continuar con el estudio en particular de los proyectos de ley radicados en la ${meta.nombre}.`,
-      invitados: "Subsecretario del Ramo, Especialistas Constitucionales y Representantes Gremiales.",
-      acuerdosCount: 0,
-      tabla: [
-        "1. Aprobación de actas anteriores.",
-        "2. Votación de indicaciones formuladas al articulado.",
-        "3. Fijación de plazos para audiencias públicas."
-      ]
-    },
-    sesiones: [
-      // 1. Convocatorias oficiales de toda la semana
-      ...weekCitaciones.map((rc, idx) => ({
-        id: `ses-semana-${idx + 1}`,
-        fecha: rc.fecha,
-        hora: rc.hora,
-        lugar: rc.lugar,
-        tipo: rc.tipo || "Sesión de Comisión",
-        materia: rc.materia,
-        invitados: rc.invitados,
-        citacionNumero: rc.citacionNumero,
-        acuerdosCount: 0,
-        completada: false,
-        tabla: rc.tabla
-      })),
-      // 2. Sesiones concluidas anteriores
-      ...(meta.id === "agricultura" ? [
+// Sesiones concluidas con respaldo documental (acta y/o video oficial). Solo se
+// registran aquí sesiones verificables; no se generan sesiones genéricas.
+const SESIONES_CONCLUIDAS_DOCUMENTADAS: Record<string, SesionItem[]> = {
+  agricultura: [
         {
           id: "ses-agri-01sep2026",
           fecha: "Martes 01 de septiembre de 2026",
@@ -169664,89 +169506,103 @@ export function generateFullComisionData(meta: ComisionMeta): Comision {
             "3. Exposición del MINVU sobre Ley General de Urbanismo y Construcciones."
           ]
         }
-      ] : []),
-      {
-        id: "ses-01",
-        fecha: sampleDate1,
-        hora: "10:30 a 13:00 hrs.",
-        lugar: "Valparaíso",
-        tipo: "Sesión Ordinaria",
-        materia: `Audiencias técnicas y debate de indicaciones sobre las materias de competencia de la ${meta.nombre}.`,
-        invitados: "DIPRES, Expertos Académicos y Asociaciones Sectoriales.",
-        acuerdosCount: 3,
-        completada: true,
-        actaTexto: "Se inició la sesión con la asistencia reglamentaria de los miembros titulares. Se escucharon exposiciones y se acordó votar en general en la próxima citación.",
-        acuerdosTexto: [
-          "Se acordó oficiar al Ejecutivo solicitando informe financiero complementario.",
-          "Se aprueba en general por unanimidad de los presentes.",
-          "Se fija plazo para recibir indicaciones hasta el próximo viernes a las 18:00 hrs."
-        ],
-        tabla: [
-          "1. Análisis de observaciones ingresadas.",
-          "2. Exposición del Ejecutivo.",
-          "3. Acuerdos de tramitación."
-        ]
-      },
-      {
-        id: "ses-02",
-        fecha: sampleDate2,
-        hora: "11:00 a 13:30 hrs.",
-        lugar: "Valparaíso",
-        tipo: "Sesión Especial",
-        materia: `Revisión exhaustiva y recepción de audiencias públicas en materia sectorial.`,
-        invitados: "Representantes de la sociedad civil y gremios convocados.",
-        acuerdosCount: 2,
-        completada: true,
-        acuerdosTexto: [
-          "Se escucharon 4 audiencias públicas.",
-          "Se remiten actas a la Secretaría General de la Presidencia."
-        ]
-      },
-      {
-        id: "ses-03",
-        fecha: sampleDate3,
-        hora: "10:00 a 12:30 hrs.",
-        lugar: "Valparaíso",
-        tipo: "Sesión Ordinaria",
-        materia: `Votación de articulado y despacho de informe a Sala.`,
-        invitados: "Ministros y asesores legislativos.",
-        acuerdosCount: 4,
-        completada: true,
-        acuerdosTexto: [
-          "Se despacha el informe a Sala.",
-          "Se designa parlamentario informante."
-        ]
-      }
-    ],
-    documentosGroups: [
-      { tipo: "Informes de Comisión", cuenta: 18 },
-      { tipo: "Actas de Sesión", cuenta: 48 },
-      { tipo: "Minutas Técnicas Asesoría BCN", cuenta: 12 },
-      { tipo: "Oficios y Respuestas Ministeriales", cuenta: 26 },
-      { tipo: "Presentaciones de Expositores", cuenta: 34 }
-    ],
-    actividades: [
-      {
-        id: "act-01",
-        fecha: "02 Sep 2026",
-        titulo: "Sesión Ordinaria Concluida",
-        descripcion: "Finalizó el debate técnico sobre indicaciones particulares.",
-        tipo: "sesion"
-      },
-      {
-        id: "act-02",
-        fecha: "26 Ago 2026",
-        titulo: "Audiencias Públicas Sostenidas",
-        descripcion: "Exposición de organismos públicos y gremios en sala de sesiones.",
-        tipo: "sesion"
-      },
-      {
-        id: "act-03",
-        fecha: "19 Ago 2026",
-        titulo: "Informe de Trámite Despachado",
-        descripcion: "Solicitud de antecedentes remitida al Ministerio respectivo.",
-        tipo: "informe"
-      }
-    ]
+  ]
+};
+
+export function generateFullComisionData(meta: ComisionMeta): Comision {
+  const isSenado = meta.chamber === "SR" || meta.prefix === "senado-";
+  const periodoStr = isSenado ? "Senado de la República (2022 - 2030)" : "56º Período Legislativo (2022 - 2026)";
+
+
+  const proyectosLista = getProyectosForComision(meta);
+
+  // All official sessions & citaciones of the entire week for this commission (Cámara & Senado)
+  const weekCitaciones = isSenado
+    ? (meta.senadoId && SENADO_CITACIONES_POR_COMISION_ID[meta.senadoId] ? SENADO_CITACIONES_POR_COMISION_ID[meta.senadoId] : [])
+    : (CAMARA_CITACIONES_POR_COMISION[meta.id] || []);
+
+  const proximaReal = weekCitaciones.length > 0 ? weekCitaciones[0] : null;
+
+  // Sesiones: solo citaciones oficiales cargadas y sesiones concluidas documentadas con
+  // fuente (acta/video). Se eliminaron las sesiones genéricas inventadas que antes se
+  // agregaban a todas las comisiones.
+  const sesionesReales: SesionItem[] = [
+    ...weekCitaciones.map((rc: any, idx: number) => ({
+      id: `ses-semana-${idx + 1}`,
+      fecha: rc.fecha,
+      hora: rc.hora,
+      lugar: rc.lugar,
+      tipo: rc.tipo || "Sesión de Comisión",
+      materia: rc.materia,
+      invitados: rc.invitados,
+      citacionNumero: rc.citacionNumero,
+      acuerdosCount: 0,
+      completada: false,
+      tabla: rc.tabla
+    })),
+    ...(SESIONES_CONCLUIDAS_DOCUMENTADAS[meta.id] || [])
+  ];
+
+  return {
+    id: `${meta.prefix}${meta.id}`,
+    nombre: meta.nombre,
+    descripcion: meta.descripcion,
+    periodo: periodoStr,
+    officialUrl: isSenado 
+      ? `https://www.senado.cl/comisiones/${meta.id}`
+      : `https://www.camara.cl/legislacion/comisiones/integrantes.aspx?prmID=${meta.prmID || meta.id}`,
+    citacionesUrl: isSenado
+      ? "https://www.senado.cl/actividad-legislativa/comisiones/citaciones"
+      : "https://www.camara.cl/legislacion/comisiones/citaciones_semana.aspx",
+    tramitacionUrl: isSenado
+      ? (meta.senadoId ? `https://tramitacion.senado.cl/appsenado/index.php?mo=tramitacion&ac=boletin_x_fecha&comiid=${meta.senadoId}&titulo=${encodeURIComponent("Senado: Com. " + meta.nombre)}` : "https://tramitacion.senado.cl/appsenado/templates/tramitacion/index.php")
+      : (meta.prmID ? `https://www.camara.cl/legislacion/comisiones/proyectos.aspx?prmID=${meta.prmID}` : "https://www.camara.cl/legislacion/comisiones/"),
+    // Solo conteos que se pueden calcular desde datos reales cargados; lo que no se
+    // conoce queda en 0 (la interfaz lo muestra como "Sin datos"), nunca un número inventado.
+    sesionesRealizadas: sesionesReales.filter(s => s.completada).length,
+    proyectosContados: proyectosLista.length,
+    audienciasSostenidas: 0,
+    documentosContados: 0,
+    alertasActivas: 0,
+    prmID: meta.prmID,
+    telefono: meta.telefono,
+    email: meta.email,
+    staff: meta.staff,
+    integrantes: meta.integrantes,
+    temas: meta.temas || ["Legislación", "Trámite Constitucional", "Debate Técnico"],
+    proyectos: proyectosLista,
+    proyectosFuente: "referencia",
+    proyectosIds: proyectosLista.map(p => p.id),
+    audiencias: {
+      // Sin fuente oficial cargada de audiencias por comisión: se informa en cero
+      // en lugar de mostrar cifras y entidades inventadas.
+      sectorPublico: 0,
+      sociedadCivil: 0,
+      academia: 0,
+      ultimasAsistencias: []
+    },
+    proximaSesion: proximaReal ? {
+      id: proximaReal.id || "ses-prox-real",
+      fecha: proximaReal.fecha,
+      hora: proximaReal.hora,
+      lugar: proximaReal.lugar,
+      modalidad: proximaReal.modalidad || "No informada",
+      citacionNumero: proximaReal.citacionNumero,
+      tipo: proximaReal.tipo,
+      materia: proximaReal.materia,
+      invitados: proximaReal.invitados,
+      acuerdosCount: 0,
+      tabla: proximaReal.tabla && proximaReal.tabla.length > 0 ? proximaReal.tabla : [proximaReal.materia]
+    } : undefined,
+    sesiones: sesionesReales,
+    documentosGroups: [],
+    // Actividad reciente derivada solo de las sesiones reales disponibles.
+    actividades: sesionesReales.slice(0, 5).map((ses, idx) => ({
+      id: `act-${idx + 1}`,
+      fecha: ses.fecha,
+      titulo: ses.completada ? "Sesión concluida" : "Sesión citada",
+      descripcion: ses.materia,
+      tipo: "sesion" as const
+    }))
   };
 }

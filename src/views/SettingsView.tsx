@@ -147,13 +147,10 @@ export default function SettingsView({
     addSimLog(`Estableciendo canal de transmisión... Generando citación para la comisión: "${randomComName}"`, "info");
 
     setTimeout(() => {
-      const isUrgent = Math.random() > 0.4;
-      const hour = "10:30 hrs";
-      const room = "Sala de Sesiones B";
-      const title = `Citación Legislativa Directa: ${randomComName}`;
-      const subtitulo = isUrgent 
-        ? `Sesión Especial de Urgencia en ${room} para tratar indicaciones parlamentarias prioritarias sobre conciliación de plazos a las ${hour}.`
-        : `Sesión ordinaria convocada en ${room} a las ${hour} para recibir a expositores de la sociedad civil y sindicatos asociados.`;
+      // Notificación de PRUEBA: se marca explícitamente como tal para que nunca se
+      // confunda con una citación real en la bandeja de alertas.
+      const title = `[Prueba] Citación: ${randomComName}`;
+      const subtitulo = "Notificación de prueba generada desde Configuración para verificar el canal de alertas. No corresponde a una citación real.";
 
       fetch("/api/alertas/crear", {
         method: "POST",
@@ -161,21 +158,21 @@ export default function SettingsView({
         body: JSON.stringify({
           titulo: title,
           subtitulo: subtitulo,
-          boletinId: "16.621-13", // Fallback boletin
+          boletinId: "",
           tipo: "citacion"
         })
       })
         .then(res => {
           if (res.ok) {
-            addSimLog(`¡Citación enviada con éxito! Alerta generada para suscriptores de "${randomComName}"`, "success");
+            addSimLog(`Alerta de prueba creada para "${randomComName}".`, "success");
           } else {
-            addSimLog(`¡Citación simulada con éxito! Notificación activa para "${randomComName}"`, "success");
+            addSimLog(`No se pudo crear la alerta de prueba (HTTP ${res.status}).`, "warning");
           }
           if (onAlertTriggered) onAlertTriggered();
           setIsSimulating(null);
         })
         .catch(() => {
-          addSimLog(`¡Citación simulada con éxito! Notificación activa para "${randomComName}"`, "success");
+          addSimLog("No se pudo conectar con el servidor para crear la alerta de prueba.", "warning");
           if (onAlertTriggered) onAlertTriggered();
           setIsSimulating(null);
         });
@@ -201,11 +198,8 @@ export default function SettingsView({
     addSimLog(`Extrayendo expediente del boletín ${randomProyId}... Simulando posicionamiento en debate en comisiones.`, "info");
 
     setTimeout(() => {
-      const commToDebate = matchingProy.comisionActual || "Trabajo y Previsión Social";
-      const cleanComm = /^comisi[oó]n/i.test(commToDebate) ? commToDebate : `Comisión de ${commToDebate}`;
-      const title = `Proyecto de Ley en Tabla: Boletín ${randomProyId}`;
-      const truncatedTitle = matchingProy.titulo.length > 80 ? matchingProy.titulo.slice(0, 80) + "..." : matchingProy.titulo;
-      const subtitulo = `El proyecto "${truncatedTitle}" se encuentra en el primer punto de la tabla de debate hoy en la ${cleanComm} para proceder con la discusión en particular de sus artículos constitutivos.`;
+      const title = `[Prueba] Boletín ${randomProyId}`;
+      const subtitulo = "Notificación de prueba generada desde Configuración para verificar el canal de alertas. No indica actividad real del proyecto.";
 
       fetch("/api/alertas/crear", {
         method: "POST",
@@ -219,15 +213,15 @@ export default function SettingsView({
       })
         .then(res => {
           if (res.ok) {
-            addSimLog(`¡Simulación exitosa! Alerta generada: El Boletín ${randomProyId} ha sido analizado en la ${cleanComm}.`, "success");
+            addSimLog(`Alerta de prueba creada para el Boletín ${randomProyId}.`, "success");
           } else {
-            addSimLog(`¡Simulación exitosa! Alerta generada: El Boletín ${randomProyId} ha sido analizado en la ${cleanComm}.`, "success");
+            addSimLog(`No se pudo crear la alerta de prueba (HTTP ${res.status}).`, "warning");
           }
           if (onAlertTriggered) onAlertTriggered();
           setIsSimulating(null);
         })
         .catch(() => {
-          addSimLog(`¡Simulación exitosa! Alerta generada: El Boletín ${randomProyId} ha sido analizado en la ${cleanComm}.`, "success");
+          addSimLog("No se pudo conectar con el servidor para crear la alerta de prueba.", "warning");
           if (onAlertTriggered) onAlertTriggered();
           setIsSimulating(null);
         });
@@ -429,7 +423,7 @@ export default function SettingsView({
                       }`}
                     >
                       <Building2 className="w-3.5 h-3.5" />
-                      <span>Cámara de Diputadas y Diputados ({totalDiputadosCount || 23})</span>
+                      <span>Cámara de Diputadas y Diputados ({totalDiputadosCount ?? 0})</span>
                     </button>
                     <button
                       onClick={() => setComisionSubTab("senado")}
@@ -440,7 +434,7 @@ export default function SettingsView({
                       }`}
                     >
                       <Building2 className="w-3.5 h-3.5" />
-                      <span>Senado ({totalSenadoCount || 10})</span>
+                      <span>Senado ({totalSenadoCount ?? 0})</span>
                     </button>
                   </div>
 

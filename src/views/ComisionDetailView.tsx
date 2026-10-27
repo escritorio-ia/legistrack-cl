@@ -48,7 +48,8 @@ import {
   CheckCircle,
   Eye,
   MessageSquare,
-  RefreshCw
+  RefreshCw,
+  AlertCircle
 } from "lucide-react";
 import { Comision, SesionItem, Proyecto, Integrante } from "../types";
 import {
@@ -786,17 +787,17 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
     const defaultFechaStr = `Martes ${nextWeek.getDate()} de ${nextWeek.toLocaleString("es-CL", { month: "long" })} de ${nextWeek.getFullYear()}`;
 
     setCitacionEditForm({
-      citacionNumero: current?.citacionNumero || current?.tipo || "Citación N° 85 (Sesión Ordinaria)",
+      citacionNumero: current?.citacionNumero || current?.tipo || "",
       fecha: current?.fecha || defaultFechaStr,
       fechaInput: defaultDateISO,
-      hora: current?.hora || "10:30 a 13:00 hrs.",
-      lugar: current?.lugar || (isSenado ? "Sala N° 3 de Comisiones del Senado (Valparaíso)" : "Sala N° 311 de la Cámara (Valparaíso)"),
-      materia: current?.materia || (comision?.proyectos && comision.proyectos.length > 0 ? `Continuar con el estudio del Boletín N° ${comision.proyectos[0].id}: ${comision.proyectos[0].titulo}.` : "Continuar tramitación de iniciativas legales en tabla."),
-      invitados: current?.invitados || "Ministros de Estado del ramo sectorial, Subsecretarios y expositores invitados.",
+      hora: current?.hora || "",
+      lugar: current?.lugar || "",
+      materia: current?.materia || "",
+      invitados: current?.invitados || "",
       tablaText: Array.isArray(current?.tabla) && current.tabla.length > 0 
         ? current.tabla.join("\n") 
-        : (comision?.proyectos && comision.proyectos.length > 0 ? `1. Boletín N° ${comision.proyectos[0].id}: ${comision.proyectos[0].titulo}` : "1. Discusión y votación de iniciativas en tabla."),
-      secretario: current?.secretario || (isSenado ? "Abogado/a Secretario/a del Senado" : "Abogado/a Secretario/a de la Cámara"),
+        : "",
+      secretario: current?.secretario || "",
       pasteRawText: ""
     });
     setIsEditingCitacionModal(true);
@@ -805,11 +806,11 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
   const handleOpenCompleteSessionModal = (ses: SesionItem) => {
     setSessionToComplete(ses);
     setSessionCompleteForm({
-      actaTexto: ses.actaTexto || customSummaries[ses.id] || `En esta sesión, la Comisión debatió sobre ${ses.materia}. Se escuchó la exposición de las autoridades y se revisaron las indicaciones formuladas al proyecto de ley.`,
+      actaTexto: ses.actaTexto || customSummaries[ses.id] || "",
       acuerdosTexto: ses.acuerdosTexto && ses.acuerdosTexto.length > 0 
         ? ses.acuerdosTexto.join("\n") 
-        : "1. Se aprueba la propuesta de redacción del artículo en debate.\n2. Se fija plazo para recibir sugerencias de enmiendas.",
-      invitadosExpositores: ses.invitados || "Representantes del Ejecutivo y especialistas técnicos.",
+        : "",
+      invitadosExpositores: ses.invitados || "",
       videoUrl: ses.videoUrl || "",
       boletinesTratados: extractBoletinId(ses.materia) || (comision?.proyectos && comision.proyectos.length > 0 ? comision.proyectos[0].id : "")
     });
@@ -2521,7 +2522,7 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
               <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
                 activeTab === "integrantes" ? "bg-indigo-800 text-indigo-100" : "bg-slate-200 text-slate-700"
               }`}>
-                {comision.integrantes?.length || 13}
+                {comision.integrantes?.length ?? 0}
               </span>
             </button>
 
@@ -2538,7 +2539,7 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
               <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
                 activeTab === "audiencias" ? "bg-amber-800 text-amber-100" : "bg-slate-200 text-slate-700"
               }`}>
-                {comision.audienciasSostenidas || 48}
+                {comision.audienciasSostenidas || "Sin datos"}
               </span>
             </button>
           </div>
@@ -2947,6 +2948,27 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
           {/* ========================================================================= */}
           {activeTab === "proyectos" && (
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-4 animate-fade-in">
+              {/* Origen de la lista: "vivo" = listado oficial de tramitación del Senado
+                  (tramitacion.senado.cl, ac=boletin_x_fecha, que también cubre comisiones de
+                  la Cámara) consultado por el backend; "referencia" = datos locales
+                  precargados, que pueden estar desactualizados. */}
+              {comision.proyectosFuente === "vivo" ? (
+                <div className="flex items-start gap-2.5 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-emerald-900">
+                  <CheckCircle className="w-4 h-4 shrink-0 mt-0.5 text-emerald-600" />
+                  <p className="text-[11px] leading-relaxed">
+                    <strong>En vivo:</strong> lista obtenida del listado oficial de tramitación (tramitacion.senado.cl).
+                  </p>
+                </div>
+              ) : (
+                <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-amber-900">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+                  <p className="text-[11px] leading-relaxed">
+                    <strong>Datos de referencia:</strong> no se pudo consultar el listado oficial en este momento; esta lista puede no reflejar el estado más reciente. Verifica el boletín en el{" "}
+                    <button onClick={() => setView("proyectos")} className="underline font-bold hover:text-amber-700 cursor-pointer">buscador de Proyectos</button>.
+                  </p>
+                </div>
+              )}
+
               {/* Search & Filter Toolbar */}
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-b border-slate-100 pb-4">
                 <div className="relative flex-1 w-full max-w-md">
@@ -3614,15 +3636,15 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
                   <div className="flex flex-col gap-2.5 text-xs">
                     <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex justify-between items-center font-bold">
                       <span className="text-slate-700">Sector Público & Ministerios</span>
-                      <span className="text-slate-900 bg-white px-2.5 py-1 rounded-lg border border-slate-200">{comision.audiencias?.sectorPublico || 14} audiencias</span>
+                      <span className="text-slate-900 bg-white px-2.5 py-1 rounded-lg border border-slate-200">{comision.audiencias?.sectorPublico ?? 0} audiencias</span>
                     </div>
                     <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl flex justify-between items-center font-bold text-blue-800">
                       <span>Sociedad Civil y Gremios</span>
-                      <span className="bg-white px-2.5 py-1 rounded-lg border border-blue-200 text-blue-900">{comision.audiencias?.sociedadCivil || 22} audiencias</span>
+                      <span className="bg-white px-2.5 py-1 rounded-lg border border-blue-200 text-blue-900">{comision.audiencias?.sociedadCivil ?? 0} audiencias</span>
                     </div>
                     <div className="p-3 bg-purple-50 border border-purple-100 rounded-xl flex justify-between items-center font-bold text-purple-800">
                       <span>Academia y Centros de Estudio</span>
-                      <span className="bg-white px-2.5 py-1 rounded-lg border border-purple-200 text-purple-900">{comision.audiencias?.academia || 12} audiencias</span>
+                      <span className="bg-white px-2.5 py-1 rounded-lg border border-purple-200 text-purple-900">{comision.audiencias?.academia ?? 0} audiencias</span>
                     </div>
                   </div>
                 </div>

@@ -168494,11 +168494,11 @@ function getProyectosForComision(meta) {
           resumen: `Proyecto de ley radicado en la ${meta.nombre} del Senado de la Rep\xFAblica.`,
           estado: p.estado || "En tramitaci\xF3n",
           etapa: stage,
-          fechaIngreso: p.fecha || "2024-03-15",
+          fechaIngreso: p.fecha || "",
           materia: meta.temas && meta.temas[0] ? meta.temas[0] : "Legislaci\xF3n",
-          autores: meta.integrantes && meta.integrantes[0] ? meta.integrantes[0].nombre : "Senadores de la Comisi\xF3n",
+          autores: "No informado en la fuente",
           iniciativa: "Moci\xF3n",
-          patrocinantes: 5,
+          patrocinantes: 0,
           urgencia: "Sin urgencia",
           camaraOrigen: "Senado",
           comisionActual: meta.nombre,
@@ -168506,7 +168506,7 @@ function getProyectosForComision(meta) {
           timeline: [
             {
               id: `act-${p.boletin}-1`,
-              fecha: p.fecha || "02 Sep 2026",
+              fecha: p.fecha || "",
               titulo: "Radicado en Comisi\xF3n",
               descripcion: `En tramitaci\xF3n legislativa en ${meta.nombre}.`,
               tipo: "sesion"
@@ -168517,7 +168517,7 @@ function getProyectosForComision(meta) {
               id: `doc-${p.boletin}-1`,
               titulo: `Ficha de Tramitaci\xF3n Oficial (Bolet\xEDn ${p.boletin})`,
               tipo: "Ficha Oficial",
-              fecha: p.fecha || "2026-09-01",
+              fecha: p.fecha || "",
               url: p.url
             }
           ],
@@ -168537,11 +168537,11 @@ function getProyectosForComision(meta) {
           resumen: `Proyecto de ley en tramitaci\xF3n ante la ${meta.nombre} de la C\xE1mara de Diputadas y Diputados.`,
           estado: p.estado || "En tramitaci\xF3n",
           etapa: stage,
-          fechaIngreso: p.fecha || "2024-03-15",
+          fechaIngreso: p.fecha || "",
           materia: meta.temas && meta.temas[0] ? meta.temas[0] : "Legislaci\xF3n",
-          autores: meta.integrantes && meta.integrantes[0] ? meta.integrantes[0].nombre : "Diputados de la Comisi\xF3n",
+          autores: "No informado en la fuente",
           iniciativa: "Moci\xF3n",
-          patrocinantes: 8,
+          patrocinantes: 0,
           urgencia: "Sin urgencia",
           camaraOrigen: "Diputados",
           comisionActual: meta.nombre,
@@ -168549,7 +168549,7 @@ function getProyectosForComision(meta) {
           timeline: [
             {
               id: `act-${p.boletin}-1`,
-              fecha: p.fecha || "02 Sep 2026",
+              fecha: p.fecha || "",
               titulo: "Radicado en Comisi\xF3n",
               descripcion: `En tramitaci\xF3n legislativa en ${meta.nombre}.`,
               tipo: "sesion"
@@ -168560,7 +168560,7 @@ function getProyectosForComision(meta) {
               id: `doc-${p.boletin}-1`,
               titulo: `Ficha de Tramitaci\xF3n Oficial (Bolet\xEDn ${p.boletin})`,
               tipo: "Ficha Oficial",
-              fecha: p.fecha || "2026-09-01",
+              fecha: p.fecha || "",
               url: p.url
             }
           ],
@@ -168569,62 +168569,57 @@ function getProyectosForComision(meta) {
       });
     }
   }
-  const baseProyectos = [];
-  const addP = (p) => {
-    baseProyectos.push({
-      id: p.id,
-      titulo: p.titulo,
-      resumen: p.resumen,
-      estado: p.estado || "En discusi\xF3n",
-      etapa: p.etapa || "Primer Tr\xE1mite Constitucional",
-      fechaIngreso: p.fechaIngreso || "2024-03-15",
-      materia: p.materia,
-      autores: p.autores || (meta.integrantes && meta.integrantes[0] ? meta.integrantes[0].nombre : "Parlamentarios de la Comisi\xF3n"),
-      iniciativa: p.iniciativa || "Moci\xF3n",
-      patrocinantes: p.patrocinantes || 8,
-      urgencia: p.urgencia || "Suma",
-      camaraOrigen: camaraStr,
-      comisionActual: meta.nombre,
-      timeline: p.timeline || [
-        { id: "act-1", fecha: "02 Sep 2026", titulo: "Discusi\xF3n en particular de indicaciones", descripcion: "Debate t\xE9cnico de enmiendas al articulado.", tipo: "sesion" }
-      ],
-      documentos: [],
-      votaciones: []
-    });
-  };
-  if (idLower.includes("gobierno") || nombreLower.includes("gobierno interior")) {
-    addP({
-      id: "18.525-06",
-      titulo: "Fortalece la institucionalidad municipal en materia de seguridad p\xFAblica y prevenci\xF3n del delito.",
-      resumen: "Otorga mayores facultades preventivas y equipamiento a inspectores municipales.",
-      estado: "En discusi\xF3n",
-      etapa: "Primer Tr\xE1mite Constitucional",
-      materia: "Seguridad Municipal y Gobiernos Locales",
-      urgencia: "Discusi\xF3n Inmediata"
-    });
-  }
-  if (baseProyectos.length === 0) {
-    addP({
-      id: "18.100-01",
-      titulo: `Modifica la legislaci\xF3n aplicable en materias propias de la ${meta.nombre}.`,
-      resumen: `Iniciativa orientada a actualizar normativas y procedimientos sectoriales.`,
-      estado: "En estudio",
-      etapa: "Primer Tr\xE1mite Constitucional",
-      materia: meta.temas && meta.temas[0] ? meta.temas[0] : "Legislaci\xF3n",
-      urgencia: "Simple"
-    });
-  }
-  return baseProyectos;
+  return [];
 }
+var SESIONES_CONCLUIDAS_DOCUMENTADAS = {
+  agricultura: [
+    {
+      id: "ses-agri-01sep2026",
+      fecha: "Martes 01 de septiembre de 2026",
+      hora: "15:00 a 17:00 hrs.",
+      lugar: "Sala Pedro Pablo \xC1lvarez-Salamanca (Valpara\xEDso)",
+      tipo: "Sesi\xF3n de Comisi\xF3n",
+      citacionNumero: "Citaci\xF3n Oficial N\xB0 85",
+      materia: "Continuar con la discusi\xF3n del proyecto de ley que 'Modifica la Ley General de Urbanismo y Construcciones, y otros cuerpos legales, para regular el desarrollo de zonas residenciales en el medio rural' (Bolet\xEDn N\xB0 17.006-01). Audiencias con Ministro de Agricultura y Ministro de Vivienda y Urbanismo (MINVU).",
+      invitados: "Ministro de Agricultura (Jaime Campos); Ministro de Vivienda y Urbanismo (Iv\xE1n Poduje); Representantes de gremios rurales y t\xE9cnicos del sector.",
+      acuerdosCount: 2,
+      completada: true,
+      videoUrl: "https://www.youtube.com/watch?v=xehoHfI93oY",
+      actaTexto: "Se inici\xF3 la sesi\xF3n para proseguir el an\xE1lisis del Bolet\xEDn 17.006-01 sobre loteos y subdivisiones prediales en el medio rural. Expusieron los Ministros de Agricultura y MINVU sobre impacto en suelo agr\xEDcola y exigencias sanitarias.",
+      acuerdosTexto: [
+        "Se acuerda recibir propuesta de indicaciones del Ejecutivo sobre est\xE1ndares m\xEDnimos sanitarios y servidumbres de paso.",
+        "Se fija plazo para recibir observaciones de asociaciones gremiales hasta la pr\xF3xima sesi\xF3n ordinaria."
+      ],
+      tabla: [
+        "1. Bolet\xEDn N\xB0 17.006-01: Regulaci\xF3n de loteos y desarrollo de zonas residenciales en el medio rural.",
+        "2. Exposici\xF3n del Ministerio de Agricultura sobre protecci\xF3n de suelo agr\xEDcola y DL 3.516.",
+        "3. Exposici\xF3n del MINVU sobre Ley General de Urbanismo y Construcciones."
+      ]
+    }
+  ]
+};
 function generateFullComisionData(meta) {
   const isSenado = meta.chamber === "SR" || meta.prefix === "senado-";
   const periodoStr = isSenado ? "Senado de la Rep\xFAblica (2022 - 2030)" : "56\xBA Per\xEDodo Legislativo (2022 - 2026)";
-  const sampleDate1 = "02 de septiembre de 2026";
-  const sampleDate2 = "26 de agosto de 2026";
-  const sampleDate3 = "19 de agosto de 2026";
   const proyectosLista = getProyectosForComision(meta);
   const weekCitaciones = isSenado ? meta.senadoId && SENADO_CITACIONES_POR_COMISION_ID[meta.senadoId] ? SENADO_CITACIONES_POR_COMISION_ID[meta.senadoId] : [] : CAMARA_CITACIONES_POR_COMISION[meta.id] || [];
   const proximaReal = weekCitaciones.length > 0 ? weekCitaciones[0] : null;
+  const sesionesReales = [
+    ...weekCitaciones.map((rc, idx) => ({
+      id: `ses-semana-${idx + 1}`,
+      fecha: rc.fecha,
+      hora: rc.hora,
+      lugar: rc.lugar,
+      tipo: rc.tipo || "Sesi\xF3n de Comisi\xF3n",
+      materia: rc.materia,
+      invitados: rc.invitados,
+      citacionNumero: rc.citacionNumero,
+      acuerdosCount: 0,
+      completada: false,
+      tabla: rc.tabla
+    })),
+    ...SESIONES_CONCLUIDAS_DOCUMENTADAS[meta.id] || []
+  ];
   return {
     id: `${meta.prefix}${meta.id}`,
     nombre: meta.nombre,
@@ -168633,11 +168628,13 @@ function generateFullComisionData(meta) {
     officialUrl: isSenado ? `https://www.senado.cl/comisiones/${meta.id}` : `https://www.camara.cl/legislacion/comisiones/integrantes.aspx?prmID=${meta.prmID || meta.id}`,
     citacionesUrl: isSenado ? "https://www.senado.cl/actividad-legislativa/comisiones/citaciones" : "https://www.camara.cl/legislacion/comisiones/citaciones_semana.aspx",
     tramitacionUrl: isSenado ? meta.senadoId ? `https://tramitacion.senado.cl/appsenado/index.php?mo=tramitacion&ac=boletin_x_fecha&comiid=${meta.senadoId}&titulo=${encodeURIComponent("Senado: Com. " + meta.nombre)}` : "https://tramitacion.senado.cl/appsenado/templates/tramitacion/index.php" : meta.prmID ? `https://www.camara.cl/legislacion/comisiones/proyectos.aspx?prmID=${meta.prmID}` : "https://www.camara.cl/legislacion/comisiones/",
-    sesionesRealizadas: 48,
+    // Solo conteos que se pueden calcular desde datos reales cargados; lo que no se
+    // conoce queda en 0 (la interfaz lo muestra como "Sin datos"), nunca un número inventado.
+    sesionesRealizadas: sesionesReales.filter((s) => s.completada).length,
     proyectosContados: proyectosLista.length,
-    audienciasSostenidas: 34,
-    documentosContados: 76,
-    alertasActivas: 2,
+    audienciasSostenidas: 0,
+    documentosContados: 0,
+    alertasActivas: 0,
     prmID: meta.prmID,
     telefono: meta.telefono,
     email: meta.email,
@@ -168645,171 +168642,39 @@ function generateFullComisionData(meta) {
     integrantes: meta.integrantes,
     temas: meta.temas || ["Legislaci\xF3n", "Tr\xE1mite Constitucional", "Debate T\xE9cnico"],
     proyectos: proyectosLista,
+    proyectosFuente: "referencia",
     proyectosIds: proyectosLista.map((p) => p.id),
     audiencias: {
-      sectorPublico: 18,
-      sociedadCivil: 11,
-      academia: 5,
-      ultimasAsistencias: [
-        { entidad: "Ministerio de Hacienda / DIPRES", expositores: 3 },
-        { entidad: "Colegio de Abogados de Chile", expositores: 2 },
-        { entidad: "Asociaci\xF3n Chilena de Municipalidades (AChM)", expositores: 2 },
-        { entidad: "Centro de Estudios P\xFAblicos (CEP)", expositores: 1 }
-      ]
+      // Sin fuente oficial cargada de audiencias por comisión: se informa en cero
+      // en lugar de mostrar cifras y entidades inventadas.
+      sectorPublico: 0,
+      sociedadCivil: 0,
+      academia: 0,
+      ultimasAsistencias: []
     },
     proximaSesion: proximaReal ? {
       id: proximaReal.id || "ses-prox-real",
       fecha: proximaReal.fecha,
       hora: proximaReal.hora,
       lugar: proximaReal.lugar,
-      modalidad: "Presencial",
+      modalidad: proximaReal.modalidad || "No informada",
       citacionNumero: proximaReal.citacionNumero,
       tipo: proximaReal.tipo,
       materia: proximaReal.materia,
       invitados: proximaReal.invitados,
       acuerdosCount: 0,
       tabla: proximaReal.tabla && proximaReal.tabla.length > 0 ? proximaReal.tabla : [proximaReal.materia]
-    } : {
-      id: "ses-prox-01",
-      fecha: "Martes 08 de septiembre de 2026",
-      hora: "10:30 a 13:00 hrs.",
-      lugar: "Sala N\xB0 3 del Congreso Nacional, Valpara\xEDso (H\xEDbrida)",
-      modalidad: "Presencial y Telem\xE1tica",
-      citacionNumero: "Citaci\xF3n Ordinaria N\xB0 142/56",
-      tipo: "Sesi\xF3n Ordinaria",
-      materia: `Continuar con el estudio en particular de los proyectos de ley radicados en la ${meta.nombre}.`,
-      invitados: "Subsecretario del Ramo, Especialistas Constitucionales y Representantes Gremiales.",
-      acuerdosCount: 0,
-      tabla: [
-        "1. Aprobaci\xF3n de actas anteriores.",
-        "2. Votaci\xF3n de indicaciones formuladas al articulado.",
-        "3. Fijaci\xF3n de plazos para audiencias p\xFAblicas."
-      ]
-    },
-    sesiones: [
-      // 1. Convocatorias oficiales de toda la semana
-      ...weekCitaciones.map((rc, idx) => ({
-        id: `ses-semana-${idx + 1}`,
-        fecha: rc.fecha,
-        hora: rc.hora,
-        lugar: rc.lugar,
-        tipo: rc.tipo || "Sesi\xF3n de Comisi\xF3n",
-        materia: rc.materia,
-        invitados: rc.invitados,
-        citacionNumero: rc.citacionNumero,
-        acuerdosCount: 0,
-        completada: false,
-        tabla: rc.tabla
-      })),
-      // 2. Sesiones concluidas anteriores
-      ...meta.id === "agricultura" ? [
-        {
-          id: "ses-agri-01sep2026",
-          fecha: "Martes 01 de septiembre de 2026",
-          hora: "15:00 a 17:00 hrs.",
-          lugar: "Sala Pedro Pablo \xC1lvarez-Salamanca (Valpara\xEDso)",
-          tipo: "Sesi\xF3n de Comisi\xF3n",
-          citacionNumero: "Citaci\xF3n Oficial N\xB0 85",
-          materia: "Continuar con la discusi\xF3n del proyecto de ley que 'Modifica la Ley General de Urbanismo y Construcciones, y otros cuerpos legales, para regular el desarrollo de zonas residenciales en el medio rural' (Bolet\xEDn N\xB0 17.006-01). Audiencias con Ministro de Agricultura y Ministro de Vivienda y Urbanismo (MINVU).",
-          invitados: "Ministro de Agricultura (Jaime Campos); Ministro de Vivienda y Urbanismo (Iv\xE1n Poduje); Representantes de gremios rurales y t\xE9cnicos del sector.",
-          acuerdosCount: 2,
-          completada: true,
-          videoUrl: "https://www.youtube.com/watch?v=xehoHfI93oY",
-          actaTexto: "Se inici\xF3 la sesi\xF3n para proseguir el an\xE1lisis del Bolet\xEDn 17.006-01 sobre loteos y subdivisiones prediales en el medio rural. Expusieron los Ministros de Agricultura y MINVU sobre impacto en suelo agr\xEDcola y exigencias sanitarias.",
-          acuerdosTexto: [
-            "Se acuerda recibir propuesta de indicaciones del Ejecutivo sobre est\xE1ndares m\xEDnimos sanitarios y servidumbres de paso.",
-            "Se fija plazo para recibir observaciones de asociaciones gremiales hasta la pr\xF3xima sesi\xF3n ordinaria."
-          ],
-          tabla: [
-            "1. Bolet\xEDn N\xB0 17.006-01: Regulaci\xF3n de loteos y desarrollo de zonas residenciales en el medio rural.",
-            "2. Exposici\xF3n del Ministerio de Agricultura sobre protecci\xF3n de suelo agr\xEDcola y DL 3.516.",
-            "3. Exposici\xF3n del MINVU sobre Ley General de Urbanismo y Construcciones."
-          ]
-        }
-      ] : [],
-      {
-        id: "ses-01",
-        fecha: sampleDate1,
-        hora: "10:30 a 13:00 hrs.",
-        lugar: "Valpara\xEDso",
-        tipo: "Sesi\xF3n Ordinaria",
-        materia: `Audiencias t\xE9cnicas y debate de indicaciones sobre las materias de competencia de la ${meta.nombre}.`,
-        invitados: "DIPRES, Expertos Acad\xE9micos y Asociaciones Sectoriales.",
-        acuerdosCount: 3,
-        completada: true,
-        actaTexto: "Se inici\xF3 la sesi\xF3n con la asistencia reglamentaria de los miembros titulares. Se escucharon exposiciones y se acord\xF3 votar en general en la pr\xF3xima citaci\xF3n.",
-        acuerdosTexto: [
-          "Se acord\xF3 oficiar al Ejecutivo solicitando informe financiero complementario.",
-          "Se aprueba en general por unanimidad de los presentes.",
-          "Se fija plazo para recibir indicaciones hasta el pr\xF3ximo viernes a las 18:00 hrs."
-        ],
-        tabla: [
-          "1. An\xE1lisis de observaciones ingresadas.",
-          "2. Exposici\xF3n del Ejecutivo.",
-          "3. Acuerdos de tramitaci\xF3n."
-        ]
-      },
-      {
-        id: "ses-02",
-        fecha: sampleDate2,
-        hora: "11:00 a 13:30 hrs.",
-        lugar: "Valpara\xEDso",
-        tipo: "Sesi\xF3n Especial",
-        materia: `Revisi\xF3n exhaustiva y recepci\xF3n de audiencias p\xFAblicas en materia sectorial.`,
-        invitados: "Representantes de la sociedad civil y gremios convocados.",
-        acuerdosCount: 2,
-        completada: true,
-        acuerdosTexto: [
-          "Se escucharon 4 audiencias p\xFAblicas.",
-          "Se remiten actas a la Secretar\xEDa General de la Presidencia."
-        ]
-      },
-      {
-        id: "ses-03",
-        fecha: sampleDate3,
-        hora: "10:00 a 12:30 hrs.",
-        lugar: "Valpara\xEDso",
-        tipo: "Sesi\xF3n Ordinaria",
-        materia: `Votaci\xF3n de articulado y despacho de informe a Sala.`,
-        invitados: "Ministros y asesores legislativos.",
-        acuerdosCount: 4,
-        completada: true,
-        acuerdosTexto: [
-          "Se despacha el informe a Sala.",
-          "Se designa parlamentario informante."
-        ]
-      }
-    ],
-    documentosGroups: [
-      { tipo: "Informes de Comisi\xF3n", cuenta: 18 },
-      { tipo: "Actas de Sesi\xF3n", cuenta: 48 },
-      { tipo: "Minutas T\xE9cnicas Asesor\xEDa BCN", cuenta: 12 },
-      { tipo: "Oficios y Respuestas Ministeriales", cuenta: 26 },
-      { tipo: "Presentaciones de Expositores", cuenta: 34 }
-    ],
-    actividades: [
-      {
-        id: "act-01",
-        fecha: "02 Sep 2026",
-        titulo: "Sesi\xF3n Ordinaria Concluida",
-        descripcion: "Finaliz\xF3 el debate t\xE9cnico sobre indicaciones particulares.",
-        tipo: "sesion"
-      },
-      {
-        id: "act-02",
-        fecha: "26 Ago 2026",
-        titulo: "Audiencias P\xFAblicas Sostenidas",
-        descripcion: "Exposici\xF3n de organismos p\xFAblicos y gremios en sala de sesiones.",
-        tipo: "sesion"
-      },
-      {
-        id: "act-03",
-        fecha: "19 Ago 2026",
-        titulo: "Informe de Tr\xE1mite Despachado",
-        descripcion: "Solicitud de antecedentes remitida al Ministerio respectivo.",
-        tipo: "informe"
-      }
-    ]
+    } : void 0,
+    sesiones: sesionesReales,
+    documentosGroups: [],
+    // Actividad reciente derivada solo de las sesiones reales disponibles.
+    actividades: sesionesReales.slice(0, 5).map((ses, idx) => ({
+      id: `act-${idx + 1}`,
+      fecha: ses.fecha,
+      titulo: ses.completada ? "Sesi\xF3n concluida" : "Sesi\xF3n citada",
+      descripcion: ses.materia,
+      tipo: "sesion"
+    }))
   };
 }
 
@@ -187410,33 +187275,6 @@ var PROYECTOS_REALES_CHILE = [
 ];
 
 // src/utils/proyectosResolver.ts
-var MATERIA_COMISION_MAP = {
-  "07": { comision: "Comisi\xF3n de Constituci\xF3n, Legislaci\xF3n, Justicia y Reglamento", materia: "Derecho Constitucional y Justicia" },
-  "13": { comision: "Comisi\xF3n de Trabajo y Previsi\xF3n Social", materia: "Legislaci\xF3n Laboral y Previsi\xF3n Social" },
-  "05": { comision: "Comisi\xF3n de Hacienda", materia: "Finanzas P\xFAblicas y Tributaci\xF3n" },
-  "11": { comision: "Comisi\xF3n de Seguridad Ciudadana", materia: "Seguridad P\xFAblica y Orden Institucional" },
-  "25": { comision: "Comisi\xF3n de Seguridad P\xFAblica", materia: "Seguridad P\xFAblica y Lucha contra el Crimen" },
-  "04": { comision: "Comisi\xF3n de Educaci\xF3n", materia: "Educaci\xF3n y Formaci\xF3n T\xE9cnico-Profesional" },
-  "15": { comision: "Comisi\xF3n de Salud", materia: "Salud P\xFAblica y Medicamentos" },
-  "19": { comision: "Comisi\xF3n de Defensa Nacional", materia: "Defensa Nacional y Fuerzas Armadas" },
-  "12": { comision: "Comisi\xF3n de Medio Ambiente y Recursos Naturales", materia: "Medio Ambiente y Cambio Clim\xE1tico" },
-  "14": { comision: "Comisi\xF3n de Vivienda, Desarrollo Urbano y Bienes Nacionales", materia: "Vivienda, Urbanismo y Territorio" },
-  "06": { comision: "Comisi\xF3n de Gobierno Interior, Nacionalidad, Ciudadan\xEDa y Regionalizaci\xF3n", materia: "Gobierno Interior y Descentralizaci\xF3n" },
-  "08": { comision: "Comisi\xF3n de Relaciones Exteriores, Asuntos Interparlamentarios e Integraci\xF3n Latinoamericana", materia: "Relaciones Internacionales y Tratados" },
-  "09": { comision: "Comisi\xF3n de Obras P\xFAblicas, Transportes y Telecomunicaciones", materia: "Transportes, Infraestructura y Telecomunicaciones" },
-  "10": { comision: "Comisi\xF3n de Agricultura, Silvicultura y Desarrollo Rural", materia: "Agricultura, Silvicultura y Riego" },
-  "02": { comision: "Comisi\xF3n de Miner\xEDa y Energ\xEDa", materia: "Miner\xEDa, Energ\xEDas Renovables y Recursos Naturales" },
-  "03": { comision: "Comisi\xF3n de Econom\xEDa, Fomento; Micro, Peque\xF1a y Mediana Empresa, Protecci\xF3n de los Consumidores y Turismo", materia: "Econom\xEDa y Fomento Productivo" },
-  "17": { comision: "Comisi\xF3n de Derechos Humanos y Pueblos Originarios", materia: "Derechos Humanos y Pueblos Originarios" },
-  "18": { comision: "Comisi\xF3n de Deportes y Recreaci\xF3n", materia: "Deportes y Actividad F\xEDsica" },
-  "20": { comision: "Comisi\xF3n de Recursos H\xEDdricos y Desertificaci\xF3n", materia: "Recursos H\xEDdricos y Aguas" },
-  "21": { comision: "Comisi\xF3n de Pesca, Acuicultura e Intereses Mar\xEDtimos", materia: "Pesca y Acuicultura" },
-  "24": { comision: "Comisi\xF3n de Pesca, Acuicultura e Intereses Mar\xEDtimos", materia: "Pesca, Acuicultura e Intereses Mar\xEDtimos" },
-  "34": { comision: "Comisi\xF3n de Mujeres y Equidad de G\xE9nero", materia: "Mujeres, Equidad de G\xE9nero y Cuidados" },
-  "35": { comision: "Comisi\xF3n de Personas Mayores y Discapacidad", materia: "Personas Mayores, Dependencia e Inclusi\xF3n" },
-  "36": { comision: "Comisi\xF3n de Futuro, Ciencias, Tecnolog\xEDa, Conocimiento e Innovaci\xF3n", materia: "Ciencia, Inteligencia Artificial e Innovaci\xF3n" },
-  "00": { comision: "Comisi\xF3n Especial Mixta de Presupuestos", materia: "Normativa General" }
-};
 function cleanBulletin(id) {
   return id.replace(/[\.\s]/g, "").trim().toLowerCase();
 }
@@ -187488,82 +187326,35 @@ function formatBulletinNumber(raw) {
   return { formatted, baseNum, suffix: suffix.padStart(2, "0") };
 }
 function generateDynamicProyecto(id) {
-  const { formatted, suffix } = formatBulletinNumber(id);
-  const mapping = MATERIA_COMISION_MAP[suffix] || {
-    comision: "Comisi\xF3n Legislativa Oficial",
-    materia: "Normativa General y Legislaci\xF3n Nacional"
-  };
+  const { formatted, baseNum } = formatBulletinNumber(id);
+  const urlSenado = `https://tramitacion.senado.cl/appsenado/templates/tramitacion/index.php?boletin_ini=${encodeURIComponent(baseNum)}`;
   return {
     id: formatted,
-    titulo: `Iniciativa de Ley sobre ${mapping.materia} (Bolet\xEDn N\xB0 ${formatted})`,
-    resumen: `Proyecto de ley radicado en el Congreso Nacional de Chile, actualmente en discusi\xF3n t\xE9cnica en la ${mapping.comision}. Establece nuevas disposiciones legales y regulatorias en materias de ${mapping.materia.toLowerCase()}.`,
-    estado: "En discusi\xF3n",
-    etapa: "Primer Tr\xE1mite Constitucional",
-    fechaIngreso: "12 de marzo de 2024",
-    materia: mapping.materia,
-    autores: "Moci\xF3n de Diputadas y Diputados de la Rep\xFAblica",
+    titulo: `Bolet\xEDn N\xB0 ${formatted}`,
+    resumen: "No hay informaci\xF3n local para este bolet\xEDn. Se est\xE1 consultando la ficha oficial de tramitaci\xF3n del Senado; si no aparece, verifica que el n\xFAmero sea correcto en el sitio oficial.",
+    estado: "Sin informaci\xF3n",
+    etapa: "Sin informaci\xF3n",
+    fechaIngreso: "",
+    materia: "Sin informaci\xF3n",
+    autores: "No disponible",
     iniciativa: "Moci\xF3n",
-    patrocinantes: 10,
-    urgencia: "Suma",
+    patrocinantes: 0,
+    urgencia: "Sin urgencia",
     camaraOrigen: "Diputados",
-    comisionActual: mapping.comision,
-    comisionesHistoricas: [mapping.comision],
-    quorum: {
-      tipo: "Ley Simple",
-      descripcion: "Mayor\xEDa de los diputados y senadores presentes en sala.",
-      votosDiputados: "Mayor\xEDa de presentes",
-      votosSenadores: "Mayor\xEDa de presentes"
-    },
-    timeline: [
-      {
-        id: "act-dyn-1",
-        fecha: "02 de septiembre de 2026",
-        titulo: "Discusi\xF3n de articulado en Comisi\xF3n",
-        descripcion: `La ${mapping.comision} contin\xFAa con el an\xE1lisis de las indicaciones ingresadas al proyecto de ley.`,
-        tipo: "sesion"
-      },
-      {
-        id: "act-dyn-2",
-        fecha: "20 de agosto de 2026",
-        titulo: "Audiencia de expositores t\xE9cnicos",
-        descripcion: "Recepci\xF3n de informes sectoriales de ministerios y expertos en la materia.",
-        tipo: "informe"
-      },
-      {
-        id: "act-dyn-3",
-        fecha: "12 de marzo de 2024",
-        titulo: "Ingreso de la moci\xF3n a tramitaci\xF3n",
-        descripcion: "Se da cuenta en Sala y se remite para su estudio en primer tr\xE1mite constitucional.",
-        tipo: "ingreso"
-      }
-    ],
+    comisionActual: "Sin informaci\xF3n",
+    comisionesHistoricas: [],
+    linkCongreso: urlSenado,
+    timeline: [],
     documentos: [
       {
-        id: "doc-dyn-1",
-        titulo: `Texto original de la Moci\xF3n Bolet\xEDn ${formatted}`,
-        tipo: "Moci\xF3n Parlamentaria",
-        fecha: "12/03/2024",
-        url: `https://www.camara.cl/legislacion/proyectos/busqueda.aspx?prmTexto=${encodeURIComponent(formatted)}`
-      },
-      {
-        id: "doc-dyn-2",
-        titulo: `Informe T\xE9cnico Preliminar de la BCN`,
-        tipo: "Informe T\xE9cnico",
-        fecha: "05/04/2024",
-        url: `https://www.bcn.cl/obtienearchivo?id=recursoslegales/10221.3/${encodeURIComponent(formatted)}`
+        id: "doc-oficial",
+        titulo: "Consultar ficha oficial de tramitaci\xF3n (Senado)",
+        tipo: "Enlace oficial",
+        fecha: "",
+        url: urlSenado
       }
     ],
-    votaciones: [
-      {
-        id: "vot-dyn-1",
-        fecha: "26 de agosto de 2026",
-        materia: "Votaci\xF3n general de la iniciativa",
-        si: 8,
-        no: 2,
-        abstencios: 1,
-        resultado: "Aprobado en general"
-      }
-    ]
+    votaciones: []
   };
 }
 function resolveProyecto(id) {
@@ -188939,28 +188730,30 @@ async function fetchSenadoComisionProyectosLive(senadoId, comisionNombre = "Sena
           const boletin = tds[1];
           if (boletin && boletin.includes("-") && !seenBoletines.has(boletin)) {
             seenBoletines.add(boletin);
-            const fecha = tds[0];
+            const mFecha = (tds[0] || "").match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+            const fecha = mFecha ? `${mFecha[3]}-${mFecha[2].padStart(2, "0")}-${mFecha[1].padStart(2, "0")}` : tds[0] || "";
             const titulo = tds[2];
-            const estado = tds[3] || "En tramitaci\xF3n";
-            const stage = estado.toLowerCase().includes("sala") ? "Discusi\xF3n en Sala" : "Primer Tr\xE1mite Constitucional";
+            const estado = tds[3] || "No informado";
+            const stage = "Ver ficha oficial";
             comProjects.push({
               id: boletin,
               titulo,
-              resumen: `Proyecto de ley radicado en la ${comisionNombre} del Senado de la Rep\xFAblica.`,
+              resumen: `Proyecto de ley radicado en la ${comisionNombre} seg\xFAn el listado oficial de tramitaci\xF3n.`,
               estado,
               etapa: stage,
               fechaIngreso: fecha,
-              materia: "Legislaci\xF3n",
+              materia: comisionNombre,
               iniciativa: "Moci\xF3n",
-              patrocinantes: 5,
+              // el listado no distingue mensaje/moción; ver ficha oficial
+              patrocinantes: 0,
               urgencia: "Sin urgencia",
-              camaraOrigen: "Senado",
+              camaraOrigen: "No informado",
               comisionActual: comisionNombre,
               linkCongreso: `https://tramitacion.senado.cl/appsenado/index.php?mo=tramitacion&ac=boletin_x_fecha&comiid=${senadoId}&titulo=${encodeURIComponent("Senado: Com. " + comisionNombre)}`,
               timeline: [
                 {
                   id: `act-${boletin}-1`,
-                  fecha: fecha || "02 Sep 2026",
+                  fecha,
                   titulo: "Radicado en Comisi\xF3n",
                   descripcion: `En tramitaci\xF3n legislativa en ${comisionNombre}.`,
                   tipo: "sesion"
@@ -188972,7 +188765,7 @@ async function fetchSenadoComisionProyectosLive(senadoId, comisionNombre = "Sena
                   titulo: `Ficha de Tramitaci\xF3n Oficial (Bolet\xEDn ${boletin})`,
                   tipo: "Ficha Oficial",
                   fecha,
-                  url: `https://www.senado.cl/actividad-legislativa/tramitacion-de-proyectos/${boletin.split("-")[0]}`
+                  url: `https://tramitacion.senado.cl/appsenado/templates/tramitacion/index.php?boletin_ini=${boletin.split("-")[0]}`
                 }
               ],
               votaciones: []
@@ -193282,6 +193075,7 @@ apiRouter.get("/comision/:id", async (req, res) => {
             fullComision.proyectos = liveSenadoProjects;
             fullComision.proyectosContados = liveSenadoProjects.length;
             fullComision.proyectosIds = liveSenadoProjects.map((p) => p.id);
+            fullComision.proyectosFuente = "vivo";
           }
           if (liveSenadoCit && liveSenadoCit.porComision && liveSenadoCit.porComision[matchDetalle.senadoId]) {
             const comLiveCit = liveSenadoCit.porComision[matchDetalle.senadoId];
@@ -193341,7 +193135,10 @@ apiRouter.get("/comision/:id", async (req, res) => {
         "mujeres-genero": "1121",
         "defensa": "208",
         "rree": "204",
-        "derechos-humanos": "217",
+        // 217 es la antigua "Derechos Humanos, Nacionalidad y Ciudadanía" (sin proyectos desde 2018);
+        // la comisión vigente es "Derechos Humanos y Pueblos Originarios" (1155), según
+        // tramitacion.senado.cl ac=comisiones.
+        "derechos-humanos": "1155",
         "desarrollo-social": "874",
         "recursos-hidricos": "965",
         "cultura": "760",
@@ -193364,6 +193161,7 @@ apiRouter.get("/comision/:id", async (req, res) => {
             fullComision.proyectos = liveCamaraProjects;
             fullComision.proyectosContados = liveCamaraProjects.length;
             fullComision.proyectosIds = liveCamaraProjects.map((p) => p.id);
+            fullComision.proyectosFuente = "vivo";
           }
         } catch (err) {
           console.warn("Could not fetch live C\xE1mara projects:", err);

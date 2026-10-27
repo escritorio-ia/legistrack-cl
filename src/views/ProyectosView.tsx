@@ -31,7 +31,7 @@ import {
 } from "lucide-react";
 import { Proyecto } from "../types";
 import { TODAS_COMISIONES_DETALLE, getProyectosForComision } from "../data/comisionesData";
-import { resolveProyecto, cleanBulletin, getAllMasterProyectos } from "../utils/proyectosResolver";
+import { findPreloadedProyecto, cleanBulletin, getAllMasterProyectos, esPatronBoletin } from "../utils/proyectosResolver";
 import { fetchLiveSenateProject, fetchLiveSenateProjectsList } from "../utils/senadoClientApi";
 
 interface ProyectosViewProps {
@@ -101,7 +101,7 @@ function getLocalFilteredProyectos(params: {
   const q = rawQ.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
   const qClean = cleanBulletin(rawQ);
   const qNum = rawQ.replace(/[^0-9]/g, "");
-  const isBulletinPattern = qNum.length >= 3 || rawQ.includes("-");
+  const isBulletinPattern = esPatronBoletin(rawQ);
 
   let filtered = allList.filter(p => {
     const pClean = cleanBulletin(p.id);
@@ -147,9 +147,12 @@ function getLocalFilteredProyectos(params: {
     return true;
   });
 
-  // If searching for a specific bulletin and not in filtered list, resolve dynamically so it is always found
+  // Si la consulta tiene forma de número de boletín real y existe en la base local, se
+  // antepone aunque no haya calzado con el filtro de texto normal (ej. coincidencia parcial
+  // del número). Importante: NUNCA se fabrica un proyecto inventado cuando el boletín no
+  // existe en la base — en ese caso simplemente no hay resultados, que es lo honesto.
   if (isBulletinPattern) {
-    const resolved = resolveProyecto(rawQ);
+    const resolved = findPreloadedProyecto(rawQ);
     if (resolved && !filtered.some(p => cleanBulletin(p.id) === cleanBulletin(resolved.id))) {
       filtered.unshift(resolved);
     }
@@ -166,20 +169,20 @@ function getLocalFilteredProyectos(params: {
     resultados,
     stats: {
       estados: {
-        enDiscusion: allList.filter(p => matchEstadoFilter(p.estado, "En discusión")).length || 215,
-        enSala: allList.filter(p => matchEstadoFilter(p.estado, "En sala")).length || 38,
-        enEstudio: allList.filter(p => matchEstadoFilter(p.estado, "En estudio")).length || 62,
-        aprobadoGeneral: allList.filter(p => matchEstadoFilter(p.estado, "Publicado")).length || 45,
+        enDiscusion: allList.filter(p => matchEstadoFilter(p.estado, "En discusión")).length,
+        enSala: allList.filter(p => matchEstadoFilter(p.estado, "En sala")).length,
+        enEstudio: allList.filter(p => matchEstadoFilter(p.estado, "En estudio")).length,
+        aprobadoGeneral: allList.filter(p => matchEstadoFilter(p.estado, "Publicado")).length,
         otros: 12,
         totalRepresentativo: allList.length
       },
       materiasPrincipales: [
-        { nombre: "Derecho Constitucional y Justicia", cuenta: allList.filter(p => (p.materia || "").toLowerCase().includes("constituc") || (p.materia || "").toLowerCase().includes("justicia")).length || 54 },
-        { nombre: "Legislación Laboral y Previsión", cuenta: allList.filter(p => (p.materia || "").toLowerCase().includes("laboral") || (p.materia || "").toLowerCase().includes("previs")).length || 42 },
-        { nombre: "Seguridad Pública", cuenta: allList.filter(p => (p.materia || "").toLowerCase().includes("seguridad")).length || 38 },
-        { nombre: "Finanzas Públicas y Hacienda", cuenta: allList.filter(p => (p.materia || "").toLowerCase().includes("hacienda") || (p.materia || "").toLowerCase().includes("finanza")).length || 35 },
-        { nombre: "Educación y Cultura", cuenta: allList.filter(p => (p.materia || "").toLowerCase().includes("educa")).length || 29 },
-        { nombre: "Salud Pública", cuenta: allList.filter(p => (p.materia || "").toLowerCase().includes("salud")).length || 26 }
+        { nombre: "Derecho Constitucional y Justicia", cuenta: allList.filter(p => (p.materia || "").toLowerCase().includes("constituc") || (p.materia || "").toLowerCase().includes("justicia")).length },
+        { nombre: "Legislación Laboral y Previsión", cuenta: allList.filter(p => (p.materia || "").toLowerCase().includes("laboral") || (p.materia || "").toLowerCase().includes("previs")).length },
+        { nombre: "Seguridad Pública", cuenta: allList.filter(p => (p.materia || "").toLowerCase().includes("seguridad")).length },
+        { nombre: "Finanzas Públicas y Hacienda", cuenta: allList.filter(p => (p.materia || "").toLowerCase().includes("hacienda") || (p.materia || "").toLowerCase().includes("finanza")).length },
+        { nombre: "Educación y Cultura", cuenta: allList.filter(p => (p.materia || "").toLowerCase().includes("educa")).length },
+        { nombre: "Salud Pública", cuenta: allList.filter(p => (p.materia || "").toLowerCase().includes("salud")).length }
       ]
     }
   };
@@ -238,8 +241,7 @@ export default function ProyectosView({
 
   const runSearch = () => {
     const raw = (searchFilter || "").trim();
-    const qNum = raw.replace(/[^0-9]/g, "");
-    if (qNum.length >= 3 || raw.includes("-")) {
+    if (esPatronBoletin(raw)) {
       setEstadoFilter("Todos");
       setCamaraFilter("Todas");
       setMateriaFilter("Todas");
@@ -292,8 +294,7 @@ export default function ProyectosView({
 
     // 2. If a specific bulletin is queried, fetch live official Senate data
     const rawSearch = (searchFilter || "").trim();
-    const qNum = rawSearch.replace(/[^0-9]/g, "");
-    if (qNum.length >= 3 || rawSearch.includes("-")) {
+    if (esPatronBoletin(rawSearch)) {
       fetchLiveSenateProject(rawSearch)
         .then(liveProy => {
           if (liveProy) {
@@ -988,7 +989,7 @@ export default function ProyectosView({
                 <div className="text-center text-xs text-slate-400 py-3">Cargando comisiones...</div>
               ) : (
                 materias.map((m) => {
-                  const maxVal = materias[0]?.cuenta || 20;
+                  const maxVal = materias[0]?.cuenta || 1;
                   const percent = Math.floor((m.cuenta / maxVal) * 100);
                   return (
                     <div 

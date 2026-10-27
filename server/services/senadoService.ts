@@ -739,6 +739,8 @@ export async function fetchSenadoComisionProyectosLive(
   comisionNombre = "Senado",
   forceRefresh = false
 ): Promise<Proyecto[]> {
+  // El listado oficial (ac=boletin_x_fecha) sirve para comisiones del Senado y de la
+  // Cámara, pero no informa la cámara de origen del proyecto: no se asume.
   const cacheKey = `senado_comision_proyectos_${senadoId}`;
   if (forceRefresh) {
     cache.delete(cacheKey);
@@ -770,29 +772,31 @@ export async function fetchSenadoComisionProyectosLive(
           const boletin = tds[1];
           if (boletin && boletin.includes("-") && !seenBoletines.has(boletin)) {
             seenBoletines.add(boletin);
-            const fecha = tds[0];
+            // La ficha entrega dd/mm/aaaa; se normaliza a ISO para ordenar correctamente.
+            const mFecha = (tds[0] || "").match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+            const fecha = mFecha ? `${mFecha[3]}-${mFecha[2].padStart(2, "0")}-${mFecha[1].padStart(2, "0")}` : (tds[0] || "");
             const titulo = tds[2];
-            const estado = tds[3] || "En tramitación";
-            const stage = estado.toLowerCase().includes("sala") ? "Discusión en Sala" : "Primer Trámite Constitucional";
+            const estado = tds[3] || "No informado";
+            const stage = "Ver ficha oficial";
 
             comProjects.push({
               id: boletin,
               titulo: titulo,
-              resumen: `Proyecto de ley radicado en la ${comisionNombre} del Senado de la República.`,
+              resumen: `Proyecto de ley radicado en la ${comisionNombre} según el listado oficial de tramitación.`,
               estado: estado,
               etapa: stage,
               fechaIngreso: fecha,
-              materia: "Legislación",
-              iniciativa: "Moción",
-              patrocinantes: 5,
+              materia: comisionNombre,
+              iniciativa: "Moción", // el listado no distingue mensaje/moción; ver ficha oficial
+              patrocinantes: 0,
               urgencia: "Sin urgencia",
-              camaraOrigen: "Senado",
+              camaraOrigen: "No informado",
               comisionActual: comisionNombre,
               linkCongreso: `https://tramitacion.senado.cl/appsenado/index.php?mo=tramitacion&ac=boletin_x_fecha&comiid=${senadoId}&titulo=${encodeURIComponent("Senado: Com. " + comisionNombre)}`,
               timeline: [
                 {
                   id: `act-${boletin}-1`,
-                  fecha: fecha || "02 Sep 2026",
+                  fecha: fecha,
                   titulo: "Radicado en Comisión",
                   descripcion: `En tramitación legislativa en ${comisionNombre}.`,
                   tipo: "sesion"
@@ -804,7 +808,7 @@ export async function fetchSenadoComisionProyectosLive(
                   titulo: `Ficha de Tramitación Oficial (Boletín ${boletin})`,
                   tipo: "Ficha Oficial",
                   fecha: fecha,
-                  url: `https://www.senado.cl/actividad-legislativa/tramitacion-de-proyectos/${boletin.split("-")[0]}`
+                  url: `https://tramitacion.senado.cl/appsenado/templates/tramitacion/index.php?boletin_ini=${boletin.split("-")[0]}`
                 }
               ],
               votaciones: []

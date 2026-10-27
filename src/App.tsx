@@ -598,7 +598,7 @@ export default function App() {
                                     <strong>Preside:</strong> {president.nombre.replace(/^(Sr\.|Sra\.|Don|Doña)\s*/i, "").split(" ").slice(0, 2).join(" ")} ({president.partido})
                                   </span>
                                   <span className="text-slate-400 font-mono shrink-0 ml-1">
-                                    {c.integrantes?.length || 13} m.
+                                    {c.integrantes?.length ?? 0} m.
                                   </span>
                                 </div>
                               )}

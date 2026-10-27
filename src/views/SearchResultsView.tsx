@@ -590,7 +590,7 @@ export default function SearchResultsView({
                         </div>
 
                         <div className="border-t border-slate-100 pt-3 flex justify-between items-center text-[10px] text-slate-400 font-bold font-mono">
-                          <span>{(c as any).proyectosContados || 12} Proyectos en expediente</span>
+                          <span>{(c as any).proyectosContados ?? 0} Proyectos en expediente</span>
                           <span className="text-emerald-600 flex items-center gap-0.5 group-hover:underline">
                             Ver detalles &rsaquo;
                           </span>

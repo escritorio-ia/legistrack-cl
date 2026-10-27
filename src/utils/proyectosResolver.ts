@@ -43,6 +43,24 @@ export function cleanBulletin(id: string): string {
 }
 
 /**
+ * Detecta si una consulta de búsqueda tiene FORMA de número de boletín real
+ * (ej. "21020", "21.020-07", "21020-07"), y no solo "contiene algún número de
+ * 3+ dígitos en algún lugar". Antes, cualquier texto con un año o cifra de 3+
+ * dígitos (ej. "reforma previsional 2024") se trataba como búsqueda de
+ * boletín, saltándose los filtros de estado/cámara/materia e intentando
+ * resolver un boletín que no existía. Un boletín real NUNCA tiene letras, así
+ * que exigir que la consulta sea solo dígitos/puntos/guiones/espacios es
+ * suficiente para distinguir ambos casos.
+ */
+export function esPatronBoletin(raw: string): boolean {
+  const q = (raw || "").trim();
+  if (!q) return false;
+  if (!/^[\d.\-\s]+$/.test(q)) return false;
+  const soloNumeros = q.replace(/[^0-9]/g, "");
+  return soloNumeros.length >= 3;
+}
+
+/**
  * Returns the entire master consolidated list of all real Chilean legislative projects.
  */
 export function getAllMasterProyectos(): Proyecto[] {
@@ -112,87 +130,42 @@ export function formatBulletinNumber(raw: string): { formatted: string; baseNum:
 }
 
 /**
- * Creates a synthetic full-featured project file for any given bulletin number
- * ensuring that the app NEVER breaks with a "Boletín no encontrado" error.
+ * Ficha mínima y honesta para un boletín que no está en la base local. NO inventa
+ * título, autores, fechas, tramitación ni votaciones: solo indica que no hay datos
+ * locales y entrega el enlace a la fuente oficial. La vista de detalle intenta luego
+ * traer la ficha real desde el Senado (fetchLiveSenateProject) y la reemplaza.
  */
 export function generateDynamicProyecto(id: string): Proyecto {
-  const { formatted, suffix } = formatBulletinNumber(id);
-  const mapping = MATERIA_COMISION_MAP[suffix] || {
-    comision: "Comisión Legislativa Oficial",
-    materia: "Normativa General y Legislación Nacional"
-  };
+  const { formatted, baseNum } = formatBulletinNumber(id);
+  const urlSenado = `https://tramitacion.senado.cl/appsenado/templates/tramitacion/index.php?boletin_ini=${encodeURIComponent(baseNum)}`;
 
   return {
     id: formatted,
-    titulo: `Iniciativa de Ley sobre ${mapping.materia} (Boletín N° ${formatted})`,
-    resumen: `Proyecto de ley radicado en el Congreso Nacional de Chile, actualmente en discusión técnica en la ${mapping.comision}. Establece nuevas disposiciones legales y regulatorias en materias de ${mapping.materia.toLowerCase()}.`,
-    estado: "En discusión",
-    etapa: "Primer Trámite Constitucional",
-    fechaIngreso: "12 de marzo de 2024",
-    materia: mapping.materia,
-    autores: "Moción de Diputadas y Diputados de la República",
+    titulo: `Boletín N° ${formatted}`,
+    resumen: "No hay información local para este boletín. Se está consultando la ficha oficial de tramitación del Senado; si no aparece, verifica que el número sea correcto en el sitio oficial.",
+    estado: "Sin información",
+    etapa: "Sin información",
+    fechaIngreso: "",
+    materia: "Sin información",
+    autores: "No disponible",
     iniciativa: "Moción",
-    patrocinantes: 10,
-    urgencia: "Suma",
+    patrocinantes: 0,
+    urgencia: "Sin urgencia",
     camaraOrigen: "Diputados",
-    comisionActual: mapping.comision,
-    comisionesHistoricas: [mapping.comision],
-    quorum: {
-      tipo: "Ley Simple",
-      descripcion: "Mayoría de los diputados y senadores presentes en sala.",
-      votosDiputados: "Mayoría de presentes",
-      votosSenadores: "Mayoría de presentes"
-    },
-    timeline: [
-      {
-        id: "act-dyn-1",
-        fecha: "02 de septiembre de 2026",
-        titulo: "Discusión de articulado en Comisión",
-        descripcion: `La ${mapping.comision} continúa con el análisis de las indicaciones ingresadas al proyecto de ley.`,
-        tipo: "sesion"
-      },
-      {
-        id: "act-dyn-2",
-        fecha: "20 de agosto de 2026",
-        titulo: "Audiencia de expositores técnicos",
-        descripcion: "Recepción de informes sectoriales de ministerios y expertos en la materia.",
-        tipo: "informe"
-      },
-      {
-        id: "act-dyn-3",
-        fecha: "12 de marzo de 2024",
-        titulo: "Ingreso de la moción a tramitación",
-        descripcion: "Se da cuenta en Sala y se remite para su estudio en primer trámite constitucional.",
-        tipo: "ingreso"
-      }
-    ],
+    comisionActual: "Sin información",
+    comisionesHistoricas: [],
+    linkCongreso: urlSenado,
+    timeline: [],
     documentos: [
       {
-        id: "doc-dyn-1",
-        titulo: `Texto original de la Moción Boletín ${formatted}`,
-        tipo: "Moción Parlamentaria",
-        fecha: "12/03/2024",
-        url: `https://www.camara.cl/legislacion/proyectos/busqueda.aspx?prmTexto=${encodeURIComponent(formatted)}`
-      },
-      {
-        id: "doc-dyn-2",
-        titulo: `Informe Técnico Preliminar de la BCN`,
-        tipo: "Informe Técnico",
-        fecha: "05/04/2024",
-        url: `https://www.bcn.cl/obtienearchivo?id=recursoslegales/10221.3/${encodeURIComponent(formatted)}`
+        id: "doc-oficial",
+        titulo: "Consultar ficha oficial de tramitación (Senado)",
+        tipo: "Enlace oficial",
+        fecha: "",
+        url: urlSenado
       }
     ],
-    votaciones: [
-      {
-        id: "vot-dyn-1",
-        fecha: "26 de agosto de 2026",
-        materia: "Votación general de la iniciativa",
-        si: 8,
-        no: 2,
-        abstencios: 1,
-        resultado: "Aprobado en general"
-      }
-    ]
+    votaciones: []
   };
 }
 

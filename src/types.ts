@@ -47,7 +47,8 @@ export interface Proyecto {
   resumen: string;
   fechaIngreso: string;
   estado: string;
-  camaraOrigen: "Diputados" | "Senado";
+  /** "No informado" cuando la fuente (p. ej. listado por comisión) no indica la cámara de origen. */
+  camaraOrigen: "Diputados" | "Senado" | "No informado";
   etapa: string;
   materia: string;
   urgencia: "Simple" | "Suma" | "Discusión Inmediata" | "Sin urgencia";
@@ -155,6 +156,8 @@ export interface Comision {
   actividades: ActivityItem[];
   integrantes?: Integrante[];
   proyectos?: Proyecto[];
+  /** "vivo": lista traída del listado oficial de tramitación; "referencia": datos locales precargados. */
+  proyectosFuente?: "vivo" | "referencia";
   temas?: string[];
   prmID?: string;
   telefono?: string;

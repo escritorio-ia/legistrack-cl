@@ -27,7 +27,7 @@ import {
   LayoutDashboard
 } from "lucide-react";
 
-import { performUnifiedSearch, FuenteDatoItem } from "../utils/searchEngine";
+import LegisSearchBar from "./LegisSearchBar";
 
 interface HeaderProps {
   currentView: string;
@@ -345,8 +345,8 @@ export default function Header({
 
       {/* Sub-Navbar for Legislación++ Module (Clean Action Tabs) */}
       {["dashboard", "proyectos", "proyecto-detail", "comisiones", "comision-detail", "sala", "alertas"].includes(currentView) && (
-        <div className="bg-slate-950 text-white px-3 sm:px-6 py-2 flex items-center border-b border-slate-800 shadow-inner sticky top-16 z-40 transition-all overflow-x-auto no-scrollbar">
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+        <div className="bg-slate-950 text-white px-3 sm:px-6 py-2 flex flex-col sm:flex-row sm:items-center gap-2 border-b border-slate-800 shadow-inner sticky top-16 z-40 transition-all">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 overflow-x-auto no-scrollbar">
             <button
               onClick={() => handleNavigate("proyectos")}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
@@ -403,6 +403,15 @@ export default function Header({
                 </span>
               )}
             </button>
+          </div>
+          <div className="sm:ml-auto">
+            <LegisSearchBar
+              searchFilter={searchFilter}
+              setSearchFilter={setSearchFilter}
+              onSearchSubmit={onSearchSubmit}
+              setSelectedProyectoId={setSelectedProyectoId}
+              setSelectedComisionId={setSelectedComisionId}
+            />
           </div>
         </div>
       )}

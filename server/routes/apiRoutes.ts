@@ -682,6 +682,7 @@ apiRouter.get("/comision/:id", async (req: Request, res: Response) => {
             fullComision.proyectos = liveSenadoProjects;
             fullComision.proyectosContados = liveSenadoProjects.length;
             fullComision.proyectosIds = liveSenadoProjects.map(p => p.id);
+            fullComision.proyectosFuente = "vivo";
           }
 
           if (liveSenadoCit && liveSenadoCit.porComision && liveSenadoCit.porComision[matchDetalle.senadoId]) {
@@ -743,7 +744,10 @@ apiRouter.get("/comision/:id", async (req: Request, res: Response) => {
         "mujeres-genero": "1121",
         "defensa": "208",
         "rree": "204",
-        "derechos-humanos": "217",
+        // 217 es la antigua "Derechos Humanos, Nacionalidad y Ciudadanía" (sin proyectos desde 2018);
+        // la comisión vigente es "Derechos Humanos y Pueblos Originarios" (1155), según
+        // tramitacion.senado.cl ac=comisiones.
+        "derechos-humanos": "1155",
         "desarrollo-social": "874",
         "recursos-hidricos": "965",
         "cultura": "760",
@@ -767,6 +771,7 @@ apiRouter.get("/comision/:id", async (req: Request, res: Response) => {
             fullComision.proyectos = liveCamaraProjects;
             fullComision.proyectosContados = liveCamaraProjects.length;
             fullComision.proyectosIds = liveCamaraProjects.map(p => p.id);
+            fullComision.proyectosFuente = "vivo";
           }
         } catch (err) {
           console.warn("Could not fetch live Cámara projects:", err);

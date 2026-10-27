@@ -53,7 +53,7 @@ export function parseSenateXmlToProyecto(xml: string, originalQuery: string): Pr
 
     const titulo = rawTitulo.replace(/\s+/g, " ").trim();
     const fechaIngresoRaw = extractTag(descBlock, "fecha_ingreso");
-    const fechaIngreso = parseFechaChilena(fechaIngresoRaw) || "2024-03-12";
+    const fechaIngreso = fechaIngresoRaw ? parseFechaChilena(fechaIngresoRaw) : "";
     const rawIniciativa = extractTag(descBlock, "iniciativa") || "Moción";
     const iniciativa: "Moción" | "Mensaje" = rawIniciativa.toLowerCase().includes("mensaje") ? "Mensaje" : "Moción";
     const rawCamara = extractTag(descBlock, "camara_origen") || "Diputados";
@@ -74,8 +74,8 @@ export function parseSenateXmlToProyecto(xml: string, originalQuery: string): Pr
 
     const autoresBlock = extractTag(xml, "autores");
     const autoresList = extractAll(autoresBlock, "autor").map(a => extractTag(a, "PARLAMENTARIO")).filter(Boolean);
-    const autores = autoresList.length > 0 ? autoresList.join(", ") : (iniciativa.toLowerCase().includes("mensaje") ? "Presidente de la República" : "Moción Parlamentaria");
-    const patrocinantes = autoresList.length || 5;
+    const autores = autoresList.length > 0 ? autoresList.join(", ") : (iniciativa.toLowerCase().includes("mensaje") ? "Presidente de la República" : "No informado en la ficha oficial");
+    const patrocinantes = autoresList.length;
 
     const { formatted, suffix } = formatBulletinNumber(boletin);
     const mapping = MATERIA_COMISION_MAP[suffix] || {
@@ -147,7 +147,7 @@ export function parseSenateXmlToProyecto(xml: string, originalQuery: string): Pr
         const si = parseInt(extractTag(v, "SI")) || 0;
         const no = parseInt(extractTag(v, "NO")) || 0;
         const abst = parseInt(extractTag(v, "ABSTENCION")) || 0;
-        const resultado = extractTag(v, "ETAPADESCRIPCION") || "Aprobado";
+        const resultado = extractTag(v, "ETAPADESCRIPCION") || extractTag(v, "RESULTADO") || "Resultado no informado";
         votaciones.push({
           id: `v-${digits}-${idx}`,
           fecha,
@@ -179,17 +179,10 @@ export function parseSenateXmlToProyecto(xml: string, originalQuery: string): Pr
       comisionActual,
       comisionesHistoricas: [comisionActual],
       linkCongreso: linkMocion,
-      timeline: timeline.length > 0 ? timeline : [
-        { id: `t-${digits}-1`, fecha: fechaIngreso, titulo: "Ingreso a Tramitación", descripcion: "Iniciativa ingresada al Congreso Nacional de Chile.", tipo: "ingreso" }
-      ],
+      timeline,
       documentos,
-      votaciones,
-      quorum: {
-        tipo: "Ley Simple",
-        descripcion: "Mayoría de los diputados y senadores presentes en sala.",
-        votosDiputados: "Mayoría de presentes",
-        votosSenadores: "Mayoría de presentes"
-      }
+      votaciones
+      // quorum: la ficha XML del Senado no lo informa; no se asume "Ley Simple".
     };
   } catch (err) {
     console.error("Error parsing Senate XML:", err);
