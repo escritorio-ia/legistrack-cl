@@ -189335,6 +189335,109 @@ async function getTodasComisiones() {
   for (const c of camaraLive) byId.set(c.id, c);
   return Array.from(byId.values());
 }
+var OPENDATA_WS = "https://opendata.camara.cl/camaradiputados/WServices";
+function xmlTag(xml, tag) {
+  const m = xml.match(new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</${tag}>`, "i"));
+  return m ? m[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() : "";
+}
+function xmlBloques(xml, tag) {
+  return xml.match(new RegExp(`<${tag}(?:\\s[^>]*)?>[\\s\\S]*?</${tag}>`, "gi")) || [];
+}
+async function opendataGet(path2) {
+  const res = await fetch(`${OPENDATA_WS}/${path2}`, {
+    headers: { "User-Agent": "LegisTrackCL/1.0 (datos abiertos)" },
+    signal: AbortSignal.timeout(15e3)
+  });
+  if (!res.ok) throw new Error(`opendata.camara.cl HTTP ${res.status}`);
+  return res.text();
+}
+async function fetchCamaraProyectoOficial(boletinRaw) {
+  const m = String(boletinRaw).replace(/\./g, "").match(/(\d{3,6})-(\d{1,2})/);
+  const fuente = "Datos Abiertos de la C\xE1mara de Diputadas y Diputados (opendata.camara.cl)";
+  if (!m) return { disponible: false, motivo: "N\xFAmero de bolet\xEDn no v\xE1lido", votaciones: [], fuente };
+  const boletin = `${m[1]}-${m[2].padStart(2, "0")}`;
+  return cache.wrap(`camara_opendata_proyecto_${boletin}`, 30 * 60 * 1e3, async () => {
+    try {
+      const [xmlProy, xmlVot] = await Promise.all([
+        opendataGet(`WSLegislativo.asmx/retornarProyectoLey?prmNumeroBoletin=${boletin}`),
+        opendataGet(`WSLegislativo.asmx/retornarVotacionesXProyectoLey?prmNumeroBoletin=${boletin}`).catch(() => "")
+      ]);
+      const vacio = /xsi:nil="true"\s*\/?>\s*$/.test(xmlProy.trim()) || !xmlTag(xmlProy, "NumeroBoletin");
+      const proyecto = vacio ? void 0 : {
+        id: xmlTag(xmlProy, "Id"),
+        boletin: xmlTag(xmlProy, "NumeroBoletin"),
+        nombre: xmlTag(xmlProy, "Nombre"),
+        fechaIngreso: xmlTag(xmlProy, "FechaIngreso").slice(0, 10),
+        iniciativa: xmlTag(xmlProy, "TipoIniciativa"),
+        camaraOrigen: xmlTag(xmlProy, "CamaraOrigen"),
+        ministerios: xmlBloques(xmlProy, "Ministerio").map((b) => xmlTag(b, "Nombre")).filter(Boolean),
+        autores: xmlBloques(xmlProy, "ParlamentarioAutor").map((b) => {
+          const esSenador = /<Senador/i.test(b);
+          const nombre = [xmlTag(b, "Nombre"), xmlTag(b, "ApellidoPaterno"), xmlTag(b, "ApellidoMaterno")].filter(Boolean).join(" ");
+          return nombre ? `${nombre}${esSenador ? " (senador/a)" : " (diputado/a)"}` : "";
+        }).filter(Boolean)
+      };
+      let bloquesVot = xmlBloques(xmlVot, "VotacionProyectoLey");
+      if (bloquesVot.length === 0) {
+        const anioActual = (/* @__PURE__ */ new Date()).getFullYear();
+        const digitos = m[1];
+        for (const anio of [anioActual, anioActual - 1]) {
+          try {
+            const xmlAnio = await cache.wrap(
+              `camara_opendata_votaciones_${anio}`,
+              30 * 60 * 1e3,
+              () => opendataGet(`WSLegislativo.asmx/retornarVotacionesXAnno?prmAnno=${anio}`)
+            );
+            bloquesVot.push(...xmlBloques(xmlAnio, "Votacion").filter((b) => {
+              const d = xmlTag(b, "Descripcion").replace(/\./g, "");
+              return new RegExp(`\\b${digitos}-\\d{1,2}\\b`).test(d);
+            }));
+          } catch {
+          }
+        }
+      }
+      const votaciones = bloquesVot.map((b) => ({
+        id: xmlTag(b, "Id"),
+        fecha: xmlTag(b, "Fecha"),
+        descripcion: xmlTag(b, "Articulo") || xmlTag(b, "Descripcion") || "Votaci\xF3n",
+        si: parseInt(xmlTag(b, "TotalSi")) || 0,
+        no: parseInt(xmlTag(b, "TotalNo")) || 0,
+        abstencion: parseInt(xmlTag(b, "TotalAbstencion")) || 0,
+        dispensado: parseInt(xmlTag(b, "TotalDispensado")) || 0,
+        quorum: xmlTag(b, "Quorum"),
+        resultado: xmlTag(b, "Resultado") || "Resultado no informado",
+        tipo: xmlTag(b, "TipoVotacionProyectoLey") || xmlTag(b, "Tipo"),
+        tramite: [xmlTag(b, "TramiteConstitucional"), xmlTag(b, "TramiteReglamentario")].filter(Boolean).join(" \xB7 ")
+      })).filter((v) => v.id);
+      votaciones.sort((a, b) => b.fecha.localeCompare(a.fecha));
+      if (!proyecto && votaciones.length === 0) {
+        return { disponible: false, motivo: "La C\xE1mara no registra este bolet\xEDn en sus datos abiertos", votaciones: [], fuente };
+      }
+      return { disponible: true, proyecto, votaciones, fuente };
+    } catch (err) {
+      return { disponible: false, motivo: `No se pudo consultar la API de la C\xE1mara: ${err?.message || err}`, votaciones: [], fuente };
+    }
+  });
+}
+async function fetchCamaraVotacionDetalle(votacionId) {
+  const id = String(votacionId).replace(/[^0-9]/g, "");
+  if (!id) return { disponible: false, motivo: "Id de votaci\xF3n no v\xE1lido", votos: [] };
+  return cache.wrap(`camara_opendata_votacion_${id}`, 6 * 60 * 60 * 1e3, async () => {
+    try {
+      const xml = await opendataGet(`WSLegislativo.asmx/retornarVotacionDetalle?prmVotacionId=${id}`);
+      const votos = xmlBloques(xml, "Voto").map((b) => {
+        const dip = xmlBloques(b, "Diputado")[0] || b;
+        const nombre = [xmlTag(dip, "Nombre"), xmlTag(dip, "ApellidoPaterno"), xmlTag(dip, "ApellidoMaterno")].filter(Boolean).join(" ");
+        return { nombre, opcion: xmlTag(b, "OpcionVoto") || xmlTag(b, "Opcion") || "No informado" };
+      }).filter((v) => v.nombre);
+      if (votos.length === 0) return { disponible: false, motivo: "La API no trae el detalle nominal de esta votaci\xF3n", votos: [] };
+      votos.sort((a, b) => a.opcion.localeCompare(b.opcion) || a.nombre.localeCompare(b.nombre));
+      return { disponible: true, votos };
+    } catch (err) {
+      return { disponible: false, motivo: `No se pudo consultar la API de la C\xE1mara: ${err?.message || err}`, votos: [] };
+    }
+  });
+}
 
 // server/services/comparadoService.ts
 var LEYCHILE_API_KEY = process.env.LEYCHILE_API_KEY || "qW5yv690wb8WIEq1wN08HsHZur4MyrSSrhLgcXdstNZwtJ3Fihfu3baz4y3uYlCb";
@@ -193115,6 +193218,22 @@ apiRouter.get("/sesiones-por-boletin", async (_req, res) => {
     porBoletin: mapa,
     fuentes: { camara: { ...estadoCitacionesCamara }, senado: { ...estadoCitacionesSenado } }
   });
+});
+apiRouter.get("/proyecto/:id/camara-oficial", async (req, res) => {
+  res.json(await fetchCamaraProyectoOficial(String(req.params.id)));
+});
+apiRouter.get("/diagnostico/opendata-camara", async (req, res) => {
+  const ruta = String(req.query.ruta || "");
+  if (!/^WS\w+\.asmx\/\w+(\?[\w=&%.-]*)?$/.test(ruta)) return res.status(400).send("Ruta no permitida");
+  try {
+    const r = await fetch(`https://opendata.camara.cl/camaradiputados/WServices/${ruta}`, { signal: AbortSignal.timeout(2e4) });
+    res.type("text/plain").send((await r.text()).slice(0, 2e4));
+  } catch (e) {
+    res.status(502).send(String(e?.message || e));
+  }
+});
+apiRouter.get("/camara/votacion/:id", async (req, res) => {
+  res.json(await fetchCamaraVotacionDetalle(String(req.params.id)));
 });
 apiRouter.get("/comisiones", async (req, res) => {
   const allComisiones = await getTodasComisiones();

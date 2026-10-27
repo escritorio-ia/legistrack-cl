@@ -1,0 +1,35 @@
+Períodos (HTTP 200): 9 2018-2022 2018-03-11T00:00:00→2022-03-10T23:59:59 | 10 2022-2026 2022-03-11T00:00:00→2026-03-10T23:59:59 | 11 2026-2030 2026-03-11T00:00:00→2030-03-10T23:59:59
+
+Comisiones del período 11 (HTTP 200): 2
+  544	Ética y Transparencia
+  411	Salud
+
+== Salud (Id 411), 2026: HTTP 200, 7 <SesionComision>, 35237 caracteres
+   Campos: SesionComision, Id, Numero, Tipo, FechaInicio, FechaTermino, Estado, PeriodoLegislativo, Nombre, Asistencia, TipoAsistencia, Diputado, ApellidoPaterno, ApellidoMaterno, TipoTitularAsistencia, Justificacion, RebajaAsistencia, RebajaQuorum
+   Ejemplo: <SesionComision> <Id>81254</Id> <Numero>180</Numero> <Tipo Valor="2">Especial</Tipo> <FechaInicio>2026-01-28T17:30:00</FechaInicio> <FechaTermino>2026-01-28T19:30:00</FechaTermino> <Estado Valor="4">Suspendida</Estado> <PeriodoLegislativo> <Id>11</Id> <Nombre>2026-2030</Nombre> </PeriodoLegislativo> <Asistencia /> </SesionComision>
+
+== Comisión 411 (detalle): HTTP 200, 43236 caracteres, fechas 2006-03-15 → 2025-11-25
+    <?xml version="1.0" encoding="utf-8"?> <Comision xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://opendata.camara.cl/camaradiputados/v1"> <Id>411</Id> <Nombre>Salud</Nombre> <NombreWeb>Salud</NombreWeb> <Alias>Salud</Alias> <Tipo Valor="1">Permanente</Tipo> <FechaInicio>2022-03-25T10:15:01</FechaInicio> <FechaConstitucion>2022-03-14T10:15:01</FechaConstitucion> <FechaTermino xsi:nil="true" /> <Correo>saludcam@congreso.cl</Correo> <T
+
+== Diputados período actual: HTTP 200, 180079 caracteres, fechas 1947-01-31 → 2030-03-10
+    <?xml version="1.0" encoding="utf-8"?> <DiputadosPeriodoColeccion xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://opendata.camara.cl/camaradiputados/v1"> <DiputadoPeriodo> <FechaInicio>2030-03-10T00:00:00</FechaInicio> <FechaTermino xsi:nil="true" /> <Diputado> <Id>1074</Id> <Nombre>Marisela</Nombre> <Nombre2 /> <ApellidoPaterno>Santibáñez</ApellidoPaterno> <ApellidoMaterno>Novoa</ApellidoMaterno> <FechaNacimiento>1975-04-24T00:00:
+
+== Sesiones de Sala 2026: HTTP 200, 27258 caracteres, fechas 2026-01-05 → 2026-10-28
+    <?xml version="1.0" encoding="utf-8"?> <SesionesSalaColeccion xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://opendata.camara.cl/camaradiputados/v1"> <Sesion> <Id>4736</Id> <Numero>105</Numero> <FechaInicio>2026-01-05T17:00:00</FechaInicio> <FechaTermino>2026-01-05T19:21:20</FechaTermino> <Tipo Valor="1">Ordinaria</Tipo> <Estado Valor="1">Celebrada</Estado> </Sesion> <Sesion> <Id>4737</Id> <Numero>106</Numero> <FechaInicio>2026-01-
+
+== Votaciones 2026: HTTP 200, 446208 caracteres, fechas 2026-01-05 → 2026-10-26
+    <?xml version="1.0" encoding="utf-8"?> <VotacionesColeccion xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://opendata.camara.cl/camaradiputados/v1"> <Votacion> <Id>90621</Id> <Descripcion>Boletín N° 16777-07</Descripcion> <Fecha>2026-10-26T19:21:13</Fecha> <TotalSi>134</TotalSi> <TotalNo>0</TotalNo> <TotalAbstencion>1</TotalAbstencion> <TotalDispensado>0</TotalDispensado> <Quorum Valor="1">Quórum Simple</Quorum> <Resultado Valor="1"
+
+== Proyecto 18754-17: HTTP 200, 772 caracteres, fechas 2026-10-19 → 2026-10-19
+    <?xml version="1.0" encoding="utf-8"?> <ProyectoLey xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://opendata.camara.cl/camaradiputados/v1"> <Id>19425</Id> <NumeroBoletin>18754-17</NumeroBoletin> <Nombre>Reforma el Instituto Nacional de Derechos Humanos</Nombre> <FechaIngreso>2026-10-19T00:00:00</FechaIngreso> <TipoIniciativa Valor="1">Mensaje</TipoIniciativa> <CamaraOrigen Valor="1">Cámara de Diputados</CamaraOrigen> <MinisteriosPa
+
+== Votaciones del 18478-13: HTTP 200, 983 caracteres, fechas 2026-07-21 → 2026-07-21
+    <?xml version="1.0" encoding="utf-8"?> <ProyectoLey xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://opendata.camara.cl/camaradiputados/v1"> <Id>19161</Id> <NumeroBoletin>18478-13</NumeroBoletin> <Nombre>Perfecciona los mecanismos de adaptabilidad de la jornada de trabajo y establece un régimen especial para el sector turismo y actividades conexas</Nombre> <FechaIngreso>2026-07-21T00:00:00</FechaIngreso> <TipoIniciativa Valor="1">Me
+
+== Mociones 2026: HTTP 200, 331987 caracteres, fechas 2026-01-05 → 2026-10-26
+    <?xml version="1.0" encoding="utf-8"?> <ProyectosLeyColeccion xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://opendata.camara.cl/camaradiputados/v1"> <ProyectoLey> <Id>18835</Id> <NumeroBoletin>18173-21</NumeroBoletin> <Nombre>Modifica la Ley General de Pesca y Acuicultura, con el objeto de exceptuar a los armadores que señala, de la prohibición establecida en materia de artes y aparejos de pesca para la extracción de jibia</Nombre
+
+== Portal opendata.congreso.cl: HTTP 200, 23970 caracteres
+     <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"> <html xmlns="http://www.w3.org/1999/xhtml"> <head> <meta http-equiv="Content-Type" content="text/html; charset=utf-8" /> <title>CONGRESO NACIONAL | CHILE</title> <link href="img/sty2.css" rel="stylesheet" type="text/css" /> <script type="text/javascript"> function MM_showLayers() { //v9.0 var i, p, v, obj, args = MM_showLayers.arguments; for (i = 0; i < (args.length - 2); i 
+
+== FIN: prueba completa ==

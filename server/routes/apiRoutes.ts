@@ -29,6 +29,8 @@ import {
   getTodasComisiones,
   fetchComisionesCamaraReal,
   fetchCamaraCitacionesSemanalesLive,
+  fetchCamaraProyectoOficial,
+  fetchCamaraVotacionDetalle,
   estadoCitacionesCamara,
   searchCamaraYouTubeVideos,
   fetchYouTubeVideoTranscript,
@@ -749,6 +751,28 @@ apiRouter.get("/sesiones-por-boletin", async (_req: Request, res: Response) => {
     porBoletin: mapa,
     fuentes: { camara: { ...estadoCitacionesCamara }, senado: { ...estadoCitacionesSenado } }
   });
+});
+
+// Ficha oficial y votaciones del proyecto según los Datos Abiertos de la Cámara.
+apiRouter.get("/proyecto/:id/camara-oficial", async (req: Request, res: Response) => {
+  res.json(await fetchCamaraProyectoOficial(String(req.params.id)));
+});
+
+// Diagnóstico: XML crudo de un servicio de opendata.camara.cl (solo esa API, solo lectura).
+apiRouter.get("/diagnostico/opendata-camara", async (req: Request, res: Response) => {
+  const ruta = String(req.query.ruta || "");
+  if (!/^WS\w+\.asmx\/\w+(\?[\w=&%.-]*)?$/.test(ruta)) return res.status(400).send("Ruta no permitida");
+  try {
+    const r = await fetch(`https://opendata.camara.cl/camaradiputados/WServices/${ruta}`, { signal: AbortSignal.timeout(20000) });
+    res.type("text/plain").send((await r.text()).slice(0, 20000));
+  } catch (e: any) {
+    res.status(502).send(String(e?.message || e));
+  }
+});
+
+// Voto de cada diputado en una votación de la Cámara (datos abiertos).
+apiRouter.get("/camara/votacion/:id", async (req: Request, res: Response) => {
+  res.json(await fetchCamaraVotacionDetalle(String(req.params.id)));
 });
 
 apiRouter.get("/comisiones", async (req: Request, res: Response) => {

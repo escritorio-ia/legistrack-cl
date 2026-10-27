@@ -261,6 +261,56 @@ export default function ProyectoDetailView({
   const [showAutoresPopover, setShowAutoresPopover] = useState(false);
   const [selectedComisionComparador, setSelectedComisionComparador] = useState<string>("");
   const [sesionesVinculadas, setSesionesVinculadas] = useState<SesionVinculadaProyecto[]>([]);
+  // Ficha y votaciones oficiales de la Cámara (opendata.camara.cl).
+  const [camaraOficial, setCamaraOficial] = useState<{
+    disponible: boolean;
+    motivo?: string;
+    proyecto?: { boletin: string; nombre: string; fechaIngreso: string; iniciativa: string; camaraOrigen: string; ministerios: string[]; autores?: string[] };
+    votaciones: { id: string; fecha: string; descripcion: string; si: number; no: number; abstencion: number; dispensado: number; quorum: string; resultado: string; tipo: string; tramite: string }[];
+    fuente: string;
+  } | null>(null);
+  const [votosDetalle, setVotosDetalle] = useState<Record<string, { cargando: boolean; disponible?: boolean; motivo?: string; votos?: { nombre: string; opcion: string }[] }>>({});
+
+  useEffect(() => {
+    let cancelado = false;
+    setCamaraOficial(null);
+    fetch(`/api/proyecto/${encodeURIComponent(proyectoId)}/camara-oficial`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelado && d) setCamaraOficial(d); })
+      .catch(() => {});
+    return () => { cancelado = true; };
+  }, [proyectoId]);
+
+  // Si la ficha no informa cámara de origen o iniciativa, se completan con la ficha
+  // oficial de la Cámara (dato real de su API, no supuesto).
+  useEffect(() => {
+    const of = camaraOficial?.proyecto;
+    if (!of) return;
+    setProyecto(prev => {
+      if (!prev) return prev;
+      const cambios: Partial<Proyecto> = {};
+      if (prev.camaraOrigen === "No informado" && of.camaraOrigen) {
+        cambios.camaraOrigen = /senado/i.test(of.camaraOrigen) ? "Senado" : "Diputados";
+      }
+      if (!prev.fechaIngreso && of.fechaIngreso) cambios.fechaIngreso = of.fechaIngreso;
+      if ((!prev.autores || /no informado|no disponible/i.test(prev.autores)) && of.autores && of.autores.length) {
+        cambios.autores = of.autores.join(", ");
+      }
+      return Object.keys(cambios).length ? { ...prev, ...cambios } : prev;
+    });
+  }, [camaraOficial]);
+
+  const verVotosDiputados = (votacionId: string) => {
+    if (votosDetalle[votacionId]?.votos || votosDetalle[votacionId]?.cargando) {
+      setVotosDetalle(prev => { const n = { ...prev }; delete n[votacionId]; return n; });
+      return;
+    }
+    setVotosDetalle(prev => ({ ...prev, [votacionId]: { cargando: true } }));
+    fetch(`/api/camara/votacion/${encodeURIComponent(votacionId)}`)
+      .then(r => r.json())
+      .then(d => setVotosDetalle(prev => ({ ...prev, [votacionId]: { cargando: false, ...d } })))
+      .catch(() => setVotosDetalle(prev => ({ ...prev, [votacionId]: { cargando: false, disponible: false, motivo: "No se pudo consultar el detalle." } })));
+  };
   // Mientras se obtienen los datos reales del proyecto (fichaTecnica real
   // incluida) desde el Senado, la Ficha Ejecutiva Inteligente y la Ficha
   // Técnica NO deben mostrar el texto genérico de relleno como si fuera el
@@ -1865,14 +1915,82 @@ export default function ProyectoDetailView({
                     <p className="text-xs text-slate-500 mt-0.5">Registro nominal y cómputo de quórums parlamentarios en Sala.</p>
                   </div>
                   <span className="text-[10px] font-bold bg-slate-100 text-slate-700 px-2.5 py-0.5 rounded-full font-mono">
-                    {proyecto.votaciones.length} Votaciones Registradas
+                    {proyecto.votaciones.length + (camaraOficial?.votaciones.length || 0)} Votaciones Registradas
                   </span>
                 </div>
 
+                {/* Votaciones oficiales de la Cámara (Datos Abiertos) */}
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">Cámara de Diputadas y Diputados</h4>
+                    <span className="text-[10px] text-slate-400">Fuente: Datos Abiertos oficiales de la Cámara</span>
+                  </div>
+                  {camaraOficial === null ? (
+                    <p className="text-xs text-slate-400">Consultando los datos abiertos de la Cámara…</p>
+                  ) : !camaraOficial.disponible || camaraOficial.votaciones.length === 0 ? (
+                    <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-xl p-3">
+                      {camaraOficial.motivo || "La Cámara no registra votaciones para este boletín."}
+                    </p>
+                  ) : (
+                    camaraOficial.votaciones.map(v => {
+                      const total = (v.si + v.no + v.abstencion) || 1;
+                      const det = votosDetalle[v.id];
+                      const grupos = (det?.votos || []).reduce<Record<string, string[]>>((acc, x) => {
+                        (acc[x.opcion] = acc[x.opcion] || []).push(x.nombre);
+                        return acc;
+                      }, {});
+                      return (
+                        <div key={v.id} className="border border-slate-200 rounded-2xl p-4 bg-white space-y-3">
+                          <div className="flex flex-wrap justify-between items-start gap-2">
+                            <div className="min-w-0">
+                              <span className="text-[10px] font-bold text-slate-400 font-mono">
+                                {formatFechaCL(v.fecha, { day: "2-digit", month: "long", year: "numeric" })}
+                                {v.tipo ? ` · ${v.tipo}` : ""}{v.quorum ? ` · ${v.quorum}` : ""}
+                              </span>
+                              <p className="text-xs font-bold text-slate-900">{v.descripcion}{v.tramite ? ` — ${v.tramite}` : ""}</p>
+                            </div>
+                            <span className={`text-[10px] font-extrabold px-3 py-1 rounded-full border uppercase ${/aprob/i.test(v.resultado) ? "bg-emerald-100 text-emerald-800 border-emerald-300" : /rechaz/i.test(v.resultado) ? "bg-rose-100 text-rose-800 border-rose-300" : "bg-slate-100 text-slate-700 border-slate-300"}`}>
+                              {v.resultado}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-4 gap-2 text-center text-[10px] font-bold">
+                            <div className="p-2 rounded-xl bg-emerald-50 text-emerald-800"><span className="block text-base font-black">{v.si}</span>A favor</div>
+                            <div className="p-2 rounded-xl bg-rose-50 text-rose-800"><span className="block text-base font-black">{v.no}</span>En contra</div>
+                            <div className="p-2 rounded-xl bg-slate-100 text-slate-700"><span className="block text-base font-black">{v.abstencion}</span>Abstención</div>
+                            <div className="p-2 rounded-xl bg-slate-50 text-slate-500"><span className="block text-base font-black">{v.dispensado}</span>Dispensados</div>
+                          </div>
+                          <div className="h-2 rounded-full overflow-hidden flex bg-slate-200">
+                            <div style={{ width: `${(v.si / total) * 100}%` }} className="bg-emerald-500" />
+                            <div style={{ width: `${(v.no / total) * 100}%` }} className="bg-rose-500" />
+                            <div style={{ width: `${(v.abstencion / total) * 100}%` }} className="bg-slate-400" />
+                          </div>
+                          <button onClick={() => verVotosDiputados(v.id)} className="text-[11px] font-bold text-blue-700 hover:underline cursor-pointer">
+                            {det?.votos || det?.cargando ? "Ocultar votos por diputado" : "Ver cómo votó cada diputado"}
+                          </button>
+                          {det?.cargando && <p className="text-[11px] text-slate-400">Cargando votos…</p>}
+                          {det && !det.cargando && det.disponible === false && (
+                            <p className="text-[11px] text-slate-500">{det.motivo}</p>
+                          )}
+                          {det?.votos && det.votos.length > 0 && (
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                              {Object.entries(grupos).map(([opcion, nombres]) => (
+                                <div key={opcion} className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                                  <p className="text-[10px] font-black uppercase text-slate-600 mb-1">{opcion} ({nombres.length})</p>
+                                  <p className="text-[11px] text-slate-700 leading-relaxed">{nombres.join(", ")}</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider pt-2">Ficha oficial de tramitación (Senado)</h4>
                 {proyecto.votaciones.length === 0 ? (
-                  <div className="text-center py-10 text-xs text-slate-400 flex flex-col items-center justify-center gap-2">
-                    <Clock className="w-8 h-8 text-slate-300 animate-spin" />
-                    <span>No hay registros de votaciones para este Boletín en Sala aún.</span>
+                  <div className="text-center py-6 text-xs text-slate-400">
+                    <span>La ficha de tramitación del Senado no registra votaciones para este boletín.</span>
                   </div>
                 ) : (
                   proyecto.votaciones.map((vot) => {
@@ -1885,7 +2003,7 @@ export default function ProyectoDetailView({
                       <div key={vot.id} className="border border-slate-200 p-5 rounded-2xl flex flex-col gap-4 bg-slate-50/40 shadow-3xs">
                         <div className="flex flex-wrap justify-between items-start gap-2 pb-2 border-b border-slate-200/80">
                           <div>
-                            <span className="text-[10px] font-bold text-slate-400 font-mono">FECHA: {new Date(vot.fecha).toLocaleDateString("es-CL", { day: "2-digit", month: "long", year: "numeric" })}</span>
+                            <span className="text-[10px] font-bold text-slate-400 font-mono">FECHA: {formatFechaCL(vot.fecha, { day: "2-digit", month: "long", year: "numeric" })}</span>
                             <h4 className="text-xs sm:text-sm font-black text-slate-900 mt-0.5">{vot.materia}</h4>
                           </div>
                           <span className={`text-[10px] font-extrabold px-3 py-1 rounded-full border uppercase tracking-wider ${
