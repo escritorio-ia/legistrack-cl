@@ -9,6 +9,8 @@ interface LegisSearchBarProps {
   onSearchSubmit?: () => void;
   setSelectedProyectoId?: (id: string) => void;
   setSelectedComisionId?: (id: string) => void;
+  /** "oscuro" para la barra de navegación; "claro" para usarlo grande dentro de una página. */
+  variant?: "oscuro" | "claro";
 }
 
 type Sugerencia =
@@ -27,8 +29,10 @@ export default function LegisSearchBar({
   setSearchFilter,
   onSearchSubmit,
   setSelectedProyectoId,
-  setSelectedComisionId
+  setSelectedComisionId,
+  variant = "oscuro"
 }: LegisSearchBarProps) {
+  const claro = variant === "claro";
   const [q, setQ] = useState(searchFilter || "");
   const [debounced, setDebounced] = useState(q);
   const [open, setOpen] = useState(false);
@@ -132,9 +136,9 @@ export default function LegisSearchBar({
   };
 
   return (
-    <div ref={boxRef} className="relative w-full sm:w-80 lg:w-96" id="legis-search">
+    <div ref={boxRef} className={claro ? "relative w-full" : "relative w-full sm:w-80 lg:w-96"}>
       <div className="relative">
-        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+        <Search className={`${claro ? "w-5 h-5 left-4" : "w-3.5 h-3.5 left-3"} text-slate-400 absolute top-1/2 -translate-y-1/2`} />
         <input
           type="text"
           value={q}
@@ -143,12 +147,14 @@ export default function LegisSearchBar({
           onKeyDown={onKeyDown}
           placeholder="Buscar comisión, boletín o tema…"
           aria-label="Buscar comisión, boletín o tema"
-          className="w-full bg-slate-900 border border-slate-700 focus:border-blue-500 rounded-xl pl-9 pr-8 py-1.5 text-xs text-white placeholder-slate-400 outline-none"
+          className={claro
+            ? "w-full bg-white border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 rounded-xl pl-12 pr-10 py-3.5 text-sm font-semibold text-slate-800 placeholder-slate-400 outline-none shadow-xs"
+            : "w-full bg-slate-900 border border-slate-700 focus:border-blue-500 rounded-xl pl-9 pr-8 py-1.5 text-xs text-white placeholder-slate-400 outline-none"}
         />
         {q && (
           <button
             onClick={() => { setQ(""); setOpen(false); }}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer"
+            className={`absolute ${claro ? "right-3 hover:text-slate-700" : "right-2 hover:text-white"} top-1/2 -translate-y-1/2 text-slate-400 cursor-pointer`}
             aria-label="Limpiar búsqueda"
           >
             <X className="w-3.5 h-3.5" />
@@ -157,7 +163,7 @@ export default function LegisSearchBar({
       </div>
 
       {open && sugerencias.length > 0 && (
-        <ul className="absolute right-0 mt-1.5 w-full sm:w-[28rem] max-h-96 overflow-y-auto bg-white text-slate-800 border border-slate-200 rounded-xl shadow-xl z-[60] py-1">
+        <ul className={`absolute ${claro ? "left-0 w-full" : "right-0 w-full sm:w-[28rem]"} mt-1.5 max-h-96 overflow-y-auto bg-white text-slate-800 border border-slate-200 rounded-xl shadow-xl z-[60] py-1`}>
           {sugerencias.map((s, idx) => (
             <li key={`${s.tipo}-${idx}`}>
               <button

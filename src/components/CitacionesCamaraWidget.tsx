@@ -1137,7 +1137,7 @@ const DYNAMIC_SENADO_CITACIONES: Citacion[] = (SENADO_CITACIONES_FULL_WEEK || []
     hora: c.hora.includes("hrs") ? c.hora : `${c.hora} hrs`,
     lugar: c.lugar,
     materia: c.materia,
-    invitados: c.invitados || "Convocados y expositores del Senado",
+    invitados: c.invitados || "No informado en la citación",
     boletin: c.boletin,
     week: 37,
     presidente: "Presidente de Comisión",

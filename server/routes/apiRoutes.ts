@@ -696,7 +696,7 @@ apiRouter.get("/comision/:id", async (req: Request, res: Response) => {
                   lugar: rc.lugar,
                   tipo: rc.tipo || "Sesión de Comisión",
                   materia: rc.materia,
-                  invitados: rc.invitados || "Invitados oficiales según orden del día.",
+                  invitados: rc.invitados || "No informado en la citación.",
                   citacionNumero: rc.citacionNumero,
                   acuerdosCount: 0,
                   completada: false,
@@ -709,11 +709,11 @@ apiRouter.get("/comision/:id", async (req: Request, res: Response) => {
                 fecha: comLiveCit[0].fecha,
                 hora: comLiveCit[0].hora,
                 lugar: comLiveCit[0].lugar,
-                modalidad: "Presencial y Telemática",
+                modalidad: comLiveCit[0].modalidad || "No informada",
                 citacionNumero: comLiveCit[0].citacionNumero,
                 tipo: comLiveCit[0].tipo || "Sesión de Comisión",
                 materia: comLiveCit[0].materia,
-                invitados: comLiveCit[0].invitados || "Convocados y expositores del Senado.",
+                invitados: comLiveCit[0].invitados || "No informado en la citación.",
                 acuerdosCount: 0,
                 tabla: comLiveCit[0].tabla || [comLiveCit[0].materia]
               };
@@ -806,7 +806,7 @@ apiRouter.get("/comision/:id", async (req: Request, res: Response) => {
               fecha: comLiveCit[0].fecha,
               hora: comLiveCit[0].hora,
               lugar: comLiveCit[0].lugar,
-              modalidad: "Presencial",
+              modalidad: comLiveCit[0].modalidad || "No informada",
               citacionNumero: comLiveCit[0].citacionNumero,
               tipo: comLiveCit[0].tipo,
               materia: comLiveCit[0].materia,
@@ -1062,6 +1062,13 @@ apiRouter.get("/comision/:id", async (req: Request, res: Response) => {
     fullComision.sesiones = mergeSesionesDuplicadas(
       fullComision.sesiones.map((s: any) => (isSessionDatePassed(s.fecha) ? { ...s, completada: true } : s))
     ).sort(compareSesionesDesc);
+
+    // Una "próxima sesión" cuya fecha ya pasó no es próxima: se reemplaza por la
+    // siguiente citación futura real, o se omite si no hay ninguna.
+    if (fullComision.proximaSesion && isSessionDatePassed(fullComision.proximaSesion.fecha)) {
+      const futura = fullComision.sesiones.find((s: any) => s.fecha && !isSessionDatePassed(s.fecha));
+      fullComision.proximaSesion = futura ? { ...futura } : undefined;
+    }
 
     return res.json(fullComision);
   }

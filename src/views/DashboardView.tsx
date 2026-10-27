@@ -32,6 +32,7 @@ import {
 import { Alerta, Proyecto } from "../types";
 import { findComisionMetaById, generateFullComisionData } from "../data/comisionesData";
 import { getAllMasterProyectos } from "../utils/proyectosResolver";
+import LegisSearchBar from "../components/LegisSearchBar";
 
 interface DashboardViewProps {
   setView: (view: string) => void;
@@ -43,6 +44,9 @@ interface DashboardViewProps {
   toggleFollowProy: (proyId: string) => void;
   diputadosComisiones: any[];
   senadoComisiones: any[];
+  searchFilter: string;
+  setSearchFilter: (value: string) => void;
+  onSearchSubmit: () => void;
 }
 
 export default function DashboardView({
@@ -54,7 +58,10 @@ export default function DashboardView({
   followedProys = [],
   toggleFollowProy,
   diputadosComisiones = [],
-  senadoComisiones = []
+  senadoComisiones = [],
+  searchFilter,
+  setSearchFilter,
+  onSearchSubmit
 }: DashboardViewProps) {
   const [stats, setStats] = useState({
     proyectosEnSala: 112,
@@ -65,46 +72,6 @@ export default function DashboardView({
   const [alertas, setAlertas] = useState<Alerta[]>([]);
   const [loading, setLoading] = useState(true);
   const [proyectosList, setProyectosList] = useState<Proyecto[]>(() => getAllMasterProyectos());
-
-  // OpenData XML query states
-  const [legislatura, setLegislatura] = useState<{
-    id: string;
-    numero: string;
-    fechaInicio: string;
-    fechaTermino: string;
-    tipo: string;
-  } | null>(null);
-
-  const [recentProyecto, setRecentProyecto] = useState<{
-    boletin: string;
-    titulo: string;
-    fechaIngreso: string;
-    estado: string;
-    iniciativa: string;
-    autores: string[];
-  } | null>(() => {
-    const list = getAllMasterProyectos();
-    const p = list[0];
-    if (p) {
-      const autoresArr = p.autores ? p.autores.split(",").map((s: string) => s.trim()) : ["Presidente de la República"];
-      return {
-        boletin: p.id,
-        titulo: p.titulo,
-        fechaIngreso: p.fechaIngreso,
-        estado: p.estado,
-        iniciativa: p.iniciativa || "Mensaje",
-        autores: autoresArr
-      };
-    }
-    return {
-      boletin: "18.624-36",
-      titulo: "Modifica el Código Civil, con el objeto de fortalecer la corresponsabilidad parental y regular el establecimiento del cuidado personal compartido en atención al interés superior del niño, niña o adolescente.",
-      fechaIngreso: "2026-09-02",
-      estado: "En tramitación",
-      iniciativa: "Moción",
-      autores: ["Diputadas y Diputados del Congreso Nacional"]
-    };
-  });
 
   const [apiLoading, setApiLoading] = useState(false);
 
@@ -374,42 +341,13 @@ export default function DashboardView({
         setLoading(false);
       });
 
-    // Fetch Legislatura Actual
-    fetch("/api/asistente/query?method=getLegislaturaActual")
-      .then(res => res.json())
-      .then(json => {
-        if (json.success && json.data) {
-          const parser = new DOMParser();
-          const xmlDoc = parser.parseFromString(json.data, "text/xml");
-          
-          const id = xmlDoc.getElementsByTagName("Id")[0]?.textContent || xmlDoc.getElementsByTagName("id")[0]?.textContent || "";
-          const numero = xmlDoc.getElementsByTagName("Numero")[0]?.textContent || xmlDoc.getElementsByTagName("numero")[0]?.textContent || "";
-          const fechaInicio = xmlDoc.getElementsByTagName("FechaInicio")[0]?.textContent || xmlDoc.getElementsByTagName("fechaInicio")[0]?.textContent || "";
-          const fechaTermino = xmlDoc.getElementsByTagName("FechaTermino")[0]?.textContent || xmlDoc.getElementsByTagName("fechaTermino")[0]?.textContent || "";
-          const tipo = xmlDoc.getElementsByTagName("Tipo")[0]?.textContent || xmlDoc.getElementsByTagName("tipo")[0]?.textContent || "";
-
-          setLegislatura({ id, numero, fechaInicio, fechaTermino, tipo });
-        }
-      })
-      .catch(err => console.error("Error loading legislatura actual:", err));
-
-    // Fetch all proyectos for recent proyecto and follow-list resolution
+    // Fetch all proyectos for follow-list resolution
     fetch("/api/proyectos?solo_vigentes=false")
       .then(res => res.json())
       .then(data => {
         const list = data.resultados || (Array.isArray(data) ? data : []);
         if (list && list.length > 0) {
           setProyectosList(list);
-          const p = list[0];
-          const autoresArr = p.autores ? p.autores.split(",").map((s: string) => s.trim()) : ["Presidente de la República"];
-          setRecentProyecto({
-            boletin: p.id,
-            titulo: p.titulo,
-            fechaIngreso: p.fechaIngreso,
-            estado: p.estado,
-            iniciativa: p.iniciativa || "Mensaje",
-            autores: autoresArr
-          });
         }
         setApiLoading(false);
       })
@@ -514,116 +452,24 @@ export default function DashboardView({
         </div>
       </div>
 
-      {/* OpenData Summary Row */}
-      <div className="space-y-3" id="opendata-summary-section">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xs font-extrabold uppercase tracking-widest text-slate-400 flex items-center gap-1.5">
-            <Building2 className="w-4 h-4 text-indigo-550 animate-pulse" />
-            Resumen Oficial del Congreso Nacional (Datos Abiertos)
-          </h2>
-          <span className="text-[10px] bg-indigo-50/60 text-indigo-700 px-2.5 py-0.5 rounded-full font-bold uppercase border border-indigo-100 flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-            Conexión Activa
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Legislatura Actual Card */}
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between hover:border-indigo-200 hover:shadow-xs transition-all relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-50/25 rounded-bl-full pointer-events-none transition-transform group-hover:scale-110"></div>
-            <div className="relative z-10 flex gap-4">
-              <div className="w-12 h-12 rounded-xl bg-indigo-50/70 border border-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
-                <Calendar className="w-6 h-6" />
-              </div>
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-extrabold text-slate-455 uppercase tracking-wider">LEGISLATURA EN CURSO</span>
-                  <span className="bg-emerald-50 text-emerald-700 text-[8px] font-extrabold px-1.5 py-0.5 rounded border border-emerald-100 uppercase">
-                    Activa
-                  </span>
-                </div>
-                {apiLoading ? (
-                  <div className="h-5 w-32 bg-slate-100 animate-pulse rounded mt-1"></div>
-                ) : legislatura ? (
-                  <>
-                    <h3 className="text-sm font-bold text-slate-900 leading-tight">
-                      Periodo Ordinario N° {legislatura.numero}
-                    </h3>
-                    <p className="text-[11px] text-slate-500 font-medium">
-                      Legislatura ID: <span className="font-bold text-slate-700">{legislatura.id}</span> • Tipo: <span className="font-semibold text-slate-700 capitalize">{legislatura.tipo || "Ordinaria"}</span>
-                    </p>
-                    <p className="text-[10px] text-slate-400 font-semibold flex items-center gap-1 mt-1">
-                      <Clock className="w-3 h-3 text-indigo-400" />
-                      {formatDate(legislatura.fechaInicio)} — {formatDate(legislatura.fechaTermino)}
-                    </p>
-                  </>
-                ) : (
-                  <p className="text-xs text-slate-400">Información de legislatura no disponible.</p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Último Proyecto de Ley Card */}
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between hover:border-blue-200 hover:shadow-xs transition-all relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50/25 rounded-bl-full pointer-events-none transition-transform group-hover:scale-110"></div>
-            <div className="relative z-10 flex gap-4 min-w-0 flex-1">
-              <div className="w-12 h-12 rounded-xl bg-blue-50/70 border border-blue-100 flex items-center justify-center text-blue-600 shrink-0">
-                <FileText className="w-6 h-6" />
-              </div>
-              <div className="space-y-1.5 flex-1 min-w-0">
-                <div className="flex justify-between items-start gap-2">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] font-extrabold text-slate-455 uppercase tracking-wider">ÚLTIMO PROYECTO DE LEY</span>
-                    {recentProyecto?.estado && (
-                      <span className="bg-blue-50 text-blue-700 text-[8px] font-extrabold px-1.5 py-0.5 rounded border border-blue-100/75 uppercase truncate max-w-[130px]" title={recentProyecto.estado}>
-                        {recentProyecto.estado}
-                      </span>
-                    )}
-                  </div>
-                  {recentProyecto?.boletin && (
-                    <span className="text-[9px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded shrink-0">
-                      Boletín {recentProyecto.boletin}
-                    </span>
-                  )}
-                </div>
-                {apiLoading ? (
-                  <div className="space-y-1.5 py-1">
-                    <div className="h-4 w-full bg-slate-100 animate-pulse rounded"></div>
-                    <div className="h-4 w-2/3 bg-slate-100 animate-pulse rounded"></div>
-                  </div>
-                ) : recentProyecto ? (
-                  <>
-                    <h4 
-                      onClick={() => {
-                        setSelectedProyectoId(recentProyecto.boletin);
-                        setView("proyecto-detail");
-                      }}
-                      className="text-xs font-bold text-slate-850 hover:text-blue-600 cursor-pointer leading-tight line-clamp-1 pr-6 transition-colors"
-                      title={recentProyecto.titulo}
-                    >
-                      {recentProyecto.titulo}
-                    </h4>
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[10px] leading-none pt-0.5">
-                      <p className="text-slate-500 font-medium">
-                        Iniciativa: <span className="font-semibold text-slate-700">{recentProyecto.iniciativa}</span>
-                      </p>
-                      {recentProyecto.autores && (
-                        <p className="text-slate-500 truncate max-w-[150px] font-medium" title={Array.isArray(recentProyecto.autores) ? recentProyecto.autores.join(", ") : String(recentProyecto.autores)}>
-                          • Autor: <span className="font-semibold text-slate-700">{Array.isArray(recentProyecto.autores) ? recentProyecto.autores.slice(0, 2).join(", ") : String(recentProyecto.autores)}</span>
-                        </p>
-                      )}
-                      <p className="text-slate-400 font-semibold flex items-center gap-1">
-                        • Ingresado: {formatDate(recentProyecto.fechaIngreso)}
-                      </p>
-                    </div>
-                  </>
-                ) : (
-                  <p className="text-xs text-slate-400">Información del proyecto no disponible.</p>
-                )}
-              </div>
-            </div>
-          </div>
+      {/* Buscador de Legislación++ (reemplaza el antiguo "Resumen Oficial del Congreso") */}
+      <div className="space-y-3" id="dashboard-buscador">
+        <h2 className="text-xs font-extrabold uppercase tracking-widest text-slate-400 flex items-center gap-1.5">
+          <Search className="w-4 h-4 text-blue-600" />
+          Buscar en Legislación++
+        </h2>
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-3">
+          <LegisSearchBar
+            variant="claro"
+            searchFilter={searchFilter}
+            setSearchFilter={setSearchFilter}
+            onSearchSubmit={onSearchSubmit}
+            setSelectedProyectoId={setSelectedProyectoId}
+            setSelectedComisionId={setSelectedComisionId}
+          />
+          <p className="text-[11px] text-slate-500">
+            Escribe el nombre de una comisión, un número de boletín (ej. 18754-17) o un tema (ej. "tenencia responsable de mascotas").
+          </p>
         </div>
       </div>
 

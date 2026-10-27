@@ -147,7 +147,7 @@ export async function fetchCamaraCitacionesSemanalesLive(forceRefresh: boolean =
             lugar: rawLugar,
             tipo: rawComision.startsWith("CEI") ? "Comisión Especial Investigadora" : "Sesión de Comisión",
             materia,
-            invitados: invitados || "Autoridades sectoriales convocadas.",
+            invitados: invitados || "No informado en la citación.",
             tabla: subRows.length > 0 ? subRows.map((sr, i) => `${i+1}. ${sr.materia.slice(0, 140)}...`) : [materia.slice(0, 140) + "..."],
             boletinesRelacionados: Array.from(new Set(boletines)),
             acuerdosCount: 0,

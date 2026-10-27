@@ -4380,7 +4380,7 @@ export const CAMARA_CITACIONES_SEMANALES_POR_DIA = [
         "lugar": "Sala Multiuso 1er Piso primer nivel (Presencial)",
         "tipo": "Sesión de Comisión",
         "materia": "Continuar el estudio del proyecto de ley, originado en mensaje de S.E. el Presidente de la República, que “Perfecciona los mecanismos de adaptabilidad de la jornada de trabajo y establece un régimen especial para el sector turismo y actividades conexas”, correspondiente al boletín N° 18.478-13, con urgencia calificada de “suma”. Para estos efectos, se ha invitado al señor Gustavo Rosenda Salazar, Subsecretario del Trabajo; a la señora María Paz Lagos Valdivieso, Subsecreraria deTurismo; al señor José Pakomio Torres, Presidente de la Cámara Nacional de Comercio (CNC); al señor Matías Rodríguez Burr, abogado laboralista y Presidente del Departamento de Derecho del Trabajo y Seguridad Social de la Universidad de Valparaíso; al señor David Bravo Urrutia, economista, académico, investigador y Director del Centro UC de Encuestas y Estudios Longitudinales; a la señora Susana Jiménez, Presidenta de la Confederación de la Producción y del Comercio (CPC); a la señora Patricia Silva Meléndez, abogada coordinadora del Programa Laboral del Instituto Igualdad y ex Directora del Trabajo, al señor Manuel Muñoz Lorca, abogado coordinador de la Asociación de Empresas de Seguridad Privada y de Transporte de Valores (ASEVA), y a la señora María Teresa Vial, Presidenta de la Cámara de Comercio de Santiago A.G.",
-        "invitados": "Autoridades sectoriales convocadas.",
+        "invitados": "No informado en la citación.",
         "tabla": [
           "Continuar el estudio del proyecto de ley, originado en mensaje de S.E. el Presidente de la República, que “Perfecciona los mecanismos de ada..."
         ],
@@ -4399,7 +4399,7 @@ export const CAMARA_CITACIONES_SEMANALES_POR_DIA = [
         "lugar": "Sala de Lectura primer nivel (Presencial)",
         "tipo": "Comisión Especial Investigadora",
         "materia": "Con el objeto de abocarse al mandato de la Comisión. Para tales efectos, se recibirá a la exministra de Seguridad Pública, doña Trinidad Steinert Herrera; a la ex Subdirectora de Inteligencia, Crimen Organizado y Seguridad Migratoria de esa institución, Prefecta General (R) doña Consuelo Peña San Miguel; a la ex Subsecretaria de Prevención del Delito, doña Ana Victoria Quintana Olguín; al Coordinador de asesores del gabinete presidencial, don Alejandro Irarrázaval Alfonso, y al abogado penalista don Juan Pablo Mañalich Raffo.",
-        "invitados": "Autoridades sectoriales convocadas.",
+        "invitados": "No informado en la citación.",
         "tabla": [
           "Con el objeto de abocarse al mandato de la Comisión. Para tales efectos, se recibirá a la exministra de Seguridad Pública, doña Trinidad Ste..."
         ],
@@ -4416,7 +4416,7 @@ export const CAMARA_CITACIONES_SEMANALES_POR_DIA = [
         "lugar": "Sala Pedro Pablo Álvarez-Salamanca tercer nivel (Presencial)",
         "tipo": "Comisión Especial Investigadora",
         "materia": "Con el objeto de continuar su cometido y dar cumplimiento a lo encomendado en el mandato. Se ha invitado a: - Ex Ministro de Hacienda, señor Nicolás Grau Veloso. - Ex Directora de Presupuestos, señora Javiera Martínez Fariña. Se ha citado a: - Presidente Panel Técnico de Concesiones, señor Raúl Erazo Torricelli.",
-        "invitados": "Autoridades sectoriales convocadas.",
+        "invitados": "No informado en la citación.",
         "tabla": [
           "Con el objeto de continuar su cometido y dar cumplimiento a lo encomendado en el mandato. Se ha invitado a: - Ex Ministro de Hacienda, señor..."
         ],
@@ -4433,7 +4433,7 @@ export const CAMARA_CITACIONES_SEMANALES_POR_DIA = [
         "lugar": "Sala de Conferencias Inés Enríquez segundo nivel (Presencial)",
         "tipo": "Sesión de Comisión",
         "materia": "De 14:50 a 15:50 horas: Continuar la votación en particular del proyecto de ley, originado en mensaje de S. E., el Presidente de la República que, “crea el registro de actos vandálicos e incivilidades”. Boletín N°18.341-25, con urgencia calificada de “suma”. En primer trámite constitucional y primero reglamentario. Para tales efectos se invitó al biministro del Interior y de la Secretaría General de Gobierno, señor Claudio Alvarado Andrade.",
-        "invitados": "Autoridades sectoriales convocadas.",
+        "invitados": "No informado en la citación.",
         "tabla": [
           "De 14:50 a 15:50 horas: Continuar la votación en particular del proyecto de ley, originado en mensaje de S. E., el Presidente de la Repúblic..."
         ],
@@ -4452,7 +4452,7 @@ export const CAMARA_CITACIONES_SEMANALES_POR_DIA = [
         "lugar": "Sala Octavio Jara Wolff tercer nivel (Presencial)",
         "tipo": "Sesión de Comisión",
         "materia": "continuar la discusión y votación particular del proyecto de ley, iniciado en mensaje de S. E. el Presidente de la República, que fortalece el ejercicio de la responsabilidad parental, boletín N°18378-18, en primer trámite constitucional y reglamentario, con urgencia calificada de \"suma\". NOTA: Se recuerda que el plazo para la formulación de INDICACIONES del proyecto de ley sobre RESPONSABILIDAD PARENTAL, boletín N° 18378-18 ES EL JUEVES 3 de SEPTIEMBRE DE 2026, a las 12:00 horas (mediodía). Se encuentra invitado el Ministro de Justicia y Derechos Humanos, señor Fernando Rabat, junto al Subsecretario, señor Luis Alejandro Silva para participar de la tramitación de dicha iniciativa legal, boletín N°18378-18.",
-        "invitados": "Autoridades sectoriales convocadas.",
+        "invitados": "No informado en la citación.",
         "tabla": [
           "continuar la discusión y votación particular del proyecto de ley, iniciado en mensaje de S. E. el Presidente de la República, que fortalece ..."
         ],
@@ -4471,7 +4471,7 @@ export const CAMARA_CITACIONES_SEMANALES_POR_DIA = [
         "lugar": "Sala Manuel Bustos Huerta tercer nivel (Presencial)",
         "tipo": "Sesión de Comisión",
         "materia": "Recibir en audiencia al señor Roberto Levin Jiménez, Director Ejecutivo de la Fundación Acrux, a fin de que exponga la experiencia de dicha institución en la realización de operativos médicos en zonas extremas y territorios aislados, y dé a conocer propuestas y alternativas destinadas a contribuir a la reducción de las listas de espera y a mejorar el acceso a prestaciones de salud en dichos territorios, atendidos los antecedentes planteados por los alcaldes y alcaldesas durante el ciclo de audiencias desarrollado por la Comisión.",
-        "invitados": "Autoridades sectoriales convocadas.",
+        "invitados": "No informado en la citación.",
         "tabla": [
           "Recibir en audiencia al señor Roberto Levin Jiménez, Director Ejecutivo de la Fundación Acrux, a fin de que exponga la experiencia de dicha ..."
         ],
@@ -4488,7 +4488,7 @@ export const CAMARA_CITACIONES_SEMANALES_POR_DIA = [
         "lugar": "Sala N° 410 cuarto nivel (Presencial)",
         "tipo": "Sesión de Comisión",
         "materia": "Iniciar la discusión particular del proyecto de ley que modifica el Código de Aguas para garantizar la participación de comités y cooperativas de agua potable rural, prestadoras de servicios sanitarios rurales, en los directorios de las comunidades de agua, correspondiente a los boletines números 17.324-33 y 17.325-33, refundidos, en primer trámite constitucional y segundo reglamentario.",
-        "invitados": "Autoridades sectoriales convocadas.",
+        "invitados": "No informado en la citación.",
         "tabla": [
           "Iniciar la discusión particular del proyecto de ley que modifica el Código de Aguas para garantizar la participación de comités y cooperativ..."
         ],
@@ -4508,7 +4508,7 @@ export const CAMARA_CITACIONES_SEMANALES_POR_DIA = [
         "lugar": "Sala Ramón Pérez Opazo tercer nivel (Presencial)",
         "tipo": "Sesión de Comisión",
         "materia": "Recibir en audiencia a la señora Amara Rivera, en representación de la Corporación Hijas e Hijos de Gabriela Mistral, con el objeto de que exponga acerca del destino de los derechos de autor de la obra de la poetisa y de la propuesta de destinarlos íntegramente a programas artísticos, educacionales y culturales dirigidos a los niños de Montegrande. Asimismo, para que se refiera a la posibilidad de impulsar una iniciativa legal que extienda la vigencia de dichos derechos cuando la voluntad expresa del autor o autora se funde en una finalidad social y de bien público. Se ha invitado a la señora Amara Rivera, en representación de la referida Corporación.",
-        "invitados": "Autoridades sectoriales convocadas.",
+        "invitados": "No informado en la citación.",
         "tabla": [
           "Recibir en audiencia a la señora Amara Rivera, en representación de la Corporación Hijas e Hijos de Gabriela Mistral, con el objeto de que e..."
         ],
@@ -4525,7 +4525,7 @@ export const CAMARA_CITACIONES_SEMANALES_POR_DIA = [
         "lugar": "Sala Juan Lobos Krause tercer nivel (Presencial)",
         "tipo": "Sesión de Comisión",
         "materia": "analizar, junto a las autoridades competentes, las conclusiones y propuestas contenidas en el Informe de la Mesa por la Niñez, elaborado por la Comisión de Familia, e identificar las materias vinculadas al ámbito de su competencia, así como eventuales iniciativas legislativas que puedan impulsarse a partir de dicho trabajo. Para tales efectos se encuentran invitados: - Subsecretario de la Niñez, señor Marcelo Sánchez Ahumada. - Director del Servicio Nacional de Protección Especializada a la Niñez y Adolescencia (S), señor Gherman Welsch Chahuán.",
-        "invitados": "Autoridades sectoriales convocadas.",
+        "invitados": "No informado en la citación.",
         "tabla": [
           "analizar, junto a las autoridades competentes, las conclusiones y propuestas contenidas en el Informe de la Mesa por la Niñez, elaborado por..."
         ],
@@ -4542,7 +4542,7 @@ export const CAMARA_CITACIONES_SEMANALES_POR_DIA = [
         "lugar": "Sala Pedro Pablo Álvarez-Salamanca tercer nivel (Presencial)",
         "tipo": "Sesión de Comisión",
         "materia": "Tratar materias propias de la competencia de la Comisión. Invitados: Director de la Agencia Nacional de Inteligencia, señor Ronald Mc Intyre Astorga. Fiscal Nacional del Ministerio Público, señor Ángel Valencia Vásquez.",
-        "invitados": "Autoridades sectoriales convocadas.",
+        "invitados": "No informado en la citación.",
         "tabla": [
           "Tratar materias propias de la competencia de la Comisión. Invitados: Director de la Agencia Nacional de Inteligencia, señor Ronald Mc Intyre..."
         ],
@@ -4559,7 +4559,7 @@ export const CAMARA_CITACIONES_SEMANALES_POR_DIA = [
         "lugar": "Sala Arturo Longton Guerrero tercer nivel (Presencial)",
         "tipo": "Sesión de Comisión",
         "materia": "Sesión especial* citada con objeto de continuar con la votación en particular del proyecto de ley, en primer trámite constitucional, con urgencia calificada de “suma”, originado en las siguientes mociones refundidas: 1) El que establece un marco integral de protección de niñas, niños y adolescentes en el uso de redes sociales (boletín N° 18224-18), de los diputados y diputadas Lorena Fries (A), Jaime Araya, Matías Fernández, Ana María Gazmuri, Andrea Macías, Luis Malla, Cristian Mella, José Montalva, Zandra Parisi y Gonzalo Winter. 2) El que protege a los menores de edad frente a la adicción a las nuevas tecnologías y prohíbe el acceso a redes sociales y otras plataformas (boletín N° 18246-18), de las diputadas y diputados Diego Schalper (A), Héctor Barría, Patricio Briones, Andrés Celis, Tomás Kast, Raúl Leiva, Paula Olmos, Ximena Ossandón, Macarena Santelices y Héctor Ulloa. 3) El que establece un estatuto de responsabilidad algorítmica y protección digital de niños, niñas y adolescentes (boletín N° 18318-19), de las diputadas y diputados Daniel Manouchehri (A), Patricio Briones, Andrés Celis, Carolina Cucumides, Cristóbal Martínez, José Montalva, Daniela Serrano, Consuelo Veloso, Gonzalo Winter y Gael Yeomans. 4) El que modifica la ley N° 21.663, marco de ciberseguridad, para incorporar los principios de protección a la infancia y adolescencia, restricción etaria e información preventiva en entornos digitales (boletín N° 18415-18), de los diputados y diputadas Sara Concha (A), Patricio Briones, Andrés Celis, Tomás Kast, José Montalva, Francesca Muñoz y Tamara Ramírez. En razón de lo anterior, la Comisión ha invitado a la ministra de Desarrollo Social y Familia, señora María Jesús Wulf Le May, y/o al subsecretario de la Niñez, señor Marcelo Sánchez Ahumada. * Esta sesión reemplaza a la ordinaria, toda vez que la Comisión tiene una actividad oficial en Santiago con la ministra de Ciencia, Tecnología, Conocimiento e Innovación. • Ministra de Desarrollo Social y Familia, y/o • Subsecretario de la Niñez.",
-        "invitados": "Autoridades sectoriales convocadas.",
+        "invitados": "No informado en la citación.",
         "tabla": [
           "Sesión especial* citada con objeto de continuar con la votación en particular del proyecto de ley, en primer trámite constitucional, con urg..."
         ],
@@ -4587,7 +4587,7 @@ export const CAMARA_CITACIONES_SEMANALES_POR_DIA = [
         "lugar": "Sala Ramón Pérez Opazo tercer nivel (Presencial)",
         "tipo": "Comisión Especial Investigadora",
         "materia": "recibir en audiencia, en el marco de su mandato, al Economista y Director Académico del Diplomado en Finanzas, FEN, de la Universidad de Chile, señor Jorge Berríos Vogel.",
-        "invitados": "Autoridades sectoriales convocadas.",
+        "invitados": "No informado en la citación.",
         "tabla": [
           "recibir en audiencia, en el marco de su mandato, al Economista y Director Académico del Diplomado en Finanzas, FEN, de la Universidad de Chi..."
         ],
@@ -4604,7 +4604,7 @@ export const CAMARA_CITACIONES_SEMANALES_POR_DIA = [
         "lugar": "Sala Arturo Longton Guerrero tercer nivel (Presencial)",
         "tipo": "Sesión de Comisión",
         "materia": "Sesión especial citada con objeto de continuar con la votación en particular del proyecto de ley, en primer trámite constitucional, con urgencia calificada de “suma”, originado en las siguientes mociones refundidas: 1) El que establece un marco integral de protección de niñas, niños y adolescentes en el uso de redes sociales (boletín N° 18224-18), de los diputados y diputadas Lorena Fries (A), Jaime Araya, Matías Fernández, Ana María Gazmuri, Andrea Macías, Luis Malla, Cristian Mella, José Montalva, Zandra Parisi y Gonzalo Winter. 2) El que protege a los menores de edad frente a la adicción a las nuevas tecnologías y prohíbe el acceso a redes sociales y otras plataformas (boletín N° 18246-18), de las diputadas y diputados Diego Schalper (A), Héctor Barría, Patricio Briones, Andrés Celis, Tomás Kast, Raúl Leiva, Paula Olmos, Ximena Ossandón, Macarena Santelices y Héctor Ulloa. 3) El que establece un estatuto de responsabilidad algorítmica y protección digital de niños, niñas y adolescentes (boletín N° 18318-19), de las diputadas y diputados Daniel Manouchehri (A), Patricio Briones, Andrés Celis, Carolina Cucumides, Cristóbal Martínez, José Montalva, Daniela Serrano, Consuelo Veloso, Gonzalo Winter y Gael Yeomans. 4) El que modifica la ley N° 21.663, marco de ciberseguridad, para incorporar los principios de protección a la infancia y adolescencia, restricción etaria e información preventiva en entornos digitales (boletín N° 18415-18), de los diputados y diputadas Sara Concha (A), Patricio Briones, Andrés Celis, Tomás Kast, José Montalva, Francesca Muñoz y Tamara Ramírez. En razón de lo anterior, la Comisión ha invitado a la ministra de Desarrollo Social y Familia, señora María Jesús Wulf Le May, y/o al subsecretario de la Niñez, señor Marcelo Sánchez Ahumada. • Ministra de Desarrollo Social y Familia, y/o • Subsecretario de la Niñez.",
-        "invitados": "Autoridades sectoriales convocadas.",
+        "invitados": "No informado en la citación.",
         "tabla": [
           "Sesión especial citada con objeto de continuar con la votación en particular del proyecto de ley, en primer trámite constitucional, con urge..."
         ],
@@ -4626,7 +4626,7 @@ export const CAMARA_CITACIONES_SEMANALES_POR_DIA = [
         "lugar": "Sala Pedro Pablo Álvarez-Salamanca tercer nivel (Presencial)",
         "tipo": "Sesión de Comisión",
         "materia": "Con el objeto de tratar materias propias de su competencia.",
-        "invitados": "Autoridades sectoriales convocadas.",
+        "invitados": "No informado en la citación.",
         "tabla": [
           "Con el objeto de tratar materias propias de su competencia...."
         ],
@@ -4643,7 +4643,7 @@ export const CAMARA_CITACIONES_SEMANALES_POR_DIA = [
         "lugar": "Sala Francisco Bulnes Sanfuentes tercer nivel (Presencial)",
         "tipo": "Sesión de Comisión",
         "materia": "Continuar la tramitación en particular del proyecto de ley, en primer trámite constitucional e iniciado en mensaje, que “Amplía las hipótesis de tráfico de migrantes y modifica los textos legales que indica”. Boletín N° 18.315-07 refundido con proyecto de ley N° 16.948-07. Discusión inmediata. Se ha invitado al señor Ministro de Justicia y Derechos Humanos, y a los expertos en derecho penal señora Diva Serra (U. de Concepción); señora Tania Gajardo (U. Católica de Chile); señor Juan Pablo Castillo (U. A. Hurtado); Antonio Bascuñán (U. Adolfo Ibáñez), sin perjuicio de los invitados que propongan los (as) integrantes de la Comisión.",
-        "invitados": "Autoridades sectoriales convocadas.",
+        "invitados": "No informado en la citación.",
         "tabla": [
           "Continuar la tramitación en particular del proyecto de ley, en primer trámite constitucional e iniciado en mensaje, que “Amplía las hipótesi..."
         ],
@@ -4663,7 +4663,7 @@ export const CAMARA_CITACIONES_SEMANALES_POR_DIA = [
         "lugar": "Sala Octavio Jara Wolff tercer nivel (Presencial)",
         "tipo": "Sesión de Comisión",
         "materia": "Analizar casos de maltrato y discriminación que han sido puestos en conocimiento de la Defensoría del Deportista, por presuntas vulneraciones de derechos de deportistas, que no habrían obtenido una respuesta adecuada por parte de las instituciones correspondientes. Para tales efectos, se encuentran invitados el Director de la Defensoría del Deportista, señor Eduardo Arévalo Mateluna, y el Subsecretario de la Niñez, don Marcelo Sánchez Ahumada.",
-        "invitados": "Autoridades sectoriales convocadas.",
+        "invitados": "No informado en la citación.",
         "tabla": [
           "Analizar casos de maltrato y discriminación que han sido puestos en conocimiento de la Defensoría del Deportista, por presuntas vulneracione..."
         ],
@@ -4680,7 +4680,7 @@ export const CAMARA_CITACIONES_SEMANALES_POR_DIA = [
         "lugar": "Sala Pedro Pablo Álvarez-Salamanca tercer nivel (Presencial)",
         "tipo": "Sesión de Comisión",
         "materia": "De 15:00 a 16:00 horas: Continuar con la discusión del proyecto de ley que “Modifica la Ley General de Urbanismo y Construcciones, y otros cuerpos legales, para regular el desarrollo de zonas residenciales en el medio rural”, Boletín N°17.006-01. Para este efecto se encuentran invitados: - El Ministro de Agricultura, don Jaime Campos. - El Ministro de Vivienda y Urbanismo, don Iván Poduje.",
-        "invitados": "Autoridades sectoriales convocadas.",
+        "invitados": "No informado en la citación.",
         "tabla": [
           "De 15:00 a 16:00 horas: Continuar con la discusión del proyecto de ley que “Modifica la Ley General de Urbanismo y Construcciones, y otros c..."
         ],
@@ -4699,7 +4699,7 @@ export const CAMARA_CITACIONES_SEMANALES_POR_DIA = [
         "lugar": "Sala Arturo Longton Guerrero tercer nivel (Presencial)",
         "tipo": "Sesión de Comisión",
         "materia": "Proyecto de ley, de origen en moción, en primer trámite constitucional y reglamentario, que declara feriado nacional el 17 de septiembre de 2026 (Boletín N° 18.600-06). Respecto de este proyecto de ley, ha sido invitado el Biministro de Economía y Energía, señor Daniel Más Valdés.",
-        "invitados": "Autoridades sectoriales convocadas.",
+        "invitados": "No informado en la citación.",
         "tabla": [
           "Proyecto de ley, de origen en moción, en primer trámite constitucional y reglamentario, que declara feriado nacional el 17 de septiembre de ..."
         ],
@@ -4718,7 +4718,7 @@ export const CAMARA_CITACIONES_SEMANALES_POR_DIA = [
         "lugar": "Sala de Conferencias Inés Enríquez segundo nivel (Presencial)",
         "tipo": "Sesión de Comisión",
         "materia": "Sesión ordinaria citada con objeto de ocuparse de los siguientes asuntos:",
-        "invitados": "Autoridades sectoriales convocadas.",
+        "invitados": "No informado en la citación.",
         "tabla": [
           "Sesión ordinaria citada con objeto de ocuparse de los siguientes asuntos:..."
         ],
@@ -4735,7 +4735,7 @@ export const CAMARA_CITACIONES_SEMANALES_POR_DIA = [
         "lugar": "Sala Manuel Bustos Huerta tercer nivel (Presencial)",
         "tipo": "Sesión de Comisión",
         "materia": "Recibir en audiencia al señor Gino Casassa Rogazinski, Director del Instituto Antártico Chileno (INACH), a fin de abordar los efectos del calentamiento global y sus causas en el territorio antártico nacional. - Director del Instituto Antártico Chileno (INACH), señor Gino Casassa Rogazinski.",
-        "invitados": "Autoridades sectoriales convocadas.",
+        "invitados": "No informado en la citación.",
         "tabla": [
           "Recibir en audiencia al señor Gino Casassa Rogazinski, Director del Instituto Antártico Chileno (INACH), a fin de abordar los efectos del ca..."
         ],
@@ -4752,7 +4752,7 @@ export const CAMARA_CITACIONES_SEMANALES_POR_DIA = [
         "lugar": "Sala Octavio Jara Wolff tercer nivel (Presencial)",
         "tipo": "Sesión de Comisión",
         "materia": "Continuar el estudio, en general, de la iniciativa que \"Modifica la ley N°18.961, orgánica constitucional de Carabineros de Chile, en cuanto a los procedimientos de evaluación médica que fundamentan retiros de personal\". Boletín N° 18448-25. Para este objeto se ha invitado a General Director de Carabineros, Marcelo Araya Zapata; al director de Disalcar; al Jefe de la Dirección de Salud de Carabineros, y al Director de Dipreca.",
-        "invitados": "Autoridades sectoriales convocadas.",
+        "invitados": "No informado en la citación.",
         "tabla": [
           "Continuar el estudio, en general, de la iniciativa que \"Modifica la ley N°18.961, orgánica constitucional de Carabineros de Chile, en cuanto..."
         ],
@@ -4771,7 +4771,7 @@ export const CAMARA_CITACIONES_SEMANALES_POR_DIA = [
         "lugar": "Sala Juan Lobos Krause tercer nivel (Presencial)",
         "tipo": "Sesión de Comisión",
         "materia": "Recibir a los representantes de los trabajadores de la atención primaria de salud, a fin de que expongan sobre la situación presupuestaria de la atención primaria, el financiamiento per cápita y los efectos de los recortes en el funcionamiento de los servicios de salud, entre otras materias.",
-        "invitados": "Autoridades sectoriales convocadas.",
+        "invitados": "No informado en la citación.",
         "tabla": [
           "Recibir a los representantes de los trabajadores de la atención primaria de salud, a fin de que expongan sobre la situación presupuestaria d..."
         ],
@@ -4788,7 +4788,7 @@ export const CAMARA_CITACIONES_SEMANALES_POR_DIA = [
         "lugar": "Sala Ramón Pérez Opazo tercer nivel (Presencial)",
         "tipo": "Sesión de Comisión",
         "materia": "continuar la discusión y votación particular del proyecto de ley, originado en mensaje de S. E. el Presidente de la República, que modifica la ley N° 19.799, sobre documentos electrónicos, firma electrónica y servicios de certificación de dicha firma, y otros cuerpos legales relacionados, boletín N° 18286-03, con urgencia calificada de “simple”, en primer trámite constitucional y primero reglamentario. NOTA: Se recuerda que el plazo para la formulación de INDICACIONES a este l proyecto de ley es el VIERNES 4 DE SEPTIEMBRE DE 2026, a las 12:00 hrs (mediodía).. Se encuentra invitado a participar de la tramitación de esta iniciativa el Ministro de Economía, Fomento y Turismo, señor Daniel Mas; el Subsecretario de Economía, señor Karlfranz Koehler y un representante experto en la materia de dicho Ministerio.",
-        "invitados": "Autoridades sectoriales convocadas.",
+        "invitados": "No informado en la citación.",
         "tabla": [
           "continuar la discusión y votación particular del proyecto de ley, originado en mensaje de S. E. el Presidente de la República, que modifica ..."
         ],
@@ -4807,7 +4807,7 @@ export const CAMARA_CITACIONES_SEMANALES_POR_DIA = [
         "lugar": "Sala Manuel Bustos Huerta tercer nivel (Presencial)",
         "tipo": "Sesión de Comisión",
         "materia": "Continuar el estudio y votar en general el proyecto de ley, originado en mensaje de S.E. el Presidente de la República, que “Perfecciona los mecanismos de adaptabilidad de la jornada de trabajo y establece un régimen especial para el sector turismo y actividades conexas”, correspondiente al boletín N° 18.478-13, con urgencia calificada de “suma”. Para estos efectos, se escucharán, en primer lugar, las intervenciones pendientes de las diputadas señoras Ximena Ossandón y Gael Yeomans. Asimismo, se ha invitado al señor Gustavo Rosende Salazar, Subsecretario del Trabajo; a la señora María Paz Lagos Valdivieso, Subsecretaria de Turismo, al señor Claudio Sánchez Pino, Presidente de la Central de Trabajadores de Chile (CTCH); a la señora Bettina Horst von Thadden, Directora Ejecutiva de Libertad y Desarrollo (LyD); al señor Diego Ignacio Valerio Avalosa, Presidente de la Federación de Sindicatos de Casinos de Juego y Hoteles de Chile (FENASICAJH), y al señor Juan Manuel Mira Velasco, Presidente de Chilealimentos.",
-        "invitados": "Autoridades sectoriales convocadas.",
+        "invitados": "No informado en la citación.",
         "tabla": [
           "Continuar el estudio y votar en general el proyecto de ley, originado en mensaje de S.E. el Presidente de la República, que “Perfecciona los..."
         ],
@@ -4826,7 +4826,7 @@ export const CAMARA_CITACIONES_SEMANALES_POR_DIA = [
         "lugar": "Sala N° 408 cuarto nivel (Presencial)",
         "tipo": "Sesión de Comisión",
         "materia": "Continuar la discusión general del proyecto de ley que aumenta la pena aplicable al delito de ingreso no autorizado a recintos militares y policiales, y fortalece la protección de la seguridad pública, correspondiente a los boletines refundidos N°18.361-02 y 18.381-02.",
-        "invitados": "Autoridades sectoriales convocadas.",
+        "invitados": "No informado en la citación.",
         "tabla": [
           "Continuar la discusión general del proyecto de ley que aumenta la pena aplicable al delito de ingreso no autorizado a recintos militares y p..."
         ],
@@ -4846,7 +4846,7 @@ export const CAMARA_CITACIONES_SEMANALES_POR_DIA = [
         "lugar": "Sala de Conferencias Inés Enríquez segundo nivel (Presencial)",
         "tipo": "Sesión de Comisión",
         "materia": "Mensaje de S. E. el Presidente de la República, en primer trámite constitucional y con urgencia calificada de suma, por el cual da inicio a la tramitación del proyecto que \"modifica la Ley Orgánica de la Empresa de los Ferrocarriles del Estado, con el objeto de establecer una exención de derechos y tributos municipales por la ejecución de obras ferroviarias y declarar dichas obras como infraestructura ejecutada por el Estado\". BOLETÍN N°18.436-15. Se encuentra invitado el Biministro de Obras Públicas, Transportes y Telecomunicaciones, señor Louis De Grange Concha.",
-        "invitados": "Autoridades sectoriales convocadas.",
+        "invitados": "No informado en la citación.",
         "tabla": [
           "Mensaje de S. E. el Presidente de la República, en primer trámite constitucional y con urgencia calificada de suma, por el cual da inicio a ..."
         ],
@@ -4871,7 +4871,7 @@ export const CAMARA_CITACIONES_SEMANALES_POR_DIA = [
         "lugar": "Sala Ramón Pérez Opazo tercer nivel (Presencial)",
         "tipo": "Comisión Especial Investigadora",
         "materia": "Recibir, en el marco del mandato de la comisión, al director nacional del Servicio Nacional de Migraciones, señor Frank Sauerbaum, para que de respuesta a las consultas formuladas por los miembros de la comisión durante la sesión pasada, y al Defensor de la Niñez, señor Anuar Quesille. El director nacional del Servicio Nacional de Migraciones, señor Frank Sauerbaum. El Defensor de la Niñez, señor Anuar Quesille.",
-        "invitados": "Autoridades sectoriales convocadas.",
+        "invitados": "No informado en la citación.",
         "tabla": [
           "Recibir, en el marco del mandato de la comisión, al director nacional del Servicio Nacional de Migraciones, señor Frank Sauerbaum, para que ..."
         ],
@@ -4888,7 +4888,7 @@ export const CAMARA_CITACIONES_SEMANALES_POR_DIA = [
         "lugar": "Sala Arturo Longton Guerrero tercer nivel (Presencial)",
         "tipo": "Sesión de Comisión",
         "materia": "Sesión especial citada con objeto de continuar con la votación en particular del proyecto de ley, en primer trámite constitucional, con urgencia calificada de “suma”, originado en las siguientes mociones refundidas: 1) El que establece un marco integral de protección de niñas, niños y adolescentes en el uso de redes sociales (boletín N° 18224-18), de los diputados y diputadas Lorena Fries (A), Jaime Araya, Matías Fernández, Ana María Gazmuri, Andrea Macías, Luis Malla, Cristian Mella, José Montalva, Zandra Parisi y Gonzalo Winter. 2) El que protege a los menores de edad frente a la adicción a las nuevas tecnologías y prohíbe el acceso a redes sociales y otras plataformas (boletín N° 18246-18), de las diputadas y diputados Diego Schalper (A), Héctor Barría, Patricio Briones, Andrés Celis, Tomás Kast, Raúl Leiva, Paula Olmos, Ximena Ossandón, Macarena Santelices y Héctor Ulloa. 3) El que establece un estatuto de responsabilidad algorítmica y protección digital de niños, niñas y adolescentes (boletín N° 18318-19), de las diputadas y diputados Daniel Manouchehri (A), Patricio Briones, Andrés Celis, Carolina Cucumides, Cristóbal Martínez, José Montalva, Daniela Serrano, Consuelo Veloso, Gonzalo Winter y Gael Yeomans. 4) El que modifica la ley N° 21.663, marco de ciberseguridad, para incorporar los principios de protección a la infancia y adolescencia, restricción etaria e información preventiva en entornos digitales (boletín N° 18415-18), de los diputados y diputadas Sara Concha (A), Patricio Briones, Andrés Celis, Tomás Kast, José Montalva, Francesca Muñoz y Tamara Ramírez. En razón de lo anterior, la Comisión ha invitado a la ministra de Desarrollo Social y Familia, señora María Jesús Wulf Le May, y/o al subsecretario de la Niñez, señor Marcelo Sánchez Ahumada. • Ministra de Desarrollo Social y Familia, y/o • Subsecretario de la Niñez.",
-        "invitados": "Autoridades sectoriales convocadas.",
+        "invitados": "No informado en la citación.",
         "tabla": [
           "Sesión especial citada con objeto de continuar con la votación en particular del proyecto de ley, en primer trámite constitucional, con urge..."
         ],
@@ -4910,7 +4910,7 @@ export const CAMARA_CITACIONES_SEMANALES_POR_DIA = [
         "lugar": "Sala Pedro Pablo Álvarez-Salamanca tercer nivel (Presencial)",
         "tipo": "Sesión de Comisión",
         "materia": "Conocer los informes de auditoría externa elaborados por la empresa Xlibrium, así como aquellos del Comité de Auditoría Parlamentaria. Invitados: Pablo Oneto, Subsecretario Administrativo Patricio Leiva, Jefe de Finanzas Priscila Jara, Abogado Coordinadora del Comité de Auditoría Parlamentaria.",
-        "invitados": "Autoridades sectoriales convocadas.",
+        "invitados": "No informado en la citación.",
         "tabla": [
           "Conocer los informes de auditoría externa elaborados por la empresa Xlibrium, así como aquellos del Comité de Auditoría Parlamentaria. Invit..."
         ],
@@ -4927,7 +4927,7 @@ export const CAMARA_CITACIONES_SEMANALES_POR_DIA = [
         "lugar": "Sala N° 410 cuarto nivel (Presencial)",
         "tipo": "Sesión de Comisión",
         "materia": "Recibir a la Contralora General de la República, señora Dorothy Pérez Gutiérrez; al Ministro de Vivienda y Urbanismo, señor Iván Poduje Capdeville y al Presidente de la Asociación Chilena de Municipalidades (ACHM), señor Gustavo Alessandri Bascuñán, o a quienes designen en su representación, para que se refieran a las modificaciones introducidas a la Ordenanza General de Urbanismo y Construcciones por el decreto supremo N° 68, de 2026, del Ministerio de Vivienda y Urbanismo, particularmente a sus efectos sobre los planes reguladores comunales y metropolitanos y la calidad de vida de las personas. Se ha invitado a la Contralora General de la República, señora Dorothy Pérez Gutiérrez; al Ministro de Vivienda y Urbanismo, señor Iván Poduje Capdeville y al Presidente de la Asociación Chilena de Municipalidades (ACHM), señor Gustavo Alessandri Bascuñán, o a quienes designen en su representación.",
-        "invitados": "Autoridades sectoriales convocadas.",
+        "invitados": "No informado en la citación.",
         "tabla": [
           "Recibir a la Contralora General de la República, señora Dorothy Pérez Gutiérrez; al Ministro de Vivienda y Urbanismo, señor Iván Poduje Capd..."
         ],
@@ -4944,7 +4944,7 @@ export const CAMARA_CITACIONES_SEMANALES_POR_DIA = [
         "lugar": "Sala de Conferencias Inés Enríquez segundo nivel (Presencial)",
         "tipo": "Sesión de Comisión",
         "materia": "Continuar la votación en particular del proyecto de ley originado en Moción, en primer trámite constitucional, copatrocinada por los diputados señores Alejandro Bernales, Roberto Celedón, Mauro González, Jorge Guzmán (A), Tomás Kast, Diego Schalper, Carolina Tello y Guillermo Valdés, sobre “Fortalecimiento de la Seguridad Marítima”, BOLETÍN 18.198-15. Se encuentran invitados el Subsecretario de Justicia, señor Luis Silva Irarrázabal; el Capitán de Navío Litoral (CN LT) de la Dirección General del Territorio Marítimo y de Marina Mercante y Jefe del Servicio de Inspecciones Marítimas, señor Roberto Alfaro Pérez; el Teniente 1, señor Gastón Salinas Valdés, Asesor jurídico de la Dirección de Seguridad y Operaciones Marítimas de la Armada de Chile, y la asesora jurídica del Ministerio de Defensa, señora Maricarmen Garrido I.",
-        "invitados": "Autoridades sectoriales convocadas.",
+        "invitados": "No informado en la citación.",
         "tabla": [
           "Continuar la votación en particular del proyecto de ley originado en Moción, en primer trámite constitucional, copatrocinada por los diputad..."
         ],
@@ -4963,7 +4963,7 @@ export const CAMARA_CITACIONES_SEMANALES_POR_DIA = [
         "lugar": "Sala Manuel Bustos Huerta tercer nivel (Presencial)",
         "tipo": "Sesión de Comisión",
         "materia": "Iniciar la discusión y votación en particular de los siguientes proyectos de ley, refundidos: 1) Moción de las diputadas Sara Concha Smith, Valentina Becerra Peña, Francesca Muñoz González, Paulina Muñoz Minte, Ximena Naranjo Pinto, Javiera Rodríguez Pascual, Marisela Santibáñez Novoa, Eileen Urqueta Rojas y Consuelo Veloso Ávila, y del diputado Eduardo Durán Salinas, que fortalece la protección de las víctimas de violencia intrafamiliar y previene su revictimización, correspondiente al boletín N°18236-18, en primer trámite constitucional y reglamentario, con urgencia calificada de “suma”. 2) Moción de las diputadas Valentina Becerra Peña, Paz Charpentier Rajcevich, Catalina Del Real Mihovilovic, Stephanie Jéldrez Ortiz, Claudia Mora Vega, Zandra Parisi Fernández, Claudia Reyes Larenas y Marisela Santibáñez Novoa, y de los diputados Felipe Camaño Cárdenas y Eduardo Durán Salinas, que modifica cuerpos legales que indica en materia de notificaciones de medidas cautelares dictadas en procesos de violencia intrafamiliar, correspondiente al boletín N°18414-18, en primer trámite constitucional y reglamentario.",
-        "invitados": "Autoridades sectoriales convocadas.",
+        "invitados": "No informado en la citación.",
         "tabla": [
           "Iniciar la discusión y votación en particular de los siguientes proyectos de ley, refundidos: 1) Moción de las diputadas Sara Concha Smith, ..."
         ],
@@ -4983,7 +4983,7 @@ export const CAMARA_CITACIONES_SEMANALES_POR_DIA = [
         "lugar": "Sala Juan Lobos Krause tercer nivel (Presencial)",
         "tipo": "Sesión de Comisión",
         "materia": "Continuar la discusión y votación particular, en segundo trámite constitucional, del proyecto de ley que modifica diversos cuerpos legales, con el objeto de fortalecer la institucionalidad ambiental y mejorar su eficiencia, correspondiente al Boletín N° 16.552-12 (S). Urgencia simple.",
-        "invitados": "Autoridades sectoriales convocadas.",
+        "invitados": "No informado en la citación.",
         "tabla": [
           "Continuar la discusión y votación particular, en segundo trámite constitucional, del proyecto de ley que modifica diversos cuerpos legales, ..."
         ],
@@ -5002,7 +5002,7 @@ export const CAMARA_CITACIONES_SEMANALES_POR_DIA = [
         "lugar": "Sala Ramón Pérez Opazo tercer nivel (Presencial)",
         "tipo": "Sesión de Comisión",
         "materia": "Recibir al subsecretario de Derechos Humanos, Pablo Mira Hurtado; y al subsecretario de la Niñez, Marcelo Sánchez Ahumada, para que informen acerca del funcionamiento y estado de avance de la Comisión de Verdad y Niñez, especialmente sobre las labores desarrolladas, las metas y plazos establecidos, las dificultades que ha enfrentado y sus proyecciones futuras. Asimismo, para que efectúen una exposición acabada que comprenda el pasado, presente y futuro de dicha Comisión.",
-        "invitados": "Autoridades sectoriales convocadas.",
+        "invitados": "No informado en la citación.",
         "tabla": [
           "Recibir al subsecretario de Derechos Humanos, Pablo Mira Hurtado; y al subsecretario de la Niñez, Marcelo Sánchez Ahumada, para que informen..."
         ],
@@ -5019,7 +5019,7 @@ export const CAMARA_CITACIONES_SEMANALES_POR_DIA = [
         "lugar": "Sala Francisco Bulnes Sanfuentes tercer nivel (Presencial)",
         "tipo": "Sesión de Comisión",
         "materia": "Continuar con la tramitación en particular del proyecto de ley, iniciado en moción, que “Modifica el Código Penal para sancionar toda forma de instrumentalización de niños, niñas y adolescentes para cometer delitos''. Boletín N° 18.282-07. Se acordó refundirlo con el boletín N°18.590. Urgencia suma. Se ha invitado al señor Ministro de Justicia y Derechos Humanos; a los académicos señora María Elena Santibáñez (U. Católica de Chile); Alejandra Castillo Ara (U. Diego Portales); Francisco Maldonado Fuentes (U. de Talca); Alejandro Leiva López (U. Andrés Bello); Gonzalo Berríos Díaz (U. de Chile).",
-        "invitados": "Autoridades sectoriales convocadas.",
+        "invitados": "No informado en la citación.",
         "tabla": [
           "Continuar con la tramitación en particular del proyecto de ley, iniciado en moción, que “Modifica el Código Penal para sancionar toda forma ..."
         ],
@@ -5038,7 +5038,7 @@ export const CAMARA_CITACIONES_SEMANALES_POR_DIA = [
         "lugar": "Sala Octavio Jara Wolff tercer nivel (Presencial)",
         "tipo": "Sesión de Comisión",
         "materia": "Analizar la aprobación por parte de la Comisión de Evaluación Ambiental (CEA) del proyecto minero de tierras raras impulsado en la comuna de Penco por la empresa minera Aclara y el Grupo CAP, y sus eventuales implicancias para la comuna y la región. - Biministro de Economía, Fomento y Turismo y Minería, señor Daniel Mas Valdés. - Subsecretario de Minería, señor Álvaro González Gorroño. - Alcalde de Penco, señor Rodrigo Vera Riquelme. - Secretario Regional Ministerial de Minería de la Región del Biobío, señor Daniel Escobar Palma. - Vicedecana de la Facultad de Ingeniería de la Universidad Católica de la Santísima Concepción, señora Matilde Basso Aránguiz.",
-        "invitados": "Autoridades sectoriales convocadas.",
+        "invitados": "No informado en la citación.",
         "tabla": [
           "Analizar la aprobación por parte de la Comisión de Evaluación Ambiental (CEA) del proyecto minero de tierras raras impulsado en la comuna de..."
         ],
@@ -5061,7 +5061,7 @@ export const CAMARA_CITACIONES_POR_COMISION: Record<string, any[]> = {
       "lugar": "Sala Multiuso 1er Piso primer nivel (Presencial)",
       "tipo": "Sesión de Comisión",
       "materia": "Continuar el estudio del proyecto de ley, originado en mensaje de S.E. el Presidente de la República, que “Perfecciona los mecanismos de adaptabilidad de la jornada de trabajo y establece un régimen especial para el sector turismo y actividades conexas”, correspondiente al boletín N° 18.478-13, con urgencia calificada de “suma”. Para estos efectos, se ha invitado al señor Gustavo Rosenda Salazar, Subsecretario del Trabajo; a la señora María Paz Lagos Valdivieso, Subsecreraria deTurismo; al señor José Pakomio Torres, Presidente de la Cámara Nacional de Comercio (CNC); al señor Matías Rodríguez Burr, abogado laboralista y Presidente del Departamento de Derecho del Trabajo y Seguridad Social de la Universidad de Valparaíso; al señor David Bravo Urrutia, economista, académico, investigador y Director del Centro UC de Encuestas y Estudios Longitudinales; a la señora Susana Jiménez, Presidenta de la Confederación de la Producción y del Comercio (CPC); a la señora Patricia Silva Meléndez, abogada coordinadora del Programa Laboral del Instituto Igualdad y ex Directora del Trabajo, al señor Manuel Muñoz Lorca, abogado coordinador de la Asociación de Empresas de Seguridad Privada y de Transporte de Valores (ASEVA), y a la señora María Teresa Vial, Presidenta de la Cámara de Comercio de Santiago A.G.",
-      "invitados": "Autoridades sectoriales convocadas.",
+      "invitados": "No informado en la citación.",
       "tabla": [
         "Continuar el estudio del proyecto de ley, originado en mensaje de S.E. el Presidente de la República, que “Perfecciona los mecanismos de ada..."
       ],
@@ -5081,7 +5081,7 @@ export const CAMARA_CITACIONES_POR_COMISION: Record<string, any[]> = {
       "lugar": "Sala Manuel Bustos Huerta tercer nivel (Presencial)",
       "tipo": "Sesión de Comisión",
       "materia": "Continuar el estudio y votar en general el proyecto de ley, originado en mensaje de S.E. el Presidente de la República, que “Perfecciona los mecanismos de adaptabilidad de la jornada de trabajo y establece un régimen especial para el sector turismo y actividades conexas”, correspondiente al boletín N° 18.478-13, con urgencia calificada de “suma”. Para estos efectos, se escucharán, en primer lugar, las intervenciones pendientes de las diputadas señoras Ximena Ossandón y Gael Yeomans. Asimismo, se ha invitado al señor Gustavo Rosende Salazar, Subsecretario del Trabajo; a la señora María Paz Lagos Valdivieso, Subsecretaria de Turismo, al señor Claudio Sánchez Pino, Presidente de la Central de Trabajadores de Chile (CTCH); a la señora Bettina Horst von Thadden, Directora Ejecutiva de Libertad y Desarrollo (LyD); al señor Diego Ignacio Valerio Avalosa, Presidente de la Federación de Sindicatos de Casinos de Juego y Hoteles de Chile (FENASICAJH), y al señor Juan Manuel Mira Velasco, Presidente de Chilealimentos.",
-      "invitados": "Autoridades sectoriales convocadas.",
+      "invitados": "No informado en la citación.",
       "tabla": [
         "Continuar el estudio y votar en general el proyecto de ley, originado en mensaje de S.E. el Presidente de la República, que “Perfecciona los..."
       ],
@@ -5103,7 +5103,7 @@ export const CAMARA_CITACIONES_POR_COMISION: Record<string, any[]> = {
       "lugar": "Sala de Conferencias Inés Enríquez segundo nivel (Presencial)",
       "tipo": "Sesión de Comisión",
       "materia": "De 14:50 a 15:50 horas: Continuar la votación en particular del proyecto de ley, originado en mensaje de S. E., el Presidente de la República que, “crea el registro de actos vandálicos e incivilidades”. Boletín N°18.341-25, con urgencia calificada de “suma”. En primer trámite constitucional y primero reglamentario. Para tales efectos se invitó al biministro del Interior y de la Secretaría General de Gobierno, señor Claudio Alvarado Andrade.",
-      "invitados": "Autoridades sectoriales convocadas.",
+      "invitados": "No informado en la citación.",
       "tabla": [
         "De 14:50 a 15:50 horas: Continuar la votación en particular del proyecto de ley, originado en mensaje de S. E., el Presidente de la Repúblic..."
       ],
@@ -5125,7 +5125,7 @@ export const CAMARA_CITACIONES_POR_COMISION: Record<string, any[]> = {
       "lugar": "Sala Octavio Jara Wolff tercer nivel (Presencial)",
       "tipo": "Sesión de Comisión",
       "materia": "continuar la discusión y votación particular del proyecto de ley, iniciado en mensaje de S. E. el Presidente de la República, que fortalece el ejercicio de la responsabilidad parental, boletín N°18378-18, en primer trámite constitucional y reglamentario, con urgencia calificada de \"suma\". NOTA: Se recuerda que el plazo para la formulación de INDICACIONES del proyecto de ley sobre RESPONSABILIDAD PARENTAL, boletín N° 18378-18 ES EL JUEVES 3 de SEPTIEMBRE DE 2026, a las 12:00 horas (mediodía). Se encuentra invitado el Ministro de Justicia y Derechos Humanos, señor Fernando Rabat, junto al Subsecretario, señor Luis Alejandro Silva para participar de la tramitación de dicha iniciativa legal, boletín N°18378-18.",
-      "invitados": "Autoridades sectoriales convocadas.",
+      "invitados": "No informado en la citación.",
       "tabla": [
         "continuar la discusión y votación particular del proyecto de ley, iniciado en mensaje de S. E. el Presidente de la República, que fortalece ..."
       ],
@@ -5145,7 +5145,7 @@ export const CAMARA_CITACIONES_POR_COMISION: Record<string, any[]> = {
       "lugar": "Sala Ramón Pérez Opazo tercer nivel (Presencial)",
       "tipo": "Comisión Especial Investigadora",
       "materia": "Recibir, en el marco del mandato de la comisión, al director nacional del Servicio Nacional de Migraciones, señor Frank Sauerbaum, para que de respuesta a las consultas formuladas por los miembros de la comisión durante la sesión pasada, y al Defensor de la Niñez, señor Anuar Quesille. El director nacional del Servicio Nacional de Migraciones, señor Frank Sauerbaum. El Defensor de la Niñez, señor Anuar Quesille.",
-      "invitados": "Autoridades sectoriales convocadas.",
+      "invitados": "No informado en la citación.",
       "tabla": [
         "Recibir, en el marco del mandato de la comisión, al director nacional del Servicio Nacional de Migraciones, señor Frank Sauerbaum, para que ..."
       ],
@@ -5165,7 +5165,7 @@ export const CAMARA_CITACIONES_POR_COMISION: Record<string, any[]> = {
       "lugar": "Sala Manuel Bustos Huerta tercer nivel (Presencial)",
       "tipo": "Sesión de Comisión",
       "materia": "Recibir en audiencia al señor Roberto Levin Jiménez, Director Ejecutivo de la Fundación Acrux, a fin de que exponga la experiencia de dicha institución en la realización de operativos médicos en zonas extremas y territorios aislados, y dé a conocer propuestas y alternativas destinadas a contribuir a la reducción de las listas de espera y a mejorar el acceso a prestaciones de salud en dichos territorios, atendidos los antecedentes planteados por los alcaldes y alcaldesas durante el ciclo de audiencias desarrollado por la Comisión.",
-      "invitados": "Autoridades sectoriales convocadas.",
+      "invitados": "No informado en la citación.",
       "tabla": [
         "Recibir en audiencia al señor Roberto Levin Jiménez, Director Ejecutivo de la Fundación Acrux, a fin de que exponga la experiencia de dicha ..."
       ],
@@ -5185,7 +5185,7 @@ export const CAMARA_CITACIONES_POR_COMISION: Record<string, any[]> = {
       "lugar": "Sala N° 410 cuarto nivel (Presencial)",
       "tipo": "Sesión de Comisión",
       "materia": "Iniciar la discusión particular del proyecto de ley que modifica el Código de Aguas para garantizar la participación de comités y cooperativas de agua potable rural, prestadoras de servicios sanitarios rurales, en los directorios de las comunidades de agua, correspondiente a los boletines números 17.324-33 y 17.325-33, refundidos, en primer trámite constitucional y segundo reglamentario.",
-      "invitados": "Autoridades sectoriales convocadas.",
+      "invitados": "No informado en la citación.",
       "tabla": [
         "Iniciar la discusión particular del proyecto de ley que modifica el Código de Aguas para garantizar la participación de comités y cooperativ..."
       ],
@@ -5208,7 +5208,7 @@ export const CAMARA_CITACIONES_POR_COMISION: Record<string, any[]> = {
       "lugar": "Sala Ramón Pérez Opazo tercer nivel (Presencial)",
       "tipo": "Sesión de Comisión",
       "materia": "Recibir en audiencia a la señora Amara Rivera, en representación de la Corporación Hijas e Hijos de Gabriela Mistral, con el objeto de que exponga acerca del destino de los derechos de autor de la obra de la poetisa y de la propuesta de destinarlos íntegramente a programas artísticos, educacionales y culturales dirigidos a los niños de Montegrande. Asimismo, para que se refiera a la posibilidad de impulsar una iniciativa legal que extienda la vigencia de dichos derechos cuando la voluntad expresa del autor o autora se funde en una finalidad social y de bien público. Se ha invitado a la señora Amara Rivera, en representación de la referida Corporación.",
-      "invitados": "Autoridades sectoriales convocadas.",
+      "invitados": "No informado en la citación.",
       "tabla": [
         "Recibir en audiencia a la señora Amara Rivera, en representación de la Corporación Hijas e Hijos de Gabriela Mistral, con el objeto de que e..."
       ],
@@ -5228,7 +5228,7 @@ export const CAMARA_CITACIONES_POR_COMISION: Record<string, any[]> = {
       "lugar": "Sala Juan Lobos Krause tercer nivel (Presencial)",
       "tipo": "Sesión de Comisión",
       "materia": "analizar, junto a las autoridades competentes, las conclusiones y propuestas contenidas en el Informe de la Mesa por la Niñez, elaborado por la Comisión de Familia, e identificar las materias vinculadas al ámbito de su competencia, así como eventuales iniciativas legislativas que puedan impulsarse a partir de dicho trabajo. Para tales efectos se encuentran invitados: - Subsecretario de la Niñez, señor Marcelo Sánchez Ahumada. - Director del Servicio Nacional de Protección Especializada a la Niñez y Adolescencia (S), señor Gherman Welsch Chahuán.",
-      "invitados": "Autoridades sectoriales convocadas.",
+      "invitados": "No informado en la citación.",
       "tabla": [
         "analizar, junto a las autoridades competentes, las conclusiones y propuestas contenidas en el Informe de la Mesa por la Niñez, elaborado por..."
       ],
@@ -5248,7 +5248,7 @@ export const CAMARA_CITACIONES_POR_COMISION: Record<string, any[]> = {
       "lugar": "Sala Pedro Pablo Álvarez-Salamanca tercer nivel (Presencial)",
       "tipo": "Sesión de Comisión",
       "materia": "Tratar materias propias de la competencia de la Comisión. Invitados: Director de la Agencia Nacional de Inteligencia, señor Ronald Mc Intyre Astorga. Fiscal Nacional del Ministerio Público, señor Ángel Valencia Vásquez.",
-      "invitados": "Autoridades sectoriales convocadas.",
+      "invitados": "No informado en la citación.",
       "tabla": [
         "Tratar materias propias de la competencia de la Comisión. Invitados: Director de la Agencia Nacional de Inteligencia, señor Ronald Mc Intyre..."
       ],
@@ -5268,7 +5268,7 @@ export const CAMARA_CITACIONES_POR_COMISION: Record<string, any[]> = {
       "lugar": "Sala Arturo Longton Guerrero tercer nivel (Presencial)",
       "tipo": "Sesión de Comisión",
       "materia": "Sesión especial* citada con objeto de continuar con la votación en particular del proyecto de ley, en primer trámite constitucional, con urgencia calificada de “suma”, originado en las siguientes mociones refundidas: 1) El que establece un marco integral de protección de niñas, niños y adolescentes en el uso de redes sociales (boletín N° 18224-18), de los diputados y diputadas Lorena Fries (A), Jaime Araya, Matías Fernández, Ana María Gazmuri, Andrea Macías, Luis Malla, Cristian Mella, José Montalva, Zandra Parisi y Gonzalo Winter. 2) El que protege a los menores de edad frente a la adicción a las nuevas tecnologías y prohíbe el acceso a redes sociales y otras plataformas (boletín N° 18246-18), de las diputadas y diputados Diego Schalper (A), Héctor Barría, Patricio Briones, Andrés Celis, Tomás Kast, Raúl Leiva, Paula Olmos, Ximena Ossandón, Macarena Santelices y Héctor Ulloa. 3) El que establece un estatuto de responsabilidad algorítmica y protección digital de niños, niñas y adolescentes (boletín N° 18318-19), de las diputadas y diputados Daniel Manouchehri (A), Patricio Briones, Andrés Celis, Carolina Cucumides, Cristóbal Martínez, José Montalva, Daniela Serrano, Consuelo Veloso, Gonzalo Winter y Gael Yeomans. 4) El que modifica la ley N° 21.663, marco de ciberseguridad, para incorporar los principios de protección a la infancia y adolescencia, restricción etaria e información preventiva en entornos digitales (boletín N° 18415-18), de los diputados y diputadas Sara Concha (A), Patricio Briones, Andrés Celis, Tomás Kast, José Montalva, Francesca Muñoz y Tamara Ramírez. En razón de lo anterior, la Comisión ha invitado a la ministra de Desarrollo Social y Familia, señora María Jesús Wulf Le May, y/o al subsecretario de la Niñez, señor Marcelo Sánchez Ahumada. * Esta sesión reemplaza a la ordinaria, toda vez que la Comisión tiene una actividad oficial en Santiago con la ministra de Ciencia, Tecnología, Conocimiento e Innovación. • Ministra de Desarrollo Social y Familia, y/o • Subsecretario de la Niñez.",
-      "invitados": "Autoridades sectoriales convocadas.",
+      "invitados": "No informado en la citación.",
       "tabla": [
         "Sesión especial* citada con objeto de continuar con la votación en particular del proyecto de ley, en primer trámite constitucional, con urg..."
       ],
@@ -5291,7 +5291,7 @@ export const CAMARA_CITACIONES_POR_COMISION: Record<string, any[]> = {
       "lugar": "Sala Arturo Longton Guerrero tercer nivel (Presencial)",
       "tipo": "Sesión de Comisión",
       "materia": "Sesión especial citada con objeto de continuar con la votación en particular del proyecto de ley, en primer trámite constitucional, con urgencia calificada de “suma”, originado en las siguientes mociones refundidas: 1) El que establece un marco integral de protección de niñas, niños y adolescentes en el uso de redes sociales (boletín N° 18224-18), de los diputados y diputadas Lorena Fries (A), Jaime Araya, Matías Fernández, Ana María Gazmuri, Andrea Macías, Luis Malla, Cristian Mella, José Montalva, Zandra Parisi y Gonzalo Winter. 2) El que protege a los menores de edad frente a la adicción a las nuevas tecnologías y prohíbe el acceso a redes sociales y otras plataformas (boletín N° 18246-18), de las diputadas y diputados Diego Schalper (A), Héctor Barría, Patricio Briones, Andrés Celis, Tomás Kast, Raúl Leiva, Paula Olmos, Ximena Ossandón, Macarena Santelices y Héctor Ulloa. 3) El que establece un estatuto de responsabilidad algorítmica y protección digital de niños, niñas y adolescentes (boletín N° 18318-19), de las diputadas y diputados Daniel Manouchehri (A), Patricio Briones, Andrés Celis, Carolina Cucumides, Cristóbal Martínez, José Montalva, Daniela Serrano, Consuelo Veloso, Gonzalo Winter y Gael Yeomans. 4) El que modifica la ley N° 21.663, marco de ciberseguridad, para incorporar los principios de protección a la infancia y adolescencia, restricción etaria e información preventiva en entornos digitales (boletín N° 18415-18), de los diputados y diputadas Sara Concha (A), Patricio Briones, Andrés Celis, Tomás Kast, José Montalva, Francesca Muñoz y Tamara Ramírez. En razón de lo anterior, la Comisión ha invitado a la ministra de Desarrollo Social y Familia, señora María Jesús Wulf Le May, y/o al subsecretario de la Niñez, señor Marcelo Sánchez Ahumada. • Ministra de Desarrollo Social y Familia, y/o • Subsecretario de la Niñez.",
-      "invitados": "Autoridades sectoriales convocadas.",
+      "invitados": "No informado en la citación.",
       "tabla": [
         "Sesión especial citada con objeto de continuar con la votación en particular del proyecto de ley, en primer trámite constitucional, con urge..."
       ],
@@ -5314,7 +5314,7 @@ export const CAMARA_CITACIONES_POR_COMISION: Record<string, any[]> = {
       "lugar": "Sala Arturo Longton Guerrero tercer nivel (Presencial)",
       "tipo": "Sesión de Comisión",
       "materia": "Sesión especial citada con objeto de continuar con la votación en particular del proyecto de ley, en primer trámite constitucional, con urgencia calificada de “suma”, originado en las siguientes mociones refundidas: 1) El que establece un marco integral de protección de niñas, niños y adolescentes en el uso de redes sociales (boletín N° 18224-18), de los diputados y diputadas Lorena Fries (A), Jaime Araya, Matías Fernández, Ana María Gazmuri, Andrea Macías, Luis Malla, Cristian Mella, José Montalva, Zandra Parisi y Gonzalo Winter. 2) El que protege a los menores de edad frente a la adicción a las nuevas tecnologías y prohíbe el acceso a redes sociales y otras plataformas (boletín N° 18246-18), de las diputadas y diputados Diego Schalper (A), Héctor Barría, Patricio Briones, Andrés Celis, Tomás Kast, Raúl Leiva, Paula Olmos, Ximena Ossandón, Macarena Santelices y Héctor Ulloa. 3) El que establece un estatuto de responsabilidad algorítmica y protección digital de niños, niñas y adolescentes (boletín N° 18318-19), de las diputadas y diputados Daniel Manouchehri (A), Patricio Briones, Andrés Celis, Carolina Cucumides, Cristóbal Martínez, José Montalva, Daniela Serrano, Consuelo Veloso, Gonzalo Winter y Gael Yeomans. 4) El que modifica la ley N° 21.663, marco de ciberseguridad, para incorporar los principios de protección a la infancia y adolescencia, restricción etaria e información preventiva en entornos digitales (boletín N° 18415-18), de los diputados y diputadas Sara Concha (A), Patricio Briones, Andrés Celis, Tomás Kast, José Montalva, Francesca Muñoz y Tamara Ramírez. En razón de lo anterior, la Comisión ha invitado a la ministra de Desarrollo Social y Familia, señora María Jesús Wulf Le May, y/o al subsecretario de la Niñez, señor Marcelo Sánchez Ahumada. • Ministra de Desarrollo Social y Familia, y/o • Subsecretario de la Niñez.",
-      "invitados": "Autoridades sectoriales convocadas.",
+      "invitados": "No informado en la citación.",
       "tabla": [
         "Sesión especial citada con objeto de continuar con la votación en particular del proyecto de ley, en primer trámite constitucional, con urge..."
       ],
@@ -5339,7 +5339,7 @@ export const CAMARA_CITACIONES_POR_COMISION: Record<string, any[]> = {
       "lugar": "Sala Pedro Pablo Álvarez-Salamanca tercer nivel (Presencial)",
       "tipo": "Sesión de Comisión",
       "materia": "Con el objeto de tratar materias propias de su competencia.",
-      "invitados": "Autoridades sectoriales convocadas.",
+      "invitados": "No informado en la citación.",
       "tabla": [
         "Con el objeto de tratar materias propias de su competencia...."
       ],
@@ -5359,7 +5359,7 @@ export const CAMARA_CITACIONES_POR_COMISION: Record<string, any[]> = {
       "lugar": "Sala Francisco Bulnes Sanfuentes tercer nivel (Presencial)",
       "tipo": "Sesión de Comisión",
       "materia": "Continuar la tramitación en particular del proyecto de ley, en primer trámite constitucional e iniciado en mensaje, que “Amplía las hipótesis de tráfico de migrantes y modifica los textos legales que indica”. Boletín N° 18.315-07 refundido con proyecto de ley N° 16.948-07. Discusión inmediata. Se ha invitado al señor Ministro de Justicia y Derechos Humanos, y a los expertos en derecho penal señora Diva Serra (U. de Concepción); señora Tania Gajardo (U. Católica de Chile); señor Juan Pablo Castillo (U. A. Hurtado); Antonio Bascuñán (U. Adolfo Ibáñez), sin perjuicio de los invitados que propongan los (as) integrantes de la Comisión.",
-      "invitados": "Autoridades sectoriales convocadas.",
+      "invitados": "No informado en la citación.",
       "tabla": [
         "Continuar la tramitación en particular del proyecto de ley, en primer trámite constitucional e iniciado en mensaje, que “Amplía las hipótesi..."
       ],
@@ -5380,7 +5380,7 @@ export const CAMARA_CITACIONES_POR_COMISION: Record<string, any[]> = {
       "lugar": "Sala Francisco Bulnes Sanfuentes tercer nivel (Presencial)",
       "tipo": "Sesión de Comisión",
       "materia": "Continuar con la tramitación en particular del proyecto de ley, iniciado en moción, que “Modifica el Código Penal para sancionar toda forma de instrumentalización de niños, niñas y adolescentes para cometer delitos''. Boletín N° 18.282-07. Se acordó refundirlo con el boletín N°18.590. Urgencia suma. Se ha invitado al señor Ministro de Justicia y Derechos Humanos; a los académicos señora María Elena Santibáñez (U. Católica de Chile); Alejandra Castillo Ara (U. Diego Portales); Francisco Maldonado Fuentes (U. de Talca); Alejandro Leiva López (U. Andrés Bello); Gonzalo Berríos Díaz (U. de Chile).",
-      "invitados": "Autoridades sectoriales convocadas.",
+      "invitados": "No informado en la citación.",
       "tabla": [
         "Continuar con la tramitación en particular del proyecto de ley, iniciado en moción, que “Modifica el Código Penal para sancionar toda forma ..."
       ],
@@ -5402,7 +5402,7 @@ export const CAMARA_CITACIONES_POR_COMISION: Record<string, any[]> = {
       "lugar": "Sala Octavio Jara Wolff tercer nivel (Presencial)",
       "tipo": "Sesión de Comisión",
       "materia": "Analizar casos de maltrato y discriminación que han sido puestos en conocimiento de la Defensoría del Deportista, por presuntas vulneraciones de derechos de deportistas, que no habrían obtenido una respuesta adecuada por parte de las instituciones correspondientes. Para tales efectos, se encuentran invitados el Director de la Defensoría del Deportista, señor Eduardo Arévalo Mateluna, y el Subsecretario de la Niñez, don Marcelo Sánchez Ahumada.",
-      "invitados": "Autoridades sectoriales convocadas.",
+      "invitados": "No informado en la citación.",
       "tabla": [
         "Analizar casos de maltrato y discriminación que han sido puestos en conocimiento de la Defensoría del Deportista, por presuntas vulneracione..."
       ],
@@ -5422,7 +5422,7 @@ export const CAMARA_CITACIONES_POR_COMISION: Record<string, any[]> = {
       "lugar": "Sala Pedro Pablo Álvarez-Salamanca tercer nivel (Presencial)",
       "tipo": "Sesión de Comisión",
       "materia": "De 15:00 a 16:00 horas: Continuar con la discusión del proyecto de ley que “Modifica la Ley General de Urbanismo y Construcciones, y otros cuerpos legales, para regular el desarrollo de zonas residenciales en el medio rural”, Boletín N°17.006-01. Para este efecto se encuentran invitados: - El Ministro de Agricultura, don Jaime Campos. - El Ministro de Vivienda y Urbanismo, don Iván Poduje.",
-      "invitados": "Autoridades sectoriales convocadas.",
+      "invitados": "No informado en la citación.",
       "tabla": [
         "De 15:00 a 16:00 horas: Continuar con la discusión del proyecto de ley que “Modifica la Ley General de Urbanismo y Construcciones, y otros c..."
       ],
@@ -5444,7 +5444,7 @@ export const CAMARA_CITACIONES_POR_COMISION: Record<string, any[]> = {
       "lugar": "Sala Arturo Longton Guerrero tercer nivel (Presencial)",
       "tipo": "Sesión de Comisión",
       "materia": "Proyecto de ley, de origen en moción, en primer trámite constitucional y reglamentario, que declara feriado nacional el 17 de septiembre de 2026 (Boletín N° 18.600-06). Respecto de este proyecto de ley, ha sido invitado el Biministro de Economía y Energía, señor Daniel Más Valdés.",
-      "invitados": "Autoridades sectoriales convocadas.",
+      "invitados": "No informado en la citación.",
       "tabla": [
         "Proyecto de ley, de origen en moción, en primer trámite constitucional y reglamentario, que declara feriado nacional el 17 de septiembre de ..."
       ],
@@ -5466,7 +5466,7 @@ export const CAMARA_CITACIONES_POR_COMISION: Record<string, any[]> = {
       "lugar": "Sala de Conferencias Inés Enríquez segundo nivel (Presencial)",
       "tipo": "Sesión de Comisión",
       "materia": "Sesión ordinaria citada con objeto de ocuparse de los siguientes asuntos:",
-      "invitados": "Autoridades sectoriales convocadas.",
+      "invitados": "No informado en la citación.",
       "tabla": [
         "Sesión ordinaria citada con objeto de ocuparse de los siguientes asuntos:..."
       ],
@@ -5486,7 +5486,7 @@ export const CAMARA_CITACIONES_POR_COMISION: Record<string, any[]> = {
       "lugar": "Sala Manuel Bustos Huerta tercer nivel (Presencial)",
       "tipo": "Sesión de Comisión",
       "materia": "Recibir en audiencia al señor Gino Casassa Rogazinski, Director del Instituto Antártico Chileno (INACH), a fin de abordar los efectos del calentamiento global y sus causas en el territorio antártico nacional. - Director del Instituto Antártico Chileno (INACH), señor Gino Casassa Rogazinski.",
-      "invitados": "Autoridades sectoriales convocadas.",
+      "invitados": "No informado en la citación.",
       "tabla": [
         "Recibir en audiencia al señor Gino Casassa Rogazinski, Director del Instituto Antártico Chileno (INACH), a fin de abordar los efectos del ca..."
       ],
@@ -5506,7 +5506,7 @@ export const CAMARA_CITACIONES_POR_COMISION: Record<string, any[]> = {
       "lugar": "Sala Octavio Jara Wolff tercer nivel (Presencial)",
       "tipo": "Sesión de Comisión",
       "materia": "Continuar el estudio, en general, de la iniciativa que \"Modifica la ley N°18.961, orgánica constitucional de Carabineros de Chile, en cuanto a los procedimientos de evaluación médica que fundamentan retiros de personal\". Boletín N° 18448-25. Para este objeto se ha invitado a General Director de Carabineros, Marcelo Araya Zapata; al director de Disalcar; al Jefe de la Dirección de Salud de Carabineros, y al Director de Dipreca.",
-      "invitados": "Autoridades sectoriales convocadas.",
+      "invitados": "No informado en la citación.",
       "tabla": [
         "Continuar el estudio, en general, de la iniciativa que \"Modifica la ley N°18.961, orgánica constitucional de Carabineros de Chile, en cuanto..."
       ],
@@ -5528,7 +5528,7 @@ export const CAMARA_CITACIONES_POR_COMISION: Record<string, any[]> = {
       "lugar": "Sala Juan Lobos Krause tercer nivel (Presencial)",
       "tipo": "Sesión de Comisión",
       "materia": "Recibir a los representantes de los trabajadores de la atención primaria de salud, a fin de que expongan sobre la situación presupuestaria de la atención primaria, el financiamiento per cápita y los efectos de los recortes en el funcionamiento de los servicios de salud, entre otras materias.",
-      "invitados": "Autoridades sectoriales convocadas.",
+      "invitados": "No informado en la citación.",
       "tabla": [
         "Recibir a los representantes de los trabajadores de la atención primaria de salud, a fin de que expongan sobre la situación presupuestaria d..."
       ],
@@ -5548,7 +5548,7 @@ export const CAMARA_CITACIONES_POR_COMISION: Record<string, any[]> = {
       "lugar": "Sala Ramón Pérez Opazo tercer nivel (Presencial)",
       "tipo": "Sesión de Comisión",
       "materia": "continuar la discusión y votación particular del proyecto de ley, originado en mensaje de S. E. el Presidente de la República, que modifica la ley N° 19.799, sobre documentos electrónicos, firma electrónica y servicios de certificación de dicha firma, y otros cuerpos legales relacionados, boletín N° 18286-03, con urgencia calificada de “simple”, en primer trámite constitucional y primero reglamentario. NOTA: Se recuerda que el plazo para la formulación de INDICACIONES a este l proyecto de ley es el VIERNES 4 DE SEPTIEMBRE DE 2026, a las 12:00 hrs (mediodía).. Se encuentra invitado a participar de la tramitación de esta iniciativa el Ministro de Economía, Fomento y Turismo, señor Daniel Mas; el Subsecretario de Economía, señor Karlfranz Koehler y un representante experto en la materia de dicho Ministerio.",
-      "invitados": "Autoridades sectoriales convocadas.",
+      "invitados": "No informado en la citación.",
       "tabla": [
         "continuar la discusión y votación particular del proyecto de ley, originado en mensaje de S. E. el Presidente de la República, que modifica ..."
       ],
@@ -5570,7 +5570,7 @@ export const CAMARA_CITACIONES_POR_COMISION: Record<string, any[]> = {
       "lugar": "Sala N° 408 cuarto nivel (Presencial)",
       "tipo": "Sesión de Comisión",
       "materia": "Continuar la discusión general del proyecto de ley que aumenta la pena aplicable al delito de ingreso no autorizado a recintos militares y policiales, y fortalece la protección de la seguridad pública, correspondiente a los boletines refundidos N°18.361-02 y 18.381-02.",
-      "invitados": "Autoridades sectoriales convocadas.",
+      "invitados": "No informado en la citación.",
       "tabla": [
         "Continuar la discusión general del proyecto de ley que aumenta la pena aplicable al delito de ingreso no autorizado a recintos militares y p..."
       ],
@@ -5593,7 +5593,7 @@ export const CAMARA_CITACIONES_POR_COMISION: Record<string, any[]> = {
       "lugar": "Sala de Conferencias Inés Enríquez segundo nivel (Presencial)",
       "tipo": "Sesión de Comisión",
       "materia": "Mensaje de S. E. el Presidente de la República, en primer trámite constitucional y con urgencia calificada de suma, por el cual da inicio a la tramitación del proyecto que \"modifica la Ley Orgánica de la Empresa de los Ferrocarriles del Estado, con el objeto de establecer una exención de derechos y tributos municipales por la ejecución de obras ferroviarias y declarar dichas obras como infraestructura ejecutada por el Estado\". BOLETÍN N°18.436-15. Se encuentra invitado el Biministro de Obras Públicas, Transportes y Telecomunicaciones, señor Louis De Grange Concha.",
-      "invitados": "Autoridades sectoriales convocadas.",
+      "invitados": "No informado en la citación.",
       "tabla": [
         "Mensaje de S. E. el Presidente de la República, en primer trámite constitucional y con urgencia calificada de suma, por el cual da inicio a ..."
       ],
@@ -5615,7 +5615,7 @@ export const CAMARA_CITACIONES_POR_COMISION: Record<string, any[]> = {
       "lugar": "Sala Pedro Pablo Álvarez-Salamanca tercer nivel (Presencial)",
       "tipo": "Sesión de Comisión",
       "materia": "Conocer los informes de auditoría externa elaborados por la empresa Xlibrium, así como aquellos del Comité de Auditoría Parlamentaria. Invitados: Pablo Oneto, Subsecretario Administrativo Patricio Leiva, Jefe de Finanzas Priscila Jara, Abogado Coordinadora del Comité de Auditoría Parlamentaria.",
-      "invitados": "Autoridades sectoriales convocadas.",
+      "invitados": "No informado en la citación.",
       "tabla": [
         "Conocer los informes de auditoría externa elaborados por la empresa Xlibrium, así como aquellos del Comité de Auditoría Parlamentaria. Invit..."
       ],
@@ -5635,7 +5635,7 @@ export const CAMARA_CITACIONES_POR_COMISION: Record<string, any[]> = {
       "lugar": "Sala N° 410 cuarto nivel (Presencial)",
       "tipo": "Sesión de Comisión",
       "materia": "Recibir a la Contralora General de la República, señora Dorothy Pérez Gutiérrez; al Ministro de Vivienda y Urbanismo, señor Iván Poduje Capdeville y al Presidente de la Asociación Chilena de Municipalidades (ACHM), señor Gustavo Alessandri Bascuñán, o a quienes designen en su representación, para que se refieran a las modificaciones introducidas a la Ordenanza General de Urbanismo y Construcciones por el decreto supremo N° 68, de 2026, del Ministerio de Vivienda y Urbanismo, particularmente a sus efectos sobre los planes reguladores comunales y metropolitanos y la calidad de vida de las personas. Se ha invitado a la Contralora General de la República, señora Dorothy Pérez Gutiérrez; al Ministro de Vivienda y Urbanismo, señor Iván Poduje Capdeville y al Presidente de la Asociación Chilena de Municipalidades (ACHM), señor Gustavo Alessandri Bascuñán, o a quienes designen en su representación.",
-      "invitados": "Autoridades sectoriales convocadas.",
+      "invitados": "No informado en la citación.",
       "tabla": [
         "Recibir a la Contralora General de la República, señora Dorothy Pérez Gutiérrez; al Ministro de Vivienda y Urbanismo, señor Iván Poduje Capd..."
       ],
@@ -5655,7 +5655,7 @@ export const CAMARA_CITACIONES_POR_COMISION: Record<string, any[]> = {
       "lugar": "Sala de Conferencias Inés Enríquez segundo nivel (Presencial)",
       "tipo": "Sesión de Comisión",
       "materia": "Continuar la votación en particular del proyecto de ley originado en Moción, en primer trámite constitucional, copatrocinada por los diputados señores Alejandro Bernales, Roberto Celedón, Mauro González, Jorge Guzmán (A), Tomás Kast, Diego Schalper, Carolina Tello y Guillermo Valdés, sobre “Fortalecimiento de la Seguridad Marítima”, BOLETÍN 18.198-15. Se encuentran invitados el Subsecretario de Justicia, señor Luis Silva Irarrázabal; el Capitán de Navío Litoral (CN LT) de la Dirección General del Territorio Marítimo y de Marina Mercante y Jefe del Servicio de Inspecciones Marítimas, señor Roberto Alfaro Pérez; el Teniente 1, señor Gastón Salinas Valdés, Asesor jurídico de la Dirección de Seguridad y Operaciones Marítimas de la Armada de Chile, y la asesora jurídica del Ministerio de Defensa, señora Maricarmen Garrido I.",
-      "invitados": "Autoridades sectoriales convocadas.",
+      "invitados": "No informado en la citación.",
       "tabla": [
         "Continuar la votación en particular del proyecto de ley originado en Moción, en primer trámite constitucional, copatrocinada por los diputad..."
       ],
@@ -5677,7 +5677,7 @@ export const CAMARA_CITACIONES_POR_COMISION: Record<string, any[]> = {
       "lugar": "Sala Manuel Bustos Huerta tercer nivel (Presencial)",
       "tipo": "Sesión de Comisión",
       "materia": "Iniciar la discusión y votación en particular de los siguientes proyectos de ley, refundidos: 1) Moción de las diputadas Sara Concha Smith, Valentina Becerra Peña, Francesca Muñoz González, Paulina Muñoz Minte, Ximena Naranjo Pinto, Javiera Rodríguez Pascual, Marisela Santibáñez Novoa, Eileen Urqueta Rojas y Consuelo Veloso Ávila, y del diputado Eduardo Durán Salinas, que fortalece la protección de las víctimas de violencia intrafamiliar y previene su revictimización, correspondiente al boletín N°18236-18, en primer trámite constitucional y reglamentario, con urgencia calificada de “suma”. 2) Moción de las diputadas Valentina Becerra Peña, Paz Charpentier Rajcevich, Catalina Del Real Mihovilovic, Stephanie Jéldrez Ortiz, Claudia Mora Vega, Zandra Parisi Fernández, Claudia Reyes Larenas y Marisela Santibáñez Novoa, y de los diputados Felipe Camaño Cárdenas y Eduardo Durán Salinas, que modifica cuerpos legales que indica en materia de notificaciones de medidas cautelares dictadas en procesos de violencia intrafamiliar, correspondiente al boletín N°18414-18, en primer trámite constitucional y reglamentario.",
-      "invitados": "Autoridades sectoriales convocadas.",
+      "invitados": "No informado en la citación.",
       "tabla": [
         "Iniciar la discusión y votación en particular de los siguientes proyectos de ley, refundidos: 1) Moción de las diputadas Sara Concha Smith, ..."
       ],
@@ -5700,7 +5700,7 @@ export const CAMARA_CITACIONES_POR_COMISION: Record<string, any[]> = {
       "lugar": "Sala Juan Lobos Krause tercer nivel (Presencial)",
       "tipo": "Sesión de Comisión",
       "materia": "Continuar la discusión y votación particular, en segundo trámite constitucional, del proyecto de ley que modifica diversos cuerpos legales, con el objeto de fortalecer la institucionalidad ambiental y mejorar su eficiencia, correspondiente al Boletín N° 16.552-12 (S). Urgencia simple.",
-      "invitados": "Autoridades sectoriales convocadas.",
+      "invitados": "No informado en la citación.",
       "tabla": [
         "Continuar la discusión y votación particular, en segundo trámite constitucional, del proyecto de ley que modifica diversos cuerpos legales, ..."
       ],
@@ -5722,7 +5722,7 @@ export const CAMARA_CITACIONES_POR_COMISION: Record<string, any[]> = {
       "lugar": "Sala Ramón Pérez Opazo tercer nivel (Presencial)",
       "tipo": "Sesión de Comisión",
       "materia": "Recibir al subsecretario de Derechos Humanos, Pablo Mira Hurtado; y al subsecretario de la Niñez, Marcelo Sánchez Ahumada, para que informen acerca del funcionamiento y estado de avance de la Comisión de Verdad y Niñez, especialmente sobre las labores desarrolladas, las metas y plazos establecidos, las dificultades que ha enfrentado y sus proyecciones futuras. Asimismo, para que efectúen una exposición acabada que comprenda el pasado, presente y futuro de dicha Comisión.",
-      "invitados": "Autoridades sectoriales convocadas.",
+      "invitados": "No informado en la citación.",
       "tabla": [
         "Recibir al subsecretario de Derechos Humanos, Pablo Mira Hurtado; y al subsecretario de la Niñez, Marcelo Sánchez Ahumada, para que informen..."
       ],
@@ -5742,7 +5742,7 @@ export const CAMARA_CITACIONES_POR_COMISION: Record<string, any[]> = {
       "lugar": "Sala Octavio Jara Wolff tercer nivel (Presencial)",
       "tipo": "Sesión de Comisión",
       "materia": "Analizar la aprobación por parte de la Comisión de Evaluación Ambiental (CEA) del proyecto minero de tierras raras impulsado en la comuna de Penco por la empresa minera Aclara y el Grupo CAP, y sus eventuales implicancias para la comuna y la región. - Biministro de Economía, Fomento y Turismo y Minería, señor Daniel Mas Valdés. - Subsecretario de Minería, señor Álvaro González Gorroño. - Alcalde de Penco, señor Rodrigo Vera Riquelme. - Secretario Regional Ministerial de Minería de la Región del Biobío, señor Daniel Escobar Palma. - Vicedecana de la Facultad de Ingeniería de la Universidad Católica de la Santísima Concepción, señora Matilde Basso Aránguiz.",
-      "invitados": "Autoridades sectoriales convocadas.",
+      "invitados": "No informado en la citación.",
       "tabla": [
         "Analizar la aprobación por parte de la Comisión de Evaluación Ambiental (CEA) del proyecto minero de tierras raras impulsado en la comuna de..."
       ],
@@ -5764,7 +5764,7 @@ export const CAMARA_CITACIONES_FULL_WEEK: any[] = [
     "lugar": "Sala Multiuso 1er Piso primer nivel (Presencial)",
     "tipo": "Sesión de Comisión",
     "materia": "Continuar el estudio del proyecto de ley, originado en mensaje de S.E. el Presidente de la República, que “Perfecciona los mecanismos de adaptabilidad de la jornada de trabajo y establece un régimen especial para el sector turismo y actividades conexas”, correspondiente al boletín N° 18.478-13, con urgencia calificada de “suma”. Para estos efectos, se ha invitado al señor Gustavo Rosenda Salazar, Subsecretario del Trabajo; a la señora María Paz Lagos Valdivieso, Subsecreraria deTurismo; al señor José Pakomio Torres, Presidente de la Cámara Nacional de Comercio (CNC); al señor Matías Rodríguez Burr, abogado laboralista y Presidente del Departamento de Derecho del Trabajo y Seguridad Social de la Universidad de Valparaíso; al señor David Bravo Urrutia, economista, académico, investigador y Director del Centro UC de Encuestas y Estudios Longitudinales; a la señora Susana Jiménez, Presidenta de la Confederación de la Producción y del Comercio (CPC); a la señora Patricia Silva Meléndez, abogada coordinadora del Programa Laboral del Instituto Igualdad y ex Directora del Trabajo, al señor Manuel Muñoz Lorca, abogado coordinador de la Asociación de Empresas de Seguridad Privada y de Transporte de Valores (ASEVA), y a la señora María Teresa Vial, Presidenta de la Cámara de Comercio de Santiago A.G.",
-    "invitados": "Autoridades sectoriales convocadas.",
+    "invitados": "No informado en la citación.",
     "tabla": [
       "Continuar el estudio del proyecto de ley, originado en mensaje de S.E. el Presidente de la República, que “Perfecciona los mecanismos de ada..."
     ],
@@ -5784,7 +5784,7 @@ export const CAMARA_CITACIONES_FULL_WEEK: any[] = [
     "lugar": "Sala de Lectura primer nivel (Presencial)",
     "tipo": "Comisión Especial Investigadora",
     "materia": "Con el objeto de abocarse al mandato de la Comisión. Para tales efectos, se recibirá a la exministra de Seguridad Pública, doña Trinidad Steinert Herrera; a la ex Subdirectora de Inteligencia, Crimen Organizado y Seguridad Migratoria de esa institución, Prefecta General (R) doña Consuelo Peña San Miguel; a la ex Subsecretaria de Prevención del Delito, doña Ana Victoria Quintana Olguín; al Coordinador de asesores del gabinete presidencial, don Alejandro Irarrázaval Alfonso, y al abogado penalista don Juan Pablo Mañalich Raffo.",
-    "invitados": "Autoridades sectoriales convocadas.",
+    "invitados": "No informado en la citación.",
     "tabla": [
       "Con el objeto de abocarse al mandato de la Comisión. Para tales efectos, se recibirá a la exministra de Seguridad Pública, doña Trinidad Ste..."
     ],
@@ -5801,7 +5801,7 @@ export const CAMARA_CITACIONES_FULL_WEEK: any[] = [
     "lugar": "Sala Pedro Pablo Álvarez-Salamanca tercer nivel (Presencial)",
     "tipo": "Comisión Especial Investigadora",
     "materia": "Con el objeto de continuar su cometido y dar cumplimiento a lo encomendado en el mandato. Se ha invitado a: - Ex Ministro de Hacienda, señor Nicolás Grau Veloso. - Ex Directora de Presupuestos, señora Javiera Martínez Fariña. Se ha citado a: - Presidente Panel Técnico de Concesiones, señor Raúl Erazo Torricelli.",
-    "invitados": "Autoridades sectoriales convocadas.",
+    "invitados": "No informado en la citación.",
     "tabla": [
       "Con el objeto de continuar su cometido y dar cumplimiento a lo encomendado en el mandato. Se ha invitado a: - Ex Ministro de Hacienda, señor..."
     ],
@@ -5818,7 +5818,7 @@ export const CAMARA_CITACIONES_FULL_WEEK: any[] = [
     "lugar": "Sala de Conferencias Inés Enríquez segundo nivel (Presencial)",
     "tipo": "Sesión de Comisión",
     "materia": "De 14:50 a 15:50 horas: Continuar la votación en particular del proyecto de ley, originado en mensaje de S. E., el Presidente de la República que, “crea el registro de actos vandálicos e incivilidades”. Boletín N°18.341-25, con urgencia calificada de “suma”. En primer trámite constitucional y primero reglamentario. Para tales efectos se invitó al biministro del Interior y de la Secretaría General de Gobierno, señor Claudio Alvarado Andrade.",
-    "invitados": "Autoridades sectoriales convocadas.",
+    "invitados": "No informado en la citación.",
     "tabla": [
       "De 14:50 a 15:50 horas: Continuar la votación en particular del proyecto de ley, originado en mensaje de S. E., el Presidente de la Repúblic..."
     ],
@@ -5838,7 +5838,7 @@ export const CAMARA_CITACIONES_FULL_WEEK: any[] = [
     "lugar": "Sala Octavio Jara Wolff tercer nivel (Presencial)",
     "tipo": "Sesión de Comisión",
     "materia": "continuar la discusión y votación particular del proyecto de ley, iniciado en mensaje de S. E. el Presidente de la República, que fortalece el ejercicio de la responsabilidad parental, boletín N°18378-18, en primer trámite constitucional y reglamentario, con urgencia calificada de \"suma\". NOTA: Se recuerda que el plazo para la formulación de INDICACIONES del proyecto de ley sobre RESPONSABILIDAD PARENTAL, boletín N° 18378-18 ES EL JUEVES 3 de SEPTIEMBRE DE 2026, a las 12:00 horas (mediodía). Se encuentra invitado el Ministro de Justicia y Derechos Humanos, señor Fernando Rabat, junto al Subsecretario, señor Luis Alejandro Silva para participar de la tramitación de dicha iniciativa legal, boletín N°18378-18.",
-    "invitados": "Autoridades sectoriales convocadas.",
+    "invitados": "No informado en la citación.",
     "tabla": [
       "continuar la discusión y votación particular del proyecto de ley, iniciado en mensaje de S. E. el Presidente de la República, que fortalece ..."
     ],
@@ -5858,7 +5858,7 @@ export const CAMARA_CITACIONES_FULL_WEEK: any[] = [
     "lugar": "Sala Manuel Bustos Huerta tercer nivel (Presencial)",
     "tipo": "Sesión de Comisión",
     "materia": "Recibir en audiencia al señor Roberto Levin Jiménez, Director Ejecutivo de la Fundación Acrux, a fin de que exponga la experiencia de dicha institución en la realización de operativos médicos en zonas extremas y territorios aislados, y dé a conocer propuestas y alternativas destinadas a contribuir a la reducción de las listas de espera y a mejorar el acceso a prestaciones de salud en dichos territorios, atendidos los antecedentes planteados por los alcaldes y alcaldesas durante el ciclo de audiencias desarrollado por la Comisión.",
-    "invitados": "Autoridades sectoriales convocadas.",
+    "invitados": "No informado en la citación.",
     "tabla": [
       "Recibir en audiencia al señor Roberto Levin Jiménez, Director Ejecutivo de la Fundación Acrux, a fin de que exponga la experiencia de dicha ..."
     ],
@@ -5876,7 +5876,7 @@ export const CAMARA_CITACIONES_FULL_WEEK: any[] = [
     "lugar": "Sala N° 410 cuarto nivel (Presencial)",
     "tipo": "Sesión de Comisión",
     "materia": "Iniciar la discusión particular del proyecto de ley que modifica el Código de Aguas para garantizar la participación de comités y cooperativas de agua potable rural, prestadoras de servicios sanitarios rurales, en los directorios de las comunidades de agua, correspondiente a los boletines números 17.324-33 y 17.325-33, refundidos, en primer trámite constitucional y segundo reglamentario.",
-    "invitados": "Autoridades sectoriales convocadas.",
+    "invitados": "No informado en la citación.",
     "tabla": [
       "Iniciar la discusión particular del proyecto de ley que modifica el Código de Aguas para garantizar la participación de comités y cooperativ..."
     ],
@@ -5897,7 +5897,7 @@ export const CAMARA_CITACIONES_FULL_WEEK: any[] = [
     "lugar": "Sala Ramón Pérez Opazo tercer nivel (Presencial)",
     "tipo": "Sesión de Comisión",
     "materia": "Recibir en audiencia a la señora Amara Rivera, en representación de la Corporación Hijas e Hijos de Gabriela Mistral, con el objeto de que exponga acerca del destino de los derechos de autor de la obra de la poetisa y de la propuesta de destinarlos íntegramente a programas artísticos, educacionales y culturales dirigidos a los niños de Montegrande. Asimismo, para que se refiera a la posibilidad de impulsar una iniciativa legal que extienda la vigencia de dichos derechos cuando la voluntad expresa del autor o autora se funde en una finalidad social y de bien público. Se ha invitado a la señora Amara Rivera, en representación de la referida Corporación.",
-    "invitados": "Autoridades sectoriales convocadas.",
+    "invitados": "No informado en la citación.",
     "tabla": [
       "Recibir en audiencia a la señora Amara Rivera, en representación de la Corporación Hijas e Hijos de Gabriela Mistral, con el objeto de que e..."
     ],
@@ -5915,7 +5915,7 @@ export const CAMARA_CITACIONES_FULL_WEEK: any[] = [
     "lugar": "Sala Juan Lobos Krause tercer nivel (Presencial)",
     "tipo": "Sesión de Comisión",
     "materia": "analizar, junto a las autoridades competentes, las conclusiones y propuestas contenidas en el Informe de la Mesa por la Niñez, elaborado por la Comisión de Familia, e identificar las materias vinculadas al ámbito de su competencia, así como eventuales iniciativas legislativas que puedan impulsarse a partir de dicho trabajo. Para tales efectos se encuentran invitados: - Subsecretario de la Niñez, señor Marcelo Sánchez Ahumada. - Director del Servicio Nacional de Protección Especializada a la Niñez y Adolescencia (S), señor Gherman Welsch Chahuán.",
-    "invitados": "Autoridades sectoriales convocadas.",
+    "invitados": "No informado en la citación.",
     "tabla": [
       "analizar, junto a las autoridades competentes, las conclusiones y propuestas contenidas en el Informe de la Mesa por la Niñez, elaborado por..."
     ],
@@ -5933,7 +5933,7 @@ export const CAMARA_CITACIONES_FULL_WEEK: any[] = [
     "lugar": "Sala Pedro Pablo Álvarez-Salamanca tercer nivel (Presencial)",
     "tipo": "Sesión de Comisión",
     "materia": "Tratar materias propias de la competencia de la Comisión. Invitados: Director de la Agencia Nacional de Inteligencia, señor Ronald Mc Intyre Astorga. Fiscal Nacional del Ministerio Público, señor Ángel Valencia Vásquez.",
-    "invitados": "Autoridades sectoriales convocadas.",
+    "invitados": "No informado en la citación.",
     "tabla": [
       "Tratar materias propias de la competencia de la Comisión. Invitados: Director de la Agencia Nacional de Inteligencia, señor Ronald Mc Intyre..."
     ],
@@ -5951,7 +5951,7 @@ export const CAMARA_CITACIONES_FULL_WEEK: any[] = [
     "lugar": "Sala Arturo Longton Guerrero tercer nivel (Presencial)",
     "tipo": "Sesión de Comisión",
     "materia": "Sesión especial* citada con objeto de continuar con la votación en particular del proyecto de ley, en primer trámite constitucional, con urgencia calificada de “suma”, originado en las siguientes mociones refundidas: 1) El que establece un marco integral de protección de niñas, niños y adolescentes en el uso de redes sociales (boletín N° 18224-18), de los diputados y diputadas Lorena Fries (A), Jaime Araya, Matías Fernández, Ana María Gazmuri, Andrea Macías, Luis Malla, Cristian Mella, José Montalva, Zandra Parisi y Gonzalo Winter. 2) El que protege a los menores de edad frente a la adicción a las nuevas tecnologías y prohíbe el acceso a redes sociales y otras plataformas (boletín N° 18246-18), de las diputadas y diputados Diego Schalper (A), Héctor Barría, Patricio Briones, Andrés Celis, Tomás Kast, Raúl Leiva, Paula Olmos, Ximena Ossandón, Macarena Santelices y Héctor Ulloa. 3) El que establece un estatuto de responsabilidad algorítmica y protección digital de niños, niñas y adolescentes (boletín N° 18318-19), de las diputadas y diputados Daniel Manouchehri (A), Patricio Briones, Andrés Celis, Carolina Cucumides, Cristóbal Martínez, José Montalva, Daniela Serrano, Consuelo Veloso, Gonzalo Winter y Gael Yeomans. 4) El que modifica la ley N° 21.663, marco de ciberseguridad, para incorporar los principios de protección a la infancia y adolescencia, restricción etaria e información preventiva en entornos digitales (boletín N° 18415-18), de los diputados y diputadas Sara Concha (A), Patricio Briones, Andrés Celis, Tomás Kast, José Montalva, Francesca Muñoz y Tamara Ramírez. En razón de lo anterior, la Comisión ha invitado a la ministra de Desarrollo Social y Familia, señora María Jesús Wulf Le May, y/o al subsecretario de la Niñez, señor Marcelo Sánchez Ahumada. * Esta sesión reemplaza a la ordinaria, toda vez que la Comisión tiene una actividad oficial en Santiago con la ministra de Ciencia, Tecnología, Conocimiento e Innovación. • Ministra de Desarrollo Social y Familia, y/o • Subsecretario de la Niñez.",
-    "invitados": "Autoridades sectoriales convocadas.",
+    "invitados": "No informado en la citación.",
     "tabla": [
       "Sesión especial* citada con objeto de continuar con la votación en particular del proyecto de ley, en primer trámite constitucional, con urg..."
     ],
@@ -5974,7 +5974,7 @@ export const CAMARA_CITACIONES_FULL_WEEK: any[] = [
     "lugar": "Sala Ramón Pérez Opazo tercer nivel (Presencial)",
     "tipo": "Comisión Especial Investigadora",
     "materia": "recibir en audiencia, en el marco de su mandato, al Economista y Director Académico del Diplomado en Finanzas, FEN, de la Universidad de Chile, señor Jorge Berríos Vogel.",
-    "invitados": "Autoridades sectoriales convocadas.",
+    "invitados": "No informado en la citación.",
     "tabla": [
       "recibir en audiencia, en el marco de su mandato, al Economista y Director Académico del Diplomado en Finanzas, FEN, de la Universidad de Chi..."
     ],
@@ -5991,7 +5991,7 @@ export const CAMARA_CITACIONES_FULL_WEEK: any[] = [
     "lugar": "Sala Arturo Longton Guerrero tercer nivel (Presencial)",
     "tipo": "Sesión de Comisión",
     "materia": "Sesión especial citada con objeto de continuar con la votación en particular del proyecto de ley, en primer trámite constitucional, con urgencia calificada de “suma”, originado en las siguientes mociones refundidas: 1) El que establece un marco integral de protección de niñas, niños y adolescentes en el uso de redes sociales (boletín N° 18224-18), de los diputados y diputadas Lorena Fries (A), Jaime Araya, Matías Fernández, Ana María Gazmuri, Andrea Macías, Luis Malla, Cristian Mella, José Montalva, Zandra Parisi y Gonzalo Winter. 2) El que protege a los menores de edad frente a la adicción a las nuevas tecnologías y prohíbe el acceso a redes sociales y otras plataformas (boletín N° 18246-18), de las diputadas y diputados Diego Schalper (A), Héctor Barría, Patricio Briones, Andrés Celis, Tomás Kast, Raúl Leiva, Paula Olmos, Ximena Ossandón, Macarena Santelices y Héctor Ulloa. 3) El que establece un estatuto de responsabilidad algorítmica y protección digital de niños, niñas y adolescentes (boletín N° 18318-19), de las diputadas y diputados Daniel Manouchehri (A), Patricio Briones, Andrés Celis, Carolina Cucumides, Cristóbal Martínez, José Montalva, Daniela Serrano, Consuelo Veloso, Gonzalo Winter y Gael Yeomans. 4) El que modifica la ley N° 21.663, marco de ciberseguridad, para incorporar los principios de protección a la infancia y adolescencia, restricción etaria e información preventiva en entornos digitales (boletín N° 18415-18), de los diputados y diputadas Sara Concha (A), Patricio Briones, Andrés Celis, Tomás Kast, José Montalva, Francesca Muñoz y Tamara Ramírez. En razón de lo anterior, la Comisión ha invitado a la ministra de Desarrollo Social y Familia, señora María Jesús Wulf Le May, y/o al subsecretario de la Niñez, señor Marcelo Sánchez Ahumada. • Ministra de Desarrollo Social y Familia, y/o • Subsecretario de la Niñez.",
-    "invitados": "Autoridades sectoriales convocadas.",
+    "invitados": "No informado en la citación.",
     "tabla": [
       "Sesión especial citada con objeto de continuar con la votación en particular del proyecto de ley, en primer trámite constitucional, con urge..."
     ],
@@ -6014,7 +6014,7 @@ export const CAMARA_CITACIONES_FULL_WEEK: any[] = [
     "lugar": "Sala Pedro Pablo Álvarez-Salamanca tercer nivel (Presencial)",
     "tipo": "Sesión de Comisión",
     "materia": "Con el objeto de tratar materias propias de su competencia.",
-    "invitados": "Autoridades sectoriales convocadas.",
+    "invitados": "No informado en la citación.",
     "tabla": [
       "Con el objeto de tratar materias propias de su competencia...."
     ],
@@ -6032,7 +6032,7 @@ export const CAMARA_CITACIONES_FULL_WEEK: any[] = [
     "lugar": "Sala Francisco Bulnes Sanfuentes tercer nivel (Presencial)",
     "tipo": "Sesión de Comisión",
     "materia": "Continuar la tramitación en particular del proyecto de ley, en primer trámite constitucional e iniciado en mensaje, que “Amplía las hipótesis de tráfico de migrantes y modifica los textos legales que indica”. Boletín N° 18.315-07 refundido con proyecto de ley N° 16.948-07. Discusión inmediata. Se ha invitado al señor Ministro de Justicia y Derechos Humanos, y a los expertos en derecho penal señora Diva Serra (U. de Concepción); señora Tania Gajardo (U. Católica de Chile); señor Juan Pablo Castillo (U. A. Hurtado); Antonio Bascuñán (U. Adolfo Ibáñez), sin perjuicio de los invitados que propongan los (as) integrantes de la Comisión.",
-    "invitados": "Autoridades sectoriales convocadas.",
+    "invitados": "No informado en la citación.",
     "tabla": [
       "Continuar la tramitación en particular del proyecto de ley, en primer trámite constitucional e iniciado en mensaje, que “Amplía las hipótesi..."
     ],
@@ -6053,7 +6053,7 @@ export const CAMARA_CITACIONES_FULL_WEEK: any[] = [
     "lugar": "Sala Octavio Jara Wolff tercer nivel (Presencial)",
     "tipo": "Sesión de Comisión",
     "materia": "Analizar casos de maltrato y discriminación que han sido puestos en conocimiento de la Defensoría del Deportista, por presuntas vulneraciones de derechos de deportistas, que no habrían obtenido una respuesta adecuada por parte de las instituciones correspondientes. Para tales efectos, se encuentran invitados el Director de la Defensoría del Deportista, señor Eduardo Arévalo Mateluna, y el Subsecretario de la Niñez, don Marcelo Sánchez Ahumada.",
-    "invitados": "Autoridades sectoriales convocadas.",
+    "invitados": "No informado en la citación.",
     "tabla": [
       "Analizar casos de maltrato y discriminación que han sido puestos en conocimiento de la Defensoría del Deportista, por presuntas vulneracione..."
     ],
@@ -6071,7 +6071,7 @@ export const CAMARA_CITACIONES_FULL_WEEK: any[] = [
     "lugar": "Sala Pedro Pablo Álvarez-Salamanca tercer nivel (Presencial)",
     "tipo": "Sesión de Comisión",
     "materia": "De 15:00 a 16:00 horas: Continuar con la discusión del proyecto de ley que “Modifica la Ley General de Urbanismo y Construcciones, y otros cuerpos legales, para regular el desarrollo de zonas residenciales en el medio rural”, Boletín N°17.006-01. Para este efecto se encuentran invitados: - El Ministro de Agricultura, don Jaime Campos. - El Ministro de Vivienda y Urbanismo, don Iván Poduje.",
-    "invitados": "Autoridades sectoriales convocadas.",
+    "invitados": "No informado en la citación.",
     "tabla": [
       "De 15:00 a 16:00 horas: Continuar con la discusión del proyecto de ley que “Modifica la Ley General de Urbanismo y Construcciones, y otros c..."
     ],
@@ -6091,7 +6091,7 @@ export const CAMARA_CITACIONES_FULL_WEEK: any[] = [
     "lugar": "Sala Arturo Longton Guerrero tercer nivel (Presencial)",
     "tipo": "Sesión de Comisión",
     "materia": "Proyecto de ley, de origen en moción, en primer trámite constitucional y reglamentario, que declara feriado nacional el 17 de septiembre de 2026 (Boletín N° 18.600-06). Respecto de este proyecto de ley, ha sido invitado el Biministro de Economía y Energía, señor Daniel Más Valdés.",
-    "invitados": "Autoridades sectoriales convocadas.",
+    "invitados": "No informado en la citación.",
     "tabla": [
       "Proyecto de ley, de origen en moción, en primer trámite constitucional y reglamentario, que declara feriado nacional el 17 de septiembre de ..."
     ],
@@ -6111,7 +6111,7 @@ export const CAMARA_CITACIONES_FULL_WEEK: any[] = [
     "lugar": "Sala de Conferencias Inés Enríquez segundo nivel (Presencial)",
     "tipo": "Sesión de Comisión",
     "materia": "Sesión ordinaria citada con objeto de ocuparse de los siguientes asuntos:",
-    "invitados": "Autoridades sectoriales convocadas.",
+    "invitados": "No informado en la citación.",
     "tabla": [
       "Sesión ordinaria citada con objeto de ocuparse de los siguientes asuntos:..."
     ],
@@ -6129,7 +6129,7 @@ export const CAMARA_CITACIONES_FULL_WEEK: any[] = [
     "lugar": "Sala Manuel Bustos Huerta tercer nivel (Presencial)",
     "tipo": "Sesión de Comisión",
     "materia": "Recibir en audiencia al señor Gino Casassa Rogazinski, Director del Instituto Antártico Chileno (INACH), a fin de abordar los efectos del calentamiento global y sus causas en el territorio antártico nacional. - Director del Instituto Antártico Chileno (INACH), señor Gino Casassa Rogazinski.",
-    "invitados": "Autoridades sectoriales convocadas.",
+    "invitados": "No informado en la citación.",
     "tabla": [
       "Recibir en audiencia al señor Gino Casassa Rogazinski, Director del Instituto Antártico Chileno (INACH), a fin de abordar los efectos del ca..."
     ],
@@ -6147,7 +6147,7 @@ export const CAMARA_CITACIONES_FULL_WEEK: any[] = [
     "lugar": "Sala Octavio Jara Wolff tercer nivel (Presencial)",
     "tipo": "Sesión de Comisión",
     "materia": "Continuar el estudio, en general, de la iniciativa que \"Modifica la ley N°18.961, orgánica constitucional de Carabineros de Chile, en cuanto a los procedimientos de evaluación médica que fundamentan retiros de personal\". Boletín N° 18448-25. Para este objeto se ha invitado a General Director de Carabineros, Marcelo Araya Zapata; al director de Disalcar; al Jefe de la Dirección de Salud de Carabineros, y al Director de Dipreca.",
-    "invitados": "Autoridades sectoriales convocadas.",
+    "invitados": "No informado en la citación.",
     "tabla": [
       "Continuar el estudio, en general, de la iniciativa que \"Modifica la ley N°18.961, orgánica constitucional de Carabineros de Chile, en cuanto..."
     ],
@@ -6167,7 +6167,7 @@ export const CAMARA_CITACIONES_FULL_WEEK: any[] = [
     "lugar": "Sala Juan Lobos Krause tercer nivel (Presencial)",
     "tipo": "Sesión de Comisión",
     "materia": "Recibir a los representantes de los trabajadores de la atención primaria de salud, a fin de que expongan sobre la situación presupuestaria de la atención primaria, el financiamiento per cápita y los efectos de los recortes en el funcionamiento de los servicios de salud, entre otras materias.",
-    "invitados": "Autoridades sectoriales convocadas.",
+    "invitados": "No informado en la citación.",
     "tabla": [
       "Recibir a los representantes de los trabajadores de la atención primaria de salud, a fin de que expongan sobre la situación presupuestaria d..."
     ],
@@ -6185,7 +6185,7 @@ export const CAMARA_CITACIONES_FULL_WEEK: any[] = [
     "lugar": "Sala Ramón Pérez Opazo tercer nivel (Presencial)",
     "tipo": "Sesión de Comisión",
     "materia": "continuar la discusión y votación particular del proyecto de ley, originado en mensaje de S. E. el Presidente de la República, que modifica la ley N° 19.799, sobre documentos electrónicos, firma electrónica y servicios de certificación de dicha firma, y otros cuerpos legales relacionados, boletín N° 18286-03, con urgencia calificada de “simple”, en primer trámite constitucional y primero reglamentario. NOTA: Se recuerda que el plazo para la formulación de INDICACIONES a este l proyecto de ley es el VIERNES 4 DE SEPTIEMBRE DE 2026, a las 12:00 hrs (mediodía).. Se encuentra invitado a participar de la tramitación de esta iniciativa el Ministro de Economía, Fomento y Turismo, señor Daniel Mas; el Subsecretario de Economía, señor Karlfranz Koehler y un representante experto en la materia de dicho Ministerio.",
-    "invitados": "Autoridades sectoriales convocadas.",
+    "invitados": "No informado en la citación.",
     "tabla": [
       "continuar la discusión y votación particular del proyecto de ley, originado en mensaje de S. E. el Presidente de la República, que modifica ..."
     ],
@@ -6205,7 +6205,7 @@ export const CAMARA_CITACIONES_FULL_WEEK: any[] = [
     "lugar": "Sala Manuel Bustos Huerta tercer nivel (Presencial)",
     "tipo": "Sesión de Comisión",
     "materia": "Continuar el estudio y votar en general el proyecto de ley, originado en mensaje de S.E. el Presidente de la República, que “Perfecciona los mecanismos de adaptabilidad de la jornada de trabajo y establece un régimen especial para el sector turismo y actividades conexas”, correspondiente al boletín N° 18.478-13, con urgencia calificada de “suma”. Para estos efectos, se escucharán, en primer lugar, las intervenciones pendientes de las diputadas señoras Ximena Ossandón y Gael Yeomans. Asimismo, se ha invitado al señor Gustavo Rosende Salazar, Subsecretario del Trabajo; a la señora María Paz Lagos Valdivieso, Subsecretaria de Turismo, al señor Claudio Sánchez Pino, Presidente de la Central de Trabajadores de Chile (CTCH); a la señora Bettina Horst von Thadden, Directora Ejecutiva de Libertad y Desarrollo (LyD); al señor Diego Ignacio Valerio Avalosa, Presidente de la Federación de Sindicatos de Casinos de Juego y Hoteles de Chile (FENASICAJH), y al señor Juan Manuel Mira Velasco, Presidente de Chilealimentos.",
-    "invitados": "Autoridades sectoriales convocadas.",
+    "invitados": "No informado en la citación.",
     "tabla": [
       "Continuar el estudio y votar en general el proyecto de ley, originado en mensaje de S.E. el Presidente de la República, que “Perfecciona los..."
     ],
@@ -6225,7 +6225,7 @@ export const CAMARA_CITACIONES_FULL_WEEK: any[] = [
     "lugar": "Sala N° 408 cuarto nivel (Presencial)",
     "tipo": "Sesión de Comisión",
     "materia": "Continuar la discusión general del proyecto de ley que aumenta la pena aplicable al delito de ingreso no autorizado a recintos militares y policiales, y fortalece la protección de la seguridad pública, correspondiente a los boletines refundidos N°18.361-02 y 18.381-02.",
-    "invitados": "Autoridades sectoriales convocadas.",
+    "invitados": "No informado en la citación.",
     "tabla": [
       "Continuar la discusión general del proyecto de ley que aumenta la pena aplicable al delito de ingreso no autorizado a recintos militares y p..."
     ],
@@ -6246,7 +6246,7 @@ export const CAMARA_CITACIONES_FULL_WEEK: any[] = [
     "lugar": "Sala de Conferencias Inés Enríquez segundo nivel (Presencial)",
     "tipo": "Sesión de Comisión",
     "materia": "Mensaje de S. E. el Presidente de la República, en primer trámite constitucional y con urgencia calificada de suma, por el cual da inicio a la tramitación del proyecto que \"modifica la Ley Orgánica de la Empresa de los Ferrocarriles del Estado, con el objeto de establecer una exención de derechos y tributos municipales por la ejecución de obras ferroviarias y declarar dichas obras como infraestructura ejecutada por el Estado\". BOLETÍN N°18.436-15. Se encuentra invitado el Biministro de Obras Públicas, Transportes y Telecomunicaciones, señor Louis De Grange Concha.",
-    "invitados": "Autoridades sectoriales convocadas.",
+    "invitados": "No informado en la citación.",
     "tabla": [
       "Mensaje de S. E. el Presidente de la República, en primer trámite constitucional y con urgencia calificada de suma, por el cual da inicio a ..."
     ],
@@ -6266,7 +6266,7 @@ export const CAMARA_CITACIONES_FULL_WEEK: any[] = [
     "lugar": "Sala Ramón Pérez Opazo tercer nivel (Presencial)",
     "tipo": "Comisión Especial Investigadora",
     "materia": "Recibir, en el marco del mandato de la comisión, al director nacional del Servicio Nacional de Migraciones, señor Frank Sauerbaum, para que de respuesta a las consultas formuladas por los miembros de la comisión durante la sesión pasada, y al Defensor de la Niñez, señor Anuar Quesille. El director nacional del Servicio Nacional de Migraciones, señor Frank Sauerbaum. El Defensor de la Niñez, señor Anuar Quesille.",
-    "invitados": "Autoridades sectoriales convocadas.",
+    "invitados": "No informado en la citación.",
     "tabla": [
       "Recibir, en el marco del mandato de la comisión, al director nacional del Servicio Nacional de Migraciones, señor Frank Sauerbaum, para que ..."
     ],
@@ -6284,7 +6284,7 @@ export const CAMARA_CITACIONES_FULL_WEEK: any[] = [
     "lugar": "Sala Arturo Longton Guerrero tercer nivel (Presencial)",
     "tipo": "Sesión de Comisión",
     "materia": "Sesión especial citada con objeto de continuar con la votación en particular del proyecto de ley, en primer trámite constitucional, con urgencia calificada de “suma”, originado en las siguientes mociones refundidas: 1) El que establece un marco integral de protección de niñas, niños y adolescentes en el uso de redes sociales (boletín N° 18224-18), de los diputados y diputadas Lorena Fries (A), Jaime Araya, Matías Fernández, Ana María Gazmuri, Andrea Macías, Luis Malla, Cristian Mella, José Montalva, Zandra Parisi y Gonzalo Winter. 2) El que protege a los menores de edad frente a la adicción a las nuevas tecnologías y prohíbe el acceso a redes sociales y otras plataformas (boletín N° 18246-18), de las diputadas y diputados Diego Schalper (A), Héctor Barría, Patricio Briones, Andrés Celis, Tomás Kast, Raúl Leiva, Paula Olmos, Ximena Ossandón, Macarena Santelices y Héctor Ulloa. 3) El que establece un estatuto de responsabilidad algorítmica y protección digital de niños, niñas y adolescentes (boletín N° 18318-19), de las diputadas y diputados Daniel Manouchehri (A), Patricio Briones, Andrés Celis, Carolina Cucumides, Cristóbal Martínez, José Montalva, Daniela Serrano, Consuelo Veloso, Gonzalo Winter y Gael Yeomans. 4) El que modifica la ley N° 21.663, marco de ciberseguridad, para incorporar los principios de protección a la infancia y adolescencia, restricción etaria e información preventiva en entornos digitales (boletín N° 18415-18), de los diputados y diputadas Sara Concha (A), Patricio Briones, Andrés Celis, Tomás Kast, José Montalva, Francesca Muñoz y Tamara Ramírez. En razón de lo anterior, la Comisión ha invitado a la ministra de Desarrollo Social y Familia, señora María Jesús Wulf Le May, y/o al subsecretario de la Niñez, señor Marcelo Sánchez Ahumada. • Ministra de Desarrollo Social y Familia, y/o • Subsecretario de la Niñez.",
-    "invitados": "Autoridades sectoriales convocadas.",
+    "invitados": "No informado en la citación.",
     "tabla": [
       "Sesión especial citada con objeto de continuar con la votación en particular del proyecto de ley, en primer trámite constitucional, con urge..."
     ],
@@ -6307,7 +6307,7 @@ export const CAMARA_CITACIONES_FULL_WEEK: any[] = [
     "lugar": "Sala Pedro Pablo Álvarez-Salamanca tercer nivel (Presencial)",
     "tipo": "Sesión de Comisión",
     "materia": "Conocer los informes de auditoría externa elaborados por la empresa Xlibrium, así como aquellos del Comité de Auditoría Parlamentaria. Invitados: Pablo Oneto, Subsecretario Administrativo Patricio Leiva, Jefe de Finanzas Priscila Jara, Abogado Coordinadora del Comité de Auditoría Parlamentaria.",
-    "invitados": "Autoridades sectoriales convocadas.",
+    "invitados": "No informado en la citación.",
     "tabla": [
       "Conocer los informes de auditoría externa elaborados por la empresa Xlibrium, así como aquellos del Comité de Auditoría Parlamentaria. Invit..."
     ],
@@ -6325,7 +6325,7 @@ export const CAMARA_CITACIONES_FULL_WEEK: any[] = [
     "lugar": "Sala N° 410 cuarto nivel (Presencial)",
     "tipo": "Sesión de Comisión",
     "materia": "Recibir a la Contralora General de la República, señora Dorothy Pérez Gutiérrez; al Ministro de Vivienda y Urbanismo, señor Iván Poduje Capdeville y al Presidente de la Asociación Chilena de Municipalidades (ACHM), señor Gustavo Alessandri Bascuñán, o a quienes designen en su representación, para que se refieran a las modificaciones introducidas a la Ordenanza General de Urbanismo y Construcciones por el decreto supremo N° 68, de 2026, del Ministerio de Vivienda y Urbanismo, particularmente a sus efectos sobre los planes reguladores comunales y metropolitanos y la calidad de vida de las personas. Se ha invitado a la Contralora General de la República, señora Dorothy Pérez Gutiérrez; al Ministro de Vivienda y Urbanismo, señor Iván Poduje Capdeville y al Presidente de la Asociación Chilena de Municipalidades (ACHM), señor Gustavo Alessandri Bascuñán, o a quienes designen en su representación.",
-    "invitados": "Autoridades sectoriales convocadas.",
+    "invitados": "No informado en la citación.",
     "tabla": [
       "Recibir a la Contralora General de la República, señora Dorothy Pérez Gutiérrez; al Ministro de Vivienda y Urbanismo, señor Iván Poduje Capd..."
     ],
@@ -6343,7 +6343,7 @@ export const CAMARA_CITACIONES_FULL_WEEK: any[] = [
     "lugar": "Sala de Conferencias Inés Enríquez segundo nivel (Presencial)",
     "tipo": "Sesión de Comisión",
     "materia": "Continuar la votación en particular del proyecto de ley originado en Moción, en primer trámite constitucional, copatrocinada por los diputados señores Alejandro Bernales, Roberto Celedón, Mauro González, Jorge Guzmán (A), Tomás Kast, Diego Schalper, Carolina Tello y Guillermo Valdés, sobre “Fortalecimiento de la Seguridad Marítima”, BOLETÍN 18.198-15. Se encuentran invitados el Subsecretario de Justicia, señor Luis Silva Irarrázabal; el Capitán de Navío Litoral (CN LT) de la Dirección General del Territorio Marítimo y de Marina Mercante y Jefe del Servicio de Inspecciones Marítimas, señor Roberto Alfaro Pérez; el Teniente 1, señor Gastón Salinas Valdés, Asesor jurídico de la Dirección de Seguridad y Operaciones Marítimas de la Armada de Chile, y la asesora jurídica del Ministerio de Defensa, señora Maricarmen Garrido I.",
-    "invitados": "Autoridades sectoriales convocadas.",
+    "invitados": "No informado en la citación.",
     "tabla": [
       "Continuar la votación en particular del proyecto de ley originado en Moción, en primer trámite constitucional, copatrocinada por los diputad..."
     ],
@@ -6363,7 +6363,7 @@ export const CAMARA_CITACIONES_FULL_WEEK: any[] = [
     "lugar": "Sala Manuel Bustos Huerta tercer nivel (Presencial)",
     "tipo": "Sesión de Comisión",
     "materia": "Iniciar la discusión y votación en particular de los siguientes proyectos de ley, refundidos: 1) Moción de las diputadas Sara Concha Smith, Valentina Becerra Peña, Francesca Muñoz González, Paulina Muñoz Minte, Ximena Naranjo Pinto, Javiera Rodríguez Pascual, Marisela Santibáñez Novoa, Eileen Urqueta Rojas y Consuelo Veloso Ávila, y del diputado Eduardo Durán Salinas, que fortalece la protección de las víctimas de violencia intrafamiliar y previene su revictimización, correspondiente al boletín N°18236-18, en primer trámite constitucional y reglamentario, con urgencia calificada de “suma”. 2) Moción de las diputadas Valentina Becerra Peña, Paz Charpentier Rajcevich, Catalina Del Real Mihovilovic, Stephanie Jéldrez Ortiz, Claudia Mora Vega, Zandra Parisi Fernández, Claudia Reyes Larenas y Marisela Santibáñez Novoa, y de los diputados Felipe Camaño Cárdenas y Eduardo Durán Salinas, que modifica cuerpos legales que indica en materia de notificaciones de medidas cautelares dictadas en procesos de violencia intrafamiliar, correspondiente al boletín N°18414-18, en primer trámite constitucional y reglamentario.",
-    "invitados": "Autoridades sectoriales convocadas.",
+    "invitados": "No informado en la citación.",
     "tabla": [
       "Iniciar la discusión y votación en particular de los siguientes proyectos de ley, refundidos: 1) Moción de las diputadas Sara Concha Smith, ..."
     ],
@@ -6384,7 +6384,7 @@ export const CAMARA_CITACIONES_FULL_WEEK: any[] = [
     "lugar": "Sala Juan Lobos Krause tercer nivel (Presencial)",
     "tipo": "Sesión de Comisión",
     "materia": "Continuar la discusión y votación particular, en segundo trámite constitucional, del proyecto de ley que modifica diversos cuerpos legales, con el objeto de fortalecer la institucionalidad ambiental y mejorar su eficiencia, correspondiente al Boletín N° 16.552-12 (S). Urgencia simple.",
-    "invitados": "Autoridades sectoriales convocadas.",
+    "invitados": "No informado en la citación.",
     "tabla": [
       "Continuar la discusión y votación particular, en segundo trámite constitucional, del proyecto de ley que modifica diversos cuerpos legales, ..."
     ],
@@ -6404,7 +6404,7 @@ export const CAMARA_CITACIONES_FULL_WEEK: any[] = [
     "lugar": "Sala Ramón Pérez Opazo tercer nivel (Presencial)",
     "tipo": "Sesión de Comisión",
     "materia": "Recibir al subsecretario de Derechos Humanos, Pablo Mira Hurtado; y al subsecretario de la Niñez, Marcelo Sánchez Ahumada, para que informen acerca del funcionamiento y estado de avance de la Comisión de Verdad y Niñez, especialmente sobre las labores desarrolladas, las metas y plazos establecidos, las dificultades que ha enfrentado y sus proyecciones futuras. Asimismo, para que efectúen una exposición acabada que comprenda el pasado, presente y futuro de dicha Comisión.",
-    "invitados": "Autoridades sectoriales convocadas.",
+    "invitados": "No informado en la citación.",
     "tabla": [
       "Recibir al subsecretario de Derechos Humanos, Pablo Mira Hurtado; y al subsecretario de la Niñez, Marcelo Sánchez Ahumada, para que informen..."
     ],
@@ -6422,7 +6422,7 @@ export const CAMARA_CITACIONES_FULL_WEEK: any[] = [
     "lugar": "Sala Francisco Bulnes Sanfuentes tercer nivel (Presencial)",
     "tipo": "Sesión de Comisión",
     "materia": "Continuar con la tramitación en particular del proyecto de ley, iniciado en moción, que “Modifica el Código Penal para sancionar toda forma de instrumentalización de niños, niñas y adolescentes para cometer delitos''. Boletín N° 18.282-07. Se acordó refundirlo con el boletín N°18.590. Urgencia suma. Se ha invitado al señor Ministro de Justicia y Derechos Humanos; a los académicos señora María Elena Santibáñez (U. Católica de Chile); Alejandra Castillo Ara (U. Diego Portales); Francisco Maldonado Fuentes (U. de Talca); Alejandro Leiva López (U. Andrés Bello); Gonzalo Berríos Díaz (U. de Chile).",
-    "invitados": "Autoridades sectoriales convocadas.",
+    "invitados": "No informado en la citación.",
     "tabla": [
       "Continuar con la tramitación en particular del proyecto de ley, iniciado en moción, que “Modifica el Código Penal para sancionar toda forma ..."
     ],
@@ -6442,7 +6442,7 @@ export const CAMARA_CITACIONES_FULL_WEEK: any[] = [
     "lugar": "Sala Octavio Jara Wolff tercer nivel (Presencial)",
     "tipo": "Sesión de Comisión",
     "materia": "Analizar la aprobación por parte de la Comisión de Evaluación Ambiental (CEA) del proyecto minero de tierras raras impulsado en la comuna de Penco por la empresa minera Aclara y el Grupo CAP, y sus eventuales implicancias para la comuna y la región. - Biministro de Economía, Fomento y Turismo y Minería, señor Daniel Mas Valdés. - Subsecretario de Minería, señor Álvaro González Gorroño. - Alcalde de Penco, señor Rodrigo Vera Riquelme. - Secretario Regional Ministerial de Minería de la Región del Biobío, señor Daniel Escobar Palma. - Vicedecana de la Facultad de Ingeniería de la Universidad Católica de la Santísima Concepción, señora Matilde Basso Aránguiz.",
-    "invitados": "Autoridades sectoriales convocadas.",
+    "invitados": "No informado en la citación.",
     "tabla": [
       "Analizar la aprobación por parte de la Comisión de Evaluación Ambiental (CEA) del proyecto minero de tierras raras impulsado en la comuna de..."
     ],

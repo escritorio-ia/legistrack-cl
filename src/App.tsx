@@ -319,6 +319,9 @@ export default function App() {
             toggleFollowProy={toggleFollowProy}
             diputadosComisiones={DIPUTADOS_COMISIONES}
             senadoComisiones={SENADO_COMISIONES}
+            searchFilter={searchFilter}
+            setSearchFilter={setSearchFilter}
+            onSearchSubmit={handleSearchSubmit}
           />
         )}
 
