@@ -847,6 +847,12 @@ export async function fetchSenadoComisionProyectosLive(
 /**
  * Fetches real-time committee citations for the Senate from web-back.senado.cl API
  */
+export const estadoCitacionesSenado: { fuente: "vivo" | "sin datos"; detalle: string; actualizado: string } = {
+  fuente: "sin datos",
+  detalle: "Sin consultar todavía",
+  actualizado: ""
+};
+
 export async function fetchSenadoCitacionesLive(forceRefresh = false): Promise<{
   citaciones: any[];
   porComision: Record<string, any[]>;
@@ -863,9 +869,12 @@ export async function fetchSenadoCitacionesLive(forceRefresh = false): Promise<{
       const res = await fetch(url, {
         headers: {
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          "Accept": "application/json, text/plain, */*"
+          "Accept": "application/json, text/plain, */*",
+          // Mismos encabezados que envía el sitio oficial senado.cl al consultar esta API.
+          "Origin": "https://www.senado.cl",
+          "Referer": "https://www.senado.cl/"
         },
-        signal: AbortSignal.timeout(7000)
+        signal: AbortSignal.timeout(12000)
       });
 
       if (!res.ok) {
@@ -930,12 +939,18 @@ export async function fetchSenadoCitacionesLive(forceRefresh = false): Promise<{
         }
       }
 
+      estadoCitacionesSenado.fuente = "vivo";
+      estadoCitacionesSenado.detalle = `Leídas de web-back.senado.cl (${senadoCitacionesFlat.length} citaciones)`;
+      estadoCitacionesSenado.actualizado = new Date().toISOString();
       return {
         citaciones: senadoCitacionesFlat,
         porComision: senadoCitacionesByComId,
         porDia: senadoCitacionesByDay
       };
     } catch (err: any) {
+      estadoCitacionesSenado.fuente = "sin datos";
+      estadoCitacionesSenado.detalle = `No se pudo consultar web-back.senado.cl: ${err?.message || err}`;
+      estadoCitacionesSenado.actualizado = new Date().toISOString();
       console.warn("[SenadoService] Could not fetch live Senate citaciones:", err.message);
       return { citaciones: [], porComision: {}, porDia: [] };
     }

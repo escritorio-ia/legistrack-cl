@@ -218,6 +218,11 @@ export interface SesionVinculadaProyecto {
   videoUrl?: string;
   videoId?: string;
   acuerdos?: string[];
+  hora?: string;
+  lugar?: string;
+  camara?: string;
+  /** De dónde salió el registro (p. ej. "Citación oficial, senado.cl"). */
+  fuente?: string;
 }
 
 /**
@@ -227,8 +232,19 @@ export interface SesionVinculadaProyecto {
  * transmisión de una sesión — no requiere trabajo manual. Hace merge por
  * sesionId para no duplicar si la misma sesión se vuelve a indexar.
  */
+/**
+ * Clave única por boletín ("18.478-13", "18478-13" y "Boletín N° 18478-13" → "18478-13"),
+ * para que todas las sesiones de un mismo proyecto queden en el mismo registro.
+ */
+export function claveBoletin(boletinId: string): string {
+  const m = String(boletinId || "").replace(/\./g, "").match(/(\d{3,6})(?:\s*-\s*(\d{1,2}))?/);
+  if (!m) return String(boletinId || "").trim();
+  return m[2] ? `${m[1]}-${m[2].padStart(2, "0")}` : m[1];
+}
+
 export async function saveSesionVinculadaAProyecto(boletinId: string, sesion: SesionVinculadaProyecto): Promise<boolean> {
   if (!db || !boletinId || !sesion.sesionId) return false;
+  boletinId = claveBoletin(boletinId);
   try {
     const docRef = doc(db, COLLECTIONS.HISTORIAL_PROYECTOS, boletinId);
     const snap = await getDoc(docRef);
@@ -258,10 +274,21 @@ export async function saveSesionVinculadaAProyecto(boletinId: string, sesion: Se
 export async function getSesionesVinculadasDeProyecto(boletinId: string): Promise<SesionVinculadaProyecto[]> {
   if (!db || !boletinId) return [];
   try {
-    const docRef = doc(db, COLLECTIONS.HISTORIAL_PROYECTOS, boletinId);
-    const snap = await getDoc(docRef);
-    if (!snap.exists()) return [];
-    return snap.data().sesionesVinculadas || [];
+    // Se lee la clave normalizada y, por compatibilidad, la clave original con la
+    // que se pudo haber guardado antes (p. ej. con puntos).
+    const claves = Array.from(new Set([claveBoletin(boletinId), boletinId]));
+    const vistos = new Set<string>();
+    const todas: SesionVinculadaProyecto[] = [];
+    for (const clave of claves) {
+      const snap = await getDoc(doc(db, COLLECTIONS.HISTORIAL_PROYECTOS, clave));
+      if (!snap.exists()) continue;
+      for (const s of (snap.data().sesionesVinculadas || []) as SesionVinculadaProyecto[]) {
+        if (vistos.has(s.sesionId)) continue;
+        vistos.add(s.sesionId);
+        todas.push(s);
+      }
+    }
+    return todas;
   } catch (err) {
     console.warn(`Error fetching linked sessions for proyecto ${boletinId} from Firestore:`, err);
     return [];

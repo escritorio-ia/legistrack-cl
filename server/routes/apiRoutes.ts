@@ -19,6 +19,7 @@ import {
   fetchSenadoComisionesIntegrantesLive,
   fetchSenadoComisionProyectosLive,
   fetchSenadoCitacionesLive,
+  estadoCitacionesSenado,
   fetchTextoInformeDocx,
   estimarQuorum,
   estimarFichaTecnica,
@@ -28,6 +29,7 @@ import {
   getTodasComisiones,
   fetchComisionesCamaraReal,
   fetchCamaraCitacionesSemanalesLive,
+  estadoCitacionesCamara,
   searchCamaraYouTubeVideos,
   fetchYouTubeVideoTranscript,
   fetchYouTubeLiveCaptionsSnapshot,
@@ -608,7 +610,13 @@ apiRouter.get("/comisiones/citaciones", async (req: Request, res: Response) => {
         ...(senadoData.porDia || [])
       ],
       camara: camaraData,
-      senado: senadoData
+      senado: senadoData,
+      // De dónde salieron realmente los datos, para que la interfaz no presente
+      // citaciones de respaldo (de semanas anteriores) como si fueran de esta semana.
+      fuentes: {
+        camara: { ...estadoCitacionesCamara },
+        senado: { ...estadoCitacionesSenado }
+      }
     });
   } catch (error: any) {
     console.error("Error fetching live citations:", error);
@@ -651,6 +659,96 @@ apiRouter.get(["/camara/citaciones", "/citaciones/camara"], async (req: Request,
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// Sesiones de comisión de las citaciones vigentes (Cámara y Senado), agrupadas por
+// boletín en tabla. Solo la semana publicada: el historial se acumula en el cliente
+// (Firestore). Invitados = texto oficial de la citación, sin completar nada.
+function digitosBoletin(b: string): string {
+  return String(b || "").split("-")[0].replace(/[^0-9]/g, "");
+}
+
+async function sesionesPorBoletin(): Promise<Record<string, any[]>> {
+  const [camaraData, senadoData] = await Promise.all([
+    fetchCamaraCitacionesSemanalesLive(false).catch(() => ({ todas: [] as any[] })),
+    fetchSenadoCitacionesLive(false).catch(() => ({ citaciones: [] as any[] }))
+  ]);
+  const mapa: Record<string, any[]> = {};
+  const agregar = (boletin: string, ses: any) => {
+    const m = String(boletin).replace(/\./g, "").match(/(\d{3,6})-(\d{1,2})/);
+    const clave = m ? `${m[1]}-${m[2].padStart(2, "0")}` : digitosBoletin(boletin);
+    if (!clave) return;
+    (mapa[clave] = mapa[clave] || []).push(ses);
+  };
+  const puntoDelBoletin = (materia: string, digits: string): string => {
+    const partes = String(materia || "").split(/\n(?=\s*\d+\.-)/);
+    const p = partes.find(t => t.replace(/\./g, "").includes(digits));
+    return (p || materia || "").trim();
+  };
+  const invitadosDe = (texto: string): string => {
+    const m = texto.match(/(?:se encuentra[n]? (?:especialmente )?invitad[oa]s?|se ha invitado|han sido invitad[oa]s?|se recibirá a|invitados?:)[\s\S]*/i);
+    return m ? m[0].trim() : "";
+  };
+
+  if (estadoCitacionesCamara.fuente === "vivo") {
+    for (const c of ((camaraData as any).todas || [])) {
+      for (const b of (c.boletinesRelacionados || [])) {
+        agregar(b, {
+          sesionId: `camara-${c.fecha}-${c.comisionNombre}`.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+          camara: "Cámara de Diputadas y Diputados",
+          comisionNombre: c.comisionNombre,
+          comisionId: c.comisionSlug ? `cd-${c.comisionSlug}` : "",
+          fecha: c.fecha,
+          hora: c.hora,
+          lugar: c.lugar,
+          temasVistos: c.materia,
+          expositores: c.invitados && !/^No informado/i.test(c.invitados) ? c.invitados : "",
+          fuente: "Citación oficial, camara.cl"
+        });
+      }
+    }
+  }
+  for (const c of ((senadoData as any).citaciones || [])) {
+    for (const b of (c.boletines || [])) {
+      const punto = puntoDelBoletin(c.materia, digitosBoletin(b));
+      agregar(b, {
+        sesionId: `senado-${c.idCitacion || c.id}`,
+        camara: "Senado",
+        comisionNombre: c.comision,
+        comisionId: c.idComision ? String(c.idComision) : "",
+        fecha: c.fecha,
+        hora: c.hora,
+        lugar: c.lugar,
+        temasVistos: punto,
+        expositores: invitadosDe(punto),
+        fuente: "Citación oficial, senado.cl"
+      });
+    }
+  }
+  return mapa;
+}
+
+apiRouter.get("/proyecto/:id/sesiones", async (req: Request, res: Response) => {
+  const digits = digitosBoletin(String(req.params.id));
+  if (digits.length < 3) return res.json({ sesiones: [], fuentes: {} });
+  const mapa = await sesionesPorBoletin();
+  const sesiones = Object.entries(mapa)
+    .filter(([clave]) => digitosBoletin(clave) === digits)
+    .flatMap(([, lista]) => lista);
+  res.json({
+    sesiones,
+    fuentes: { camara: { ...estadoCitacionesCamara }, senado: { ...estadoCitacionesSenado } }
+  });
+});
+
+// Todas las sesiones de la semana publicada agrupadas por boletín (para que el
+// cliente las registre en el historial de cada proyecto).
+apiRouter.get("/sesiones-por-boletin", async (_req: Request, res: Response) => {
+  const mapa = await sesionesPorBoletin();
+  res.json({
+    porBoletin: mapa,
+    fuentes: { camara: { ...estadoCitacionesCamara }, senado: { ...estadoCitacionesSenado } }
+  });
 });
 
 apiRouter.get("/comisiones", async (req: Request, res: Response) => {

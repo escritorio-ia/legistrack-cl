@@ -64,6 +64,29 @@ function getCommissionSlugFromName(name: string): string | null {
   return null;
 }
 
+/**
+ * Estado de la última descarga de citaciones de la Cámara: "vivo" si se leyeron
+ * de camara.cl, "respaldo" si se usaron los datos precargados (que pueden ser de
+ * semanas anteriores). Desde 2026 camara.cl responde con un desafío anti-bots de
+ * Cloudflare a las peticiones del servidor, por lo que suele quedar en "respaldo".
+ */
+export const estadoCitacionesCamara: { fuente: "vivo" | "respaldo"; detalle: string; actualizado: string } = {
+  fuente: "respaldo",
+  detalle: "Sin consultar todavía",
+  actualizado: ""
+};
+
+function respaldoCamara(detalle: string) {
+  estadoCitacionesCamara.fuente = "respaldo";
+  estadoCitacionesCamara.detalle = detalle;
+  estadoCitacionesCamara.actualizado = new Date().toISOString();
+  return {
+    porDia: CAMARA_CITACIONES_SEMANALES_POR_DIA,
+    porComision: CAMARA_CITACIONES_POR_COMISION,
+    todas: CAMARA_CITACIONES_FULL_WEEK
+  };
+}
+
 export async function fetchCamaraCitacionesSemanalesLive(forceRefresh: boolean = false): Promise<{
   porDia: any[];
   porComision: Record<string, any[]>;
@@ -85,11 +108,7 @@ export async function fetchCamaraCitacionesSemanalesLive(forceRefresh: boolean =
       });
 
       if (!response.ok) {
-        return {
-          porDia: CAMARA_CITACIONES_SEMANALES_POR_DIA,
-          porComision: CAMARA_CITACIONES_POR_COMISION,
-          todas: CAMARA_CITACIONES_FULL_WEEK
-        };
+        return respaldoCamara(`camara.cl respondió HTTP ${response.status}`);
       }
 
       const html = await response.text();
@@ -171,6 +190,9 @@ export async function fetchCamaraCitacionesSemanalesLive(forceRefresh: boolean =
       }
 
       if (todas.length > 0) {
+        estadoCitacionesCamara.fuente = "vivo";
+        estadoCitacionesCamara.detalle = "Leídas de camara.cl";
+        estadoCitacionesCamara.actualizado = new Date().toISOString();
         return {
           porDia: daysList,
           porComision,
@@ -178,18 +200,14 @@ export async function fetchCamaraCitacionesSemanalesLive(forceRefresh: boolean =
         };
       }
 
-      return {
-        porDia: CAMARA_CITACIONES_SEMANALES_POR_DIA,
-        porComision: CAMARA_CITACIONES_POR_COMISION,
-        todas: CAMARA_CITACIONES_FULL_WEEK
-      };
-    } catch (err) {
+      return respaldoCamara(
+        /challenge|cf_chl|cloudflare/i.test(html)
+          ? "camara.cl bloqueó la consulta del servidor (desafío anti-bots de Cloudflare)"
+          : "La página de citaciones de camara.cl no trajo citaciones legibles"
+      );
+    } catch (err: any) {
       console.warn("Could not fetch live citaciones from Camara, using fallback:", err);
-      return {
-        porDia: CAMARA_CITACIONES_SEMANALES_POR_DIA,
-        porComision: CAMARA_CITACIONES_POR_COMISION,
-        todas: CAMARA_CITACIONES_FULL_WEEK
-      };
+      return respaldoCamara(`Error de conexión con camara.cl: ${err?.message || err}`);
     }
   });
 }

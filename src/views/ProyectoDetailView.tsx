@@ -47,11 +47,11 @@ import { Proyecto, ActivityItem, VotacionItem } from "../types";
 import { resolveProyecto } from "../utils/proyectosResolver";
 import { fetchLiveSenateProject } from "../utils/senadoClientApi";
 import SimuladorQuorum from "../components/SimuladorQuorum";
-import { formatFechaCL } from "../utils/dateUtils";
+import { formatFechaCL, parseFechaSesion } from "../utils/dateUtils";
 import MinutaEjecutivaModal from "../components/MinutaEjecutivaModal";
 import TerritorialImpactPanel from "../components/TerritorialImpactPanel";
 import NotasColaborativasDrawer from "../components/NotasColaborativasDrawer";
-import { getSesionesVinculadasDeProyecto, SesionVinculadaProyecto } from "../services/firebaseService";
+import { getSesionesVinculadasDeProyecto, saveSesionVinculadaAProyecto, SesionVinculadaProyecto } from "../services/firebaseService";
 
 interface ProyectoDetailViewProps {
   proyectoId: string;
@@ -331,9 +331,24 @@ export default function ProyectoDetailView({
   }, [activeTab, proyecto.id, selectedComisionSafe]);
 
   useEffect(() => {
-    getSesionesVinculadasDeProyecto(proyectoId)
-      .then(setSesionesVinculadas)
-      .catch(() => setSesionesVinculadas([]));
+    // Historial guardado (Firestore) + sesiones de la semana publicada donde el
+    // boletín está en tabla (citaciones oficiales). Las nuevas se guardan en el
+    // historial, así quedan registradas aunque la citación deje de publicarse.
+    let cancelado = false;
+    const boletinKey = proyectoId;
+    Promise.all([
+      getSesionesVinculadasDeProyecto(boletinKey).catch(() => [] as SesionVinculadaProyecto[]),
+      fetch(`/api/proyecto/${encodeURIComponent(proyectoId)}/sesiones`)
+        .then(r => (r.ok ? r.json() : { sesiones: [] }))
+        .catch(() => ({ sesiones: [] }))
+    ]).then(([guardadas, vivo]) => {
+      const nuevas: SesionVinculadaProyecto[] = (vivo.sesiones || []).filter(
+        (s: SesionVinculadaProyecto) => !guardadas.some(g => g.sesionId === s.sesionId)
+      );
+      nuevas.forEach(s => { saveSesionVinculadaAProyecto(boletinKey, s).catch(() => {}); });
+      if (!cancelado) setSesionesVinculadas([...guardadas, ...nuevas]);
+    });
+    return () => { cancelado = true; };
   }, [proyectoId]);
 
   useEffect(() => {
@@ -1712,27 +1727,37 @@ export default function ProyectoDetailView({
                     genera un informe o se encuentra la transmisión de una sesión
                     donde este proyecto apareció en tabla. Duración real = largo
                     efectivo del video de YouTube encontrado, no un horario agendado. */}
-                {sesionesVinculadas.length > 0 && (
-                  <div className="space-y-3 pt-2">
+                <div className="space-y-3 pt-2">
                     <div>
                       <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-1">Sesiones Donde se Trató este Proyecto</h3>
-                      <p className="text-xs text-slate-500">Expositores, temas y duración real de la transmisión, indexados automáticamente desde las sesiones de comisión.</p>
+                      <p className="text-xs text-slate-500">Sesiones de comisión con este boletín en tabla, según las citaciones oficiales de la Cámara y el Senado. El registro se acumula desde que la app empezó a guardarlas; las sesiones anteriores no aparecen.</p>
                     </div>
+                    {sesionesVinculadas.length === 0 && (
+                      <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-xl p-4">
+                        Todavía no hay sesiones registradas para este boletín.
+                      </p>
+                    )}
                     <div className="space-y-3">
                       {[...sesionesVinculadas]
-                        .sort((a, b) => (b.fecha || "").localeCompare(a.fecha || ""))
+                        .sort((a, b) => (parseFechaSesion(b.fecha)?.getTime() || 0) - (parseFechaSesion(a.fecha)?.getTime() || 0))
                         .map((s) => (
                         <div key={s.sesionId} className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs space-y-2">
                           <div className="flex flex-wrap items-center justify-between gap-2">
-                            <span className="text-xs font-bold text-slate-800">{s.fecha} · {s.comisionNombre}</span>
+                            <span className="text-xs font-bold text-slate-800">
+                              {formatFechaCL(s.fecha, { weekday: "long", day: "numeric", month: "long", year: "numeric" })} · {s.comisionNombre}
+                              {s.camara ? <span className="font-medium text-slate-500"> ({s.camara})</span> : null}
+                            </span>
                             {s.duracionReal && (
                               <span className="inline-flex items-center gap-1 text-[10.5px] font-bold bg-slate-900 text-white px-2 py-0.5 rounded-md">
                                 <Video className="w-3 h-3" /> {s.duracionReal} (duración real del video)
                               </span>
                             )}
                           </div>
+                          {(s.hora || s.lugar) && (
+                            <p className="text-[11px] text-slate-500">{[s.hora, s.lugar].filter(Boolean).join(" · ")}</p>
+                          )}
                           {s.temasVistos && (
-                            <p className="text-xs text-slate-600 leading-snug">{s.temasVistos}</p>
+                            <p className="text-xs text-slate-600 leading-snug whitespace-pre-line">{s.temasVistos}</p>
                           )}
                           {s.expositores && (
                             <p className="text-[11px] text-slate-500">
@@ -1750,11 +1775,13 @@ export default function ProyectoDetailView({
                               <ExternalLink className="w-3 h-3" /> Ver transmisión
                             </a>
                           )}
+                          {s.fuente && (
+                            <p className="text-[10px] text-slate-400">Fuente: {s.fuente}</p>
+                          )}
                         </div>
                       ))}
                     </div>
                   </div>
-                )}
               </div>
             )}
 

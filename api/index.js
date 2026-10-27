@@ -188745,6 +188745,11 @@ async function fetchSenadoComisionProyectosLive(senadoId, comisionNombre = "Sena
     }
   });
 }
+var estadoCitacionesSenado = {
+  fuente: "sin datos",
+  detalle: "Sin consultar todav\xEDa",
+  actualizado: ""
+};
 async function fetchSenadoCitacionesLive(forceRefresh = false) {
   const cacheKey = "senado_citaciones_live";
   if (forceRefresh) {
@@ -188756,9 +188761,12 @@ async function fetchSenadoCitacionesLive(forceRefresh = false) {
       const res = await fetch(url, {
         headers: {
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          "Accept": "application/json, text/plain, */*"
+          "Accept": "application/json, text/plain, */*",
+          // Mismos encabezados que envía el sitio oficial senado.cl al consultar esta API.
+          "Origin": "https://www.senado.cl",
+          "Referer": "https://www.senado.cl/"
         },
-        signal: AbortSignal.timeout(7e3)
+        signal: AbortSignal.timeout(12e3)
       });
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
@@ -188808,12 +188816,18 @@ async function fetchSenadoCitacionesLive(forceRefresh = false) {
           });
         }
       }
+      estadoCitacionesSenado.fuente = "vivo";
+      estadoCitacionesSenado.detalle = `Le\xEDdas de web-back.senado.cl (${senadoCitacionesFlat.length} citaciones)`;
+      estadoCitacionesSenado.actualizado = (/* @__PURE__ */ new Date()).toISOString();
       return {
         citaciones: senadoCitacionesFlat,
         porComision: senadoCitacionesByComId,
         porDia: senadoCitacionesByDay
       };
     } catch (err) {
+      estadoCitacionesSenado.fuente = "sin datos";
+      estadoCitacionesSenado.detalle = `No se pudo consultar web-back.senado.cl: ${err?.message || err}`;
+      estadoCitacionesSenado.actualizado = (/* @__PURE__ */ new Date()).toISOString();
       console.warn("[SenadoService] Could not fetch live Senate citaciones:", err.message);
       return { citaciones: [], porComision: {}, porDia: [] };
     }
@@ -188894,6 +188908,21 @@ function getCommissionSlugFromName(name) {
   if (n.includes("regimen interno")) return "regimen-interno";
   return null;
 }
+var estadoCitacionesCamara = {
+  fuente: "respaldo",
+  detalle: "Sin consultar todav\xEDa",
+  actualizado: ""
+};
+function respaldoCamara(detalle) {
+  estadoCitacionesCamara.fuente = "respaldo";
+  estadoCitacionesCamara.detalle = detalle;
+  estadoCitacionesCamara.actualizado = (/* @__PURE__ */ new Date()).toISOString();
+  return {
+    porDia: CAMARA_CITACIONES_SEMANALES_POR_DIA,
+    porComision: CAMARA_CITACIONES_POR_COMISION,
+    todas: CAMARA_CITACIONES_FULL_WEEK
+  };
+}
 async function fetchCamaraCitacionesSemanalesLive(forceRefresh = false) {
   const cacheKey = "camara_citaciones_semanales_live";
   if (forceRefresh) {
@@ -188909,11 +188938,7 @@ async function fetchCamaraCitacionesSemanalesLive(forceRefresh = false) {
         signal: AbortSignal.timeout(9e3)
       });
       if (!response.ok) {
-        return {
-          porDia: CAMARA_CITACIONES_SEMANALES_POR_DIA,
-          porComision: CAMARA_CITACIONES_POR_COMISION,
-          todas: CAMARA_CITACIONES_FULL_WEEK
-        };
+        return respaldoCamara(`camara.cl respondi\xF3 HTTP ${response.status}`);
       }
       const html = await response.text();
       const articleRegex = /<article class="grid-12 citaciones">([\s\S]*?)<\/article>/gi;
@@ -188983,24 +189008,21 @@ async function fetchCamaraCitacionesSemanalesLive(forceRefresh = false) {
         });
       }
       if (todas.length > 0) {
+        estadoCitacionesCamara.fuente = "vivo";
+        estadoCitacionesCamara.detalle = "Le\xEDdas de camara.cl";
+        estadoCitacionesCamara.actualizado = (/* @__PURE__ */ new Date()).toISOString();
         return {
           porDia: daysList,
           porComision,
           todas
         };
       }
-      return {
-        porDia: CAMARA_CITACIONES_SEMANALES_POR_DIA,
-        porComision: CAMARA_CITACIONES_POR_COMISION,
-        todas: CAMARA_CITACIONES_FULL_WEEK
-      };
+      return respaldoCamara(
+        /challenge|cf_chl|cloudflare/i.test(html) ? "camara.cl bloque\xF3 la consulta del servidor (desaf\xEDo anti-bots de Cloudflare)" : "La p\xE1gina de citaciones de camara.cl no trajo citaciones legibles"
+      );
     } catch (err) {
       console.warn("Could not fetch live citaciones from Camara, using fallback:", err);
-      return {
-        porDia: CAMARA_CITACIONES_SEMANALES_POR_DIA,
-        porComision: CAMARA_CITACIONES_POR_COMISION,
-        todas: CAMARA_CITACIONES_FULL_WEEK
-      };
+      return respaldoCamara(`Error de conexi\xF3n con camara.cl: ${err?.message || err}`);
     }
   });
 }
@@ -192970,7 +192992,13 @@ apiRouter.get("/comisiones/citaciones", async (req, res) => {
         ...senadoData.porDia || []
       ],
       camara: camaraData,
-      senado: senadoData
+      senado: senadoData,
+      // De dónde salieron realmente los datos, para que la interfaz no presente
+      // citaciones de respaldo (de semanas anteriores) como si fueran de esta semana.
+      fuentes: {
+        camara: { ...estadoCitacionesCamara },
+        senado: { ...estadoCitacionesSenado }
+      }
     });
   } catch (error) {
     console.error("Error fetching live citations:", error);
@@ -193009,6 +193037,84 @@ apiRouter.get(["/camara/citaciones", "/citaciones/camara"], async (req, res) => 
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+function digitosBoletin(b) {
+  return String(b || "").split("-")[0].replace(/[^0-9]/g, "");
+}
+async function sesionesPorBoletin() {
+  const [camaraData, senadoData] = await Promise.all([
+    fetchCamaraCitacionesSemanalesLive(false).catch(() => ({ todas: [] })),
+    fetchSenadoCitacionesLive(false).catch(() => ({ citaciones: [] }))
+  ]);
+  const mapa = {};
+  const agregar = (boletin, ses) => {
+    const m = String(boletin).replace(/\./g, "").match(/(\d{3,6})-(\d{1,2})/);
+    const clave = m ? `${m[1]}-${m[2].padStart(2, "0")}` : digitosBoletin(boletin);
+    if (!clave) return;
+    (mapa[clave] = mapa[clave] || []).push(ses);
+  };
+  const puntoDelBoletin = (materia, digits) => {
+    const partes = String(materia || "").split(/\n(?=\s*\d+\.-)/);
+    const p = partes.find((t) => t.replace(/\./g, "").includes(digits));
+    return (p || materia || "").trim();
+  };
+  const invitadosDe = (texto) => {
+    const m = texto.match(/(?:se encuentra[n]? (?:especialmente )?invitad[oa]s?|se ha invitado|han sido invitad[oa]s?|se recibirá a|invitados?:)[\s\S]*/i);
+    return m ? m[0].trim() : "";
+  };
+  if (estadoCitacionesCamara.fuente === "vivo") {
+    for (const c of camaraData.todas || []) {
+      for (const b of c.boletinesRelacionados || []) {
+        agregar(b, {
+          sesionId: `camara-${c.fecha}-${c.comisionNombre}`.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+          camara: "C\xE1mara de Diputadas y Diputados",
+          comisionNombre: c.comisionNombre,
+          comisionId: c.comisionSlug ? `cd-${c.comisionSlug}` : "",
+          fecha: c.fecha,
+          hora: c.hora,
+          lugar: c.lugar,
+          temasVistos: c.materia,
+          expositores: c.invitados && !/^No informado/i.test(c.invitados) ? c.invitados : "",
+          fuente: "Citaci\xF3n oficial, camara.cl"
+        });
+      }
+    }
+  }
+  for (const c of senadoData.citaciones || []) {
+    for (const b of c.boletines || []) {
+      const punto = puntoDelBoletin(c.materia, digitosBoletin(b));
+      agregar(b, {
+        sesionId: `senado-${c.idCitacion || c.id}`,
+        camara: "Senado",
+        comisionNombre: c.comision,
+        comisionId: c.idComision ? String(c.idComision) : "",
+        fecha: c.fecha,
+        hora: c.hora,
+        lugar: c.lugar,
+        temasVistos: punto,
+        expositores: invitadosDe(punto),
+        fuente: "Citaci\xF3n oficial, senado.cl"
+      });
+    }
+  }
+  return mapa;
+}
+apiRouter.get("/proyecto/:id/sesiones", async (req, res) => {
+  const digits = digitosBoletin(String(req.params.id));
+  if (digits.length < 3) return res.json({ sesiones: [], fuentes: {} });
+  const mapa = await sesionesPorBoletin();
+  const sesiones = Object.entries(mapa).filter(([clave]) => digitosBoletin(clave) === digits).flatMap(([, lista2]) => lista2);
+  res.json({
+    sesiones,
+    fuentes: { camara: { ...estadoCitacionesCamara }, senado: { ...estadoCitacionesSenado } }
+  });
+});
+apiRouter.get("/sesiones-por-boletin", async (_req, res) => {
+  const mapa = await sesionesPorBoletin();
+  res.json({
+    porBoletin: mapa,
+    fuentes: { camara: { ...estadoCitacionesCamara }, senado: { ...estadoCitacionesSenado } }
+  });
 });
 apiRouter.get("/comisiones", async (req, res) => {
   const allComisiones = await getTodasComisiones();

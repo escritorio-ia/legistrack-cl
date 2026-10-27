@@ -1177,6 +1177,11 @@ export default function CitacionesCamaraWidget({
     ...DYNAMIC_SENADO_CITACIONES
   ]);
   const [isLiveSyncing, setIsLiveSyncing] = useState(false);
+  // Origen real de las citaciones (el servidor informa si son de esta semana o de respaldo).
+  const [fuentesCitaciones, setFuentesCitaciones] = useState<{
+    camara?: { fuente: string; detalle: string };
+    senado?: { fuente: string; detalle: string };
+  } | null>(null);
   const currentYear = 2026;
 
   const fetchLiveCitaciones = (forceRefresh = false) => {
@@ -1184,6 +1189,7 @@ export default function CitacionesCamaraWidget({
     fetch(`/api/comisiones/citaciones${forceRefresh ? "?refresh=true" : ""}`)
       .then(res => res.json())
       .then(data => {
+        if (data && data.fuentes) setFuentesCitaciones(data.fuentes);
         const rawCitList = data.citaciones || data.todas;
         if (rawCitList && Array.isArray(rawCitList) && rawCitList.length > 0) {
           const mapped: Citacion[] = rawCitList.map((c: any) => {
@@ -1201,7 +1207,7 @@ export default function CitacionesCamaraWidget({
               invitados: c.invitados,
               boletin: c.boletin || (c.boletinesRelacionados && c.boletinesRelacionados.length > 0 ? c.boletinesRelacionados[0] : undefined),
               week: 37,
-              presidente: c.presidente || "Presidente de Comisión",
+              presidente: c.presidente || "",
               tipoSesion: (c.tipo && c.tipo.includes("Especial")) ? "Especial" : "Ordinaria",
               canalTransmision: isSR ? (c.canalTransmision || "TV Senado / Señal Online") : (c.canalTransmision || "Cámara de Diputados TV (CDTV) / Señal Online"),
               ordenDelDia: c.tabla && c.tabla.length > 0 ? c.tabla : [c.materia || "Sesión legislativa"],
@@ -1616,6 +1622,18 @@ END:VCALENDAR`;
 
   return (
     <div className="bg-slate-900 text-white rounded-3xl border border-slate-800 p-6 md:p-8 flex flex-col gap-6 shadow-2xl relative overflow-hidden font-sans" id="citaciones-camara-widget-container">
+      {fuentesCitaciones && (fuentesCitaciones.camara?.fuente !== "vivo" || fuentesCitaciones.senado?.fuente !== "vivo") && (
+        <div className="bg-amber-500/10 border border-amber-400/40 text-amber-100 rounded-2xl px-4 py-3 text-[11px] leading-relaxed">
+          <strong className="text-amber-300">Atención:</strong>{" "}
+          {fuentesCitaciones.camara?.fuente !== "vivo" && (
+            <span>Las citaciones de la Cámara no se pudieron actualizar ({fuentesCitaciones.camara?.detalle}); se muestran datos guardados de semanas anteriores. </span>
+          )}
+          {fuentesCitaciones.senado?.fuente !== "vivo" && (
+            <span>Las citaciones del Senado no se pudieron actualizar ({fuentesCitaciones.senado?.detalle}). </span>
+          )}
+          Revisa el sitio oficial para la agenda vigente.
+        </div>
+      )}
       {/* Toast Feedback Notification */}
       {copiedToast && (
         <div className="fixed bottom-6 right-6 z-[9999] bg-slate-950/95 border border-emerald-500/50 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 text-xs font-bold animate-fade-in backdrop-blur-md">
