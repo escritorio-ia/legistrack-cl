@@ -189439,6 +189439,103 @@ async function fetchCamaraVotacionDetalle(votacionId) {
   });
 }
 
+// server/services/dipresService.ts
+var BASE = "https://www.dipres.gob.cl/604/";
+var URL_BUSQUEDA = `${BASE}w3-propertyvalue-22563.html`;
+var limpiar = (s) => s.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n))).replace(/\s+/g, " ").trim();
+function celda(fila, clase) {
+  const m = fila.match(new RegExp(`<td[^>]*class="[^"]*\\b${clase}\\b[^"]*"[^>]*>([\\s\\S]*?)</td>`, "i"));
+  return m ? limpiar(m[1]) : "";
+}
+function claveBoletinIF(b) {
+  const m = String(b || "").replace(/\./g, "").match(/(\d{3,6})(?:-(\d{1,2}))?/);
+  return m ? m[2] ? `${m[1]}-${m[2].padStart(2, "0")}` : m[1] : "";
+}
+async function fetchIndiceInformesFinancieros() {
+  return cache.wrap("dipres_indice_if", 6 * 60 * 60 * 1e3, async () => {
+    const res = await fetch(URL_BUSQUEDA, {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; LegisTrackCL/1.0)" },
+      signal: AbortSignal.timeout(3e4)
+    });
+    if (!res.ok) throw new Error(`dipres.gob.cl respondi\xF3 HTTP ${res.status}`);
+    const html = await res.text();
+    const filas = html.match(/<tr[^>]*>[\s\S]*?<\/tr>/gi) || [];
+    const informes = [];
+    for (const fila of filas) {
+      const numero = celda(fila, "titulo");
+      if (!/^\d+-\d{4}$/.test(numero)) continue;
+      const href = (fila.match(/href="([^"]+\.pdf[^"]*)"/i) || [])[1] || "";
+      informes.push({
+        numero,
+        materia: celda(fila, "abstract"),
+        boletines: (celda(fila, "nboletin").match(/\d{1,2}\.?\d{3}-\d{1,2}/g) || []).map(claveBoletinIF),
+        mensaje: celda(fila, "nmensaje"),
+        estado: celda(fila, "estado"),
+        ministerio: celda(fila, "ministerio"),
+        anio: celda(fila, "periodo"),
+        pdf: href ? new URL(href, BASE).toString() : ""
+      });
+    }
+    if (informes.length === 0) throw new Error("La p\xE1gina de la DIPRES no trajo informes legibles");
+    return informes;
+  });
+}
+async function informesFinancierosDeBoletin(boletin) {
+  const clave = claveBoletinIF(boletin);
+  const digitos = clave.split("-")[0];
+  const indice = await fetchIndiceInformesFinancieros();
+  return indice.filter((i) => i.boletines.some((b) => b === clave || b.split("-")[0] === digitos));
+}
+async function resumirInformeFinanciero(pdfUrl) {
+  const url = new URL(pdfUrl);
+  if (!/(^|\.)dipres\.gob\.cl$/i.test(url.hostname)) {
+    return { disponible: false, motivo: "Solo se aceptan documentos de dipres.gob.cl", fuente: pdfUrl };
+  }
+  return cache.wrap(`dipres_resumen_if_${url.pathname}`, 7 * 24 * 60 * 60 * 1e3, async () => {
+    let texto = "";
+    try {
+      const res = await fetch(url.toString(), {
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; LegisTrackCL/1.0)" },
+        signal: AbortSignal.timeout(3e4)
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const { extractText, getDocumentProxy } = await import("unpdf");
+      const pdf = await getDocumentProxy(new Uint8Array(await res.arrayBuffer()));
+      const { text } = await extractText(pdf, { mergePages: true });
+      texto = String(text || "").replace(/\s+/g, " ").trim();
+    } catch (err) {
+      return { disponible: false, motivo: `No se pudo leer el PDF oficial: ${err?.message || err}`, fuente: url.toString() };
+    }
+    if (texto.length < 80) {
+      return { disponible: false, motivo: "El PDF no tiene texto legible (posiblemente escaneado).", fuente: url.toString() };
+    }
+    const prompt = `Eres analista de finanzas p\xFAblicas. Abajo est\xE1 el TEXTO COMPLETO de un Informe Financiero oficial de la DIPRES (Chile).
+Resume SOLO lo que dice el texto; no agregues cifras, supuestos ni conclusiones que no est\xE9n escritas.
+
+Responde \xDANICAMENTE con JSON v\xE1lido con este esquema:
+{"descripcion": "qu\xE9 propone el proyecto, 1-2 frases", "efectoFiscal": "efecto fiscal tal como lo indica el informe (mayor gasto, menor ingreso, sin efecto fiscal, etc.)", "montos": ["cifras textuales con unidad y per\xEDodo, ej. 'M$ 1.234.567 en 2027'"], "financiamiento": "c\xF3mo se financia seg\xFAn el informe, o '' si no lo dice"}
+
+TEXTO:
+${texto.slice(0, 14e3)}`;
+    try {
+      const salida = await generarContenidoUniversalIA(prompt, 900);
+      const json = salida ? safeJsonParse(salida) : null;
+      if (json && (json.descripcion || json.efectoFiscal)) {
+        return {
+          disponible: true,
+          descripcion: String(json.descripcion || ""),
+          efectoFiscal: String(json.efectoFiscal || ""),
+          montos: Array.isArray(json.montos) ? json.montos.map(String).slice(0, 8) : [],
+          financiamiento: String(json.financiamiento || ""),
+          fuente: url.toString()
+        };
+      }
+    } catch {
+    }
+    return { disponible: true, extracto: texto.slice(0, 900), fuente: url.toString() };
+  });
+}
+
 // server/services/comparadoService.ts
 var LEYCHILE_API_KEY = process.env.LEYCHILE_API_KEY || "qW5yv690wb8WIEq1wN08HsHZur4MyrSSrhLgcXdstNZwtJ3Fihfu3baz4y3uYlCb";
 var CODIGO_PAIS = {
@@ -192782,7 +192879,7 @@ apiRouter.get("/health", async (req, res) => {
   });
 });
 apiRouter.get("/proyectos", async (req, res) => {
-  const { query, estado, camara, materia, urgencia, origen, solo_vigentes, page = 1, limit = 10 } = req.query;
+  const { query, estado, camara, materia, urgencia, origen, solo_vigentes, con_if, page = 1, limit = 10 } = req.query;
   const masterProyectos = getAllMasterProyectos();
   const listadoSenado = await fetchProyectosListadoFromSenado();
   const proyectosSenado = listadoSenado.map(listadoToProyecto);
@@ -192793,6 +192890,15 @@ apiRouter.get("/proyectos", async (req, res) => {
   let filtered = Array.from(byId.values());
   if (solo_vigentes === "true") {
     filtered = filtered.filter((p) => !p.estado.toLowerCase().includes("archivado") && !p.estado.toLowerCase().includes("rechazado"));
+  }
+  if (con_if === "true") {
+    try {
+      const indice = await fetchIndiceInformesFinancieros();
+      const conIF = new Set(indice.flatMap((i) => i.boletines.map(claveBoletinIF)));
+      filtered = filtered.filter((p) => conIF.has(claveBoletinIF(p.id)));
+    } catch {
+      filtered = [];
+    }
   }
   if (query) {
     const q = String(query).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
@@ -193234,6 +193340,37 @@ apiRouter.get("/diagnostico/opendata-camara", async (req, res) => {
 });
 apiRouter.get("/camara/votacion/:id", async (req, res) => {
   res.json(await fetchCamaraVotacionDetalle(String(req.params.id)));
+});
+apiRouter.get("/proyecto/:id/informes-financieros", async (req, res) => {
+  const fuente = "Direcci\xF3n de Presupuestos (dipres.gob.cl)";
+  try {
+    const informes = await informesFinancierosDeBoletin(String(req.params.id));
+    res.json({ disponible: true, informes, fuente });
+  } catch (e) {
+    res.json({ disponible: false, motivo: `No se pudo consultar la DIPRES: ${e?.message || e}`, informes: [], fuente });
+  }
+});
+apiRouter.get("/informes-financieros/resumen", async (req, res) => {
+  try {
+    res.json(await resumirInformeFinanciero(String(req.query.url || "")));
+  } catch (e) {
+    res.json({ disponible: false, motivo: String(e?.message || e), fuente: String(req.query.url || "") });
+  }
+});
+apiRouter.get("/informes-financieros/boletines", async (_req, res) => {
+  try {
+    const indice = await fetchIndiceInformesFinancieros();
+    const mapa = {};
+    for (const inf of indice) {
+      for (const b of inf.boletines) {
+        const k = claveBoletinIF(b);
+        (mapa[k] = mapa[k] || []).push({ numero: inf.numero, estado: inf.estado, materia: inf.materia, pdf: inf.pdf });
+      }
+    }
+    res.json({ disponible: true, total: indice.length, boletines: mapa });
+  } catch (e) {
+    res.json({ disponible: false, motivo: `No se pudo consultar la DIPRES: ${e?.message || e}`, boletines: {} });
+  }
 });
 apiRouter.get("/comisiones", async (req, res) => {
   const allComisiones = await getTodasComisiones();

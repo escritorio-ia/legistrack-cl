@@ -300,6 +300,36 @@ export default function ProyectoDetailView({
     });
   }, [camaraOficial]);
 
+  // Informes financieros (DIPRES) del boletín y su descripción bajo demanda.
+  const [informesFin, setInformesFin] = useState<{
+    disponible: boolean; motivo?: string; fuente: string;
+    informes: { numero: string; materia: string; mensaje: string; estado: string; ministerio: string; anio: string; pdf: string }[];
+  } | null>(null);
+  const [resumenesIF, setResumenesIF] = useState<Record<string, any>>({});
+
+  useEffect(() => {
+    let cancelado = false;
+    setInformesFin(null);
+    setResumenesIF({});
+    fetch(`/api/proyecto/${encodeURIComponent(proyectoId)}/informes-financieros`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelado && d) setInformesFin(d); })
+      .catch(() => {});
+    return () => { cancelado = true; };
+  }, [proyectoId]);
+
+  const describirInforme = (pdf: string) => {
+    if (resumenesIF[pdf]) {
+      setResumenesIF(prev => { const n = { ...prev }; delete n[pdf]; return n; });
+      return;
+    }
+    setResumenesIF(prev => ({ ...prev, [pdf]: { cargando: true } }));
+    fetch(`/api/informes-financieros/resumen?url=${encodeURIComponent(pdf)}`)
+      .then(r => r.json())
+      .then(d => setResumenesIF(prev => ({ ...prev, [pdf]: d })))
+      .catch(() => setResumenesIF(prev => ({ ...prev, [pdf]: { disponible: false, motivo: "No se pudo obtener la descripción." } })));
+  };
+
   const verVotosDiputados = (votacionId: string) => {
     if (votosDetalle[votacionId]?.votos || votosDetalle[votacionId]?.cargando) {
       setVotosDetalle(prev => { const n = { ...prev }; delete n[votacionId]; return n; });
@@ -1044,8 +1074,14 @@ export default function ProyectoDetailView({
               id="tab-btn-informes-bcn"
             >
               <Award className={`w-3.5 h-3.5 transition-colors ${activeTab === "informes-bcn" ? "text-amber-500" : "text-slate-400 group-hover/btn:text-amber-500"}`} />
-              <span>Informes BCN</span>
-              <span className="text-[9px] font-extrabold bg-amber-50 text-amber-600 border border-amber-200 px-1.5 py-0.2 rounded-full scale-90">OFICIAL</span>
+              <span>Informes</span>
+              {informesFin?.informes && informesFin.informes.length > 0 ? (
+                <span className="text-[9px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.2 rounded-full scale-90" title="Tiene informe financiero de la DIPRES">
+                  IF {informesFin.informes.length}
+                </span>
+              ) : (
+                <span className="text-[9px] font-extrabold bg-amber-50 text-amber-600 border border-amber-200 px-1.5 py-0.2 rounded-full scale-90">OFICIAL</span>
+              )}
             </button>
           </div>
 
@@ -2326,6 +2362,67 @@ export default function ProyectoDetailView({
                   </p>
                 </div>
 
+                {/* Informes financieros de la DIPRES */}
+                <div className="space-y-3" id="informes-financieros">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">Informes financieros (DIPRES)</h4>
+                    <span className="text-[10px] text-slate-400">Fuente: Dirección de Presupuestos</span>
+                  </div>
+                  {informesFin === null ? (
+                    <p className="text-xs text-slate-400">Consultando la DIPRES…</p>
+                  ) : !informesFin.disponible ? (
+                    <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-xl p-3">{informesFin.motivo}</p>
+                  ) : informesFin.informes.length === 0 ? (
+                    <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-xl p-3">
+                      La DIPRES no registra informes financieros para este boletín.
+                    </p>
+                  ) : (
+                    <ul className="flex flex-col gap-2">
+                      {informesFin.informes.map(inf => {
+                        const r = resumenesIF[inf.pdf];
+                        return (
+                          <li key={inf.numero} className="bg-emerald-50/40 border border-emerald-200 rounded-xl px-4 py-3 space-y-2">
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="text-xs font-black text-slate-900">IF N° {inf.numero}{inf.mensaje ? ` · Mensaje ${inf.mensaje}` : ""}</p>
+                                <p className="text-[11px] text-slate-600">{inf.materia}</p>
+                                <p className="text-[10px] text-slate-400">{[inf.estado, inf.ministerio, inf.anio].filter(Boolean).join(" · ")}</p>
+                              </div>
+                              <div className="flex items-center gap-3 shrink-0">
+                                <button onClick={() => describirInforme(inf.pdf)} className="text-xs font-bold text-emerald-800 hover:underline cursor-pointer">
+                                  {r ? "Ocultar descripción" : "Describir informe"}
+                                </button>
+                                <a href={inf.pdf} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-blue-700 hover:underline flex items-center gap-1">
+                                  PDF <ExternalLink className="w-3.5 h-3.5" />
+                                </a>
+                              </div>
+                            </div>
+                            {r?.cargando && <p className="text-[11px] text-slate-400">Leyendo el PDF oficial y preparando la descripción…</p>}
+                            {r && !r.cargando && r.disponible === false && <p className="text-[11px] text-slate-500">{r.motivo}</p>}
+                            {r && !r.cargando && r.disponible && (
+                              <div className="text-[11px] text-slate-700 bg-white border border-slate-200 rounded-lg p-3 space-y-1.5">
+                                {r.descripcion && <p><strong>Qué propone:</strong> {r.descripcion}</p>}
+                                {r.efectoFiscal && <p><strong>Efecto fiscal:</strong> {r.efectoFiscal}</p>}
+                                {r.montos && r.montos.length > 0 && (
+                                  <div><strong>Montos informados:</strong>
+                                    <ul className="list-disc ml-5">{r.montos.map((m: string, i: number) => <li key={i}>{m}</li>)}</ul>
+                                  </div>
+                                )}
+                                {r.financiamiento && <p><strong>Financiamiento:</strong> {r.financiamiento}</p>}
+                                {r.extracto && <p><strong>Extracto del informe:</strong> {r.extracto}…</p>}
+                                <p className="text-[10px] text-slate-400">
+                                  {r.extracto ? "Texto literal del PDF oficial." : "Resumen generado con IA a partir del texto del PDF oficial; verifique las cifras en el documento."}
+                                </p>
+                              </div>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+
+                <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider pt-2">Informes de comisión</h4>
                 {(() => {
                   const informes = (proyecto.documentos || []).filter(d => /informe/i.test(`${d.tipo} ${d.titulo}`) && d.url);
                   if (informes.length === 0) {

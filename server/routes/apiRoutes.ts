@@ -38,6 +38,7 @@ import {
   SENADO_COMISIONES_REALES,
   DIPUTADOS_COMISIONES_REALES
 } from "../services/camaraService";
+import { fetchIndiceInformesFinancieros, informesFinancierosDeBoletin, resumirInformeFinanciero, claveBoletinIF } from "../services/dipresService";
 import { 
   buscarDerechoComparado, 
   ResultadoComparado, 
@@ -192,7 +193,7 @@ apiRouter.get("/health", async (req: Request, res: Response) => {
 // 2. PROYECTOS & BOLETINES
 // ============================================================================
 apiRouter.get("/proyectos", async (req: Request, res: Response) => {
-  const { query, estado, camara, materia, urgencia, origen, solo_vigentes, page = 1, limit = 10 } = req.query;
+  const { query, estado, camara, materia, urgencia, origen, solo_vigentes, con_if, page = 1, limit = 10 } = req.query;
 
   const masterProyectos = getAllMasterProyectos();
   const listadoSenado = await fetchProyectosListadoFromSenado();
@@ -207,6 +208,17 @@ apiRouter.get("/proyectos", async (req: Request, res: Response) => {
 
   if (solo_vigentes === "true") {
     filtered = filtered.filter(p => !p.estado.toLowerCase().includes("archivado") && !p.estado.toLowerCase().includes("rechazado"));
+  }
+
+  // Solo proyectos con informe financiero de la DIPRES.
+  if (con_if === "true") {
+    try {
+      const indice = await fetchIndiceInformesFinancieros();
+      const conIF = new Set(indice.flatMap(i => i.boletines.map(claveBoletinIF)));
+      filtered = filtered.filter(p => conIF.has(claveBoletinIF(p.id)));
+    } catch {
+      filtered = [];
+    }
   }
 
   if (query) {
@@ -773,6 +785,43 @@ apiRouter.get("/diagnostico/opendata-camara", async (req: Request, res: Response
 // Voto de cada diputado en una votación de la Cámara (datos abiertos).
 apiRouter.get("/camara/votacion/:id", async (req: Request, res: Response) => {
   res.json(await fetchCamaraVotacionDetalle(String(req.params.id)));
+});
+
+// Informes financieros (DIPRES) de un boletín.
+apiRouter.get("/proyecto/:id/informes-financieros", async (req: Request, res: Response) => {
+  const fuente = "Dirección de Presupuestos (dipres.gob.cl)";
+  try {
+    const informes = await informesFinancierosDeBoletin(String(req.params.id));
+    res.json({ disponible: true, informes, fuente });
+  } catch (e: any) {
+    res.json({ disponible: false, motivo: `No se pudo consultar la DIPRES: ${e?.message || e}`, informes: [], fuente });
+  }
+});
+
+// Descripción de un informe financiero a partir de su PDF oficial.
+apiRouter.get("/informes-financieros/resumen", async (req: Request, res: Response) => {
+  try {
+    res.json(await resumirInformeFinanciero(String(req.query.url || "")));
+  } catch (e: any) {
+    res.json({ disponible: false, motivo: String(e?.message || e), fuente: String(req.query.url || "") });
+  }
+});
+
+// Mapa boletín -> informes financieros, para marcar proyectos en los listados.
+apiRouter.get("/informes-financieros/boletines", async (_req: Request, res: Response) => {
+  try {
+    const indice = await fetchIndiceInformesFinancieros();
+    const mapa: Record<string, { numero: string; estado: string; materia: string; pdf: string }[]> = {};
+    for (const inf of indice) {
+      for (const b of inf.boletines) {
+        const k = claveBoletinIF(b);
+        (mapa[k] = mapa[k] || []).push({ numero: inf.numero, estado: inf.estado, materia: inf.materia, pdf: inf.pdf });
+      }
+    }
+    res.json({ disponible: true, total: indice.length, boletines: mapa });
+  } catch (e: any) {
+    res.json({ disponible: false, motivo: `No se pudo consultar la DIPRES: ${e?.message || e}`, boletines: {} });
+  }
 });
 
 apiRouter.get("/comisiones", async (req: Request, res: Response) => {

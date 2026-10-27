@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { Proyecto } from "../types";
 import { TODAS_COMISIONES_DETALLE, getProyectosForComision } from "../data/comisionesData";
+import { formatFechaCL } from "../utils/dateUtils";
 import { findPreloadedProyecto, cleanBulletin, getAllMasterProyectos, esPatronBoletin } from "../utils/proyectosResolver";
 import { fetchLiveSenateProject, fetchLiveSenateProjectsList } from "../utils/senadoClientApi";
 
@@ -84,6 +85,12 @@ function matchEstadoFilter(pEstado: string, estadoFilter: string): boolean {
   return e.includes(filter);
 }
 
+/** Clave normalizada de boletín ("18.643-05" → "18643-05") para cruzar con la DIPRES. */
+function claveBoletinListado(id: string): string {
+  const m = String(id || "").replace(/\./g, "").match(/(\d{3,6})(?:-(\d{1,2}))?/);
+  return m ? (m[2] ? `${m[1]}-${m[2].padStart(2, "0")}` : m[1]) : "";
+}
+
 function getLocalFilteredProyectos(params: {
   searchFilter: string;
   estadoFilter: string;
@@ -94,6 +101,8 @@ function getLocalFilteredProyectos(params: {
   soloVigentes: boolean;
   page: number;
   limit: number;
+  /** Si viene, solo se muestran boletines con informe financiero de la DIPRES. */
+  boletinesConIF?: Set<string> | null;
 }) {
   const allList = getAllMasterProyectos();
 
@@ -111,6 +120,10 @@ function getLocalFilteredProyectos(params: {
     const normMat = (p.materia || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     const normRes = (p.resumen || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     const normAut = (p.autores || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+    if (params.boletinesConIF && !params.boletinesConIF.has(claveBoletinListado(p.id))) {
+      return false;
+    }
 
     if (params.soloVigentes && params.estadoFilter === "Todos") {
       const eLower = (p.estado || "").toLowerCase();
@@ -227,6 +240,15 @@ export default function ProyectosView({
   const [urgenciaFilter, setUrgenciaFilter] = useState("Todas");
   const [origenFilter, setOrigenFilter] = useState("Todos");
   const [soloVigentes, setSoloVigentes] = useState(true);
+  // Informes financieros (DIPRES) por boletín y filtro "solo con informe financiero".
+  const [ifPorBoletin, setIfPorBoletin] = useState<Record<string, { numero: string; estado: string; materia: string; pdf: string }[]> | null>(null);
+  const [soloConIF, setSoloConIF] = useState(false);
+  useEffect(() => {
+    fetch("/api/informes-financieros/boletines")
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (d && d.disponible) setIfPorBoletin(d.boletines || {}); })
+      .catch(() => {});
+  }, []);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalResultados, setTotalResultados] = useState(0);
@@ -280,7 +302,8 @@ export default function ProyectosView({
       origenFilter,
       soloVigentes,
       page,
-      limit
+      limit,
+      boletinesConIF: soloConIF && ifPorBoletin ? new Set(Object.keys(ifPorBoletin)) : null
     });
 
     setProyectos(localData.resultados);
@@ -317,6 +340,7 @@ export default function ProyectosView({
     if (materiaFilter !== "Todas") url += `&materia=${encodeURIComponent(materiaFilter)}`;
     if (urgenciaFilter !== "Todas") url += `&urgencia=${encodeURIComponent(urgenciaFilter)}`;
     if (origenFilter !== "Todos") url += `&origen=${encodeURIComponent(origenFilter)}`;
+    if (soloConIF) url += `&con_if=true`;
 
     fetch(url)
       .then(res => res.json())
@@ -335,7 +359,7 @@ export default function ProyectosView({
       .catch(() => {
         // Fallback already active and shown from master real database
       });
-  }, [searchExecution, searchFilter, estadoFilter, camaraFilter, materiaFilter, urgenciaFilter, origenFilter, soloVigentes, page, limit]);
+  }, [searchExecution, searchFilter, estadoFilter, camaraFilter, materiaFilter, urgenciaFilter, origenFilter, soloVigentes, page, limit, soloConIF, ifPorBoletin]);
 
   const handleExportCSV = () => {
     if (proyectos.length === 0) return;
@@ -623,6 +647,20 @@ export default function ProyectosView({
                 <span>{soloVigentes ? "Solo Vigentes" : "Todos (Incluye Leyes)"}</span>
               </button>
 
+              {/* Solo con informe financiero (DIPRES) */}
+              <button
+                type="button"
+                disabled={!ifPorBoletin}
+                onClick={() => { setSoloConIF(!soloConIF); setPage(1); }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition duration-200 border cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                  soloConIF ? "bg-emerald-600 border-emerald-700 text-white" : "bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200"
+                }`}
+                title={ifPorBoletin ? "Mostrar solo proyectos con informe financiero de la DIPRES" : "Cargando informes financieros de la DIPRES…"}
+              >
+                <span>💰</span>
+                <span>Con informe financiero</span>
+              </button>
+
               <button 
                 onClick={() => {
                   setEstadoFilter("Todos");
@@ -728,10 +766,23 @@ export default function ProyectosView({
                         <span className="bg-slate-900 text-white px-2.5 py-0.5 rounded-lg font-mono font-bold">
                           Boletín {proyecto.id}
                         </span>
+
+                        {(() => {
+                          const ifs = ifPorBoletin?.[claveBoletinListado(proyecto.id)];
+                          if (!ifs || ifs.length === 0) return null;
+                          return (
+                            <span
+                              className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-md font-bold"
+                              title={ifs.map(i => `IF N° ${i.numero}: ${i.materia}`).join("\n")}
+                            >
+                              💰 Informe financiero{ifs.length > 1 ? `s (${ifs.length})` : ""} · IF {ifs.map(i => i.numero).join(", ")}
+                            </span>
+                          );
+                        })()}
                         
                         <span className="text-slate-500 flex items-center gap-1 font-medium">
                           <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                          Ingreso: {new Date(proyecto.fechaIngreso).toLocaleDateString("es-CL", { day: 'numeric', month: 'short', year: 'numeric' })}
+                          Ingreso: {formatFechaCL(proyecto.fechaIngreso)}
                         </span>
 
                         {/* Quorum Badge */}
