@@ -775,7 +775,7 @@ export default function ProyectosView({
                               className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-md font-bold"
                               title={ifs.map(i => `IF N° ${i.numero}: ${i.materia}`).join("\n")}
                             >
-                              💰 Informe financiero{ifs.length > 1 ? `s (${ifs.length})` : ""} · IF {ifs.map(i => i.numero).join(", ")}
+                              💰 {ifs.length > 1 ? `Informes financieros (${ifs.length})` : "Informe financiero"} · IF {ifs.map(i => i.numero).join(", ")}
                             </span>
                           );
                         })()}
