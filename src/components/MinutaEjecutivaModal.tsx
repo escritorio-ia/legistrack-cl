@@ -58,8 +58,8 @@ I. IDENTIFICACIÓN DEL PROYECTO
 
 II. RÉGIMEN CONSTITUCIONAL Y QUÓRUM REQUERIDO
 --------------------------------------------------------------------------------
-• Tipo de Quórum: ${proyecto.quorum?.tipo || "Ley Simple"}
-• Fundamento: ${proyecto.quorum?.descripcion || "Mayoría simple de los presentes en la Sala."}
+• Tipo de Quórum: ${proyecto.quorum?.tipo || "No informado en la ficha"}
+• Fundamento: ${proyecto.quorum?.descripcion || "La ficha oficial no informa el quórum."}
 ${proyecto.quorum?.votosDiputados ? `• Exigencia Cámara: ${proyecto.quorum.votosDiputados} | Senado: ${proyecto.quorum.votosSenadores}` : ""}
 
 III. SÍNTESIS TÉCNICA Y OBJETO SUSTANTIVO
@@ -197,10 +197,10 @@ Documento formal de trabajo legislativo.
               </h3>
               <div className="text-xs sm:text-sm leading-relaxed text-slate-800 font-sans space-y-1">
                 <p>
-                  <strong>Tipo de Quórum:</strong> <span className="text-blue-900 font-bold">{proyecto.quorum?.tipo || "Ley Simple"}</span>.
+                  <strong>Tipo de Quórum:</strong> <span className="text-blue-900 font-bold">{proyecto.quorum?.tipo || "No informado en la ficha"}</span>.
                 </p>
                 <p className="text-slate-600 text-xs">
-                  {proyecto.quorum?.descripcion || "Requiere la mayoría de los votos de las y los parlamentarios presentes en la Sala."}
+                  {proyecto.quorum?.descripcion || "La ficha oficial no informa el quórum."}
                 </p>
                 {proyecto.quorum?.votosDiputados && (
                   <p className="text-[11px] font-mono text-slate-500 pt-0.5">

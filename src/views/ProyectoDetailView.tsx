@@ -47,8 +47,7 @@ import { Proyecto, ActivityItem, VotacionItem } from "../types";
 import { resolveProyecto } from "../utils/proyectosResolver";
 import { fetchLiveSenateProject } from "../utils/senadoClientApi";
 import SimuladorQuorum from "../components/SimuladorQuorum";
-import DiffViewerModal from "../components/DiffViewerModal";
-import FichaEjecutivaPrint from "../components/FichaEjecutivaPrint";
+import { formatFechaCL } from "../utils/dateUtils";
 import MinutaEjecutivaModal from "../components/MinutaEjecutivaModal";
 import TerritorialImpactPanel from "../components/TerritorialImpactPanel";
 import NotasColaborativasDrawer from "../components/NotasColaborativasDrawer";
@@ -388,16 +387,17 @@ export default function ProyectoDetailView({
 
   function handleDownloadMinutaWord() {
     if (!proyecto) return;
-    const quorum = proyecto.quorum || { 
-      tipo: "Ley Simple", 
-      descripcion: "Requiere la mayoría de los parlamentarios presentes en Sala.",
-      votosDiputados: "Mayoría de presentes (~40-78 diputados)",
-      votosSenadores: "Mayoría de presentes (~13-26 senadores)"
+    // Sin valores supuestos: si la ficha oficial no informa quórum o ficha técnica, se dice así.
+    const quorum = proyecto.quorum || {
+      tipo: "No informado en la ficha",
+      descripcion: "La ficha oficial del proyecto no informa el quórum.",
+      votosDiputados: "No informado",
+      votosSenadores: "No informado"
     };
     const ficha = proyecto.fichaTecnica || {
-      objeto: `🎯 Objeto & Ámbito: Regulación legal integral para "${proyecto.titulo}".`,
-      mecanismos: "⚙️ Mecanismos Clave: Modificaciones legales, obligaciones directas de cumplimiento y plazos de entrada en vigencia.",
-      fiscalizacion: "⚖️ Fiscalización & Sanciones: Órganos sectoriales del Estado competentes y sanciones administrativas y civiles."
+      objeto: "Sin ficha técnica disponible.",
+      mecanismos: "Sin ficha técnica disponible.",
+      fiscalizacion: "Sin ficha técnica disponible."
     };
 
     const htmlContent = `
@@ -429,7 +429,7 @@ export default function ProyectoDetailView({
 
         <table class="header-table">
           <tr>
-            <td><strong>Fecha de Ingreso:</strong> ${new Date(proyecto.fechaIngreso).toLocaleDateString("es-CL", { day: "2-digit", month: "long", year: "numeric" })}</td>
+            <td><strong>Fecha de Ingreso:</strong> ${formatFechaCL(proyecto.fechaIngreso, { day: "2-digit", month: "long", year: "numeric" })}</td>
             <td><strong>Iniciativa:</strong> ${proyecto.iniciativa} (${proyecto.camaraOrigen})</td>
           </tr>
           <tr>
@@ -511,77 +511,9 @@ export default function ProyectoDetailView({
   const [selectedReportForViewer, setSelectedReportForViewer] = useState<any | null>(null);
   const [viewerCurrentPage, setViewerCurrentPage] = useState(1);
 
-  function getBCNReports(proj: Proyecto) {
-    return [
-      {
-        id: "bcn-rep-1",
-        titulo: "Minuta BCN: Técnica Legislativa y Admisibilidad Constitucional",
-        tipo: "Asesoría Parlamentaria BCN",
-        fecha: proj.fechaIngreso,
-        etapaTramitacion: "Primer Trámite Constitucional &bull; Ingreso",
-        ordenIndex: 1,
-        isReport: true,
-        reportContent: [
-          `# INFORME DE ADMISIBILIDAD CONSTITUCIONAL\n\nElaborado por el Departamento de Estudios de la **Biblioteca del Congreso Nacional (BCN)** para el Boletín N° **${proj.id}**.\n\n## 1. Bases de Competencia Legislativa\nEstudio minucioso de la adecuación del proyecto al artículo 65 de la Constitución Política de la República de Chile. El texto regula materias que no irrogan gasto público directo obligatorio o tributación exclusiva del Ejecutivo.\n\n## 2. Injerencia de Atribuciones\nNo se detectan colisiones competenciales estructurales. Las facultades otorgadas al organismo regulador se encuadran dentro de las directrices de fiscalización del Estado.`,
-          `# TRATADOS INTERNACIONALES DE DERECHOS HUMANOS\n\n## Concordancia de Tratados\nRevisión de la armonía del proyecto con el Pacto de San José de Costa Rica y otros convenios multilaterales.\n\n## Convenios de la OIT Aplicables:\n- **Convenio N° 111**: No discriminación en el empleo.\n- **Convenio N° 156**: Igualdad y conciliación laboral.\n\nSe concluye compatibilidad total, sumando valor dogmático al ordenamiento jurídico chileno.`,
-          `# RECOMENDACIONES DE REDACCIÓN TÉCNICA\n\n## Propuestas de Ajuste:\n- Ajustar el Artículo Transitorio 1° para explicitar la gradualidad de entrada en vigencia.\n- Armonizar los plazos de respuesta judicial con el procedimiento ordinario del Código del Trabajo chileno.\n\n*Conclusión*: Dictamen favorable de admisibilidad de las atribuciones legislativas para proseguir con su trámite.`
-        ]
-      },
-      {
-        id: "bcn-rep-2",
-        titulo: "Estudio BCN: Derecho Comparado y Experiencia Internacional OCDE",
-        tipo: "Análisis Comparado BCN",
-        fecha: (function() {
-          const d = new Date(proj.fechaIngreso);
-          d.setDate(d.getDate() + 15);
-          return d.toISOString().split('T')[0];
-        })(),
-        etapaTramitacion: "Primer Trámite Constitucional &bull; Estudio en Comisión",
-        ordenIndex: 2,
-        isReport: true,
-        reportContent: [
-          `# LEGISLACIÓN COMPARADA OCDE\n\n## Lecciones Internacionales para Chile\nEstudio técnico elaborado por el Departamento de Asesoría Parlamentaria BCN para optimizar el debate técnico del Boletín N° **${proj.id}**.\n\n## Modelos Analizados:\n- **España**: Ley de Corresponsabilidad y Conciliación Laboral de 2022.\n- **Alemania**: Sistema modular de protección activa Elternzeit.\n- **Uruguay**: Sistema Nacional Integrado de Cuidados.`,
-          `# IMPACTO EN LA PARTICIPACIÓN LABORAL FEBRIL\n\n## Datos de Empleabilidad Femenina\nEl análisis de impacto de los países de la OCDE que incorporaron medidas preferenciales de teletrabajo o corresponsabilidad muestra una correlación positiva.\n\n## Indicadores Clave:\n- Alza de 4.2% en tasa de retención laboral de mujeres cuidadoras.\n- Reducción del absentismo imprevisto en un 22%.\n- Transición estable hacia la formalización del empleo domiciliario.`,
-          `# PROPUESTAS DE IMPLEMENTACIÓN LOCAL\n\n## Recomendaciones Regulatorias:\n- Incorporar un subsidio de transición pyme para adecuar infraestructura tecnológica.\n- Habilitar fiscalizaciones de la Dirección del Trabajo (DT) mediante auto-reportes digitales.\n\n*Recomendación*: Se sugiere una implementación escalonada para evitar barreras a la contratación.`
-        ]
-      },
-      {
-        id: "bcn-rep-3",
-        titulo: "Informe BCN: Viabilidad Financiera e Impacto Presupuestario Proyectado",
-        tipo: "Análisis Presupuestario BCN",
-        fecha: (function() {
-          const d = new Date(proj.fechaIngreso);
-          d.setMonth(d.getMonth() + 2);
-          return d.toISOString().split('T')[0];
-        })(),
-        etapaTramitacion: "Comisión de Hacienda &bull; Viabilidad de Costo",
-        ordenIndex: 3,
-        isReport: true,
-        reportContent: [
-          `# ANÁLISIS DE IMPACTO FISCAL INDEPENDIENTE\n\nEvaluación presupuestaria complementaria al Boletín N° **${proj.id}**, realizada por la Unidad de Asesoría Presupuestaria de la **BCN**.\n\n## 1. Contraste de Supuestos DIPRES\nSe analizan las elasticidades de costo de operación directo contra los fondos generales de la Nación.\n\n- Tasa de fricción pyme: Estimada en 1.1% los meses 1-6.\n- Compensaciones indirectas: Retorno vía recaudación de IVA de consumo estimado en UF 45.000 anuales.`,
-          `# SUSTENTABILIDAD DEL FONDO DE FINANCIAMIENTO\n\n## Proyecciones Actuariales a 10 Años\nModelamiento probabilístico Monte Carlo para evaluar el comportamiento del fondo propuesto en el proyecto de ley.\n\n## Parámetros Estimados:\n- Solvencia técnica del 94.6% en el mediano plazo.\n- Beneficiarios estimados de régimen maduro: 110.000 ciudadanos.\n- Cobertura garantizada por aportes de tesorería residuales sin deuda impositiva.`,
-          `# CONCLUSIONES Y MATRICES DE EFICIENCIA\n\n## Propuestas Presupuestarias:\n- Reasignación de recursos remanentes de capacitación del SENCE.\n- Exención temporal de patentes municipales para micro-emprendimientos que adhieran al programa.\n\n*Resultado*: El proyecto exhibe viabilidad fiscal plena bajo el marco presupuestario trianual.`
-        ]
-      },
-      {
-        id: "bcn-rep-4",
-        titulo: "Guía BCN: Sistematización de Leyes y Efectos de Reforma Legal",
-        tipo: "Sistematización Normativa BCN",
-        fecha: (function() {
-          const d = new Date();
-          return d.toISOString().split('T')[0];
-        })(),
-        etapaTramitacion: "Segundo o Tercer Trámite &bull; Sanción y Promulgado",
-        ordenIndex: 4,
-        isReport: true,
-        reportContent: [
-          `# INTEGRACIÓN ARMONIOSA EN LA LEGISLACIÓN CHILENA\n\nGuía de adaptación normativa elaborada por los juristas redactores de la **Biblioteca del Congreso Nacional (BCN)**.\n\n## 1. Modificación de Cuerpos Legales\nEstudio del impacto directo e indirecto del nuevo articulado aprobado sobre las leyes chilenas vigentes:\n\n- **Código del Trabajo**: Modificación al Título II del Libro I.\n- **Ley N° 18.834**: Estatuto Administrativo del Sector Público.`,
-          `# SINFONÍA CON REFORMAS PRECEDENTES (40 HORAS Y LEY KARIN)\n\n## Mitigación de Duplicidades\nAnálisis de concordancia del presente Boletín con la Ley de 40 Horas y la Ley Karin sobre acoso laboral.\n\n- Coincidencias en fiscalización mutua.\n- Integración directa en reglamentos internos de orden laboral, higiene y seguridad.\n- Evita sobre-judicialización de pleitos laborales de cuidado y corresponsabilidad.`,
-          `# CRONOGRAMA DE ENTRADA EN VIGENCIA SUGERIDO\n\n## Gradualidad Temporal de Vacancia Legal:\n- **Empresas Grandes**: Vigencia inmediata desde la publicación oficial.\n- **Empresas Medianas**: 6 meses de gracia constitucional.\n- **Mypes / Pymes**: 12 meses para adaptación tecnológica.\n\n*Conclusión*: La integración armónica previene litigios interpretativos.`
-        ]
-      }
-    ];
-  }
+  // Antes había aquí cuatro "informes BCN" inventados (con cifras, países y
+  // conclusiones ficticias atribuidas a la BCN). Se eliminaron: la pestaña ahora
+  // muestra solo los informes reales del expediente y enlaza a la BCN.
 
   function parseAndRenderMarkdown(markdownText: string) {
     if (!markdownText) return null;
@@ -774,7 +706,7 @@ export default function ProyectoDetailView({
           </button>
 
           <button 
-            onClick={() => setIsDiffModalOpen(true)}
+            onClick={() => setActiveTab("comparado")}
             className="flex items-center gap-1.5 font-bold text-xs px-3.5 py-2 rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-800 hover:bg-indigo-100 shadow-2xs transition-all cursor-pointer"
             title="Comparador Visual de Textos e Indicaciones"
             id="open-diff-viewer-btn"
@@ -904,8 +836,8 @@ export default function ProyectoDetailView({
         {/* Metric 2 */}
         <div className="bg-white rounded-xl border border-slate-200 p-4 font-sans text-center flex flex-col justify-center items-center gap-1 shadow-sm">
           <p className="text-[9px] uppercase font-bold tracking-wider text-slate-400 font-mono">QUÓRUM EXIGIDO</p>
-          <span className="text-[11px] font-extrabold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-md truncate max-w-full" title={proyecto.quorum?.tipo || "Ley Simple"}>
-            {proyecto.quorum?.tipo || "Ley Simple"}
+          <span className="text-[11px] font-extrabold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-md truncate max-w-full" title={proyecto.quorum?.tipo || "No informado"}>
+            {proyecto.quorum?.tipo || "No informado"}
           </span>
         </div>
         {/* Metric 3 */}
@@ -917,7 +849,7 @@ export default function ProyectoDetailView({
         <div className="bg-white rounded-xl border border-slate-200 p-4 font-sans text-center flex flex-col justify-center items-center gap-1 shadow-sm">
           <p className="text-[9px] uppercase font-bold tracking-wider text-slate-400 font-mono">FECHA INGRESO</p>
           <span className="text-xs font-bold text-slate-900">
-            {new Date(proyecto.fechaIngreso).toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "numeric" })}
+            {formatFechaCL(proyecto.fechaIngreso)}
           </span>
         </div>
         {/* Metric 5 */}
@@ -1079,9 +1011,11 @@ export default function ProyectoDetailView({
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-mono font-bold text-slate-300 bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-700">
-                        ⏱️ {proyecto.diasTramitacion ?? 45} días en trámite
-                      </span>
+                      {proyecto.diasTramitacion !== undefined && (
+                        <span className="text-xs font-mono font-bold text-slate-300 bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-700">
+                          ⏱️ {proyecto.diasTramitacion} día{proyecto.diasTramitacion === 1 ? "" : "s"} en trámite
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -1322,12 +1256,14 @@ export default function ProyectoDetailView({
                   </div>
 
                   {(() => {
-                    const quorum = proyecto.quorum || {
-                      tipo: "Ley Simple",
-                      descripcion: "Requiere la mayoría simple de los miembros presentes en la sala de cada cámara parlamentaria.",
-                      votosDiputados: "Mayoría de presentes (~40-78 diputados)",
-                      votosSenadores: "Mayoría de presentes (~13-26 senadores)"
-                    };
+                    if (!proyecto.quorum) {
+                      return (
+                        <p className="text-xs text-slate-500">
+                          La ficha oficial del proyecto no informa el quórum de aprobación. Se determina al calificar las normas en el informe de comisión.
+                        </p>
+                      );
+                    }
+                    const quorum = proyecto.quorum;
 
                     return (
                       <div className="space-y-4">
@@ -2234,111 +2170,48 @@ export default function ProyectoDetailView({
 
             {/* 7. Informes BCN Tab */}
             {activeTab === "informes-bcn" && (
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6" id="tabpanel-informes-bcn">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5 mb-6">
-                  <div>
-                    <h3 className="text-sm font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-                      <Award className="w-5 h-5 text-amber-500" />
-                      <span>Estudios e Informes de la Biblioteca del Congreso Nacional (BCN)</span>
-                    </h3>
-                    <p className="text-xs text-slate-500 font-medium mt-1">
-                      Asesorías parlamentarias, legislación comparada, viabilidad presupuestaria y guías de concordancia legal ordenadas por etapas del proceso legislativo.
-                    </p>
-                  </div>
-                  <div className="bg-amber-50 border border-amber-200 px-3 py-2 rounded-xl text-[11px] font-semibold text-amber-950 flex items-center gap-1.5 shrink-0 self-start sm:self-auto">
-                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-                    <span>4 Reportes Oficinas BCN Vinculados</span>
-                  </div>
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 flex flex-col gap-5" id="tabpanel-informes-bcn">
+                <div className="border-b border-slate-100 pb-4">
+                  <h3 className="text-sm font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+                    <Award className="w-5 h-5 text-amber-500" />
+                    <span>Informes del expediente y asesoría BCN</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium mt-1">
+                    Informes de comisión publicados en la ficha oficial de tramitación del boletín {proyecto.id}.
+                  </p>
                 </div>
 
-                {/* Vertical Timeline / Stepper for Legislative Processing Ordering */}
-                <div className="relative pl-6 sm:pl-8 border-l border-slate-200 space-y-8 py-2">
-                  {getBCNReports(proyecto).map((report, idx) => {
+                {(() => {
+                  const informes = (proyecto.documentos || []).filter(d => /informe/i.test(`${d.tipo} ${d.titulo}`) && d.url);
+                  if (informes.length === 0) {
                     return (
-                      <div key={report.id} className="relative group/card">
-                        
-                        {/* Step Number Badge */}
-                        <div className="absolute -left-[38px] sm:-left-[46px] top-1.5 w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-[#003366] text-white flex items-center justify-center font-mono text-xs font-black shadow-md ring-4 ring-white border border-[#003366]">
-                          {idx + 1}
-                        </div>
-
-                        {/* Card Component */}
-                        <div className="bg-slate-50 border border-slate-200 p-4 sm:p-5 rounded-2xl shadow-xs hover:shadow-md hover:border-blue-300 transition-all duration-300">
-                          
-                          {/* Header of Report Card */}
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/60 pb-3 mb-3">
-                            <div>
-                              <span className="text-[10px] font-extrabold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md uppercase tracking-wider">
-                                {report.tipo}
-                              </span>
-                              <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 mt-1.5 pr-2">
-                                {report.titulo}
-                              </h4>
-                            </div>
-                            <div className="text-left sm:text-right shrink-0">
-                              <span className="text-[10px] font-bold text-slate-400 block">PUBLICACIÓN BCN</span>
-                              <span className="text-[11px] font-extrabold text-slate-700">
-                                {new Date(report.fecha).toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" })}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Body of Report Card */}
-                          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs font-sans">
-                            
-                            {/* Milestone / Stage column */}
-                            <div className="md:col-span-1 border-r border-slate-200/60 md:pr-4 flex flex-col justify-center gap-1">
-                              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">ETAPA DE TRÁMITE</span>
-                              <span className="font-extrabold text-slate-800 text-[11px] leading-relaxed flex items-center gap-1" dangerouslySetInnerHTML={{ __html: report.etapaTramitacion }} />
-                            </div>
-
-                            {/* Summary description */}
-                            <div className="md:col-span-2 flex flex-col justify-center">
-                              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-1">RESUMEN EJECUTIVO</span>
-                              <p className="text-[11px] text-slate-650 leading-relaxed font-medium">
-                                {report.id === "bcn-rep-1" && `Análisis preliminar de la admisibilidad jurídica del Boletín ${proyecto.id}, los convenios multilaterales vigentes con la OIT (111 y 156) y un informe de adecuación al marco constitucional de Chile.`}
-                                {report.id === "bcn-rep-2" && `Estudio del comportamiento normativo y las políticas comparadas activas en las naciones de la OCDE (Alemania, España, Uruguay) que introdujeron mecanismos preferenciales de corresponsabilidad.`}
-                                {report.id === "bcn-rep-3" && `Análisis independiente que evalúa los supuestos económicos de sostenibilidad financiera a mediano y largo plazo, estimaciones de flujos de beneficiarios y balances tributarios generales.`}
-                                {report.id === "bcn-rep-4" && `Ficha explicativa jurídica sobre los efectos normativos cruzados con cuerpos chilenos vigentes (Código del Trabajo, Estatuto Administrativo) y compatibilidad con las leyes de 40 Horas y Karin.`}
-                              </p>
-                            </div>
-
-                            {/* Action column */}
-                            <div className="md:col-span-1 flex items-center justify-end">
-                              <button
-                                onClick={() => {
-                                  setSelectedReportForViewer(report);
-                                  setViewerCurrentPage(1);
-                                }}
-                                className="w-full sm:w-auto bg-[#003366] hover:bg-slate-900 text-white font-extrabold text-[11px] px-3.5 py-2 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer hover:scale-[1.02]"
-                              >
-                                <span>Ver Informe BCN</span>
-                                <ArrowRight className="w-3.5 h-3.5 text-amber-500 stroke-[3]" />
-                              </button>
-                            </div>
-
-                          </div>
-
-                        </div>
-
-                      </div>
+                      <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-xl p-4">
+                        Este boletín todavía no tiene informes de comisión publicados en su ficha oficial.
+                      </p>
                     );
-                  })}
-                </div>
+                  }
+                  return (
+                    <ul className="flex flex-col gap-2">
+                      {informes.map(inf => (
+                        <li key={inf.id} className="flex items-center justify-between gap-3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-slate-900">{inf.titulo}</p>
+                            <p className="text-[11px] text-slate-500">{formatFechaCL(inf.fecha)}</p>
+                          </div>
+                          <a href={inf.url} target="_blank" rel="noopener noreferrer" className="shrink-0 text-xs font-bold text-blue-700 hover:underline flex items-center gap-1">
+                            Abrir <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  );
+                })()}
 
-                {/* Citizen information disclaimer */}
-                <div className="mt-6 bg-slate-50 border border-slate-200 p-4 rounded-xl flex items-start gap-3">
-                  <span className="p-1 rounded-lg bg-[#003366]/10 text-[#003366] shrink-0 mt-0.5">
-                    <Award className="w-4 h-4 text-[#003366]" />
-                  </span>
-                  <div>
-                    <h5 className="text-[11px] font-bold text-[#003366] uppercase tracking-wide">Transparencia Legislativa BCN</h5>
-                    <p className="text-[10px] text-slate-500 leading-relaxed mt-0.5">
-                      Los informes técnicos son recopilados y actualizados por la Biblioteca del Congreso Nacional en virtud de los convenios de transparencia proactiva con Datos Abiertos y el Congreso de la República de Chile. Las minutas de asesoramiento técnico no vinculante sirven como base objetiva no partidista de deliberación para diputados y senadores.
-                    </p>
-                  </div>
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-[11px] text-amber-950 leading-relaxed">
+                  <strong>Asesorías de la BCN:</strong> los informes de Asesoría Técnica Parlamentaria de la Biblioteca del Congreso
+                  aún no están conectados a la app. Búscalos por número de boletín en{" "}
+                  <a href="https://www.bcn.cl/asesoriasparlamentarias" target="_blank" rel="noopener noreferrer" className="font-bold underline">bcn.cl/asesoriasparlamentarias</a>.
                 </div>
-
               </div>
             )}
 
@@ -2581,19 +2454,11 @@ export default function ProyectoDetailView({
         </div>
       )}
 
-      {/* Diff Viewer Modal */}
-      <DiffViewerModal
-        isOpen={isDiffModalOpen}
-        onClose={() => setIsDiffModalOpen(false)}
-        proyecto={proyecto}
-      />
-
-      {/* Ficha Ejecutiva Formal Printable Modal */}
-      <FichaEjecutivaPrint
-        isOpen={isFichaModalOpen}
-        onClose={() => setIsFichaModalOpen(false)}
-        proyecto={proyecto}
-      />
+      {/* "Comparar Textos (Diff)" ahora abre la pestaña Comparado, que trabaja sobre el
+          informe de comisión real. El antiguo modal mostraba artículos e indicaciones
+          inventados (con nombres de parlamentarios reales) y además fallaba (error #310).
+          Se dejó de mostrar también FichaEjecutivaPrint, que se abría encima de la
+          Minuta y duplicaba el contenido al imprimir. */}
 
       {/* Minuta Ejecutiva y Técnica Formal Modal */}
       <MinutaEjecutivaModal

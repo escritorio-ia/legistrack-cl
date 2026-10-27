@@ -39,7 +39,7 @@ ESTADO: ${proyecto.estado} (${proyecto.etapa || "En tramitación"})
 CÁMARA DE ORIGEN: ${proyecto.camaraOrigen} | INICIATIVA: ${proyecto.iniciativa}
 FECHA INGRESO: ${proyecto.fechaIngreso} | DÍAS EN PROCESO: ${proyecto.diasTramitacion ?? "N/A"}
 URGENCIA: ${proyecto.urgencia}
-QUÓRUM REQUERIDO: ${proyecto.quorum?.tipo || "Ley Simple"} — ${proyecto.quorum?.descripcion || ""}
+QUÓRUM REQUERIDO: ${proyecto.quorum?.tipo || "No informado en la ficha"} — ${proyecto.quorum?.descripcion || ""}
 
 RESUMEN TÉCNICO:
 ${proyecto.resumen}
@@ -153,7 +153,7 @@ GENERADO POR: Plataforma LegisTrack CL (https://legistrack.cl)
             </h3>
             <div className="text-xs sm:text-sm leading-relaxed text-slate-800 space-y-1">
               <p>
-                <strong>Tipo de Quórum:</strong> {proyecto.quorum?.tipo || "Ley Simple"}.
+                <strong>Tipo de Quórum:</strong> {proyecto.quorum?.tipo || "No informado en la ficha"}.
               </p>
               <p className="text-slate-600">
                 {proyecto.quorum?.descripcion || "Requiere mayoría simple de los miembros presentes en la sala."}

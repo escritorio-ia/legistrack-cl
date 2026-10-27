@@ -187275,6 +187275,33 @@ var PROYECTOS_REALES_CHILE = [
 ];
 
 // src/utils/proyectosResolver.ts
+var MATERIA_COMISION_MAP = {
+  "07": { comision: "Comisi\xF3n de Constituci\xF3n, Legislaci\xF3n, Justicia y Reglamento", materia: "Derecho Constitucional y Justicia" },
+  "13": { comision: "Comisi\xF3n de Trabajo y Previsi\xF3n Social", materia: "Legislaci\xF3n Laboral y Previsi\xF3n Social" },
+  "05": { comision: "Comisi\xF3n de Hacienda", materia: "Finanzas P\xFAblicas y Tributaci\xF3n" },
+  "11": { comision: "Comisi\xF3n de Seguridad Ciudadana", materia: "Seguridad P\xFAblica y Orden Institucional" },
+  "25": { comision: "Comisi\xF3n de Seguridad P\xFAblica", materia: "Seguridad P\xFAblica y Lucha contra el Crimen" },
+  "04": { comision: "Comisi\xF3n de Educaci\xF3n", materia: "Educaci\xF3n y Formaci\xF3n T\xE9cnico-Profesional" },
+  "15": { comision: "Comisi\xF3n de Salud", materia: "Salud P\xFAblica y Medicamentos" },
+  "19": { comision: "Comisi\xF3n de Defensa Nacional", materia: "Defensa Nacional y Fuerzas Armadas" },
+  "12": { comision: "Comisi\xF3n de Medio Ambiente y Recursos Naturales", materia: "Medio Ambiente y Cambio Clim\xE1tico" },
+  "14": { comision: "Comisi\xF3n de Vivienda, Desarrollo Urbano y Bienes Nacionales", materia: "Vivienda, Urbanismo y Territorio" },
+  "06": { comision: "Comisi\xF3n de Gobierno Interior, Nacionalidad, Ciudadan\xEDa y Regionalizaci\xF3n", materia: "Gobierno Interior y Descentralizaci\xF3n" },
+  "08": { comision: "Comisi\xF3n de Relaciones Exteriores, Asuntos Interparlamentarios e Integraci\xF3n Latinoamericana", materia: "Relaciones Internacionales y Tratados" },
+  "09": { comision: "Comisi\xF3n de Obras P\xFAblicas, Transportes y Telecomunicaciones", materia: "Transportes, Infraestructura y Telecomunicaciones" },
+  "10": { comision: "Comisi\xF3n de Agricultura, Silvicultura y Desarrollo Rural", materia: "Agricultura, Silvicultura y Riego" },
+  "02": { comision: "Comisi\xF3n de Miner\xEDa y Energ\xEDa", materia: "Miner\xEDa, Energ\xEDas Renovables y Recursos Naturales" },
+  "03": { comision: "Comisi\xF3n de Econom\xEDa, Fomento; Micro, Peque\xF1a y Mediana Empresa, Protecci\xF3n de los Consumidores y Turismo", materia: "Econom\xEDa y Fomento Productivo" },
+  "17": { comision: "Comisi\xF3n de Derechos Humanos y Pueblos Originarios", materia: "Derechos Humanos y Pueblos Originarios" },
+  "18": { comision: "Comisi\xF3n de Deportes y Recreaci\xF3n", materia: "Deportes y Actividad F\xEDsica" },
+  "20": { comision: "Comisi\xF3n de Recursos H\xEDdricos y Desertificaci\xF3n", materia: "Recursos H\xEDdricos y Aguas" },
+  "21": { comision: "Comisi\xF3n de Pesca, Acuicultura e Intereses Mar\xEDtimos", materia: "Pesca y Acuicultura" },
+  "24": { comision: "Comisi\xF3n de Pesca, Acuicultura e Intereses Mar\xEDtimos", materia: "Pesca, Acuicultura e Intereses Mar\xEDtimos" },
+  "34": { comision: "Comisi\xF3n de Mujeres y Equidad de G\xE9nero", materia: "Mujeres, Equidad de G\xE9nero y Cuidados" },
+  "35": { comision: "Comisi\xF3n de Personas Mayores y Discapacidad", materia: "Personas Mayores, Dependencia e Inclusi\xF3n" },
+  "36": { comision: "Comisi\xF3n de Futuro, Ciencias, Tecnolog\xEDa, Conocimiento e Innovaci\xF3n", materia: "Ciencia, Inteligencia Artificial e Innovaci\xF3n" },
+  "00": { comision: "Comisi\xF3n Especial Mixta de Presupuestos", materia: "Normativa General" }
+};
 function cleanBulletin(id) {
   return id.replace(/[\.\s]/g, "").trim().toLowerCase();
 }
@@ -187620,6 +187647,10 @@ function parseFechaSesion(fechaStr) {
   const isoMatch = fechaStr.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
   if (isoMatch) {
     return new Date(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3]), 23, 59, 59);
+  }
+  const dmy = fechaStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (dmy) {
+    return new Date(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]), 23, 59, 59);
   }
   const match = fechaStr.match(/(\d{1,2})\s+de\s+([a-zA-ZáéíóúÁÉÍÓÚ]+)\s+de\s+(\d{4})/i);
   if (match) {
@@ -188298,17 +188329,6 @@ function computeDiasTramitacion(fechaIngreso) {
   const dias = Math.floor(diffMs / (1e3 * 60 * 60 * 24));
   return dias >= 0 ? dias : void 0;
 }
-function clasificarMateria(titulo) {
-  const t = titulo.toLowerCase();
-  if (t.includes("pesca") || t.includes("acuicultura") || t.includes("mar\xEDtimo")) return "Intereses Mar\xEDtimos, Pesca y Acuicultura";
-  if (t.includes("trabajo") || t.includes("previsi\xF3n") || t.includes("empleo") || t.includes("jubila") || t.includes("pension")) return "Trabajo y Previsi\xF3n Social";
-  if (t.includes("delito") || t.includes("seguridad") || t.includes("ciberseguridad") || t.includes("carabinero") || t.includes("violencia")) return "Seguridad Ciudadana";
-  if (t.includes("salud") || t.includes("m\xE9dic") || t.includes("hospital") || t.includes("f\xE1rmaco")) return "Salud";
-  if (t.includes("impuesto") || t.includes("tribut") || t.includes("presupuesto") || t.includes("hacienda") || t.includes("financ")) return "Hacienda";
-  if (t.includes("educaci\xF3n") || t.includes("escolar") || t.includes("universi") || t.includes("colegio")) return "Educaci\xF3n";
-  if (t.includes("medio ambiente") || t.includes("glaciar") || t.includes("ecolog") || t.includes("contamina")) return "Medio Ambiente y Bienes Nacionales";
-  return "Constituci\xF3n, Legislaci\xF3n y Justicia";
-}
 function estimarQuorum(titulo, materia) {
   const text = `${titulo} ${materia}`.toLowerCase();
   if (text.includes("reforma constitucional") || text.includes("modifica la constituci\xF3n") || text.includes("carta fundamental")) {
@@ -188342,34 +188362,6 @@ function estimarQuorum(titulo, materia) {
     votosSenadores: "Mayor\xEDa de presentes (~13-26 senadores)"
   };
 }
-function estimarFichaTecnica(titulo, materia) {
-  const t = titulo.toLowerCase();
-  let objeto = `\u{1F3AF} Objeto & \xC1mbito: Establece un marco normativo integral sobre "${titulo}", delimitando los sujetos obligados y las garant\xEDas jur\xEDdicas aplicables en el territorio nacional.`;
-  let mecanismos = `\u2699\uFE0F Mecanismos Clave: Introduce modificaciones a los cuerpos legales vigentes, fijando protocolos de cumplimiento, plazos de adecuaci\xF3n y deberes de informaci\xF3n para los sectores concernidos.`;
-  let fiscalizacion = `\u2696\uFE0F Fiscalizaci\xF3n & Sanciones: Otorga potestades de fiscalizaci\xF3n a las autoridades competentes del Estado y establece sanciones administrativas y civiles proporcionales ante incumplimientos.`;
-  if (t.includes("inteligencia artificial") || t.includes("datos personales") || t.includes("algoritmo")) {
-    objeto = "\u{1F3AF} Objeto & \xC1mbito: Regula el desarrollo, comercializaci\xF3n y uso de sistemas de inteligencia artificial y protecci\xF3n de datos, categorizando los modelos seg\xFAn su nivel de riesgo y afectaci\xF3n a derechos fundamentales.";
-    mecanismos = "\u2699\uFE0F Mecanismos Clave: Registro nacional obligatorio de modelos de alto riesgo, evaluaciones de impacto algor\xEDtmico ex-ante, deber de explicabilidad y prohibici\xF3n de sistemas de manipulaci\xF3n biom\xE9trica masiva.";
-    fiscalizacion = "\u2696\uFE0F Fiscalizaci\xF3n & Sanciones: Supervisi\xF3n a cargo de la Agencia de Protecci\xF3n de Datos Personales y Ministerio de Ciencia, con multas disuasorias de hasta 20.000 UTM y suspensi\xF3n de operaciones.";
-  } else if (t.includes("40 horas") || t.includes("jornada") || t.includes("laboral") || t.includes("trabajo")) {
-    objeto = "\u{1F3AF} Objeto & \xC1mbito: Modifica el C\xF3digo del Trabajo para reducir la jornada ordinaria laboral semanal y fortalecer la conciliaci\xF3n entre vida personal, familiar y laboral.";
-    mecanismos = "\u2699\uFE0F Mecanismos Clave: Gradualidad de reducci\xF3n plurianual, bandas horarias diferidas para personas cuidadoras, compensaci\xF3n de horas extraordinarias en d\xEDas de descanso y pactos 4x3.";
-    fiscalizacion = "\u2696\uFE0F Fiscalizaci\xF3n & Sanciones: Fiscalizaci\xF3n directa por la Direcci\xF3n del Trabajo (DT), con multas grav\xEDsimas por exceso de jornada y restricci\xF3n del art\xEDculo 22 inciso 2\xB0.";
-  } else if (t.includes("ciberseguridad") || t.includes("infraestructura cr\xEDtica") || t.includes("redes")) {
-    objeto = "\u{1F3AF} Objeto & \xC1mbito: Establece las bases institucionales para la ciberdefensa y ciberseguridad nacional, obligando a \xF3rganos del Estado y operadores de importancia vital.";
-    mecanismos = "\u2699\uFE0F Mecanismos Clave: Obligaci\xF3n estricta de reporte de incidentes significativos en plazo m\xE1ximo de 3 horas, planes de continuidad operacional y auditor\xEDas externas anuales.";
-    fiscalizacion = "\u2696\uFE0F Fiscalizaci\xF3n & Sanciones: Fiscalizado por la Agencia Nacional de Ciberseguridad (ANCI), con multas de hasta 40.000 UTM e inhabilitaci\xF3n temporal de certificaciones.";
-  } else if (t.includes("pension") || t.includes("previsi") || t.includes("vejez") || t.includes("jubila")) {
-    objeto = "\u{1F3AF} Objeto & \xC1mbito: Crea un nuevo sistema mixto de pensiones y fortalece el pilar solidario (PGU), resguardando la sostenibilidad financiera y la suficiencia de las tasas de reemplazo.";
-    mecanismos = "\u2699\uFE0F Mecanismos Clave: Cotizaci\xF3n adicional del empleador, separaci\xF3n de las funciones de administraci\xF3n y soporte de cuentas, e incentivos a la postergaci\xF3n voluntaria del retiro.";
-    fiscalizacion = "\u2696\uFE0F Fiscalizaci\xF3n & Sanciones: Regulaci\xF3n y control estricto por la Superintendencia de Pensiones y la Comisi\xF3n para el Mercado Financiero (CMF).";
-  } else if (t.includes("mascota") || t.includes("animal") || t.includes("cholito") || t.includes("perro") || t.includes("gato")) {
-    objeto = "\u{1F3AF} Objeto & \xC1mbito: Establece normas sobre tenencia responsable de mascotas y animales de compa\xF1\xEDa, garantizando el bienestar animal y la salud p\xFAblica comunal.";
-    mecanismos = "\u2699\uFE0F Mecanismos Clave: Registro Nacional con microchip subcut\xE1neo obligatorio, esterilizaci\xF3n masiva municipal, prohibici\xF3n del abandono y de peleas caninas.";
-    fiscalizacion = "\u2696\uFE0F Fiscalizaci\xF3n & Sanciones: Fiscalizaci\xF3n por Municipalidades, Seremis de Salud y Carabineros, con penas de presidio menor y multas de hasta 30 UTM por maltrato.";
-  }
-  return { objeto, mecanismos, fiscalizacion };
-}
 async function generarFichaTecnicaIA(titulo, resumen) {
   const prompt = `Act\xFAa como un analista de Asesor\xEDa T\xE9cnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile. A continuaci\xF3n se entrega el t\xEDtulo oficial y el resumen de tramitaci\xF3n REAL de un proyecto de ley chileno.
 
@@ -188396,42 +188388,6 @@ Usa EXCLUSIVAMENTE el t\xEDtulo y resumen entregados como base; si no hay inform
   } catch {
     return null;
   }
-}
-function estimarOrigenDetalle(titulo, materia, iniciativa, autores) {
-  const t = (titulo + " " + (autores || "")).toLowerCase();
-  const isMensaje = iniciativa === "Mensaje" || t.includes("presidente de la rep") || t.includes("ejecutivo") || t.includes("mensaje");
-  if (isMensaje) {
-    let minFirmantes = [];
-    const mat = (materia + " " + titulo).toLowerCase();
-    if (mat.includes("hacienda") || mat.includes("tribut") || mat.includes("pensi") || mat.includes("presupuest")) {
-      minFirmantes = ["Ministerio de Hacienda", "Ministerio del Trabajo y Previsi\xF3n Social"];
-    } else if (mat.includes("ciberseguridad") || mat.includes("seguridad") || mat.includes("interior") || mat.includes("delito")) {
-      minFirmantes = ["Ministerio del Interior y Seguridad P\xFAblica", "Ministerio de Justicia y Derechos Humanos"];
-    } else if (mat.includes("salud") || mat.includes("f[a\xE1]rmac") || mat.includes("isapre") || mat.includes("fonasa")) {
-      minFirmantes = ["Ministerio de Salud", "Ministerio de Hacienda"];
-    } else if (mat.includes("ciencia") || mat.includes("tecnolog") || mat.includes("inteligencia") || mat.includes("futuro")) {
-      minFirmantes = ["Ministerio de Ciencia, Tecnolog\xEDa, Conocimiento e Innovaci\xF3n", "Ministerio de Econom\xEDa"];
-    } else if (mat.includes("miner") || mat.includes("energ") || mat.includes("cobre") || mat.includes("litio")) {
-      minFirmantes = ["Ministerio de Miner\xEDa", "Ministerio de Energ\xEDa", "Ministerio de Hacienda"];
-    } else if (mat.includes("educaci") || mat.includes("universidad")) {
-      minFirmantes = ["Ministerio de Educaci\xF3n", "Ministerio de Hacienda"];
-    } else if (mat.includes("medio ambiente") || mat.includes("agua") || mat.includes("clima")) {
-      minFirmantes = ["Ministerio del Medio Ambiente", "Ministerio de Obras P\xFAblicas"];
-    } else {
-      minFirmantes = ["Ministerio Sectorial Competente", "Ministerio Secretar\xEDa General de la Presidencia (SEGPRES)"];
-    }
-    return {
-      tipo: "Mensaje Presidencial",
-      patrocinadorPrincipal: "S.E. el Presidente de la Rep\xFAblica",
-      ministeriosFirmantes: minFirmantes,
-      notaOrigen: "Iniciativa legal de origen en el Poder Ejecutivo, presentada por S.E. el Presidente de la Rep\xFAblica con el patrocinio y firma de los ministerios sectoriales."
-    };
-  }
-  return {
-    tipo: "Moci\xF3n Parlamentaria",
-    patrocinadorPrincipal: autores ? `Moci\xF3n Parlamentaria: ${autores}` : "Moci\xF3n Parlamentaria",
-    notaOrigen: "Iniciativa de origen parlamentario presentada por Diputadas/os o Senadoras/es de la Rep\xFAblica en ejercicio de sus atribuciones constitucionales."
-  };
 }
 async function fetchProyectoFromSenado(boletinId) {
   const base = boletinId.split("-")[0];
@@ -188460,7 +188416,7 @@ async function fetchProyectoFromSenado(boletinId) {
       if (!descBlock) return null;
       const boletin = extractTag(descBlock, "boletin");
       const titulo = extractTag(descBlock, "titulo");
-      const fechaIngreso = extractTag(descBlock, "fecha_ingreso");
+      const fechaIngreso = parseFechaChilena(extractTag(descBlock, "fecha_ingreso") || "");
       const iniciativaRaw = extractTag(descBlock, "iniciativa") || "Moci\xF3n";
       const iniciativa = iniciativaRaw.toLowerCase().includes("mensaje") ? "Mensaje" : "Moci\xF3n";
       const camaraOrigenRaw = extractTag(descBlock, "camara_origen") || "Senado";
@@ -188478,23 +188434,17 @@ async function fetchProyectoFromSenado(boletinId) {
       const autoresBlock = extractTag(xml, "autores");
       const autoresList = extractAll(autoresBlock, "autor").map((a) => extractTag(a, "PARLAMENTARIO")).filter(Boolean);
       const autores = autoresList.join(", ");
-      const patrocinantes = autoresList.length || 5;
-      const materia = clasificarMateria(titulo);
-      let comisionActual = "Constituci\xF3n, Legislaci\xF3n, Justicia y Reglamento";
-      if (materia === "Trabajo y Previsi\xF3n Social") comisionActual = "Trabajo y Previsi\xF3n Social";
-      else if (materia === "Seguridad Ciudadana") comisionActual = "Seguridad Ciudadana";
-      else if (materia === "Hacienda") comisionActual = "Hacienda";
-      else if (materia === "Intereses Mar\xEDtimos, Pesca y Acuicultura") comisionActual = "Intereses Mar\xEDtimos, Pesca y Acuicultura";
-      else if (materia === "Salud") comisionActual = "Salud";
-      else if (materia === "Educaci\xF3n") comisionActual = "Educaci\xF3n";
-      else if (materia === "Medio Ambiente y Bienes Nacionales") comisionActual = "Medio Ambiente y Bienes Nacionales";
-      let siguienteSesion = "Mi\xE9, 15 de mayo - 10:00 hrs";
+      const patrocinantes = autoresList.length;
+      const sufijo = (boletin.split("-")[1] || "").padStart(2, "0");
+      const mapeoSufijo = MATERIA_COMISION_MAP[sufijo];
+      const materia = mapeoSufijo ? mapeoSufijo.materia : "Sin clasificar";
+      let comisionActual = mapeoSufijo ? mapeoSufijo.comision : "No informada";
+      let siguienteSesion = void 0;
       if (subetapa) {
         const commMatch = subetapa.match(/comisión\s+de\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñA-ZÁÉÍÓÚÑ\s\-\,y]+)/i);
         if (commMatch) {
           const parsedComm = commMatch[1].trim();
           comisionActual = `Comisi\xF3n de ${parsedComm}`;
-          siguienteSesion = `Por confirmar (Pendiente citaci\xF3n en ${comisionActual})`;
         }
       }
       const tramitacionBlock = extractTag(xml, "tramitacion");
@@ -188560,7 +188510,7 @@ async function fetchProyectoFromSenado(boletinId) {
       }
       const diasTramitacion = computeDiasTramitacion(fechaIngreso);
       const diasTxt = diasTramitacion !== void 0 ? ` Lleva ${diasTramitacion} d\xEDa${diasTramitacion === 1 ? "" : "s"} en tramitaci\xF3n.` : "";
-      const resumen = `Proyecto de ley iniciado el ${fechaIngreso} por v\xEDa de ${iniciativa} en el ${camaraOrigen}. Su materia principal es: ${materia}. Actualmente se encuentra en la etapa de "${etapa}" con estado de tramitaci\xF3n "${estado}". Autores principales: ${autores || "N/A"}.${diasTxt}`;
+      const resumen = `Proyecto de ley iniciado el ${fechaIngreso} por v\xEDa de ${iniciativa} en el ${camaraOrigen}. Su materia principal es: ${materia}. Actualmente se encuentra en la etapa de "${etapa}" con estado de tramitaci\xF3n "${estado}". Autores: ${autores || (iniciativa === "Mensaje" ? "Presidente de la Rep\xFAblica" : "no informados en la ficha")}.${diasTxt}`;
       const votaciones = [];
       const votacionesBlock = extractTag(xml, "votaciones");
       if (votacionesBlock) {
@@ -188606,9 +188556,17 @@ async function fetchProyectoFromSenado(boletinId) {
         comisionesHistoricas: [comisionActual],
         pasosComision: computePasosComision(timeline),
         siguienteSesion,
-        quorum: estimarQuorum(titulo, materia),
-        fichaTecnica: estimarFichaTecnica(titulo, materia),
-        origenDetalle: estimarOrigenDetalle(titulo, materia, iniciativa, autores)
+        // Quórum: la ficha no lo informa. Solo se indica cuando el título lo hace
+        // inequívoco (reforma constitucional); en otro caso queda sin informar.
+        quorum: /reforma constitucional|modifica la constituci[oó]n|carta fundamental/i.test(titulo) ? estimarQuorum(titulo, materia) : void 0,
+        // Ficha técnica: solo la generada por IA (más abajo); sin texto genérico de relleno.
+        fichaTecnica: void 0,
+        // Origen: solo lo que dice la ficha (mensaje = Presidente de la República;
+        // moción = sus autores). Sin ministerios supuestos.
+        origenDetalle: {
+          tipo: iniciativa === "Mensaje" ? "Mensaje Presidencial" : "Moci\xF3n Parlamentaria",
+          patrocinadorPrincipal: iniciativa === "Mensaje" ? "Presidente de la Rep\xFAblica" : autoresList[0] || "No informado en la ficha oficial"
+        }
       };
       try {
         const fichaIA = await generarFichaTecnicaIA(p.titulo, p.resumen);
@@ -188670,32 +188628,34 @@ async function fetchProyectosListadoFromSenado() {
   });
 }
 function listadoToProyecto(item) {
-  const materia = clasificarMateria(item.titulo);
+  const sufijo = ((item.id || "").split("-")[1] || "").padStart(2, "0");
+  const mapeo = MATERIA_COMISION_MAP[sufijo];
+  const materia = mapeo ? mapeo.materia : "Sin clasificar";
   const estadoNorm = item.estado.toLowerCase();
   const estado = estadoNorm.includes("public") ? "Publicado como Ley" : estadoNorm.includes("tramit") ? "En discusi\xF3n" : item.estado;
-  const dias = computeDiasTramitacion(item.fecha);
+  const dias = computeDiasTramitacion(parseFechaChilena(item.fecha || ""));
   const diasTxt = dias !== void 0 ? ` Lleva ${dias} d\xEDa${dias === 1 ? "" : "s"} en tramitaci\xF3n.` : "";
   return {
     id: item.id,
     titulo: item.titulo,
     resumen: item.ley ? `Proyecto de ley (Bolet\xEDn ${item.id}). ${item.ley}. Estado actual: ${item.estado}.${diasTxt}` : `Proyecto de ley (Bolet\xEDn ${item.id}) actualmente en tramitaci\xF3n en el Congreso Nacional. Materia: ${materia}.${diasTxt}`,
-    fechaIngreso: item.fecha,
+    fechaIngreso: parseFechaChilena(item.fecha || ""),
     estado,
-    camaraOrigen: "Senado",
+    camaraOrigen: "No informado",
+    // el listado general no informa la cámara de origen
     etapa: item.estado,
     materia,
     urgencia: "Sin urgencia",
     patrocinantes: 0,
     iniciativa: "Moci\xF3n",
-    comisionActual: materia,
+    comisionActual: mapeo ? mapeo.comision : "No informada",
     diasTramitacion: dias,
     timeline: [],
     documentos: [],
     votaciones: [],
-    linkCongreso: getSenadoApiLink(item.id),
-    quorum: estimarQuorum(item.titulo, materia),
-    fichaTecnica: estimarFichaTecnica(item.titulo, materia),
-    origenDetalle: estimarOrigenDetalle(item.titulo, materia, "Moci\xF3n", "")
+    linkCongreso: getSenadoApiLink(item.id)
+    // Sin quórum, ficha técnica ni origen supuestos: el listado no los informa.
+    // La ficha completa del boletín (fetchProyectoFromSenado) trae los datos reales.
   };
 }
 function cleanHtmlEntities(str) {

@@ -197,22 +197,32 @@ export async function fetchLiveSenateProject(query: string): Promise<Proyecto | 
   const digits = cleanDigits(query);
   if (!digits || digits.length < 3) return null;
 
-  const cacheKey = `senado_live_proy_${digits}`;
+  // v2: la versión anterior guardaba fichas sin vencimiento (y con datos supuestos);
+  // se cambia la clave para descartarlas y ahora vencen a los 30 minutos.
+  const cacheKey = `senado_live_proy_v2_${digits}`;
+  const cacheTsKey = `${cacheKey}_ts`;
   const cached = localStorage.getItem(cacheKey);
-  if (cached) {
+  const cachedTs = Number(localStorage.getItem(cacheTsKey) || 0);
+  if (cached && Date.now() - cachedTs < 30 * 60 * 1000) {
     try {
       const parsed = JSON.parse(cached);
       if (parsed && parsed.id) return parsed;
     } catch (e) {}
   }
+  const guardar = (data: Proyecto) => {
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify(data));
+      localStorage.setItem(cacheTsKey, String(Date.now()));
+    } catch (e) {}
+  };
 
   // 1. Try local Express backend API
   try {
     const res = await fetch(`/api/proyecto/${digits}`, { signal: AbortSignal.timeout(3000) });
     if (res.ok) {
       const data = await res.json();
-      if (data && data.id && data.titulo && !data.titulo.includes("Asociada al Boletín")) {
-        localStorage.setItem(cacheKey, JSON.stringify(data));
+      if (data && data.id && data.titulo && !data.titulo.includes("Asociada al Boletín") && data.estado !== "Sin información") {
+        guardar(data);
         return data;
       }
     }
@@ -228,7 +238,7 @@ export async function fetchLiveSenateProject(query: string): Promise<Proyecto | 
       const xml = await res.text();
       const parsed = parseSenateXmlToProyecto(xml, query);
       if (parsed) {
-        localStorage.setItem(cacheKey, JSON.stringify(parsed));
+        guardar(parsed);
         return parsed;
       }
     }
@@ -242,7 +252,7 @@ export async function fetchLiveSenateProject(query: string): Promise<Proyecto | 
       const xml = await res.text();
       const parsed = parseSenateXmlToProyecto(xml, query);
       if (parsed) {
-        localStorage.setItem(cacheKey, JSON.stringify(parsed));
+        guardar(parsed);
         return parsed;
       }
     }

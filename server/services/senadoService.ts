@@ -1,6 +1,7 @@
 import { Proyecto, ActivityItem, VotacionItem, PasoComision } from "../../src/types";
 import { cache } from "./cacheService";
 import { generarContenidoUniversalIA, safeJsonParse } from "./aiService";
+import { MATERIA_COMISION_MAP } from "../../src/utils/proyectosResolver";
 
 export interface ProyectoListado {
   id: string;
@@ -333,7 +334,8 @@ export async function fetchProyectoFromSenado(boletinId: string): Promise<Proyec
 
       const boletin = extractTag(descBlock, "boletin");
       const titulo = extractTag(descBlock, "titulo");
-      const fechaIngreso = extractTag(descBlock, "fecha_ingreso");
+      // La ficha entrega dd/mm/aaaa; se normaliza a ISO para que fechas y días en trámite se calculen bien.
+      const fechaIngreso = parseFechaChilena(extractTag(descBlock, "fecha_ingreso") || "");
       
       const iniciativaRaw = extractTag(descBlock, "iniciativa") || "Moción";
       const iniciativa: "Moción" | "Mensaje" = (iniciativaRaw.toLowerCase().includes("mensaje")) ? "Mensaje" : "Moción";
@@ -356,27 +358,23 @@ export async function fetchProyectoFromSenado(boletinId: string): Promise<Proyec
       const autoresBlock = extractTag(xml, "autores");
       const autoresList = extractAll(autoresBlock, "autor").map(a => extractTag(a, "PARLAMENTARIO")).filter(Boolean);
       const autores = autoresList.join(", ");
-      const patrocinantes = autoresList.length || 5;
+      const patrocinantes = autoresList.length;
 
-      const materia = clasificarMateria(titulo);
+      // Materia según el sufijo del boletín: en Chile el número tras el guión identifica
+      // la comisión a la que se dio cuenta del proyecto al ingresar (convención oficial).
+      // Antes se adivinaba por palabras del título y por defecto quedaba "Constitución".
+      const sufijo = (boletin.split("-")[1] || "").padStart(2, "0");
+      const mapeoSufijo = MATERIA_COMISION_MAP[sufijo];
+      const materia = mapeoSufijo ? mapeoSufijo.materia : "Sin clasificar";
 
-      let comisionActual = "Constitución, Legislación, Justicia y Reglamento";
-      if (materia === "Trabajo y Previsión Social") comisionActual = "Trabajo y Previsión Social";
-      else if (materia === "Seguridad Ciudadana") comisionActual = "Seguridad Ciudadana";
-      else if (materia === "Hacienda") comisionActual = "Hacienda";
-      else if (materia === "Intereses Marítimos, Pesca y Acuicultura") comisionActual = "Intereses Marítimos, Pesca y Acuicultura";
-      else if (materia === "Salud") comisionActual = "Salud";
-      else if (materia === "Educación") comisionActual = "Educación";
-      else if (materia === "Medio Ambiente y Bienes Nacionales") comisionActual = "Medio Ambiente y Bienes Nacionales";
+      let comisionActual = mapeoSufijo ? mapeoSufijo.comision : "No informada";
+      let siguienteSesion: string | undefined = undefined;
 
-      let siguienteSesion = "Mié, 15 de mayo - 10:00 hrs";
-      
       if (subetapa) {
         const commMatch = subetapa.match(/comisión\s+de\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñA-ZÁÉÍÓÚÑ\s\-\,y]+)/i);
         if (commMatch) {
           const parsedComm = commMatch[1].trim();
           comisionActual = `Comisión de ${parsedComm}`;
-          siguienteSesion = `Por confirmar (Pendiente citación en ${comisionActual})`;
         }
       }
 
@@ -453,7 +451,7 @@ export async function fetchProyectoFromSenado(boletinId: string): Promise<Proyec
 
       const diasTramitacion = computeDiasTramitacion(fechaIngreso);
       const diasTxt = diasTramitacion !== undefined ? ` Lleva ${diasTramitacion} día${diasTramitacion === 1 ? "" : "s"} en tramitación.` : "";
-      const resumen = `Proyecto de ley iniciado el ${fechaIngreso} por vía de ${iniciativa} en el ${camaraOrigen}. Su materia principal es: ${materia}. Actualmente se encuentra en la etapa de "${etapa}" con estado de tramitación "${estado}". Autores principales: ${autores || "N/A"}.${diasTxt}`;
+      const resumen = `Proyecto de ley iniciado el ${fechaIngreso} por vía de ${iniciativa} en el ${camaraOrigen}. Su materia principal es: ${materia}. Actualmente se encuentra en la etapa de "${etapa}" con estado de tramitación "${estado}". Autores: ${autores || (iniciativa === "Mensaje" ? "Presidente de la República" : "no informados en la ficha")}.${diasTxt}`;
 
       const votaciones: VotacionItem[] = [];
       const votacionesBlock = extractTag(xml, "votaciones");
@@ -501,9 +499,21 @@ export async function fetchProyectoFromSenado(boletinId: string): Promise<Proyec
         comisionesHistoricas: [comisionActual],
         pasosComision: computePasosComision(timeline),
         siguienteSesion,
-        quorum: estimarQuorum(titulo, materia),
-        fichaTecnica: estimarFichaTecnica(titulo, materia),
-        origenDetalle: estimarOrigenDetalle(titulo, materia, iniciativa, autores)
+        // Quórum: la ficha no lo informa. Solo se indica cuando el título lo hace
+        // inequívoco (reforma constitucional); en otro caso queda sin informar.
+        quorum: /reforma constitucional|modifica la constituci[oó]n|carta fundamental/i.test(titulo)
+          ? estimarQuorum(titulo, materia)
+          : undefined,
+        // Ficha técnica: solo la generada por IA (más abajo); sin texto genérico de relleno.
+        fichaTecnica: undefined,
+        // Origen: solo lo que dice la ficha (mensaje = Presidente de la República;
+        // moción = sus autores). Sin ministerios supuestos.
+        origenDetalle: {
+          tipo: iniciativa === "Mensaje" ? "Mensaje Presidencial" : "Moción Parlamentaria",
+          patrocinadorPrincipal: iniciativa === "Mensaje"
+            ? "Presidente de la República"
+            : (autoresList[0] || "No informado en la ficha oficial")
+        }
       };
 
       // Se intenta reemplazar la ficha técnica heurística (por palabra clave,
@@ -604,14 +614,17 @@ export async function fetchProyectosListadoFromSenado(): Promise<ProyectoListado
 }
 
 export function listadoToProyecto(item: ProyectoListado): Proyecto {
-  const materia = clasificarMateria(item.titulo);
+  // Materia por sufijo del boletín (convención oficial), no por palabras del título.
+  const sufijo = ((item.id || "").split("-")[1] || "").padStart(2, "0");
+  const mapeo = MATERIA_COMISION_MAP[sufijo];
+  const materia = mapeo ? mapeo.materia : "Sin clasificar";
   const estadoNorm = item.estado.toLowerCase();
   const estado = estadoNorm.includes("public")
     ? "Publicado como Ley"
     : estadoNorm.includes("tramit")
     ? "En discusión"
     : item.estado;
-  const dias = computeDiasTramitacion(item.fecha);
+  const dias = computeDiasTramitacion(parseFechaChilena(item.fecha || ""));
   const diasTxt = dias !== undefined ? ` Lleva ${dias} día${dias === 1 ? "" : "s"} en tramitación.` : "";
 
   return {
@@ -620,23 +633,22 @@ export function listadoToProyecto(item: ProyectoListado): Proyecto {
     resumen: item.ley
       ? `Proyecto de ley (Boletín ${item.id}). ${item.ley}. Estado actual: ${item.estado}.${diasTxt}`
       : `Proyecto de ley (Boletín ${item.id}) actualmente en tramitación en el Congreso Nacional. Materia: ${materia}.${diasTxt}`,
-    fechaIngreso: item.fecha,
+    fechaIngreso: parseFechaChilena(item.fecha || ""),
     estado,
-    camaraOrigen: "Senado",
+    camaraOrigen: "No informado", // el listado general no informa la cámara de origen
     etapa: item.estado,
     materia,
     urgencia: "Sin urgencia",
     patrocinantes: 0,
     iniciativa: "Moción",
-    comisionActual: materia,
+    comisionActual: mapeo ? mapeo.comision : "No informada",
     diasTramitacion: dias,
     timeline: [],
     documentos: [],
     votaciones: [],
     linkCongreso: getSenadoApiLink(item.id),
-    quorum: estimarQuorum(item.titulo, materia),
-    fichaTecnica: estimarFichaTecnica(item.titulo, materia),
-    origenDetalle: estimarOrigenDetalle(item.titulo, materia, "Moción", "")
+    // Sin quórum, ficha técnica ni origen supuestos: el listado no los informa.
+    // La ficha completa del boletín (fetchProyectoFromSenado) trae los datos reales.
   };
 }
 

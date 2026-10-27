@@ -16,6 +16,11 @@ export function parseFechaSesion(fechaStr?: string): Date | null {
   if (isoMatch) {
     return new Date(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3]), 23, 59, 59);
   }
+  // Formato chileno dd/mm/aaaa (así llegan las fechas de la ficha oficial del Senado).
+  const dmy = fechaStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (dmy) {
+    return new Date(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]), 23, 59, 59);
+  }
   const match = fechaStr.match(/(\d{1,2})\s+de\s+([a-zA-ZáéíóúÁÉÍÓÚ]+)\s+de\s+(\d{4})/i);
   if (match) {
     const day = Number(match[1]);
@@ -25,6 +30,20 @@ export function parseFechaSesion(fechaStr?: string): Date | null {
     return new Date(year, month, day, 23, 59, 59);
   }
   return null;
+}
+
+/**
+ * Formatea una fecha en cualquiera de los formatos anteriores para mostrarla.
+ * Si no se puede interpretar devuelve el texto original (o "No informada"),
+ * nunca "Invalid Date".
+ */
+export function formatFechaCL(
+  fechaStr?: string,
+  opts: Intl.DateTimeFormatOptions = { day: "2-digit", month: "short", year: "numeric" }
+): string {
+  const d = parseFechaSesion(fechaStr);
+  if (!d) return fechaStr && fechaStr.trim() ? fechaStr : "No informada";
+  return d.toLocaleDateString("es-CL", opts);
 }
 
 /** true si la fecha de la sesión ya pasó (es anterior al día de hoy). */
