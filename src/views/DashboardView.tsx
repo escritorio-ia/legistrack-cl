@@ -241,8 +241,8 @@ export default function DashboardView({
   const suggestAISummaryForSession = () => {
     if (!selectedSesionForSummary || !selectedComisionForModal) return;
     setSummaryText("Generando propuesta de síntesis legislativa por IA...");
-    const match = selectedSesionForSummary.materia?.match(/\b\d{1,5}\.\d{1,3}-\d{2}\b/);
-    const targetBoletin = match ? match[0] : "16.100-01";
+    const match = selectedSesionForSummary.materia?.match(/\b\d{1,2}\.?\d{3}-\d{1,2}\b/);
+    const targetBoletin = match ? match[0] : "";
 
     fetch("/api/comisiones/sesion/generar-informe", {
       method: "POST",
@@ -722,7 +722,7 @@ export default function DashboardView({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6" id="dashboard-split-layout">
         
         {/* Left Column (Alerts & Followed Commissions) */}
-        <div className="lg:col-span-8 flex flex-col gap-6">
+        <div className="lg:col-span-12 flex flex-col gap-6">
           
           {/* Recent Alerts Card */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6" id="recent-alerts-panel">
@@ -779,125 +779,6 @@ export default function DashboardView({
                 ))
               )}
             </div>
-          </div>
-
-        </div>
-
-        {/* Right Column (Quick Actions & Recent Activity Timeline) */}
-        <div className="lg:col-span-4 flex flex-col gap-6">
-          
-          {/* Quick Actions Panel */}
-          <div className="bg-slate-900 border border-slate-800 text-slate-300 rounded-xl shadow-md p-6 flex flex-col justify-between" id="quick-actions-panel">
-            <div>
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4 h-5">Acciones rápidas</h3>
-              <div className="flex flex-col gap-2.5">
-                <button 
-                  onClick={() => setView("proyectos")}
-                  className="w-full text-left bg-slate-800 hover:bg-slate-755 text-slate-205 transition-all rounded-lg px-4 py-2.5 text-xs font-semibold flex items-center gap-3 border border-slate-700/50 shadow-xs hover:text-white"
-                >
-                  <Search className="w-4 h-4 text-slate-400" />
-                  <span>Buscar proyectos de ley</span>
-                </button>
-                <button 
-                  onClick={() => {
-                    setView("proyectos");
-                    const inp = document.getElementById("header-search-input");
-                    if (inp) inp.focus();
-                  }}
-                  className="w-full text-left bg-slate-800 hover:bg-slate-755 text-slate-205 transition-all rounded-lg px-4 py-2.5 text-xs font-semibold flex items-center gap-3 border border-slate-700/50 shadow-xs hover:text-white"
-                >
-                  <FileText className="w-4 h-4 text-slate-400" />
-                  <span>Buscar boletines</span>
-                </button>
-                <button 
-                  onClick={() => setView("comisiones")}
-                  className="w-full text-left bg-slate-800 hover:bg-slate-755 text-slate-205 transition-all rounded-lg px-4 py-2.5 text-xs font-semibold flex items-center gap-3 border border-slate-700/50 shadow-xs hover:text-white"
-                >
-                  <Calendar className="w-4 h-4 text-slate-400" />
-                  <span>Ver sesiones de hoy</span>
-                </button>
-                <button 
-                  onClick={() => {
-                    setView("proyectos");
-                  }}
-                  className="w-full text-left bg-slate-800 hover:bg-slate-755 text-slate-205 transition-all rounded-lg px-4 py-2.5 text-xs font-semibold flex items-center gap-3 border border-slate-700/50 shadow-xs hover:text-white"
-                >
-                  <Vote className="w-4 h-4 text-slate-400" />
-                  <span>Votaciones pendientes</span>
-                </button>
-              </div>
-            </div>
-            
-            <div className="mt-8 pt-4 border-t border-slate-800/80 text-center">
-              <span className="text-[10px] text-slate-500 font-semibold tracking-wide uppercase">Legis<span className="text-blue-500">Track</span> CL • Transparencia Total</span>
-            </div>
-          </div>
-
-          {/* Activity Timeline Panel */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6" id="recent-activity-panel">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Actividad reciente</h3>
-              <Clock className="w-4 h-4 text-slate-400" />
-            </div>
-
-            <div className="relative border-l-2 border-slate-100 pl-5 ml-2 space-y-6" id="activity-timeline-list">
-              {/* Timeline Item 1 */}
-              <div className="relative" id="activity-1">
-                <div className="absolute -left-[26px] top-1 w-3 h-3 bg-blue-600 rounded-full ring-4 ring-white"></div>
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">HOY, 10:15</span>
-                  <span className="text-xs font-bold text-slate-850 leading-tight">Indicaciones presentadas</span>
-                  <button 
-                    onClick={() => {
-                      setSelectedProyectoId("16.621-13");
-                      setView("proyecto-detail");
-                    }}
-                    className="text-xs text-blue-650 font-bold hover:text-blue-700 hover:underline text-left mt-0.5"
-                  >
-                    Boletín 16.621-13
-                  </button>
-                </div>
-              </div>
-
-              {/* Timeline Item 2 */}
-              <div className="relative" id="activity-2">
-                <div className="absolute -left-[26px] top-1 w-3 h-3 bg-slate-300 rounded-full ring-4 ring-white"></div>
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">AYER, 09:00</span>
-                  <span className="text-xs font-bold text-slate-850 leading-tight">Sesión iniciada</span>
-                  <button 
-                    onClick={() => {
-                      setSelectedComisionId("cd-hacienda");
-                      setView("comision-detail");
-                    }} 
-                    className="text-xs text-blue-650 font-bold hover:text-blue-700 hover:underline text-left mt-0.5"
-                  >
-                    Comisión de Hacienda (Cámara)
-                  </button>
-                </div>
-              </div>
-
-              {/* Timeline Item 3 */}
-              <div className="relative" id="activity-3">
-                <div className="absolute -left-[26px] top-1 w-3 h-3 bg-slate-300 rounded-full ring-4 ring-white"></div>
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">08 MAY, 16:45</span>
-                  <span className="text-xs font-bold text-slate-850 leading-tight">Documento publicado</span>
-                  <span className="text-xs text-slate-500 font-medium">
-                    Boletín 15.201-23
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <button 
-              onClick={() => setView("proyectos")}
-              className="w-full text-center mt-6 text-xs font-bold text-blue-650 hover:text-blue-700 hover:underline flex items-center justify-center gap-1 cursor-pointer pt-3 border-t border-slate-100"
-              id="view-all-history-btn"
-            >
-              <span>Ver todo el historial</span>
-              <ArrowRight className="w-3 h-3" />
-            </button>
           </div>
 
         </div>

@@ -53,7 +53,8 @@ export const COLLECTIONS = {
   HISTORIAL_PROYECTOS: "historial_proyectos",
   DERECHO_COMPARADO_INFORMES: "derecho_comparado_informes",
   DATASETS_ESTADISTICOS: "datasets_estadisticos",
-  TOPICOS_ALERTAS: "topicos_alertas"
+  TOPICOS_ALERTAS: "topicos_alertas",
+  ANALISIS_VIDEOS: "analisis_videos_sesion"
 };
 
 export interface NotaColaborativa {
@@ -292,6 +293,32 @@ export async function getSesionesVinculadasDeProyecto(boletinId: string): Promis
   } catch (err) {
     console.warn(`Error fetching linked sessions for proyecto ${boletinId} from Firestore:`, err);
     return [];
+  }
+}
+
+/**
+ * Análisis con IA del video oficial de una sesión (por videoId). Se guarda para
+ * que nadie tenga que volver a procesar el mismo video.
+ */
+export async function getAnalisisVideoFromFirestore(videoId: string): Promise<any | null> {
+  if (!db || !videoId) return null;
+  try {
+    const snap = await getDoc(doc(db, COLLECTIONS.ANALISIS_VIDEOS, videoId));
+    return snap.exists() ? snap.data() : null;
+  } catch (err) {
+    console.warn(`No se pudo leer el análisis del video ${videoId}:`, err);
+    return null;
+  }
+}
+
+export async function saveAnalisisVideoToFirestore(videoId: string, data: any): Promise<boolean> {
+  if (!db || !videoId) return false;
+  try {
+    await setDoc(doc(db, COLLECTIONS.ANALISIS_VIDEOS, videoId), { ...data, videoId, updatedAt: new Date().toISOString() }, { merge: true });
+    return true;
+  } catch (err) {
+    console.warn(`No se pudo guardar el análisis del video ${videoId}:`, err);
+    return false;
   }
 }
 

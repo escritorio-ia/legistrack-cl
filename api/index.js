@@ -2,7 +2,7 @@
 import express from "express";
 
 // server/routes/apiRoutes.ts
-import { Router } from "express";
+import { Router, text as expressText } from "express";
 
 // src/data/comisionesData.ts
 var DIPUTADOS_COMISIONES_DETALLE = [
@@ -188362,29 +188362,83 @@ function estimarQuorum(titulo, materia) {
     votosSenadores: "Mayor\xEDa de presentes (~13-26 senadores)"
   };
 }
-async function generarFichaTecnicaIA(titulo, resumen) {
-  const prompt = `Act\xFAa como un analista de Asesor\xEDa T\xE9cnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile. A continuaci\xF3n se entrega el t\xEDtulo oficial y el resumen de tramitaci\xF3n REAL de un proyecto de ley chileno.
+async function textoMensajeMocion(url) {
+  if (!url || !/getDocto/i.test(url)) return "";
+  const limpia = url.replace(/&amp;/g, "&").replace(/^https?:\/\/(www\.)?senado\.cl\/appsenado/i, "https://tramitacion.senado.cl/appsenado");
+  if (!/^https:\/\/tramitacion\.senado\.cl\//i.test(limpia)) return "";
+  const clave = `texto_mocion_${limpia}`;
+  const previo = cache.get(clave);
+  if (previo) return previo;
+  try {
+    const res = await fetch(limpia, { headers: { "User-Agent": "Mozilla/5.0 (compatible; LegisTrackCL/1.0)" }, signal: AbortSignal.timeout(2e4) });
+    if (!res.ok) return "";
+    const buf = new Uint8Array(await res.arrayBuffer());
+    if (!(buf[0] === 37 && buf[1] === 80 && buf[2] === 68 && buf[3] === 70)) return "";
+    const { extractText, getDocumentProxy } = await import("unpdf");
+    const pdf = await getDocumentProxy(buf);
+    const { text } = await extractText(pdf, { mergePages: true });
+    const texto = String(text || "").replace(/\s+/g, " ").trim();
+    if (texto.length > 200) cache.set(clave, texto, 7 * 24 * 60 * 60 * 1e3);
+    return texto;
+  } catch (err) {
+    console.warn("No se pudo leer el texto del mensaje/moci\xF3n:", err);
+    return "";
+  }
+}
+async function fichaEjecutivaProyecto(boletinId) {
+  const digits = String(boletinId || "").replace(/\./g, "").match(/\d{3,6}/)?.[0] || "";
+  if (!digits) return { disponible: false, motivo: "Bolet\xEDn no v\xE1lido." };
+  const clave = `ficha_ejecutiva_v2_${digits}`;
+  const previa = cache.get(clave);
+  if (previa) return previa;
+  const p = await fetchProyectoFromSenado(digits);
+  if (!p) return { disponible: false, motivo: "No se encontr\xF3 el proyecto en la ficha oficial del Senado." };
+  const texto = await textoMensajeMocion(p.linkCongreso || "");
+  const ficha = await generarFichaTecnicaIA(p.titulo, p.resumen, texto);
+  if (!ficha) return { disponible: false, motivo: "La IA no est\xE1 disponible en este momento." };
+  const r = { disponible: true, ficha, textoUrl: p.linkCongreso };
+  cache.set(clave, r, ficha.fuente === "texto" ? 7 * 24 * 60 * 60 * 1e3 : 60 * 60 * 1e3);
+  return r;
+}
+async function generarFichaTecnicaIA(titulo, _resumen, textoProyecto = "") {
+  const conTexto = textoProyecto.length > 300;
+  const prompt = conTexto ? `Eres analista de Asesor\xEDa T\xE9cnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile. Abajo est\xE1 el t\xEDtulo y el TEXTO OFICIAL (mensaje o moci\xF3n) de un proyecto de ley chileno.
 
 T\xEDtulo: "${titulo}"
-Resumen de tramitaci\xF3n: "${resumen}"
 
-Responde \xDANICAMENTE con un objeto JSON v\xE1lido, compacto, sin texto adicional antes ni despu\xE9s, con este esquema exacto:
-{"objeto":"\u{1F3AF} Objeto & \xC1mbito: ...","mecanismos":"\u2699\uFE0F Mecanismos Clave: ...","fiscalizacion":"\u2696\uFE0F Fiscalizaci\xF3n & Sanciones: ..."}
+TEXTO:
+"""
+${textoProyecto.slice(0, 18e3)}
+"""
 
-Cada campo debe ser una oraci\xF3n o dos, en prosa formal, espec\xEDficas a ESTE proyecto (no un p\xE1rrafo gen\xE9rico aplicable a cualquier ley):
-- "objeto": qu\xE9 cambia concretamente este proyecto y a qu\xE9 \xE1mbito o cuerpo legal afecta, seg\xFAn el t\xEDtulo y resumen entregados.
-- "mecanismos": qu\xE9 tipo de sujetos, obligaciones o instrumentos introduce (en t\xE9rminos generales y prudentes si el resumen no da el detalle exacto).
-- "fiscalizacion": qu\xE9 tipo de \xF3rgano previsiblemente fiscalizar\xEDa su cumplimiento dado el \xE1mbito de la materia (ministerio, superintendencia, direcci\xF3n u organismo sectorial competente en Chile), sin inventar cifras de multas ni nombres de instituciones si no hay base razonable para inferirlos.
+Responde \xDANICAMENTE con JSON v\xE1lido:
+{"objeto":"...","mecanismos":"...","fiscalizacion":"..."}
 
-Usa EXCLUSIVAMENTE el t\xEDtulo y resumen entregados como base; si no hay informaci\xF3n suficiente para alguno de los tres campos, responde con una frase prudente y gen\xE9rica para ESE campo en particular en vez de inventar contenido espec\xEDfico no respaldado.`;
-  const respuesta = await generarContenidoUniversalIA(prompt, 500);
+- "objeto" (\xBFQu\xE9 cambia?): 2-3 frases concretas sobre lo que dispone el proyecto: qu\xE9 leyes o art\xEDculos modifica o crea y cu\xE1l es el cambio principal. Menciona n\xFAmeros de ley y art\xEDculos si el texto los indica.
+- "mecanismos" (\xBFA qui\xE9nes afecta?): 1-2 frases sobre las personas, entidades u organismos obligados, beneficiados o afectados, seg\xFAn el texto.
+- "fiscalizacion" (Fiscalizaci\xF3n y sanciones): 1-2 frases sobre qu\xE9 organismo fiscaliza y qu\xE9 sanciones establece, SOLO si el texto lo dice. Si el texto no lo establece, responde exactamente: "El texto del proyecto no establece un \xF3rgano fiscalizador ni sanciones espec\xEDficas."
+
+Reglas: usa solo el texto entregado; no inventes cifras, instituciones ni efectos. Prosa formal, sin emojis, sin repetir el t\xEDtulo.` : `Eres analista de la Biblioteca del Congreso Nacional de Chile. Solo dispones del t\xEDtulo oficial de un proyecto de ley chileno:
+
+"${titulo}"
+
+Responde \xDANICAMENTE con JSON v\xE1lido: {"objeto":"..."}
+"objeto": 1-2 frases que expliquen en lenguaje claro lo que propone el proyecto seg\xFAn su t\xEDtulo. No agregues nada que el t\xEDtulo no diga.`;
+  const respuesta = await generarContenidoUniversalIA(prompt, conTexto ? 900 : 300);
   if (!respuesta) return null;
   try {
     const parsed = safeJsonParse(respuesta);
-    if (parsed && parsed.objeto && parsed.mecanismos && parsed.fiscalizacion) {
-      return { objeto: parsed.objeto, mecanismos: parsed.mecanismos, fiscalizacion: parsed.fiscalizacion };
+    if (!parsed?.objeto) return null;
+    if (!conTexto) {
+      return {
+        objeto: parsed.objeto,
+        mecanismos: "No fue posible leer el texto oficial del proyecto para identificar a qui\xE9nes afecta.",
+        fiscalizacion: "No fue posible leer el texto oficial del proyecto para identificar fiscalizaci\xF3n o sanciones.",
+        fuente: "titulo"
+      };
     }
-    return null;
+    if (!parsed.mecanismos || !parsed.fiscalizacion) return null;
+    return { objeto: parsed.objeto, mecanismos: parsed.mecanismos, fiscalizacion: parsed.fiscalizacion, fuente: "texto" };
   } catch {
     return null;
   }
@@ -188510,7 +188564,21 @@ async function fetchProyectoFromSenado(boletinId) {
       }
       const diasTramitacion = computeDiasTramitacion(fechaIngreso);
       const diasTxt = diasTramitacion !== void 0 ? ` Lleva ${diasTramitacion} d\xEDa${diasTramitacion === 1 ? "" : "s"} en tramitaci\xF3n.` : "";
-      const resumen = `Proyecto de ley iniciado el ${fechaIngreso} por v\xEDa de ${iniciativa} en el ${camaraOrigen}. Su materia principal es: ${materia}. Actualmente se encuentra en la etapa de "${etapa}" con estado de tramitaci\xF3n "${estado}". Autores: ${autores || (iniciativa === "Mensaje" ? "Presidente de la Rep\xFAblica" : "no informados en la ficha")}.${diasTxt}`;
+      const MESES_ES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+      const fIso = /^(\d{4})-(\d{2})-(\d{2})/.exec(fechaIngreso);
+      const fechaTxt = fIso ? `${parseInt(fIso[3], 10)} de ${MESES_ES[parseInt(fIso[2], 10) - 1]} de ${fIso[1]}` : fechaIngreso;
+      const camaraTxt = camaraOrigen === "Diputados" ? "la C\xE1mara de Diputadas y Diputados" : "el Senado";
+      const autoresTxt = autoresList.map((a) => {
+        const m = a.match(/^([^,]+),\s*(.+)$/);
+        return m ? `${m[2]} ${m[1]}` : a;
+      }).join(", ");
+      const resumen = [
+        `${iniciativa === "Mensaje" ? "Mensaje presidencial" : "Moci\xF3n parlamentaria"} ingresada el ${fechaTxt} en ${camaraTxt}.`,
+        materia !== "Sin clasificar" ? `Materia: ${materia}.` : "",
+        `Etapa actual: ${etapa}${subetapa ? ` (${subetapa.trim()})` : ""}; estado: ${estado.trim()}.`,
+        iniciativa === "Mensaje" ? "Autor: Presidente de la Rep\xFAblica." : autoresTxt ? `Autores: ${autoresTxt}.` : "",
+        diasTxt.trim()
+      ].filter(Boolean).join(" ");
       const votaciones = [];
       const votacionesBlock = extractTag(xml, "votaciones");
       if (votacionesBlock) {
@@ -188568,12 +188636,6 @@ async function fetchProyectoFromSenado(boletinId) {
           patrocinadorPrincipal: iniciativa === "Mensaje" ? "Presidente de la Rep\xFAblica" : autoresList[0] || "No informado en la ficha oficial"
         }
       };
-      try {
-        const fichaIA = await generarFichaTecnicaIA(p.titulo, p.resumen);
-        if (fichaIA) p.fichaTecnica = fichaIA;
-      } catch (err) {
-        console.warn(`Could not generate AI ficha tecnica for bolet\xEDn ${p.id}:`, err);
-      }
       return p;
     } catch (error) {
       console.error(`Error fetching/parsing project from Senate XML API:`, error);
@@ -188923,6 +188985,152 @@ function respaldoCamara(detalle) {
     todas: CAMARA_CITACIONES_FULL_WEEK
   };
 }
+function parsearCitacionesCamaraHtml(html) {
+  const articleRegex = /<article class="grid-12 citaciones">([\s\S]*?)<\/article>/gi;
+  let artMatch;
+  const daysList = [];
+  const porComision = {};
+  const todas = [];
+  let totalCount = 0;
+  while ((artMatch = articleRegex.exec(html)) !== null) {
+    const artContent = artMatch[1];
+    const dateMatch = artContent.match(/<p class="fecha">([\s\S]*?)<\/p>/i);
+    const fechaStr = dateMatch ? dateMatch[1].replace(/<[^>]+>/g, "").trim() : "Fecha no especificada";
+    const trRegex = /<tr>\s*<td>([\s\S]*?)<\/td>\s*<td>([\s\S]*?)<\/td>\s*<td>([\s\S]*?)<\/td>\s*<td colspan="2">\s*(<table[\s\S]*?<\/table>|[\s\S]*?)\s*<\/td>\s*<\/tr>/gi;
+    let trMatch;
+    const dayCitaciones = [];
+    while ((trMatch = trRegex.exec(artContent)) !== null) {
+      totalCount++;
+      const rawComision = trMatch[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+      const rawHora = trMatch[2].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+      const rawLugar = trMatch[3].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+      const rawContent = trMatch[4];
+      const subRows = [];
+      const subTrRegex = /<tr>\s*<td class="w40"[^>]*>([\s\S]*?)<\/td>\s*<td class="w30"[^>]*>([\s\S]*?)<\/td>\s*<\/tr>/gi;
+      let subMatch;
+      while ((subMatch = subTrRegex.exec(rawContent)) !== null) {
+        const mat = subMatch[1].replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "").trim();
+        const inv = subMatch[2].replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "").trim();
+        subRows.push({ materia: mat, invitados: inv });
+      }
+      let materia = "";
+      let invitados = "";
+      if (subRows.length > 0) {
+        materia = subRows.map((sr, idx) => subRows.length > 1 ? `[Parte ${idx + 1}] ${sr.materia}` : sr.materia).join("\n\n");
+        invitados = subRows.map((sr) => sr.invitados).filter(Boolean).join("\n---\n");
+      } else {
+        materia = rawContent.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+      }
+      const boletines = materia.match(/\b\d{4,5}-\d{2}\b|\b\d{1,2}\.\d{3}-\d{2}\b/g) || [];
+      const slug = getCommissionSlugFromName(rawComision);
+      const citObj = {
+        id: `cit-live-${totalCount}`,
+        fecha: fechaStr,
+        comisionNombre: rawComision,
+        comisionSlug: slug || void 0,
+        citacionNumero: `Citaci\xF3n Oficial N\xB0 ${totalCount}`,
+        hora: rawHora,
+        lugar: rawLugar,
+        tipo: rawComision.startsWith("CEI") ? "Comisi\xF3n Especial Investigadora" : "Sesi\xF3n de Comisi\xF3n",
+        materia,
+        invitados: invitados || "No informado en la citaci\xF3n.",
+        tabla: subRows.length > 0 ? subRows.map((sr, i) => `${i + 1}. ${sr.materia.slice(0, 140)}...`) : [materia.slice(0, 140) + "..."],
+        boletinesRelacionados: Array.from(new Set(boletines)),
+        acuerdosCount: 0,
+        completada: false
+      };
+      dayCitaciones.push(citObj);
+      todas.push(citObj);
+      if (slug) {
+        if (!porComision[slug]) porComision[slug] = [];
+        porComision[slug].push(citObj);
+      }
+    }
+    daysList.push({
+      fecha: fechaStr,
+      totalCitaciones: dayCitaciones.length,
+      citaciones: dayCitaciones
+    });
+  }
+  return { porDia: daysList, porComision, todas };
+}
+var FS_PROYECTO = process.env.VITE_FIREBASE_PROJECT_ID || "legistrack-d75bc";
+var FS_KEY = process.env.VITE_FIREBASE_API_KEY || "AIzaSyAZvd-S6AmPpV05UYEkRRULgDezD7mAkaE";
+var FS_DOC = (id) => `https://firestore.googleapis.com/v1/projects/${FS_PROYECTO}/databases/(default)/documents/citaciones_camara/${id}?key=${FS_KEY}`;
+var semanasImportadas = null;
+var semanasLeidasEn = 0;
+async function leerSemanasImportadas() {
+  if (semanasImportadas && Date.now() - semanasLeidasEn < 5 * 60 * 1e3) return semanasImportadas;
+  try {
+    const r = await fetch(FS_DOC("actual"), { signal: AbortSignal.timeout(8e3) });
+    if (r.ok) {
+      const d = await r.json();
+      const txt = d?.fields?.payload?.stringValue;
+      semanasImportadas = txt ? JSON.parse(txt) : {};
+    } else if (r.status === 404) {
+      semanasImportadas = {};
+    }
+    semanasLeidasEn = Date.now();
+  } catch (err) {
+    console.warn("No se pudieron leer las citaciones importadas de Firestore:", err);
+  }
+  return semanasImportadas || {};
+}
+async function guardarDocFirestore(id, campos) {
+  const fields = {};
+  for (const [k, v] of Object.entries(campos)) fields[k] = { stringValue: v };
+  const r = await fetch(FS_DOC(id), {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fields }),
+    signal: AbortSignal.timeout(1e4)
+  });
+  if (!r.ok) throw new Error(`Firestore respondi\xF3 HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 200)}`);
+}
+async function importarCitacionesCamara(html, semana) {
+  const datos = parsearCitacionesCamaraHtml(html);
+  if (datos.todas.length === 0) throw new Error("El HTML recibido no contiene citaciones legibles.");
+  const clave = /^\d{4}-\d{1,2}$/.test(semana) ? semana : (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+  const registro = { semana: clave, importadoEn: (/* @__PURE__ */ new Date()).toISOString(), datos };
+  const actuales = { ...await leerSemanasImportadas() };
+  actuales[clave] = registro;
+  const claves = Object.keys(actuales).sort().slice(-3);
+  const recortado = {};
+  for (const k of claves) recortado[k] = actuales[k];
+  await guardarDocFirestore(`semana_${clave}`, { semana: clave, importadoEn: registro.importadoEn, payload: JSON.stringify(registro) });
+  await guardarDocFirestore("actual", { actualizado: registro.importadoEn, payload: JSON.stringify(recortado) });
+  semanasImportadas = recortado;
+  semanasLeidasEn = Date.now();
+  cache.delete("camara_citaciones_semanales_live");
+  return { semana: clave, citaciones: datos.todas.length, dias: datos.porDia.length };
+}
+async function citacionesImportadasVigentes() {
+  const semanas = Object.values(await leerSemanasImportadas()).filter((s) => Date.now() - new Date(s.importadoEn).getTime() < 10 * 864e5).sort((a, b) => a.semana.localeCompare(b.semana));
+  if (semanas.length === 0) return null;
+  const porDia = [];
+  const todas = [];
+  const porComision = {};
+  for (const s of semanas) {
+    porDia.push(...s.datos.porDia);
+    for (const c of s.datos.todas) {
+      const cit = { ...c, id: `cit-${s.semana}-${c.id}` };
+      todas.push(cit);
+      if (cit.comisionSlug) (porComision[cit.comisionSlug] ||= []).push(cit);
+    }
+  }
+  const importadoEn = semanas.map((s) => s.importadoEn).sort().slice(-1)[0];
+  return { datos: { porDia, porComision, todas }, importadoEn };
+}
+async function respaldoOImportadas(detalle) {
+  const imp = await citacionesImportadasVigentes().catch(() => null);
+  if (imp && imp.datos.todas.length > 0) {
+    estadoCitacionesCamara.fuente = "vivo";
+    estadoCitacionesCamara.detalle = `Le\xEDdas de camara.cl con navegador (\xFAltima lectura: ${imp.importadoEn})`;
+    estadoCitacionesCamara.actualizado = imp.importadoEn;
+    return imp.datos;
+  }
+  return respaldoCamara(detalle);
+}
 async function fetchCamaraCitacionesSemanalesLive(forceRefresh = false) {
   const cacheKey = "camara_citaciones_semanales_live";
   if (forceRefresh) {
@@ -188938,75 +189146,10 @@ async function fetchCamaraCitacionesSemanalesLive(forceRefresh = false) {
         signal: AbortSignal.timeout(9e3)
       });
       if (!response.ok) {
-        return respaldoCamara(`camara.cl respondi\xF3 HTTP ${response.status}`);
+        return respaldoOImportadas(`camara.cl respondi\xF3 HTTP ${response.status}`);
       }
       const html = await response.text();
-      const articleRegex = /<article class="grid-12 citaciones">([\s\S]*?)<\/article>/gi;
-      let artMatch;
-      const daysList = [];
-      const porComision = {};
-      const todas = [];
-      let totalCount = 0;
-      while ((artMatch = articleRegex.exec(html)) !== null) {
-        const artContent = artMatch[1];
-        const dateMatch = artContent.match(/<p class="fecha">([\s\S]*?)<\/p>/i);
-        const fechaStr = dateMatch ? dateMatch[1].replace(/<[^>]+>/g, "").trim() : "Fecha no especificada";
-        const trRegex = /<tr>\s*<td>([\s\S]*?)<\/td>\s*<td>([\s\S]*?)<\/td>\s*<td>([\s\S]*?)<\/td>\s*<td colspan="2">([\s\S]*?)<\/td>\s*<\/tr>/gi;
-        let trMatch;
-        const dayCitaciones = [];
-        while ((trMatch = trRegex.exec(artContent)) !== null) {
-          totalCount++;
-          const rawComision = trMatch[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-          const rawHora = trMatch[2].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-          const rawLugar = trMatch[3].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-          const rawContent = trMatch[4];
-          const subRows = [];
-          const subTrRegex = /<tr>\s*<td class="w40"[^>]*>([\s\S]*?)<\/td>\s*<td class="w30"[^>]*>([\s\S]*?)<\/td>\s*<\/tr>/gi;
-          let subMatch;
-          while ((subMatch = subTrRegex.exec(rawContent)) !== null) {
-            const mat = subMatch[1].replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "").trim();
-            const inv = subMatch[2].replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "").trim();
-            subRows.push({ materia: mat, invitados: inv });
-          }
-          let materia = "";
-          let invitados = "";
-          if (subRows.length > 0) {
-            materia = subRows.map((sr, idx) => subRows.length > 1 ? `[Parte ${idx + 1}] ${sr.materia}` : sr.materia).join("\n\n");
-            invitados = subRows.map((sr) => sr.invitados).filter(Boolean).join("\n---\n");
-          } else {
-            materia = rawContent.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-          }
-          const boletines = materia.match(/\b\d{4,5}-\d{2}\b|\b\d{1,2}\.\d{3}-\d{2}\b/g) || [];
-          const slug = getCommissionSlugFromName(rawComision);
-          const citObj = {
-            id: `cit-live-${totalCount}`,
-            fecha: fechaStr,
-            comisionNombre: rawComision,
-            comisionSlug: slug || void 0,
-            citacionNumero: `Citaci\xF3n Oficial N\xB0 ${totalCount}`,
-            hora: rawHora,
-            lugar: rawLugar,
-            tipo: rawComision.startsWith("CEI") ? "Comisi\xF3n Especial Investigadora" : "Sesi\xF3n de Comisi\xF3n",
-            materia,
-            invitados: invitados || "No informado en la citaci\xF3n.",
-            tabla: subRows.length > 0 ? subRows.map((sr, i) => `${i + 1}. ${sr.materia.slice(0, 140)}...`) : [materia.slice(0, 140) + "..."],
-            boletinesRelacionados: Array.from(new Set(boletines)),
-            acuerdosCount: 0,
-            completada: false
-          };
-          dayCitaciones.push(citObj);
-          todas.push(citObj);
-          if (slug) {
-            if (!porComision[slug]) porComision[slug] = [];
-            porComision[slug].push(citObj);
-          }
-        }
-        daysList.push({
-          fecha: fechaStr,
-          totalCitaciones: dayCitaciones.length,
-          citaciones: dayCitaciones
-        });
-      }
+      const { porDia: daysList, porComision, todas } = parsearCitacionesCamaraHtml(html);
       if (todas.length > 0) {
         estadoCitacionesCamara.fuente = "vivo";
         estadoCitacionesCamara.detalle = "Le\xEDdas de camara.cl";
@@ -189017,12 +189160,12 @@ async function fetchCamaraCitacionesSemanalesLive(forceRefresh = false) {
           todas
         };
       }
-      return respaldoCamara(
+      return respaldoOImportadas(
         /challenge|cf_chl|cloudflare/i.test(html) ? "camara.cl bloque\xF3 la consulta del servidor (desaf\xEDo anti-bots de Cloudflare)" : "La p\xE1gina de citaciones de camara.cl no trajo citaciones legibles"
       );
     } catch (err) {
       console.warn("Could not fetch live citaciones from Camara, using fallback:", err);
-      return respaldoCamara(`Error de conexi\xF3n con camara.cl: ${err?.message || err}`);
+      return respaldoOImportadas(`Error de conexi\xF3n con camara.cl: ${err?.message || err}`);
     }
   });
 }
@@ -189056,274 +189199,6 @@ async function fetchComisionesCamaraReal() {
     } catch (error) {
       console.error("Error fetching real C\xE1mara commissions:", error);
       return [];
-    }
-  });
-}
-var CANAL_OFICIAL_YOUTUBE = {
-  senado: "TVSENADOCHILE",
-  diputados: "diputadasydiputadosdechile"
-};
-function extraerFechaBusqueda(fecha) {
-  let cleanFecha = (fecha || "septiembre 2026").trim();
-  const dmY = cleanFecha.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
-  if (dmY) {
-    const d = parseInt(dmY[1], 10);
-    const m = parseInt(dmY[2], 10);
-    const y = dmY[3];
-    const meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
-    const mesNom = meses[m - 1] || "septiembre";
-    return `${d} ${mesNom} ${y}`;
-  }
-  return cleanFecha.replace(/,\s*/g, " ").replace(/\bde\b/gi, "").replace(/\s+/g, " ").trim();
-}
-function extraerVideosDeYtInitialData(html) {
-  const startIdx = html.indexOf("ytInitialData = {");
-  if (startIdx === -1) return [];
-  const jsonStart = startIdx + "ytInitialData = ".length;
-  const scriptEnd = html.indexOf(";</script>", jsonStart);
-  if (scriptEnd === -1) return [];
-  let data;
-  try {
-    data = JSON.parse(html.slice(jsonStart, scriptEnd));
-  } catch {
-    return [];
-  }
-  const videos = [];
-  function extract(obj) {
-    if (!obj || typeof obj !== "object") return;
-    if (obj.videoId && (obj.title?.runs || obj.title?.simpleText)) {
-      const title = obj.title.runs ? obj.title.runs.map((r) => r.text).join("") : obj.title.simpleText;
-      const desc = obj.detailedMetadataSnippets?.[0]?.snippetText?.runs?.map((r) => r.text).join("") || obj.descriptionSnippet?.runs?.map((r) => r.text).join("") || "";
-      const published = obj.publishedTimeText?.simpleText || "";
-      const length = obj.lengthText?.simpleText || "";
-      videos.push({
-        id: obj.videoId,
-        videoId: obj.videoId,
-        title,
-        published,
-        length,
-        desc,
-        url: `https://www.youtube.com/watch?v=${obj.videoId}`
-      });
-    }
-    for (const k of Object.keys(obj)) {
-      extract(obj[k]);
-    }
-  }
-  extract(data);
-  const seen = /* @__PURE__ */ new Set();
-  const unique = [];
-  for (const v of videos) {
-    if (!seen.has(v.id)) {
-      seen.add(v.id);
-      unique.push(v);
-    }
-  }
-  return unique;
-}
-function normalizarTexto(s) {
-  return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
-}
-function priorizarVideosDeLaComision(videos, cleanQuery) {
-  const primeraPalabra = cleanQuery.split(/[,\s]+/)[0] || cleanQuery;
-  const keyword = normalizarTexto(primeraPalabra);
-  if (!keyword) return videos;
-  const scored = videos.map((v, idx) => {
-    const titulo = normalizarTexto(v.title || "");
-    let score = 0;
-    if (titulo.includes("comision de") && titulo.includes(keyword)) score = 2;
-    else if (titulo.includes(keyword)) score = 1;
-    return { v, score, idx };
-  });
-  scored.sort((a, b) => b.score - a.score || a.idx - b.idx);
-  return scored.map((s) => s.v);
-}
-async function searchCamaraYouTubeVideos(query, fecha, camara = "diputados") {
-  const cacheKey = `yt_camara_search_${camara}_${query}_${fecha || ""}`;
-  return cache.wrap(cacheKey, 10 * 60 * 1e3, async () => {
-    const cleanQuery = query.replace(/^(comisi[oó]n\s+de\s+|comisi[oó]n\s+)/i, "").trim();
-    const cleanFecha = extraerFechaBusqueda(fecha);
-    const canal = CANAL_OFICIAL_YOUTUBE[camara];
-    const headers = {
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      "Accept-Language": "es-419,es;q=0.9"
-    };
-    try {
-      const canalSearchTerm = `Comisi\xF3n de ${cleanQuery} ${cleanFecha}`;
-      const resCanal = await fetch(`https://www.youtube.com/@${canal}/search?query=${encodeURIComponent(canalSearchTerm)}`, {
-        headers,
-        signal: AbortSignal.timeout(8e3)
-      });
-      if (resCanal.ok) {
-        const htmlCanal = await resCanal.text();
-        const videosCanal = extraerVideosDeYtInitialData(htmlCanal);
-        if (videosCanal.length > 0) return priorizarVideosDeLaComision(videosCanal, cleanQuery).slice(0, 10);
-      }
-    } catch (err) {
-      console.warn(`Could not search YouTube channel @${canal}:`, err);
-    }
-    try {
-      const canalNombre = camara === "senado" ? "TV Senado" : "C\xE1mara de Diputadas y Diputados de Chile";
-      const searchTerm = `${canalNombre} Comisi\xF3n de ${cleanQuery} ${cleanFecha}`;
-      const res = await fetch(`https://www.youtube.com/results?search_query=${encodeURIComponent(searchTerm)}`, {
-        headers,
-        signal: AbortSignal.timeout(8e3)
-      });
-      if (!res.ok) return [];
-      const html = await res.text();
-      return priorizarVideosDeLaComision(extraerVideosDeYtInitialData(html), cleanQuery).slice(0, 10);
-    } catch (err) {
-      console.warn("Could not search YouTube videos:", err);
-      return [];
-    }
-  });
-}
-function decodeHtmlEntities(s) {
-  return s.replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n))).replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\n/g, " ");
-}
-async function fetchYouTubeVideoTranscript(videoId) {
-  if (!videoId) return null;
-  const cacheKey = `yt_transcript_${videoId}`;
-  return cache.wrap(cacheKey, 24 * 60 * 60 * 1e3, async () => {
-    try {
-      const headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept-Language": "es-419,es;q=0.9"
-      };
-      const pageRes = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
-        headers,
-        signal: AbortSignal.timeout(8e3)
-      });
-      if (!pageRes.ok) return null;
-      const html = await pageRes.text();
-      const marker = "ytInitialPlayerResponse = ";
-      const startIdx = html.indexOf(marker);
-      if (startIdx === -1) return null;
-      const jsonStart = startIdx + marker.length;
-      const scriptEnd = html.indexOf(";var meta", jsonStart);
-      const fallbackEnd = html.indexOf(";</script>", jsonStart);
-      const end = scriptEnd !== -1 && scriptEnd < (fallbackEnd === -1 ? Infinity : fallbackEnd) ? scriptEnd : fallbackEnd;
-      if (end === -1) return null;
-      let playerResponse;
-      try {
-        playerResponse = JSON.parse(html.slice(jsonStart, end));
-      } catch {
-        return null;
-      }
-      const tracks = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-      if (!Array.isArray(tracks) || tracks.length === 0) return null;
-      const track = tracks.find((t) => (t.languageCode || "").startsWith("es") && t.kind !== "asr") || tracks.find((t) => (t.languageCode || "").startsWith("es")) || tracks.find((t) => t.kind !== "asr") || tracks[0];
-      if (!track?.baseUrl) return null;
-      const trackRes = await fetch(track.baseUrl, { headers, signal: AbortSignal.timeout(8e3) });
-      if (!trackRes.ok) return null;
-      const xml = await trackRes.text();
-      const segments = [];
-      const regex = /<text start="([\d.]+)"[^>]*>([\s\S]*?)<\/text>/g;
-      let m;
-      while ((m = regex.exec(xml)) !== null) {
-        const startSec = Math.round(Number(m[1]));
-        const mm = String(Math.floor(startSec / 60)).padStart(2, "0");
-        const ss = String(startSec % 60).padStart(2, "0");
-        const content = decodeHtmlEntities(m[2]).trim();
-        if (content) segments.push(`[${mm}:${ss}] ${content}`);
-      }
-      if (segments.length === 0) return null;
-      const maxChars = 14e3;
-      const full = segments.join("\n");
-      const truncated = full.length > maxChars;
-      const text = truncated ? full.slice(0, maxChars) + "\n[...transcripci\xF3n truncada por extensi\xF3n...]" : full;
-      return {
-        text,
-        language: track.languageCode || "es",
-        auto: track.kind === "asr",
-        truncated
-      };
-    } catch (err) {
-      console.warn(`Could not fetch YouTube transcript for video ${videoId}:`, err);
-      return null;
-    }
-  });
-}
-async function fetchYouTubeLiveCaptionsSnapshot(videoId) {
-  if (!videoId) {
-    return { segments: [], text: "", language: "es", auto: true, disponible: false, motivo: "No se indic\xF3 un videoId." };
-  }
-  const cacheKey = `yt_live_captions_${videoId}`;
-  return cache.wrap(cacheKey, 20 * 1e3, async () => {
-    try {
-      const headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept-Language": "es-419,es;q=0.9"
-      };
-      const pageRes = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
-        headers,
-        signal: AbortSignal.timeout(8e3)
-      });
-      if (!pageRes.ok) {
-        return { segments: [], text: "", language: "es", auto: true, disponible: false, motivo: `YouTube respondi\xF3 HTTP ${pageRes.status} al pedir la p\xE1gina del video.` };
-      }
-      const html = await pageRes.text();
-      const marker = "ytInitialPlayerResponse = ";
-      const startIdx = html.indexOf(marker);
-      if (startIdx === -1) {
-        return { segments: [], text: "", language: "es", auto: true, disponible: false, motivo: "No se pudo leer la informaci\xF3n del reproductor (posible bloqueo de YouTube a peticiones de servidor)." };
-      }
-      const jsonStart = startIdx + marker.length;
-      const scriptEnd = html.indexOf(";var meta", jsonStart);
-      const fallbackEnd = html.indexOf(";</script>", jsonStart);
-      const end = scriptEnd !== -1 && scriptEnd < (fallbackEnd === -1 ? Infinity : fallbackEnd) ? scriptEnd : fallbackEnd;
-      if (end === -1) {
-        return { segments: [], text: "", language: "es", auto: true, disponible: false, motivo: "No se pudo delimitar la informaci\xF3n del reproductor." };
-      }
-      let playerResponse;
-      try {
-        playerResponse = JSON.parse(html.slice(jsonStart, end));
-      } catch {
-        return { segments: [], text: "", language: "es", auto: true, disponible: false, motivo: "Respuesta del reproductor de YouTube no es JSON v\xE1lido." };
-      }
-      const tracks = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-      if (!Array.isArray(tracks) || tracks.length === 0) {
-        const esLive = playerResponse?.videoDetails?.isLiveContent;
-        return {
-          segments: [],
-          text: "",
-          language: "es",
-          auto: true,
-          disponible: false,
-          motivo: esLive ? "La transmisi\xF3n est\xE1 en vivo pero YouTube todav\xEDa no gener\xF3 subt\xEDtulos autom\xE1ticos para ella." : "Este video no tiene subt\xEDtulos (autom\xE1ticos u oficiales) disponibles."
-        };
-      }
-      const track = tracks.find((t) => (t.languageCode || "").startsWith("es") && t.kind !== "asr") || tracks.find((t) => (t.languageCode || "").startsWith("es")) || tracks.find((t) => t.kind !== "asr") || tracks[0];
-      if (!track?.baseUrl) {
-        return { segments: [], text: "", language: "es", auto: true, disponible: false, motivo: "La pista de subt\xEDtulos encontrada no tiene URL de descarga." };
-      }
-      const trackRes = await fetch(track.baseUrl, { headers, signal: AbortSignal.timeout(8e3) });
-      if (!trackRes.ok) {
-        return { segments: [], text: "", language: "es", auto: true, disponible: false, motivo: `YouTube respondi\xF3 HTTP ${trackRes.status} al pedir la pista de subt\xEDtulos.` };
-      }
-      const xml = await trackRes.text();
-      const segments = [];
-      const regex = /<text start="([\d.]+)"[^>]*>([\s\S]*?)<\/text>/g;
-      let m;
-      while ((m = regex.exec(xml)) !== null) {
-        const startSec = Math.round(Number(m[1]));
-        const mm = String(Math.floor(startSec / 60)).padStart(2, "0");
-        const ss = String(startSec % 60).padStart(2, "0");
-        const content = decodeHtmlEntities(m[2]).trim();
-        if (content) segments.push({ seconds: startSec, timeFormatted: `${mm}:${ss}`, text: content });
-      }
-      if (segments.length === 0) {
-        return { segments: [], text: "", language: track.languageCode || "es", auto: track.kind === "asr", disponible: false, motivo: "La pista de subt\xEDtulos est\xE1 vac\xEDa por ahora." };
-      }
-      return {
-        segments,
-        text: segments.map((s) => `[${s.timeFormatted}] ${s.text}`).join("\n"),
-        language: track.languageCode || "es",
-        auto: track.kind === "asr",
-        disponible: true
-      };
-    } catch (err) {
-      return { segments: [], text: "", language: "es", auto: true, disponible: false, motivo: `Error de red al consultar YouTube: ${err?.message || "desconocido"}` };
     }
   });
 }
@@ -189437,6 +189312,265 @@ async function fetchCamaraVotacionDetalle(votacionId) {
       return { disponible: false, motivo: `No se pudo consultar la API de la C\xE1mara: ${err?.message || err}`, votos: [] };
     }
   });
+}
+
+// server/services/youtubeService.ts
+var CANALES_YOUTUBE = {
+  diputados: { id: "UCYd5k2TyOyOmUJNx0SH17KA", nombre: "Diputadas y Diputados de Chile" },
+  senado: { id: "UC4GJ43VNn4AYfiYa0RBCHQg", nombre: "TV Senado Chile" }
+};
+var YouTubeNoConfigurado = class extends Error {
+};
+var ytKey = () => {
+  const k = process.env.YOUTUBE_API_KEY;
+  return k && k !== "MY_YOUTUBE_API_KEY" ? k : "";
+};
+var youtubeApiConfigurada = () => !!ytKey();
+var MESES2 = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+var norm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+function fechaSesionADate(fecha) {
+  if (!fecha) return null;
+  const f = norm(fecha);
+  let m = f.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  m = f.match(/(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
+  if (m) return new Date(Date.UTC(+m[3], +m[2] - 1, +m[1]));
+  m = f.match(/(\d{1,2})\s+(?:de\s+)?([a-z]+)\s+(?:de\s+)?(\d{4})/);
+  if (m) {
+    const mes = MESES2.indexOf(m[2]);
+    if (mes >= 0) return new Date(Date.UTC(+m[3], mes, +m[1]));
+  }
+  return null;
+}
+function duracionISO(iso2) {
+  const m = String(iso2 || "").match(/^P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/);
+  if (!m) return null;
+  return +(m[1] || 0) * 86400 + +(m[2] || 0) * 3600 + +(m[3] || 0) * 60 + +(m[4] || 0);
+}
+function formatoDuracion(seg) {
+  if (seg == null || seg <= 0) return "";
+  const h = Math.floor(seg / 3600), m = Math.floor(seg % 3600 / 60), s = seg % 60;
+  return h ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}` : `${m}:${String(s).padStart(2, "0")}`;
+}
+async function ytGet(ruta, params) {
+  const key = ytKey();
+  if (!key) throw new YouTubeNoConfigurado("Falta configurar YOUTUBE_API_KEY (YouTube Data API v3).");
+  const qs = new URLSearchParams({ ...params, key }).toString();
+  const res = await fetch(`https://www.googleapis.com/youtube/v3/${ruta}?${qs}`, { signal: AbortSignal.timeout(12e3) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`YouTube API HTTP ${res.status}: ${data?.error?.message || ""}`.trim());
+  return data;
+}
+async function detallesVideos(ids) {
+  const unicos = Array.from(new Set(ids.filter((id) => /^[\w-]{11}$/.test(id)))).slice(0, 50);
+  if (unicos.length === 0) return {};
+  return cache.wrap(`yt_det_${unicos.join(",")}`, 6 * 60 * 60 * 1e3, async () => {
+    const data = await ytGet("videos", { part: "snippet,contentDetails", id: unicos.join(",") });
+    const out = {};
+    for (const it of data.items || []) {
+      out[it.id] = {
+        segundos: duracionISO(it.contentDetails?.duration),
+        titulo: it.snippet?.title || "",
+        publicado: it.snippet?.publishedAt || "",
+        canal: it.snippet?.channelTitle || ""
+      };
+    }
+    return out;
+  });
+}
+async function buscarVideosSesion(comision, fecha, camara = "diputados") {
+  const limpio = String(comision || "").replace(/^(comisi[oó]n\s+(especial\s+)?(de\s+)?)/i, "").trim();
+  const dia = fechaSesionADate(fecha);
+  const canal = CANALES_YOUTUBE[camara];
+  const cacheKey = `yt_api_busqueda_${camara}_${norm(limpio)}_${dia ? dia.toISOString().slice(0, 10) : "sin-fecha"}`;
+  return cache.wrap(cacheKey, 6 * 60 * 60 * 1e3, async () => {
+    const params = {
+      part: "snippet",
+      channelId: canal.id,
+      q: `Comisi\xF3n ${limpio}`,
+      type: "video",
+      maxResults: "15",
+      order: dia ? "relevance" : "date"
+    };
+    if (dia) {
+      params.publishedAfter = new Date(dia.getTime() - 1 * 864e5).toISOString();
+      params.publishedBefore = new Date(dia.getTime() + 4 * 864e5).toISOString();
+    }
+    const data = await ytGet("search", params);
+    const items = (data.items || []).filter((it) => it.id?.videoId);
+    if (items.length === 0) return [];
+    const det = await detallesVideos(items.map((it) => it.id.videoId)).catch(() => ({}));
+    const clave = norm(limpio.split(/[,\s]+/)[0] || limpio);
+    const diaTxt = dia ? `${dia.getUTCDate()} ${MESES2[dia.getUTCMonth()]}` : "";
+    const videos = items.map((it, idx) => {
+      const id = it.id.videoId;
+      const titulo = String(it.snippet?.title || "").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
+      const t = norm(titulo);
+      let puntaje = 0;
+      if (clave && t.includes(clave)) puntaje += 2;
+      if (t.includes("comision")) puntaje += 1;
+      if (diaTxt && t.includes(diaTxt)) puntaje += 3;
+      const seg = det[id]?.segundos ?? null;
+      return {
+        v: {
+          id,
+          videoId: id,
+          title: titulo,
+          published: it.snippet?.publishedAt || "",
+          length: formatoDuracion(seg),
+          segundos: seg,
+          desc: it.snippet?.description || "",
+          url: `https://www.youtube.com/watch?v=${id}`,
+          canal: canal.nombre
+        },
+        puntaje,
+        idx
+      };
+    });
+    videos.sort((a, b) => b.puntaje - a.puntaje || a.idx - b.idx);
+    return videos.filter((x) => !clave || norm(x.v.title).includes(clave)).map((x) => x.v).slice(0, 10);
+  });
+}
+var SEGUNDOS_POR_PARTE = 3600;
+function aSegundos(v) {
+  if (typeof v === "number" && isFinite(v)) return Math.max(0, Math.round(v));
+  const p = String(v || "").trim().split(":").map((n) => parseInt(n, 10));
+  if (p.some((n) => isNaN(n))) return 0;
+  return p.reduce((acc, n) => acc * 60 + n, 0);
+}
+async function analizarParteVideo(params) {
+  const { videoId, parte } = params;
+  const apiKey = process.env.GEMINI_API_KEY;
+  const desde = parte * SEGUNDOS_POR_PARTE;
+  const hasta = params.duracion ? Math.min(params.duracion, desde + SEGUNDOS_POR_PARTE) : params.duracion === null ? null : desde + SEGUNDOS_POR_PARTE;
+  if (!/^[\w-]{11}$/.test(videoId)) return { disponible: false, motivo: "Identificador de video no v\xE1lido.", parte, desde, hasta };
+  if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
+    return { disponible: false, motivo: "Falta configurar GEMINI_API_KEY.", parte, desde, hasta };
+  }
+  const claveCache = `yt_analisis_${videoId}_${parte}_${hasta ?? "fin"}`;
+  const previo = cache.get(claveCache);
+  if (previo) return previo;
+  const resultado = await (async () => {
+    const contexto = [
+      params.comision ? `Comisi\xF3n: ${params.comision}` : "",
+      params.fecha ? `Fecha de la sesi\xF3n: ${params.fecha}` : "",
+      params.materia ? `Materia citada: ${params.materia}` : ""
+    ].filter(Boolean).join("\n");
+    const prompt = `Este video es la transmisi\xF3n oficial de una sesi\xF3n de comisi\xF3n del Congreso de Chile.
+${contexto}
+
+Analiza SOLO lo que efectivamente se ve y se escucha en el tramo indicado del video. No inventes nombres, cargos, cifras ni acuerdos: si no se identifica a quien habla, usa "No identificado". Si el tramo no contiene la sesi\xF3n (pantalla en espera, receso), ind\xEDcalo en "resumen" y deja las listas vac\xEDas.
+
+Responde \xDANICAMENTE con JSON v\xE1lido:
+{
+  "resumen": "qu\xE9 ocurri\xF3 en este tramo, 3-5 frases",
+  "temas": ["temas o boletines tratados"],
+  "intervenciones": [
+    {"minuto": "H:MM:SS desde el inicio del video", "orador": "nombre tal como se presenta", "cargo": "cargo o instituci\xF3n, o ''", "resumen": "qu\xE9 plante\xF3, 1-3 frases", "cita": "frase textual breve y relevante, o ''"}
+  ],
+  "acuerdos": ["acuerdos adoptados, si se mencionan"],
+  "votaciones": ["votaciones realizadas y su resultado, si las hay"]
+}
+Ordena las intervenciones cronol\xF3gicamente y registra cada cambio relevante de orador.`;
+    const videoMetadata = { startOffset: `${desde}s` };
+    if (hasta != null) videoMetadata.endOffset = `${hasta}s`;
+    const candidatos = Array.from(new Set([
+      process.env.GEMINI_VIDEO_MODEL,
+      process.env.GEMINI_MODEL,
+      "gemini-3.6-flash",
+      "gemini-2.5-flash",
+      "gemini-2.5-flash-lite"
+    ].filter(Boolean)));
+    let res = null;
+    let model = candidatos[0];
+    const errores = [];
+    for (const m of candidatos) {
+      model = m;
+      try {
+        res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${apiKey}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{
+              parts: [
+                { fileData: { fileUri: `https://www.youtube.com/watch?v=${videoId}` }, videoMetadata },
+                { text: prompt }
+              ]
+            }],
+            generationConfig: {
+              temperature: 0.2,
+              maxOutputTokens: 16e3,
+              responseMimeType: "application/json",
+              mediaResolution: "MEDIA_RESOLUTION_LOW"
+            }
+          }),
+          signal: AbortSignal.timeout(27e4)
+        });
+      } catch (err) {
+        return { disponible: false, motivo: `No se pudo contactar a Gemini: ${err?.message || err}`, parte, desde, hasta };
+      }
+      if (res.ok) break;
+      const txt = await res.text().catch(() => "");
+      let detalle = "";
+      try {
+        const j = JSON.parse(txt);
+        const viol = (j?.error?.details || []).flatMap((d) => d?.violations || []);
+        detalle = viol.map((v) => v.quotaId || v.quotaMetric).filter(Boolean).join(", ") || String(j?.error?.message || "").slice(0, 160);
+      } catch {
+        detalle = txt.slice(0, 160);
+      }
+      errores.push(`${m}: HTTP ${res.status}${detalle ? ` (${detalle})` : ""}`);
+      if (res.status !== 429 && res.status !== 404) break;
+      res = null;
+    }
+    if (!res || !res.ok) {
+      const sinCuota = errores.some((e) => e.includes("HTTP 429"));
+      return {
+        disponible: false,
+        motivo: `${sinCuota ? "La clave de Gemini no tiene cuota disponible (l\xEDmite gratuito agotado o sin facturaci\xF3n activa). " : ""}Detalle: ${errores.join(" | ")}`,
+        parte,
+        desde,
+        hasta
+      };
+    }
+    const data = await res.json();
+    const texto = (data?.candidates?.[0]?.content?.parts || []).map((p) => p.text || "").join("");
+    const json = texto ? (() => {
+      try {
+        return safeJsonParse(texto);
+      } catch {
+        return null;
+      }
+    })() : null;
+    if (!json) {
+      return { disponible: false, motivo: "Gemini no devolvi\xF3 un an\xE1lisis legible para este tramo.", parte, desde, hasta };
+    }
+    const lista2 = (v) => Array.isArray(v) ? v.map((x) => String(x || "").trim()).filter(Boolean) : [];
+    let intervenciones = (Array.isArray(json.intervenciones) ? json.intervenciones : []).map((i) => ({
+      segundos: aSegundos(i.minuto ?? i.segundos),
+      orador: String(i.orador || "No identificado"),
+      cargo: String(i.cargo || ""),
+      resumen: String(i.resumen || ""),
+      cita: i.cita ? String(i.cita) : void 0
+    }));
+    if (desde > 0 && intervenciones.length > 0 && intervenciones.every((i) => i.segundos < desde)) {
+      intervenciones = intervenciones.map((i) => ({ ...i, segundos: i.segundos + desde }));
+    }
+    return {
+      disponible: true,
+      parte,
+      desde,
+      hasta,
+      resumen: String(json.resumen || ""),
+      temas: lista2(json.temas),
+      intervenciones,
+      acuerdos: lista2(json.acuerdos),
+      votaciones: lista2(json.votaciones),
+      modelo: model
+    };
+  })();
+  if (resultado.disponible) cache.set(claveCache, resultado, 7 * 24 * 60 * 60 * 1e3);
+  return resultado;
 }
 
 // server/services/dipresService.ts
@@ -189582,7 +189716,7 @@ var PORTALES_DATOS_ABIERTOS_REFERENCIA = {
   "Noruega": { nombre: "fellesdatakatalog.brreg.no \u2014 Cat\xE1logo Nacional de APIs de Noruega", url: "https://fellesdatakatalog.brreg.no/apis" },
   "Dinamarca": { nombre: "datafordeler.dk \u2014 Cat\xE1logo de Datos de Dinamarca", url: "https://datafordeler.dk/dataoversigt/" }
 };
-function normalizarTexto2(s) {
+function normalizarTexto(s) {
   return s.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
 var SINONIMOS_MATERIA = {
@@ -189658,10 +189792,10 @@ function inferirTipoNorma(titulo) {
   return "Documento";
 }
 function relevanciaPorCoincidencia(q, r) {
-  const normQ = normalizarTexto2(q);
-  const sinonimos = (SINONIMOS_MATERIA[normQ] || []).map(normalizarTexto2);
+  const normQ = normalizarTexto(q);
+  const sinonimos = (SINONIMOS_MATERIA[normQ] || []).map(normalizarTexto);
   const terminosBusqueda = [normQ, ...sinonimos];
-  const texto = normalizarTexto2(`${r.titulo} ${r.descripcion || ""} ${r.pais}`);
+  const texto = normalizarTexto(`${r.titulo} ${r.descripcion || ""} ${r.pais}`);
   for (const term of terminosBusqueda) {
     if (term.length > 2 && texto.includes(term)) {
       const esLey = r.tipo === "Ley" || /ley\b|act\b|lei\b|reglamento\b|directiva\b/i.test(r.titulo);
@@ -189731,8 +189865,8 @@ async function buscarChile(q) {
         tipo: inferirTipoNorma(tituloFinal)
       };
     }).filter((r) => r.titulo && r.titulo !== "Norma sin t\xEDtulo").map((r) => ({ ...r, relevancia: relevanciaPorCoincidencia(q, r) })).sort((a, b) => (b.relevancia || 0) - (a.relevancia || 0)).filter((r, i, arr) => {
-      const prefijo = normalizarTexto2(r.titulo).slice(0, 40);
-      return arr.findIndex((x) => normalizarTexto2(x.titulo).slice(0, 40) === prefijo) === i;
+      const prefijo = normalizarTexto(r.titulo).slice(0, 40);
+      return arr.findIndex((x) => normalizarTexto(x.titulo).slice(0, 40) === prefijo) === i;
     }).slice(0, 4);
   } catch {
     return [];
@@ -189847,7 +189981,7 @@ IMPORTANTE: tu respuesta anterior no cumpli\xF3 el formato. Responde EXCLUSIVAME
   return generarFallbackOntologicoComparado(query);
 }
 function generarFallbackOntologicoComparado(query) {
-  const q = normalizarTexto2(query);
+  const q = normalizarTexto(query);
   if (q.includes("hidrogeno") || q.includes("gases renovables") || q.includes("electrolisis")) {
     return [
       {
@@ -190036,7 +190170,7 @@ function generarFallbackOntologicoComparado(query) {
   ];
 }
 async function buscarDerechoComparado(q) {
-  const cacheKey = `derecho_comparado_ia_${normalizarTexto2(q)}`;
+  const cacheKey = `derecho_comparado_ia_${normalizarTexto(q)}`;
   const cached = cache.get(cacheKey);
   if (cached) return cached;
   const resultado = await (async () => {
@@ -192374,12 +192508,12 @@ import fs from "fs";
 import path from "path";
 import Papa from "papaparse";
 var sinAcentos = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "");
-var norm = (s) => sinAcentos(s).toLowerCase().trim();
+var norm2 = (s) => sinAcentos(s).toLowerCase().trim();
 function normalizarBoletin(b) {
   return b.replace(/\./g, "").replace(/\s+/g, "").replace(/-0+(\d)/, "-$1").trim();
 }
 function normalizarNorma(n) {
-  return norm(n).replace(/\./g, "").replace(/\s+/g, " ");
+  return norm2(n).replace(/\./g, "").replace(/\s+/g, " ");
 }
 var STOPWORDS = /* @__PURE__ */ new Set([
   "sobre",
@@ -192423,7 +192557,7 @@ function terminos(inv) {
   const out = /* @__PURE__ */ new Set();
   const fuentes = [...inv.palabrasClave, inv.materia];
   for (const f of fuentes) {
-    for (const w of norm(f).split(/[^a-z0-9ñ]+/)) {
+    for (const w of norm2(f).split(/[^a-z0-9ñ]+/)) {
       if (w.length >= 5 && !STOPWORDS.has(w)) out.add(raiz(w));
     }
   }
@@ -192444,12 +192578,12 @@ function inicioDeSemana(ref) {
   d.setDate(d.getDate() - dow);
   return d;
 }
-var MESES2 = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+var MESES3 = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 function semanaActual(ref = /* @__PURE__ */ new Date()) {
   const desde = inicioDeSemana(ref);
   const hasta = new Date(desde);
   hasta.setDate(hasta.getDate() + 6);
-  const f = (d) => `${d.getDate()} ${MESES2[d.getMonth()].toUpperCase()}`;
+  const f = (d) => `${d.getDate()} ${MESES3[d.getMonth()].toUpperCase()}`;
   return { desde, hasta, etiqueta: `${f(desde)} \u2013 ${f(hasta)}` };
 }
 function iso(base, diasOffset) {
@@ -192493,7 +192627,7 @@ function datosDemo() {
 }
 var lista = (v) => String(v ?? "").split(/[;|]/).map((x) => x.trim()).filter(Boolean);
 function aEstado(v) {
-  const s = norm(String(v ?? ""));
+  const s = norm2(String(v ?? ""));
   if (s.startsWith("entreg") || s === "cerrada" || s === "finalizada") return "entregada";
   if (s.startsWith("archiv")) return "archivada";
   return "en_curso";
@@ -192510,7 +192644,7 @@ function parsearInvestigacionesCsv(texto) {
   const parsed = Papa.parse(texto.replace(/^﻿/, ""), {
     header: true,
     skipEmptyLines: true,
-    transformHeader: (h) => norm(h).replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")
+    transformHeader: (h) => norm2(h).replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")
   });
   const registros = [];
   const rechazados = [];
@@ -192527,7 +192661,7 @@ function parsearInvestigacionesCsv(texto) {
       id,
       area,
       investigador: (r.investigador || "").trim() || "(sin asignar)",
-      tipo: norm(r.tipo || "").startsWith("parl") ? "parlamentario" : "comision",
+      tipo: norm2(r.tipo || "").startsWith("parl") ? "parlamentario" : "comision",
       solicitante: (r.solicitante || r.comision || "").trim(),
       comision: (r.comision || "").trim() || void 0,
       boletines: lista(r.boletines || r.boletin).map(normalizarBoletin),
@@ -192547,7 +192681,7 @@ function parsearAsignacionesCsv(texto) {
   const parsed = Papa.parse(texto.replace(/^﻿/, ""), {
     header: true,
     skipEmptyLines: true,
-    transformHeader: (h) => norm(h).replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")
+    transformHeader: (h) => norm2(h).replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")
   });
   const registros = [];
   const rechazados = [];
@@ -192712,11 +192846,11 @@ function detectarConexiones(datos, agenda) {
   for (const inv of activas) {
     if (!inv.comision) continue;
     const seguidores = datos.asignaciones.filter(
-      (s) => norm(s.comision) === norm(inv.comision) && norm(s.investigador) !== norm(inv.investigador)
+      (s) => norm2(s.comision) === norm2(inv.comision) && norm2(s.investigador) !== norm2(inv.investigador)
     );
     for (const s of seguidores) {
       coordinacion.push({
-        id: `com-${inv.id}-${norm(s.investigador).replace(/\s+/g, "-")}`,
+        id: `com-${inv.id}-${norm2(s.investigador).replace(/\s+/g, "-")}`,
         tipo: "coordinacion",
         titulo: `Informe para ${inv.comision}`,
         mensaje: `${s.investigador} (${s.area || "ATP"}) acompa\xF1a esta comisi\xF3n y quiz\xE1 no sabe que se est\xE1 elaborando este trabajo.`,
@@ -192749,8 +192883,8 @@ function detectarConexiones(datos, agenda) {
     if (!previas || previas.length === 0) continue;
     const comisionesAgenda = agenda.porBoletin.get(bol) || [];
     const yaCubierto = continuidad.some((c) => c.id.startsWith(`cont-${bol}-`));
-    const comisionesATP = new Set(previas.map((p) => norm(p.comision || "")));
-    const nuevaComision = comisionesAgenda.find((c) => !comisionesATP.has(norm(c)));
+    const comisionesATP = new Set(previas.map((p) => norm2(p.comision || "")));
+    const nuevaComision = comisionesAgenda.find((c) => !comisionesATP.has(norm2(c)));
     if (yaCubierto || !nuevaComision) continue;
     continuidad.push({
       id: `cont-agenda-${bol}`,
@@ -193308,6 +193442,45 @@ async function sesionesPorBoletin() {
   }
   return mapa;
 }
+var ORIGEN_CAMARA = /^https:\/\/(www\.)?camara\.cl$/;
+apiRouter.options("/camara/citaciones/importar", (req, res) => {
+  const origen = String(req.headers.origin || "");
+  if (ORIGEN_CAMARA.test(origen)) {
+    res.setHeader("Access-Control-Allow-Origin", origen);
+    res.setHeader("Access-Control-Allow-Methods", "POST");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  }
+  res.sendStatus(204);
+});
+apiRouter.post("/camara/citaciones/importar", expressText({ type: "text/plain", limit: "5mb" }), async (req, res) => {
+  const origen = String(req.headers.origin || "");
+  if (ORIGEN_CAMARA.test(origen)) res.setHeader("Access-Control-Allow-Origin", origen);
+  let body = req.body;
+  if (typeof body === "string") {
+    try {
+      body = JSON.parse(body);
+    } catch {
+      return res.status(400).json({ ok: false, error: "Cuerpo no es JSON v\xE1lido." });
+    }
+  }
+  const token = process.env.CITACIONES_IMPORT_TOKEN;
+  if (token && body?.token !== token) return res.status(401).json({ ok: false, error: "Token de importaci\xF3n inv\xE1lido." });
+  const html = String(body?.html || "");
+  if (html.length < 200) return res.status(400).json({ ok: false, error: "Falta el HTML de la p\xE1gina de citaciones." });
+  try {
+    const r = await importarCitacionesCamara(html, String(body?.semana || ""));
+    res.json({ ok: true, ...r });
+  } catch (err) {
+    res.status(422).json({ ok: false, error: err?.message || String(err) });
+  }
+});
+apiRouter.get("/proyecto/:id/ficha-ejecutiva", async (req, res) => {
+  try {
+    res.json(await fichaEjecutivaProyecto(String(req.params.id)));
+  } catch (err) {
+    res.json({ disponible: false, motivo: err?.message || String(err) });
+  }
+});
 apiRouter.get("/proyecto/:id/sesiones", async (req, res) => {
   const digits = digitosBoletin(String(req.params.id));
   if (digits.length < 3) return res.json({ sesiones: [], fuentes: {} });
@@ -194386,27 +194559,50 @@ apiRouter.get("/leychile/norma/:num", async (req, res) => {
   }
 });
 apiRouter.get("/comisiones/sesion/youtube-search", async (req, res) => {
+  const query = String(req.query.query || "").trim();
+  const fecha = req.query.fecha ? String(req.query.fecha) : void 0;
+  const camara = req.query.camara === "senado" ? "senado" : "diputados";
+  if (!query) return res.status(400).json({ error: "Se requiere 'query' (nombre de la comisi\xF3n)." });
   try {
-    const query = String(req.query.query || "Agricultura");
-    const fecha = req.query.fecha ? String(req.query.fecha) : void 0;
-    const camara = req.query.camara === "senado" ? "senado" : "diputados";
-    const videos = await searchCamaraYouTubeVideos(query, fecha, camara);
-    res.json({ success: true, videos });
+    const videos = await buscarVideosSesion(query, fecha, camara);
+    res.json({ success: true, disponible: true, videos, fuente: "YouTube Data API (canal oficial)" });
   } catch (err) {
-    console.error("Error in /comisiones/sesion/youtube-search:", err);
-    res.status(500).json({ error: err.message || "Error al buscar videos en YouTube" });
+    const noConfig = err instanceof YouTubeNoConfigurado;
+    if (!noConfig) console.error("Error in /comisiones/sesion/youtube-search:", err);
+    res.json({ success: false, disponible: false, videos: [], motivo: err?.message || "Error al buscar videos en YouTube" });
   }
 });
-apiRouter.get("/comisiones/sesion/transcripcion-vivo", async (req, res) => {
-  const videoId = String(req.query.videoId || "").trim();
-  if (!videoId) {
-    return res.status(400).json({ error: "Se requiere 'videoId'." });
+apiRouter.get("/videos/:id/detalle", async (req, res) => {
+  const id = String(req.params.id || "");
+  if (!/^[\w-]{11}$/.test(id)) return res.status(400).json({ error: "Identificador de video no v\xE1lido." });
+  if (!youtubeApiConfigurada()) {
+    return res.json({ id, segundos: null, partes: null, motivo: "Falta configurar YOUTUBE_API_KEY; se analizar\xE1 sin conocer la duraci\xF3n." });
   }
   try {
-    const resultado = await fetchYouTubeLiveCaptionsSnapshot(videoId);
-    res.json({ videoId, ...resultado, updatedAt: (/* @__PURE__ */ new Date()).toISOString() });
+    const det = (await detallesVideos([id]))[id];
+    if (!det) return res.json({ id, segundos: null, partes: null, motivo: "YouTube no encontr\xF3 el video." });
+    const partes = det.segundos ? Math.max(1, Math.ceil(det.segundos / SEGUNDOS_POR_PARTE)) : null;
+    res.json({ id, ...det, partes, segundosPorParte: SEGUNDOS_POR_PARTE });
   } catch (err) {
-    res.status(500).json({ error: err.message || "Error al obtener la transcripci\xF3n en vivo" });
+    res.json({ id, segundos: null, partes: null, motivo: err?.message || String(err) });
+  }
+});
+apiRouter.get("/videos/:id/analisis", async (req, res) => {
+  const id = String(req.params.id || "");
+  const parte = Math.max(0, parseInt(String(req.query.parte || "0"), 10) || 0);
+  const duracionRaw = req.query.duracion ? parseInt(String(req.query.duracion), 10) : NaN;
+  try {
+    const r = await analizarParteVideo({
+      videoId: id,
+      parte,
+      duracion: isFinite(duracionRaw) && duracionRaw > 0 ? duracionRaw : null,
+      comision: req.query.comision ? String(req.query.comision).slice(0, 200) : void 0,
+      fecha: req.query.fecha ? String(req.query.fecha).slice(0, 80) : void 0,
+      materia: req.query.materia ? String(req.query.materia).slice(0, 600) : void 0
+    });
+    res.json(r);
+  } catch (err) {
+    res.json({ disponible: false, motivo: err?.message || String(err), parte });
   }
 });
 apiRouter.post("/comisiones/sesion/generar-informe", async (req, res) => {
@@ -194420,7 +194616,8 @@ apiRouter.post("/comisiones/sesion/generar-informe", async (req, res) => {
     invitados = "",
     tabla = [],
     acuerdosTexto = [],
-    actaTexto = ""
+    actaTexto = "",
+    analisisVideo = ""
   } = req.body;
   const videoContext = videoTitle ? `
 - Video / Transmisi\xF3n Oficial de la Sesi\xF3n: "${videoTitle}" (YouTube ID: ${videoId})` : "";
@@ -194439,17 +194636,11 @@ ${acuerdosList.map((a, i) => `${i + 1}. ${a}`).join("\n")}`);
 
 Contenido verificado de la sesi\xF3n (usa esto como fuente principal para las intervenciones, el debate y los acuerdos; no lo sustituyas por generalidades):
 ${curatedParts.join("\n\n")}` : "";
-  let transcript = null;
-  if (videoId) {
-    try {
-      transcript = await fetchYouTubeVideoTranscript(videoId);
-    } catch (err) {
-      console.warn("Could not fetch YouTube transcript for informe:", err);
-    }
-  }
+  const analisisTxt = typeof analisisVideo === "string" ? analisisVideo.slice(0, 2e4) : "";
+  const transcript = analisisTxt ? { text: analisisTxt, auto: true, truncated: analisisVideo.length > 2e4 } : null;
   const transcriptBlock = transcript ? `
 
-Transcripci\xF3n real de la sesi\xF3n (subt\xEDtulos ${transcript.auto ? "auto-generados" : "oficiales"} de YouTube, con marcas de tiempo [MM:SS]${transcript.truncated ? ", truncada por extensi\xF3n" : ""}):
+An\xE1lisis del video oficial de la sesi\xF3n (generado autom\xE1ticamente del video oficial, con marcas de tiempo [H:MM:SS]${transcript.truncated ? ", truncada por extensi\xF3n" : ""}):
 """
 ${transcript.text}
 """

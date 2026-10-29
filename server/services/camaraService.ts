@@ -87,6 +87,186 @@ function respaldoCamara(detalle: string) {
   };
 }
 
+/** Convierte el HTML de la página semanal de citaciones de camara.cl en datos. */
+export function parsearCitacionesCamaraHtml(html: string): { porDia: any[]; porComision: Record<string, any[]>; todas: any[] } {
+  const articleRegex = /<article class="grid-12 citaciones">([\s\S]*?)<\/article>/gi;
+  let artMatch;
+  const daysList: any[] = [];
+  const porComision: Record<string, any[]> = {};
+  const todas: any[] = [];
+  let totalCount = 0;
+
+  while ((artMatch = articleRegex.exec(html)) !== null) {
+    const artContent = artMatch[1];
+    const dateMatch = artContent.match(/<p class="fecha">([\s\S]*?)<\/p>/i);
+    const fechaStr = dateMatch ? dateMatch[1].replace(/<[^>]+>/g, '').trim() : 'Fecha no especificada';
+
+    // La 4ª celda contiene una tabla interna (materia | invitados); se captura completa
+    // para no cortar en el primer </td></tr> interno.
+    const trRegex = /<tr>\s*<td>([\s\S]*?)<\/td>\s*<td>([\s\S]*?)<\/td>\s*<td>([\s\S]*?)<\/td>\s*<td colspan="2">\s*(<table[\s\S]*?<\/table>|[\s\S]*?)\s*<\/td>\s*<\/tr>/gi;
+    let trMatch;
+    const dayCitaciones: any[] = [];
+
+    while ((trMatch = trRegex.exec(artContent)) !== null) {
+      totalCount++;
+      const rawComision = trMatch[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      const rawHora = trMatch[2].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      const rawLugar = trMatch[3].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      const rawContent = trMatch[4];
+
+      const subRows: { materia: string; invitados: string }[] = [];
+      const subTrRegex = /<tr>\s*<td class="w40"[^>]*>([\s\S]*?)<\/td>\s*<td class="w30"[^>]*>([\s\S]*?)<\/td>\s*<\/tr>/gi;
+      let subMatch;
+      while ((subMatch = subTrRegex.exec(rawContent)) !== null) {
+        const mat = subMatch[1].replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').trim();
+        const inv = subMatch[2].replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').trim();
+        subRows.push({ materia: mat, invitados: inv });
+      }
+
+      let materia = '';
+      let invitados = '';
+      if (subRows.length > 0) {
+        materia = subRows.map((sr, idx) => subRows.length > 1 ? `[Parte ${idx+1}] ${sr.materia}` : sr.materia).join('\n\n');
+        invitados = subRows.map(sr => sr.invitados).filter(Boolean).join('\n---\n');
+      } else {
+        materia = rawContent.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      }
+
+      const boletines = materia.match(/\b\d{4,5}-\d{2}\b|\b\d{1,2}\.\d{3}-\d{2}\b/g) || [];
+      const slug = getCommissionSlugFromName(rawComision);
+
+      const citObj = {
+        id: `cit-live-${totalCount}`,
+        fecha: fechaStr,
+        comisionNombre: rawComision,
+        comisionSlug: slug || undefined,
+        citacionNumero: `Citación Oficial N° ${totalCount}`,
+        hora: rawHora,
+        lugar: rawLugar,
+        tipo: rawComision.startsWith("CEI") ? "Comisión Especial Investigadora" : "Sesión de Comisión",
+        materia,
+        invitados: invitados || "No informado en la citación.",
+        tabla: subRows.length > 0 ? subRows.map((sr, i) => `${i+1}. ${sr.materia.slice(0, 140)}...`) : [materia.slice(0, 140) + "..."],
+        boletinesRelacionados: Array.from(new Set(boletines)),
+        acuerdosCount: 0,
+        completada: false
+      };
+
+      dayCitaciones.push(citObj);
+      todas.push(citObj);
+
+      if (slug) {
+        if (!porComision[slug]) porComision[slug] = [];
+        porComision[slug].push(citObj);
+      }
+    }
+
+    daysList.push({
+      fecha: fechaStr,
+      totalCitaciones: dayCitaciones.length,
+      citaciones: dayCitaciones
+    });
+  }
+  return { porDia: daysList, porComision, todas };
+}
+
+// ---------------------------------------------------------------------------
+// Citaciones importadas: camara.cl bloquea al servidor, pero se puede leer con
+// un navegador normal. Una tarea programada abre la página en el navegador y
+// envía su HTML a /api/camara/citaciones/importar. Se guardan en Firestore para
+// que sobrevivan reinicios (y en Vercel, entre instancias).
+// ---------------------------------------------------------------------------
+const FS_PROYECTO = process.env.VITE_FIREBASE_PROJECT_ID || "legistrack-d75bc";
+const FS_KEY = process.env.VITE_FIREBASE_API_KEY || "AIzaSyAZvd-S6AmPpV05UYEkRRULgDezD7mAkaE";
+const FS_DOC = (id: string) => `https://firestore.googleapis.com/v1/projects/${FS_PROYECTO}/databases/(default)/documents/citaciones_camara/${id}?key=${FS_KEY}`;
+
+interface SemanaImportada { semana: string; importadoEn: string; datos: { porDia: any[]; porComision: Record<string, any[]>; todas: any[] } }
+let semanasImportadas: Record<string, SemanaImportada> | null = null;
+let semanasLeidasEn = 0;
+
+async function leerSemanasImportadas(): Promise<Record<string, SemanaImportada>> {
+  if (semanasImportadas && Date.now() - semanasLeidasEn < 5 * 60 * 1000) return semanasImportadas;
+  try {
+    const r = await fetch(FS_DOC("actual"), { signal: AbortSignal.timeout(8000) });
+    if (r.ok) {
+      const d: any = await r.json();
+      const txt = d?.fields?.payload?.stringValue;
+      semanasImportadas = txt ? JSON.parse(txt) : {};
+    } else if (r.status === 404) {
+      semanasImportadas = {};
+    }
+    semanasLeidasEn = Date.now();
+  } catch (err) {
+    console.warn("No se pudieron leer las citaciones importadas de Firestore:", err);
+  }
+  return semanasImportadas || {};
+}
+
+async function guardarDocFirestore(id: string, campos: Record<string, string>): Promise<void> {
+  const fields: Record<string, any> = {};
+  for (const [k, v] of Object.entries(campos)) fields[k] = { stringValue: v };
+  const r = await fetch(FS_DOC(id), {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fields }),
+    signal: AbortSignal.timeout(10000)
+  });
+  if (!r.ok) throw new Error(`Firestore respondió HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 200)}`);
+}
+
+/** Recibe el HTML de una semana de citaciones leída con un navegador y la guarda. */
+export async function importarCitacionesCamara(html: string, semana: string): Promise<{ semana: string; citaciones: number; dias: number }> {
+  const datos = parsearCitacionesCamaraHtml(html);
+  if (datos.todas.length === 0) throw new Error("El HTML recibido no contiene citaciones legibles.");
+  const clave = /^\d{4}-\d{1,2}$/.test(semana) ? semana : new Date().toISOString().slice(0, 10);
+  const registro: SemanaImportada = { semana: clave, importadoEn: new Date().toISOString(), datos };
+  const actuales = { ...(await leerSemanasImportadas()) };
+  actuales[clave] = registro;
+  // Se conservan las 3 semanas más recientes.
+  const claves = Object.keys(actuales).sort().slice(-3);
+  const recortado: Record<string, SemanaImportada> = {};
+  for (const k of claves) recortado[k] = actuales[k];
+  await guardarDocFirestore(`semana_${clave}`, { semana: clave, importadoEn: registro.importadoEn, payload: JSON.stringify(registro) });
+  await guardarDocFirestore("actual", { actualizado: registro.importadoEn, payload: JSON.stringify(recortado) });
+  semanasImportadas = recortado;
+  semanasLeidasEn = Date.now();
+  cache.delete("camara_citaciones_semanales_live");
+  return { semana: clave, citaciones: datos.todas.length, dias: datos.porDia.length };
+}
+
+/** Citaciones importadas recientes (últimos 10 días), unidas en orden cronológico. */
+async function citacionesImportadasVigentes(): Promise<{ datos: { porDia: any[]; porComision: Record<string, any[]>; todas: any[] }; importadoEn: string } | null> {
+  const semanas = Object.values(await leerSemanasImportadas())
+    .filter(s => Date.now() - new Date(s.importadoEn).getTime() < 10 * 86400000)
+    .sort((a, b) => a.semana.localeCompare(b.semana));
+  if (semanas.length === 0) return null;
+  const porDia: any[] = [];
+  const todas: any[] = [];
+  const porComision: Record<string, any[]> = {};
+  for (const s of semanas) {
+    porDia.push(...s.datos.porDia);
+    for (const c of s.datos.todas) {
+      const cit = { ...c, id: `cit-${s.semana}-${c.id}` };
+      todas.push(cit);
+      if (cit.comisionSlug) (porComision[cit.comisionSlug] ||= []).push(cit);
+    }
+  }
+  const importadoEn = semanas.map(s => s.importadoEn).sort().slice(-1)[0];
+  return { datos: { porDia, porComision, todas }, importadoEn };
+}
+
+/** Si camara.cl no responde al servidor, usa las citaciones importadas con navegador; si no hay, el respaldo. */
+async function respaldoOImportadas(detalle: string) {
+  const imp = await citacionesImportadasVigentes().catch(() => null);
+  if (imp && imp.datos.todas.length > 0) {
+    estadoCitacionesCamara.fuente = "vivo";
+    estadoCitacionesCamara.detalle = `Leídas de camara.cl con navegador (última lectura: ${imp.importadoEn})`;
+    estadoCitacionesCamara.actualizado = imp.importadoEn;
+    return imp.datos;
+  }
+  return respaldoCamara(detalle);
+}
+
 export async function fetchCamaraCitacionesSemanalesLive(forceRefresh: boolean = false): Promise<{
   porDia: any[];
   porComision: Record<string, any[]>;
@@ -108,86 +288,11 @@ export async function fetchCamaraCitacionesSemanalesLive(forceRefresh: boolean =
       });
 
       if (!response.ok) {
-        return respaldoCamara(`camara.cl respondió HTTP ${response.status}`);
+        return respaldoOImportadas(`camara.cl respondió HTTP ${response.status}`);
       }
 
       const html = await response.text();
-      const articleRegex = /<article class="grid-12 citaciones">([\s\S]*?)<\/article>/gi;
-      let artMatch;
-      const daysList: any[] = [];
-      const porComision: Record<string, any[]> = {};
-      const todas: any[] = [];
-      let totalCount = 0;
-
-      while ((artMatch = articleRegex.exec(html)) !== null) {
-        const artContent = artMatch[1];
-        const dateMatch = artContent.match(/<p class="fecha">([\s\S]*?)<\/p>/i);
-        const fechaStr = dateMatch ? dateMatch[1].replace(/<[^>]+>/g, '').trim() : 'Fecha no especificada';
-
-        const trRegex = /<tr>\s*<td>([\s\S]*?)<\/td>\s*<td>([\s\S]*?)<\/td>\s*<td>([\s\S]*?)<\/td>\s*<td colspan="2">([\s\S]*?)<\/td>\s*<\/tr>/gi;
-        let trMatch;
-        const dayCitaciones: any[] = [];
-
-        while ((trMatch = trRegex.exec(artContent)) !== null) {
-          totalCount++;
-          const rawComision = trMatch[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-          const rawHora = trMatch[2].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-          const rawLugar = trMatch[3].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-          const rawContent = trMatch[4];
-
-          const subRows: { materia: string; invitados: string }[] = [];
-          const subTrRegex = /<tr>\s*<td class="w40"[^>]*>([\s\S]*?)<\/td>\s*<td class="w30"[^>]*>([\s\S]*?)<\/td>\s*<\/tr>/gi;
-          let subMatch;
-          while ((subMatch = subTrRegex.exec(rawContent)) !== null) {
-            const mat = subMatch[1].replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').trim();
-            const inv = subMatch[2].replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').trim();
-            subRows.push({ materia: mat, invitados: inv });
-          }
-
-          let materia = '';
-          let invitados = '';
-          if (subRows.length > 0) {
-            materia = subRows.map((sr, idx) => subRows.length > 1 ? `[Parte ${idx+1}] ${sr.materia}` : sr.materia).join('\n\n');
-            invitados = subRows.map(sr => sr.invitados).filter(Boolean).join('\n---\n');
-          } else {
-            materia = rawContent.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-          }
-
-          const boletines = materia.match(/\b\d{4,5}-\d{2}\b|\b\d{1,2}\.\d{3}-\d{2}\b/g) || [];
-          const slug = getCommissionSlugFromName(rawComision);
-
-          const citObj = {
-            id: `cit-live-${totalCount}`,
-            fecha: fechaStr,
-            comisionNombre: rawComision,
-            comisionSlug: slug || undefined,
-            citacionNumero: `Citación Oficial N° ${totalCount}`,
-            hora: rawHora,
-            lugar: rawLugar,
-            tipo: rawComision.startsWith("CEI") ? "Comisión Especial Investigadora" : "Sesión de Comisión",
-            materia,
-            invitados: invitados || "No informado en la citación.",
-            tabla: subRows.length > 0 ? subRows.map((sr, i) => `${i+1}. ${sr.materia.slice(0, 140)}...`) : [materia.slice(0, 140) + "..."],
-            boletinesRelacionados: Array.from(new Set(boletines)),
-            acuerdosCount: 0,
-            completada: false
-          };
-
-          dayCitaciones.push(citObj);
-          todas.push(citObj);
-
-          if (slug) {
-            if (!porComision[slug]) porComision[slug] = [];
-            porComision[slug].push(citObj);
-          }
-        }
-
-        daysList.push({
-          fecha: fechaStr,
-          totalCitaciones: dayCitaciones.length,
-          citaciones: dayCitaciones
-        });
-      }
+      const { porDia: daysList, porComision, todas } = parsearCitacionesCamaraHtml(html);
 
       if (todas.length > 0) {
         estadoCitacionesCamara.fuente = "vivo";
@@ -200,14 +305,14 @@ export async function fetchCamaraCitacionesSemanalesLive(forceRefresh: boolean =
         };
       }
 
-      return respaldoCamara(
+      return respaldoOImportadas(
         /challenge|cf_chl|cloudflare/i.test(html)
           ? "camara.cl bloqueó la consulta del servidor (desafío anti-bots de Cloudflare)"
           : "La página de citaciones de camara.cl no trajo citaciones legibles"
       );
     } catch (err: any) {
       console.warn("Could not fetch live citaciones from Camara, using fallback:", err);
-      return respaldoCamara(`Error de conexión con camara.cl: ${err?.message || err}`);
+      return respaldoOImportadas(`Error de conexión con camara.cl: ${err?.message || err}`);
     }
   });
 }
@@ -250,382 +355,8 @@ export async function fetchComisionesCamaraReal(): Promise<ComisionReal[]> {
   });
 }
 
-// Canales oficiales de YouTube donde se transmiten las sesiones de comisión.
-// La búsqueda debe acotarse a ESTE canal según la cámara de la comisión: buscar en
-// todo YouTube sin filtro de canal puede traer videos de terceros (prensa, cortes,
-// resúmenes) que no son la transmisión oficial de la sesión, o directamente no
-// encontrar nada relacionado con la comisión buscada.
-const CANAL_OFICIAL_YOUTUBE: Record<"senado" | "diputados", string> = {
-  senado: "TVSENADOCHILE",
-  diputados: "diputadasydiputadosdechile"
-};
-
-function extraerFechaBusqueda(fecha?: string): string {
-  let cleanFecha = (fecha || "septiembre 2026").trim();
-
-  // Si la fecha viene en formato DD/MM/YYYY o DD-MM-YYYY, convertirla a formato legible (ej. 8 septiembre 2026)
-  const dmY = cleanFecha.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
-  if (dmY) {
-    const d = parseInt(dmY[1], 10);
-    const m = parseInt(dmY[2], 10);
-    const y = dmY[3];
-    const meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
-    const mesNom = meses[m - 1] || "septiembre";
-    return `${d} ${mesNom} ${y}`;
-  }
-  return cleanFecha
-    .replace(/,\s*/g, " ")
-    .replace(/\bde\b/gi, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function extraerVideosDeYtInitialData(html: string): any[] {
-  const startIdx = html.indexOf("ytInitialData = {");
-  if (startIdx === -1) return [];
-  const jsonStart = startIdx + "ytInitialData = ".length;
-  const scriptEnd = html.indexOf(";</script>", jsonStart);
-  if (scriptEnd === -1) return [];
-
-  let data: any;
-  try {
-    data = JSON.parse(html.slice(jsonStart, scriptEnd));
-  } catch {
-    return [];
-  }
-
-  const videos: any[] = [];
-  function extract(obj: any) {
-    if (!obj || typeof obj !== "object") return;
-    if (obj.videoId && (obj.title?.runs || obj.title?.simpleText)) {
-      const title = obj.title.runs ? obj.title.runs.map((r: any) => r.text).join("") : obj.title.simpleText;
-      const desc = obj.detailedMetadataSnippets?.[0]?.snippetText?.runs?.map((r: any) => r.text).join("") || obj.descriptionSnippet?.runs?.map((r: any) => r.text).join("") || "";
-      const published = obj.publishedTimeText?.simpleText || "";
-      const length = obj.lengthText?.simpleText || "";
-      videos.push({
-        id: obj.videoId,
-        videoId: obj.videoId,
-        title,
-        published,
-        length,
-        desc,
-        url: `https://www.youtube.com/watch?v=${obj.videoId}`
-      });
-    }
-    for (const k of Object.keys(obj)) {
-      extract(obj[k]);
-    }
-  }
-  extract(data);
-
-  const seen = new Set();
-  const unique: any[] = [];
-  for (const v of videos) {
-    if (!seen.has(v.id)) {
-      seen.add(v.id);
-      unique.push(v);
-    }
-  }
-  return unique;
-}
-
-function normalizarTexto(s: string): string {
-  return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
-}
-
-/**
- * Reordena los videos encontrados en el canal para que las transmisiones de la
- * sesión de LA comisión buscada aparezcan primero. El canal oficial también sube
- * boletines diarios genéricos ("Cámara Informa") y sesiones de OTRAS comisiones el
- * mismo día, así que sin este reordenamiento la selección automática del primer
- * resultado (videos[0]) podía terminar eligiendo un video que no es de la comisión.
- */
-function priorizarVideosDeLaComision(videos: any[], cleanQuery: string): any[] {
-  const primeraPalabra = cleanQuery.split(/[,\s]+/)[0] || cleanQuery;
-  const keyword = normalizarTexto(primeraPalabra);
-  if (!keyword) return videos;
-
-  const scored = videos.map((v, idx) => {
-    const titulo = normalizarTexto(v.title || "");
-    let score = 0;
-    if (titulo.includes("comision de") && titulo.includes(keyword)) score = 2;
-    else if (titulo.includes(keyword)) score = 1;
-    return { v, score, idx };
-  });
-  scored.sort((a, b) => (b.score - a.score) || (a.idx - b.idx));
-  return scored.map(s => s.v);
-}
-
-export async function searchCamaraYouTubeVideos(query: string, fecha?: string, camara: "senado" | "diputados" = "diputados"): Promise<any[]> {
-  const cacheKey = `yt_camara_search_${camara}_${query}_${fecha || ""}`;
-  return cache.wrap(cacheKey, 10 * 60 * 1000, async () => {
-    const cleanQuery = query.replace(/^(comisi[oó]n\s+de\s+|comisi[oó]n\s+)/i, "").trim();
-    const cleanFecha = extraerFechaBusqueda(fecha);
-    const canal = CANAL_OFICIAL_YOUTUBE[camara];
-    const headers = {
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      "Accept-Language": "es-419,es;q=0.9"
-    };
-
-    // 1. Buscar directamente dentro del canal oficial de la cámara correspondiente
-    // (Senado -> @TVSENADOCHILE, Cámara -> @diputadasydiputadosdechile). Esto es lo
-    // que garantiza que la transmisión encontrada sea efectivamente de la sesión de
-    // la comisión, y no un video de terceros que solo menciona el mismo término.
-    try {
-      const canalSearchTerm = `Comisión de ${cleanQuery} ${cleanFecha}`;
-      const resCanal = await fetch(`https://www.youtube.com/@${canal}/search?query=${encodeURIComponent(canalSearchTerm)}`, {
-        headers,
-        signal: AbortSignal.timeout(8000)
-      });
-      if (resCanal.ok) {
-        const htmlCanal = await resCanal.text();
-        const videosCanal = extraerVideosDeYtInitialData(htmlCanal);
-        if (videosCanal.length > 0) return priorizarVideosDeLaComision(videosCanal, cleanQuery).slice(0, 10);
-      }
-    } catch (err) {
-      console.warn(`Could not search YouTube channel @${canal}:`, err);
-    }
-
-    // 2. Fallback: búsqueda general en YouTube, pero incluyendo el nombre del canal
-    // oficial en el término de búsqueda para sesgar los resultados hacia él.
-    try {
-      const canalNombre = camara === "senado" ? "TV Senado" : "Cámara de Diputadas y Diputados de Chile";
-      const searchTerm = `${canalNombre} Comisión de ${cleanQuery} ${cleanFecha}`;
-      const res = await fetch(`https://www.youtube.com/results?search_query=${encodeURIComponent(searchTerm)}`, {
-        headers,
-        signal: AbortSignal.timeout(8000)
-      });
-      if (!res.ok) return [];
-      const html = await res.text();
-      return priorizarVideosDeLaComision(extraerVideosDeYtInitialData(html), cleanQuery).slice(0, 10);
-    } catch (err) {
-      console.warn("Could not search YouTube videos:", err);
-      return [];
-    }
-  });
-}
-
-interface TranscriptResult {
-  text: string;
-  language: string;
-  auto: boolean;
-  truncated: boolean;
-}
-
-function decodeHtmlEntities(s: string): string {
-  return s
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/\n/g, " ");
-}
-
-/**
- * Obtiene la transcripción (subtítulos, generalmente auto-generados por YouTube)
- * de un video de una sesión de comisión, para poder redactar un informe con
- * contenido real (intervenciones, citas textuales) en vez de relleno genérico.
- * No hay una API oficial pública para esto sin credenciales de Google Cloud, así
- * que se replica la técnica estándar: extraer las pistas de subtítulos desde
- * `ytInitialPlayerResponse` en el HTML de la página del video, y descargar la
- * pista en español (o la primera disponible) como XML de texto con marcas de tiempo.
- */
-export async function fetchYouTubeVideoTranscript(videoId: string): Promise<TranscriptResult | null> {
-  if (!videoId) return null;
-  const cacheKey = `yt_transcript_${videoId}`;
-  return cache.wrap(cacheKey, 24 * 60 * 60 * 1000, async () => {
-    try {
-      const headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept-Language": "es-419,es;q=0.9"
-      };
-      const pageRes = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
-        headers,
-        signal: AbortSignal.timeout(8000)
-      });
-      if (!pageRes.ok) return null;
-      const html = await pageRes.text();
-
-      const marker = "ytInitialPlayerResponse = ";
-      const startIdx = html.indexOf(marker);
-      if (startIdx === -1) return null;
-      const jsonStart = startIdx + marker.length;
-      const scriptEnd = html.indexOf(";var meta", jsonStart);
-      const fallbackEnd = html.indexOf(";</script>", jsonStart);
-      const end = scriptEnd !== -1 && scriptEnd < (fallbackEnd === -1 ? Infinity : fallbackEnd) ? scriptEnd : fallbackEnd;
-      if (end === -1) return null;
-
-      let playerResponse: any;
-      try {
-        playerResponse = JSON.parse(html.slice(jsonStart, end));
-      } catch {
-        return null;
-      }
-
-      const tracks = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-      if (!Array.isArray(tracks) || tracks.length === 0) return null;
-
-      const track =
-        tracks.find((t: any) => (t.languageCode || "").startsWith("es") && t.kind !== "asr") ||
-        tracks.find((t: any) => (t.languageCode || "").startsWith("es")) ||
-        tracks.find((t: any) => t.kind !== "asr") ||
-        tracks[0];
-      if (!track?.baseUrl) return null;
-
-      const trackRes = await fetch(track.baseUrl, { headers, signal: AbortSignal.timeout(8000) });
-      if (!trackRes.ok) return null;
-      const xml = await trackRes.text();
-
-      const segments: string[] = [];
-      const regex = /<text start="([\d.]+)"[^>]*>([\s\S]*?)<\/text>/g;
-      let m: RegExpExecArray | null;
-      while ((m = regex.exec(xml)) !== null) {
-        const startSec = Math.round(Number(m[1]));
-        const mm = String(Math.floor(startSec / 60)).padStart(2, "0");
-        const ss = String(startSec % 60).padStart(2, "0");
-        const content = decodeHtmlEntities(m[2]).trim();
-        if (content) segments.push(`[${mm}:${ss}] ${content}`);
-      }
-      if (segments.length === 0) return null;
-
-      const maxChars = 14000;
-      const full = segments.join("\n");
-      const truncated = full.length > maxChars;
-      const text = truncated ? full.slice(0, maxChars) + "\n[...transcripción truncada por extensión...]" : full;
-
-      return {
-        text,
-        language: track.languageCode || "es",
-        auto: track.kind === "asr",
-        truncated
-      };
-    } catch (err) {
-      console.warn(`Could not fetch YouTube transcript for video ${videoId}:`, err);
-      return null;
-    }
-  });
-}
-
-export interface TranscriptSegmentoVivo {
-  seconds: number;
-  timeFormatted: string;
-  text: string;
-}
-
-export interface TranscripcionVivoResult {
-  segments: TranscriptSegmentoVivo[];
-  text: string;
-  language: string;
-  auto: boolean;
-  disponible: boolean;
-  motivo?: string;
-}
-
-/**
- * Variante de fetchYouTubeVideoTranscript pensada para sondeo repetido mientras
- * una sesión está en vivo (o recién terminada): cache corto (20s, no 24h) para
- * que cada sondeo refleje subtítulos nuevos, y sin truncar desde el inicio del
- * texto -- para una transmisión larga interesa lo más reciente, no el comienzo.
- * YouTube con frecuencia bloquea esta petición hecha desde un servidor sin
- * sesión de navegador real (ver comentario en fetchYouTubeVideoTranscript);
- * cuando eso ocurre se devuelve "disponible:false" con el motivo, en vez de
- * inventar contenido -- igual que el resto de los flujos de IA del proyecto.
- */
-export async function fetchYouTubeLiveCaptionsSnapshot(videoId: string): Promise<TranscripcionVivoResult> {
-  if (!videoId) {
-    return { segments: [], text: "", language: "es", auto: true, disponible: false, motivo: "No se indicó un videoId." };
-  }
-  const cacheKey = `yt_live_captions_${videoId}`;
-  return cache.wrap(cacheKey, 20 * 1000, async () => {
-    try {
-      const headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept-Language": "es-419,es;q=0.9"
-      };
-      const pageRes = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
-        headers,
-        signal: AbortSignal.timeout(8000)
-      });
-      if (!pageRes.ok) {
-        return { segments: [], text: "", language: "es", auto: true, disponible: false, motivo: `YouTube respondió HTTP ${pageRes.status} al pedir la página del video.` };
-      }
-      const html = await pageRes.text();
-
-      const marker = "ytInitialPlayerResponse = ";
-      const startIdx = html.indexOf(marker);
-      if (startIdx === -1) {
-        return { segments: [], text: "", language: "es", auto: true, disponible: false, motivo: "No se pudo leer la información del reproductor (posible bloqueo de YouTube a peticiones de servidor)." };
-      }
-      const jsonStart = startIdx + marker.length;
-      const scriptEnd = html.indexOf(";var meta", jsonStart);
-      const fallbackEnd = html.indexOf(";</script>", jsonStart);
-      const end = scriptEnd !== -1 && scriptEnd < (fallbackEnd === -1 ? Infinity : fallbackEnd) ? scriptEnd : fallbackEnd;
-      if (end === -1) {
-        return { segments: [], text: "", language: "es", auto: true, disponible: false, motivo: "No se pudo delimitar la información del reproductor." };
-      }
-
-      let playerResponse: any;
-      try {
-        playerResponse = JSON.parse(html.slice(jsonStart, end));
-      } catch {
-        return { segments: [], text: "", language: "es", auto: true, disponible: false, motivo: "Respuesta del reproductor de YouTube no es JSON válido." };
-      }
-
-      const tracks = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-      if (!Array.isArray(tracks) || tracks.length === 0) {
-        const esLive = playerResponse?.videoDetails?.isLiveContent;
-        return {
-          segments: [], text: "", language: "es", auto: true, disponible: false,
-          motivo: esLive
-            ? "La transmisión está en vivo pero YouTube todavía no generó subtítulos automáticos para ella."
-            : "Este video no tiene subtítulos (automáticos u oficiales) disponibles."
-        };
-      }
-
-      const track =
-        tracks.find((t: any) => (t.languageCode || "").startsWith("es") && t.kind !== "asr") ||
-        tracks.find((t: any) => (t.languageCode || "").startsWith("es")) ||
-        tracks.find((t: any) => t.kind !== "asr") ||
-        tracks[0];
-      if (!track?.baseUrl) {
-        return { segments: [], text: "", language: "es", auto: true, disponible: false, motivo: "La pista de subtítulos encontrada no tiene URL de descarga." };
-      }
-
-      const trackRes = await fetch(track.baseUrl, { headers, signal: AbortSignal.timeout(8000) });
-      if (!trackRes.ok) {
-        return { segments: [], text: "", language: "es", auto: true, disponible: false, motivo: `YouTube respondió HTTP ${trackRes.status} al pedir la pista de subtítulos.` };
-      }
-      const xml = await trackRes.text();
-
-      const segments: TranscriptSegmentoVivo[] = [];
-      const regex = /<text start="([\d.]+)"[^>]*>([\s\S]*?)<\/text>/g;
-      let m: RegExpExecArray | null;
-      while ((m = regex.exec(xml)) !== null) {
-        const startSec = Math.round(Number(m[1]));
-        const mm = String(Math.floor(startSec / 60)).padStart(2, "0");
-        const ss = String(startSec % 60).padStart(2, "0");
-        const content = decodeHtmlEntities(m[2]).trim();
-        if (content) segments.push({ seconds: startSec, timeFormatted: `${mm}:${ss}`, text: content });
-      }
-
-      if (segments.length === 0) {
-        return { segments: [], text: "", language: track.languageCode || "es", auto: track.kind === "asr", disponible: false, motivo: "La pista de subtítulos está vacía por ahora." };
-      }
-
-      return {
-        segments,
-        text: segments.map((s) => `[${s.timeFormatted}] ${s.text}`).join("\n"),
-        language: track.languageCode || "es",
-        auto: track.kind === "asr",
-        disponible: true
-      };
-    } catch (err: any) {
-      return { segments: [], text: "", language: "es", auto: true, disponible: false, motivo: `Error de red al consultar YouTube: ${err?.message || "desconocido"}` };
-    }
-  });
-}
+// La búsqueda de videos y el análisis de sesiones en YouTube viven en
+// ./youtubeService.ts y usan solo vías oficiales (YouTube Data API y Gemini).
 
 // ============================================================================
 // SESIONES REALES DE COMISIÓN (camara.cl) — citación, invitados, resultado

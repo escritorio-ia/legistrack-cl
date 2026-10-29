@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import YouTubeTranscriptModal from "../components/YouTubeTranscriptModal";
 import { useState, useEffect } from "react";
 import { motion } from "motion/react";
 import { 
@@ -261,6 +262,29 @@ export default function ProyectoDetailView({
   const [showAutoresPopover, setShowAutoresPopover] = useState(false);
   const [selectedComisionComparador, setSelectedComisionComparador] = useState<string>("");
   const [sesionesVinculadas, setSesionesVinculadas] = useState<SesionVinculadaProyecto[]>([]);
+  // Video oficial (YouTube) de cada sesión y panel de análisis con IA.
+  const [videoBusqueda, setVideoBusqueda] = useState<Record<string, { estado: "buscando" | "sin-resultado" | "error"; motivo?: string }>>({});
+  const [sesionVideo, setSesionVideo] = useState<SesionVinculadaProyecto | null>(null);
+  const buscarVideoSesion = async (s: SesionVinculadaProyecto) => {
+    setVideoBusqueda(prev => ({ ...prev, [s.sesionId]: { estado: "buscando" } }));
+    const camara = /senado/i.test(`${s.camara || ""} ${s.fuente || ""}`) ? "senado" : "diputados";
+    try {
+      const d = await fetch(`/api/comisiones/sesion/youtube-search?query=${encodeURIComponent(s.comisionNombre)}&fecha=${encodeURIComponent(s.fecha)}&camara=${camara}`).then(r => r.json());
+      const v = d?.videos?.[0];
+      if (!v) {
+        setVideoBusqueda(prev => ({ ...prev, [s.sesionId]: d?.disponible === false
+          ? { estado: "error", motivo: d.motivo }
+          : { estado: "sin-resultado", motivo: "No se encontró un video de esta sesión en el canal oficial." } }));
+        return;
+      }
+      const actualizada: SesionVinculadaProyecto = { ...s, videoId: v.id, videoUrl: v.url, duracionReal: v.length || s.duracionReal };
+      setSesionesVinculadas(prev => prev.map(x => x.sesionId === s.sesionId ? actualizada : x));
+      setVideoBusqueda(prev => { const n = { ...prev }; delete n[s.sesionId]; return n; });
+      saveSesionVinculadaAProyecto(proyectoId, actualizada);
+    } catch {
+      setVideoBusqueda(prev => ({ ...prev, [s.sesionId]: { estado: "error", motivo: "No se pudo consultar YouTube." } }));
+    }
+  };
   // Ficha y votaciones oficiales de la Cámara (opendata.camara.cl).
   const [camaraOficial, setCamaraOficial] = useState<{
     disponible: boolean;
@@ -348,6 +372,21 @@ export default function ProyectoDetailView({
   // cualquier cosa" mientras carga. Se muestra un esqueleto de carga en su
   // lugar hasta que se resuelva la consulta (con o sin fichaTecnica real).
   const [datosInicialesLoading, setDatosInicialesLoading] = useState(true);
+  // Ficha ejecutiva (3 viñetas) generada desde el texto oficial del mensaje/moción.
+  const [fichaIA, setFichaIA] = useState<Proyecto["fichaTecnica"] | null>(null);
+  const [fichaLoading, setFichaLoading] = useState(true);
+  useEffect(() => {
+    let cancelado = false;
+    setFichaIA(null);
+    setFichaLoading(true);
+    fetch(`/api/proyecto/${encodeURIComponent(proyectoId)}/ficha-ejecutiva`)
+      .then(r => r.json())
+      .then(d => { if (!cancelado && d?.disponible && d.ficha) setFichaIA(d.ficha); })
+      .catch(() => {})
+      .finally(() => { if (!cancelado) setFichaLoading(false); });
+    return () => { cancelado = true; };
+  }, [proyectoId]);
+  const fichaVista = fichaIA || proyecto.fichaTecnica;
 
   // Comparado real (pestaña "Comparado"): extraído por IA del texto real del
   // informe de comisión, en vez del comparador con datos precargados/fijos
@@ -489,7 +528,7 @@ export default function ProyectoDetailView({
       votosDiputados: "No informado",
       votosSenadores: "No informado"
     };
-    const ficha = proyecto.fichaTecnica || {
+    const ficha = fichaVista || {
       objeto: "Sin ficha técnica disponible.",
       mecanismos: "Sin ficha técnica disponible.",
       fiscalizacion: "Sin ficha técnica disponible."
@@ -1221,7 +1260,7 @@ export default function ProyectoDetailView({
                   </div>
 
                   {/* 3 Executive Bullet Points */}
-                  {datosInicialesLoading && !proyecto.fichaTecnica ? (
+                  {fichaLoading && !fichaVista ? (
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
                       {[1, 2, 3].map((n) => (
                         <div key={n} className="p-4 bg-white rounded-2xl border border-slate-200/90 shadow-2xs space-y-2 animate-pulse">
@@ -1244,9 +1283,9 @@ export default function ProyectoDetailView({
                           <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wide">¿Qué Cambia?</h4>
                         </div>
                         <p className="text-xs text-slate-700 leading-relaxed font-medium">
-                          {proyecto.fichaTecnica?.objeto
-                            ? proyecto.fichaTecnica.objeto.replace(/^🎯\s*Objeto\s*&\s*Ámbito:\s*/i, "")
-                            : proyecto.resumen || "Sin información suficiente en la ficha oficial del proyecto para describir el cambio propuesto."}
+                          {fichaVista?.objeto
+                            ? fichaVista!.objeto.replace(/^🎯\s*Objeto\s*&\s*Ámbito:\s*/i, "")
+                            : (proyecto.titulo || "Sin información en la ficha oficial para describir el cambio propuesto.")}
                         </p>
                       </div>
 
@@ -1257,9 +1296,9 @@ export default function ProyectoDetailView({
                           <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wide">¿Quiénes se Impactan?</h4>
                         </div>
                         <p className="text-xs text-slate-700 leading-relaxed font-medium">
-                          {proyecto.fichaTecnica?.mecanismos
-                            ? proyecto.fichaTecnica.mecanismos.replace(/^⚙️\s*Mecanismos\s*Clave:\s*/i, "")
-                            : "Sin información suficiente en la ficha oficial del proyecto para identificar a los sujetos afectados."}
+                          {fichaVista?.mecanismos
+                            ? fichaVista!.mecanismos.replace(/^⚙️\s*Mecanismos\s*Clave:\s*/i, "")
+                            : "No fue posible leer el texto oficial del proyecto para identificar a quiénes afecta."}
                         </p>
                       </div>
 
@@ -1270,12 +1309,24 @@ export default function ProyectoDetailView({
                           <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wide">Impacto y Fiscalización</h4>
                         </div>
                         <p className="text-xs text-slate-700 leading-relaxed font-medium">
-                          {proyecto.fichaTecnica?.fiscalizacion
-                            ? proyecto.fichaTecnica.fiscalizacion.replace(/^⚖️\s*Fiscalización\s*&\s*(Sanciones|Cumplimiento):\s*/i, "")
-                            : "Sin información suficiente en la ficha oficial del proyecto para identificar el órgano fiscalizador."}
+                          {fichaVista?.fiscalizacion
+                            ? fichaVista!.fiscalizacion.replace(/^⚖️\s*Fiscalización\s*&\s*(Sanciones|Cumplimiento):\s*/i, "")
+                            : "No fue posible leer el texto oficial del proyecto para identificar fiscalización o sanciones."}
                         </p>
                       </div>
                     </div>
+                  )}
+                  {!fichaLoading && (
+                    <p className="text-[10.5px] text-slate-500">
+                      {fichaVista?.fuente === "texto"
+                        ? "Síntesis generada con IA a partir del texto oficial del mensaje o moción. Verifique en el documento original."
+                        : fichaVista
+                          ? "Síntesis basada solo en el título: no se pudo leer el texto oficial del proyecto."
+                          : "Sin síntesis con IA: se muestra el título oficial del proyecto."}
+                      {proyecto.linkCongreso && (
+                        <> {" "}<a href={proyecto.linkCongreso} target="_blank" rel="noopener noreferrer" className="text-indigo-600 font-bold hover:underline">Ver texto oficial</a></>
+                      )}
+                    </p>
                   )}
                 </div>
 
@@ -1293,7 +1344,7 @@ export default function ProyectoDetailView({
                     </span>
                   </div>
 
-                  {datosInicialesLoading && !proyecto.fichaTecnica ? (
+                  {fichaLoading && !fichaVista ? (
                     <div className="space-y-3 font-sans">
                       {[1, 2, 3].map((n) => (
                         <div key={n} className="bg-white p-4 rounded-xl border border-slate-200 shadow-3xs flex flex-col gap-2 animate-pulse">
@@ -1303,7 +1354,7 @@ export default function ProyectoDetailView({
                         </div>
                       ))}
                     </div>
-                  ) : proyecto.fichaTecnica ? (
+                  ) : fichaVista ? (
                     <div className="space-y-3 font-sans">
                       {/* Eje 1: Objeto */}
                       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-3xs flex flex-col gap-1">
@@ -1311,7 +1362,7 @@ export default function ProyectoDetailView({
                           <span>🎯 Objeto & Ámbito de Aplicación</span>
                         </span>
                         <p className="text-xs text-slate-700 leading-relaxed font-medium">
-                          {proyecto.fichaTecnica.objeto.replace(/^🎯\s*Objeto\s*&\s*Ámbito:\s*/i, "")}
+                          {fichaVista!.objeto.replace(/^🎯\s*Objeto\s*&\s*Ámbito:\s*/i, "")}
                         </p>
                       </div>
 
@@ -1321,7 +1372,7 @@ export default function ProyectoDetailView({
                           <span>⚙️ Mecanismos Clave e Innovaciones Legales</span>
                         </span>
                         <p className="text-xs text-slate-700 leading-relaxed font-medium">
-                          {proyecto.fichaTecnica.mecanismos.replace(/^⚙️\s*Mecanismos\s*Clave:\s*/i, "")}
+                          {fichaVista!.mecanismos.replace(/^⚙️\s*Mecanismos\s*Clave:\s*/i, "")}
                         </p>
                       </div>
 
@@ -1331,7 +1382,7 @@ export default function ProyectoDetailView({
                           <span>⚖️ Fiscalización, Sanciones y Órgano Competente</span>
                         </span>
                         <p className="text-xs text-slate-700 leading-relaxed font-medium">
-                          {proyecto.fichaTecnica.fiscalizacion.replace(/^⚖️\s*Fiscalización\s*&\s*(Sanciones|Cumplimiento):\s*/i, "")}
+                          {fichaVista!.fiscalizacion.replace(/^⚖️\s*Fiscalización\s*&\s*(Sanciones|Cumplimiento):\s*/i, "")}
                         </p>
                       </div>
                     </div>
@@ -1856,11 +1907,35 @@ export default function ProyectoDetailView({
                               {s.acuerdos.map((a, i) => <li key={i}>{a}</li>)}
                             </ul>
                           )}
-                          {s.videoUrl && (
-                            <a href={s.videoUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[10.5px] font-bold text-blue-600 hover:underline">
-                              <ExternalLink className="w-3 h-3" /> Ver transmisión
-                            </a>
-                          )}
+                          <div className="flex flex-wrap items-center gap-2 pt-1">
+                            {s.videoUrl ? (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => setSesionVideo(s)}
+                                  className="inline-flex items-center gap-1.5 text-[11px] font-bold bg-rose-600 hover:bg-rose-700 text-white px-2.5 py-1 rounded-lg cursor-pointer"
+                                >
+                                  <Video className="w-3.5 h-3.5" /> Video y análisis IA
+                                </button>
+                                <a href={s.videoUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[10.5px] font-bold text-blue-600 hover:underline">
+                                  <ExternalLink className="w-3 h-3" /> Abrir en YouTube
+                                </a>
+                              </>
+                            ) : (
+                              <button
+                                type="button"
+                                disabled={videoBusqueda[s.sesionId]?.estado === "buscando"}
+                                onClick={() => buscarVideoSesion(s)}
+                                className="inline-flex items-center gap-1.5 text-[11px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 px-2.5 py-1 rounded-lg cursor-pointer disabled:opacity-60"
+                              >
+                                <Video className="w-3.5 h-3.5" />
+                                {videoBusqueda[s.sesionId]?.estado === "buscando" ? "Buscando en el canal oficial…" : "Buscar video oficial"}
+                              </button>
+                            )}
+                            {videoBusqueda[s.sesionId]?.motivo && (
+                              <span className="text-[10.5px] text-amber-700">{videoBusqueda[s.sesionId]?.motivo}</span>
+                            )}
+                          </div>
                           {s.fuente && (
                             <p className="text-[10px] text-slate-400">Fuente: {s.fuente}</p>
                           )}
@@ -1869,6 +1944,19 @@ export default function ProyectoDetailView({
                     </div>
                   </div>
               </div>
+            )}
+
+            {sesionVideo && sesionVideo.videoUrl && (
+              <YouTubeTranscriptModal
+                isOpen={true}
+                onClose={() => setSesionVideo(null)}
+                videoTitle={`Sesión ${sesionVideo.comisionNombre} · ${formatFechaCL(sesionVideo.fecha)}`}
+                videoUrl={sesionVideo.videoUrl}
+                videoId={sesionVideo.videoId}
+                comisionNombre={sesionVideo.comisionNombre}
+                sesionFecha={formatFechaCL(sesionVideo.fecha, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+                materia={sesionVideo.temasVistos || `Boletín ${proyectoId}`}
+              />
             )}
 
             {/* 3.5 Territorial Impact Tab Panel */}
@@ -2706,7 +2794,7 @@ export default function ProyectoDetailView({
       <MinutaEjecutivaModal
         isOpen={isFichaModalOpen}
         onClose={() => setIsFichaModalOpen(false)}
-        proyecto={proyecto}
+        proyecto={fichaVista ? { ...proyecto, fichaTecnica: fichaVista } : proyecto}
       />
 
       {/* Notas Colaborativas Drawer (Firebase Cloud) */}

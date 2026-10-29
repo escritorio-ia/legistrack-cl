@@ -217,33 +217,100 @@ export function estimarFichaTecnica(titulo: string, materia: string): { objeto: 
  * Devuelve null si la IA no está disponible o falla, para que el llamador
  * pueda caer de vuelta al estimador heurístico en vez de dejar la ficha vacía.
  */
+/** Texto del mensaje o moción (PDF oficial en tramitacion.senado.cl). Caché 7 días. */
+export async function textoMensajeMocion(url: string): Promise<string> {
+  if (!url || !/getDocto/i.test(url)) return "";
+  const limpia = url.replace(/&amp;/g, "&").replace(/^https?:\/\/(www\.)?senado\.cl\/appsenado/i, "https://tramitacion.senado.cl/appsenado");
+  if (!/^https:\/\/tramitacion\.senado\.cl\//i.test(limpia)) return "";
+  const clave = `texto_mocion_${limpia}`;
+  const previo = cache.get<string>(clave);
+  if (previo) return previo;
+  try {
+    const res = await fetch(limpia, { headers: { "User-Agent": "Mozilla/5.0 (compatible; LegisTrackCL/1.0)" }, signal: AbortSignal.timeout(20000) });
+    if (!res.ok) return "";
+    const buf = new Uint8Array(await res.arrayBuffer());
+    // Solo PDF (los documentos antiguos .doc no se pueden leer aquí).
+    if (!(buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46)) return "";
+    const { extractText, getDocumentProxy } = await import("unpdf");
+    const pdf = await getDocumentProxy(buf);
+    const { text } = await extractText(pdf, { mergePages: true });
+    const texto = String(text || "").replace(/\s+/g, " ").trim();
+    if (texto.length > 200) cache.set(clave, texto, 7 * 24 * 60 * 60 * 1000);
+    return texto;
+  } catch (err) {
+    console.warn("No se pudo leer el texto del mensaje/moción:", err);
+    return "";
+  }
+}
+
+/** Ficha ejecutiva (3 viñetas) de un boletín, desde el texto oficial. Caché 7 días si sale bien. */
+export async function fichaEjecutivaProyecto(boletinId: string): Promise<{ disponible: boolean; motivo?: string; ficha?: { objeto: string; mecanismos: string; fiscalizacion: string; fuente: "texto" | "titulo" }; textoUrl?: string }> {
+  const digits = String(boletinId || "").replace(/\./g, "").match(/\d{3,6}/)?.[0] || "";
+  if (!digits) return { disponible: false, motivo: "Boletín no válido." };
+  const clave = `ficha_ejecutiva_v2_${digits}`;
+  const previa = cache.get<any>(clave);
+  if (previa) return previa;
+  const p = await fetchProyectoFromSenado(digits);
+  if (!p) return { disponible: false, motivo: "No se encontró el proyecto en la ficha oficial del Senado." };
+  const texto = await textoMensajeMocion(p.linkCongreso || "");
+  const ficha = await generarFichaTecnicaIA(p.titulo, p.resumen, texto);
+  if (!ficha) return { disponible: false, motivo: "La IA no está disponible en este momento." };
+  const r = { disponible: true, ficha, textoUrl: p.linkCongreso };
+  cache.set(clave, r, ficha.fuente === "texto" ? 7 * 24 * 60 * 60 * 1000 : 60 * 60 * 1000);
+  return r;
+}
+
+/**
+ * Ficha ejecutiva del proyecto. Con el texto oficial del mensaje o moción, la IA
+ * resume lo que el texto efectivamente dispone. Sin texto, solo describe lo que
+ * dice el título y declara que no hay información para los otros dos campos.
+ */
 export async function generarFichaTecnicaIA(
   titulo: string,
-  resumen: string
-): Promise<{ objeto: string; mecanismos: string; fiscalizacion: string } | null> {
-  const prompt = `Actúa como un analista de Asesoría Técnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile. A continuación se entrega el título oficial y el resumen de tramitación REAL de un proyecto de ley chileno.
+  _resumen: string,
+  textoProyecto = ""
+): Promise<{ objeto: string; mecanismos: string; fiscalizacion: string; fuente: "texto" | "titulo" } | null> {
+  const conTexto = textoProyecto.length > 300;
+  const prompt = conTexto
+    ? `Eres analista de Asesoría Técnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile. Abajo está el título y el TEXTO OFICIAL (mensaje o moción) de un proyecto de ley chileno.
 
 Título: "${titulo}"
-Resumen de tramitación: "${resumen}"
 
-Responde ÚNICAMENTE con un objeto JSON válido, compacto, sin texto adicional antes ni después, con este esquema exacto:
-{"objeto":"🎯 Objeto & Ámbito: ...","mecanismos":"⚙️ Mecanismos Clave: ...","fiscalizacion":"⚖️ Fiscalización & Sanciones: ..."}
+TEXTO:
+"""
+${textoProyecto.slice(0, 18000)}
+"""
 
-Cada campo debe ser una oración o dos, en prosa formal, específicas a ESTE proyecto (no un párrafo genérico aplicable a cualquier ley):
-- "objeto": qué cambia concretamente este proyecto y a qué ámbito o cuerpo legal afecta, según el título y resumen entregados.
-- "mecanismos": qué tipo de sujetos, obligaciones o instrumentos introduce (en términos generales y prudentes si el resumen no da el detalle exacto).
-- "fiscalizacion": qué tipo de órgano previsiblemente fiscalizaría su cumplimiento dado el ámbito de la materia (ministerio, superintendencia, dirección u organismo sectorial competente en Chile), sin inventar cifras de multas ni nombres de instituciones si no hay base razonable para inferirlos.
+Responde ÚNICAMENTE con JSON válido:
+{"objeto":"...","mecanismos":"...","fiscalizacion":"..."}
 
-Usa EXCLUSIVAMENTE el título y resumen entregados como base; si no hay información suficiente para alguno de los tres campos, responde con una frase prudente y genérica para ESE campo en particular en vez de inventar contenido específico no respaldado.`;
+- "objeto" (¿Qué cambia?): 2-3 frases concretas sobre lo que dispone el proyecto: qué leyes o artículos modifica o crea y cuál es el cambio principal. Menciona números de ley y artículos si el texto los indica.
+- "mecanismos" (¿A quiénes afecta?): 1-2 frases sobre las personas, entidades u organismos obligados, beneficiados o afectados, según el texto.
+- "fiscalizacion" (Fiscalización y sanciones): 1-2 frases sobre qué organismo fiscaliza y qué sanciones establece, SOLO si el texto lo dice. Si el texto no lo establece, responde exactamente: "El texto del proyecto no establece un órgano fiscalizador ni sanciones específicas."
 
-  const respuesta = await generarContenidoUniversalIA(prompt, 500);
+Reglas: usa solo el texto entregado; no inventes cifras, instituciones ni efectos. Prosa formal, sin emojis, sin repetir el título.`
+    : `Eres analista de la Biblioteca del Congreso Nacional de Chile. Solo dispones del título oficial de un proyecto de ley chileno:
+
+"${titulo}"
+
+Responde ÚNICAMENTE con JSON válido: {"objeto":"..."}
+"objeto": 1-2 frases que expliquen en lenguaje claro lo que propone el proyecto según su título. No agregues nada que el título no diga.`;
+
+  const respuesta = await generarContenidoUniversalIA(prompt, conTexto ? 900 : 300);
   if (!respuesta) return null;
   try {
     const parsed = safeJsonParse<{ objeto?: string; mecanismos?: string; fiscalizacion?: string }>(respuesta);
-    if (parsed && parsed.objeto && parsed.mecanismos && parsed.fiscalizacion) {
-      return { objeto: parsed.objeto, mecanismos: parsed.mecanismos, fiscalizacion: parsed.fiscalizacion };
+    if (!parsed?.objeto) return null;
+    if (!conTexto) {
+      return {
+        objeto: parsed.objeto,
+        mecanismos: "No fue posible leer el texto oficial del proyecto para identificar a quiénes afecta.",
+        fiscalizacion: "No fue posible leer el texto oficial del proyecto para identificar fiscalización o sanciones.",
+        fuente: "titulo"
+      };
     }
-    return null;
+    if (!parsed.mecanismos || !parsed.fiscalizacion) return null;
+    return { objeto: parsed.objeto, mecanismos: parsed.mecanismos, fiscalizacion: parsed.fiscalizacion, fuente: "texto" };
   } catch {
     return null;
   }
@@ -451,7 +518,19 @@ export async function fetchProyectoFromSenado(boletinId: string): Promise<Proyec
 
       const diasTramitacion = computeDiasTramitacion(fechaIngreso);
       const diasTxt = diasTramitacion !== undefined ? ` Lleva ${diasTramitacion} día${diasTramitacion === 1 ? "" : "s"} en tramitación.` : "";
-      const resumen = `Proyecto de ley iniciado el ${fechaIngreso} por vía de ${iniciativa} en el ${camaraOrigen}. Su materia principal es: ${materia}. Actualmente se encuentra en la etapa de "${etapa}" con estado de tramitación "${estado}". Autores: ${autores || (iniciativa === "Mensaje" ? "Presidente de la República" : "no informados en la ficha")}.${diasTxt}`;
+      const MESES_ES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+      const fIso = /^(\d{4})-(\d{2})-(\d{2})/.exec(fechaIngreso);
+      const fechaTxt = fIso ? `${parseInt(fIso[3], 10)} de ${MESES_ES[parseInt(fIso[2], 10) - 1]} de ${fIso[1]}` : fechaIngreso;
+      const camaraTxt = camaraOrigen === "Diputados" ? "la Cámara de Diputadas y Diputados" : "el Senado";
+      // "Apellido Apellido, Nombre" → "Nombre Apellido Apellido"
+      const autoresTxt = autoresList.map(a => { const m = a.match(/^([^,]+),\s*(.+)$/); return m ? `${m[2]} ${m[1]}` : a; }).join(", ");
+      const resumen = [
+        `${iniciativa === "Mensaje" ? "Mensaje presidencial" : "Moción parlamentaria"} ingresada el ${fechaTxt} en ${camaraTxt}.`,
+        materia !== "Sin clasificar" ? `Materia: ${materia}.` : "",
+        `Etapa actual: ${etapa}${subetapa ? ` (${subetapa.trim()})` : ""}; estado: ${estado.trim()}.`,
+        iniciativa === "Mensaje" ? "Autor: Presidente de la República." : (autoresTxt ? `Autores: ${autoresTxt}.` : ""),
+        diasTxt.trim()
+      ].filter(Boolean).join(" ");
 
       const votaciones: VotacionItem[] = [];
       const votacionesBlock = extractTag(xml, "votaciones");
@@ -515,19 +594,6 @@ export async function fetchProyectoFromSenado(boletinId: string): Promise<Proyec
             : (autoresList[0] || "No informado en la ficha oficial")
         }
       };
-
-      // Se intenta reemplazar la ficha técnica heurística (por palabra clave,
-      // genérica para cualquier proyecto que no calce con los 5 temas
-      // reconocidos) por una generada con IA específica para ESTE proyecto,
-      // a partir de su título y resumen reales. Si la IA no está disponible o
-      // falla, se conserva el estimador heurístico ya calculado arriba en vez
-      // de dejar la ficha vacía.
-      try {
-        const fichaIA = await generarFichaTecnicaIA(p.titulo, p.resumen);
-        if (fichaIA) p.fichaTecnica = fichaIA;
-      } catch (err) {
-        console.warn(`Could not generate AI ficha tecnica for boletín ${p.id}:`, err);
-      }
 
       return p;
     } catch (error) {

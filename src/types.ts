@@ -76,6 +76,8 @@ export interface Proyecto {
     fiscalizacion: string;
     sanciones?: string;
     leccionChile?: string;
+    /** "texto" = basada en el texto oficial del mensaje/moción; "titulo" = solo en el título. */
+    fuente?: "texto" | "titulo";
   };
   quorum?: {
     tipo: "Ley Simple" | "Quórum Calificado" | "Ley Orgánica Constitucional" | "Reforma Constitucional";

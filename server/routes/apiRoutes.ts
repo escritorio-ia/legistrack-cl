@@ -1,4 +1,4 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, text as expressText } from "express";
 import { Proyecto, Comision, Alerta, SalaVivo } from "../../src/types";
 import { 
   TODAS_COMISIONES_DETALLE, 
@@ -23,7 +23,8 @@ import {
   fetchTextoInformeDocx,
   estimarQuorum,
   estimarFichaTecnica,
-  estimarOrigenDetalle
+  estimarOrigenDetalle,
+  fichaEjecutivaProyecto
 } from "../services/senadoService";
 import {
   getTodasComisiones,
@@ -32,12 +33,11 @@ import {
   fetchCamaraProyectoOficial,
   fetchCamaraVotacionDetalle,
   estadoCitacionesCamara,
-  searchCamaraYouTubeVideos,
-  fetchYouTubeVideoTranscript,
-  fetchYouTubeLiveCaptionsSnapshot,
+  importarCitacionesCamara,
   SENADO_COMISIONES_REALES,
   DIPUTADOS_COMISIONES_REALES
 } from "../services/camaraService";
+import { buscarVideosSesion, detallesVideos, analizarParteVideo, youtubeApiConfigurada, YouTubeNoConfigurado, SEGUNDOS_POR_PARTE } from "../services/youtubeService";
 import { fetchIndiceInformesFinancieros, informesFinancierosDeBoletin, resumirInformeFinanciero, claveBoletinIF } from "../services/dipresService";
 import { 
   buscarDerechoComparado, 
@@ -741,6 +741,46 @@ async function sesionesPorBoletin(): Promise<Record<string, any[]>> {
   }
   return mapa;
 }
+
+// Importación de citaciones de la Cámara leídas con un navegador normal (la tarea
+// programada abre camara.cl y envía aquí el HTML de la semana). Se acepta
+// text/plain para que el navegador pueda enviarlo desde camara.cl sin preflight.
+const ORIGEN_CAMARA = /^https:\/\/(www\.)?camara\.cl$/;
+apiRouter.options("/camara/citaciones/importar", (req: Request, res: Response) => {
+  const origen = String(req.headers.origin || "");
+  if (ORIGEN_CAMARA.test(origen)) {
+    res.setHeader("Access-Control-Allow-Origin", origen);
+    res.setHeader("Access-Control-Allow-Methods", "POST");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  }
+  res.sendStatus(204);
+});
+apiRouter.post("/camara/citaciones/importar", expressText({ type: "text/plain", limit: "5mb" }), async (req: Request, res: Response) => {
+  const origen = String(req.headers.origin || "");
+  if (ORIGEN_CAMARA.test(origen)) res.setHeader("Access-Control-Allow-Origin", origen);
+  let body: any = req.body;
+  if (typeof body === "string") {
+    try { body = JSON.parse(body); } catch { return res.status(400).json({ ok: false, error: "Cuerpo no es JSON válido." }); }
+  }
+  const token = process.env.CITACIONES_IMPORT_TOKEN;
+  if (token && body?.token !== token) return res.status(401).json({ ok: false, error: "Token de importación inválido." });
+  const html = String(body?.html || "");
+  if (html.length < 200) return res.status(400).json({ ok: false, error: "Falta el HTML de la página de citaciones." });
+  try {
+    const r = await importarCitacionesCamara(html, String(body?.semana || ""));
+    res.json({ ok: true, ...r });
+  } catch (err: any) {
+    res.status(422).json({ ok: false, error: err?.message || String(err) });
+  }
+});
+
+apiRouter.get("/proyecto/:id/ficha-ejecutiva", async (req: Request, res: Response) => {
+  try {
+    res.json(await fichaEjecutivaProyecto(String(req.params.id)));
+  } catch (err: any) {
+    res.json({ disponible: false, motivo: err?.message || String(err) });
+  }
+});
 
 apiRouter.get("/proyecto/:id/sesiones", async (req: Request, res: Response) => {
   const digits = digitosBoletin(String(req.params.id));
@@ -2036,32 +2076,55 @@ apiRouter.get("/leychile/norma/:num", async (req: Request, res: Response) => {
 // 7. YOUTUBE SEARCH & GENERADOR DE INFORMES DE COMISIÓN
 // ============================================================================
 apiRouter.get("/comisiones/sesion/youtube-search", async (req: Request, res: Response) => {
+  const query = String(req.query.query || "").trim();
+  const fecha = req.query.fecha ? String(req.query.fecha) : undefined;
+  const camara = req.query.camara === "senado" ? "senado" : "diputados";
+  if (!query) return res.status(400).json({ error: "Se requiere 'query' (nombre de la comisión)." });
   try {
-    const query = String(req.query.query || "Agricultura");
-    const fecha = req.query.fecha ? String(req.query.fecha) : undefined;
-    const camara = req.query.camara === "senado" ? "senado" : "diputados";
-    const videos = await searchCamaraYouTubeVideos(query, fecha, camara);
-    res.json({ success: true, videos });
+    const videos = await buscarVideosSesion(query, fecha, camara);
+    res.json({ success: true, disponible: true, videos, fuente: "YouTube Data API (canal oficial)" });
   } catch (err: any) {
-    console.error("Error in /comisiones/sesion/youtube-search:", err);
-    res.status(500).json({ error: err.message || "Error al buscar videos en YouTube" });
+    const noConfig = err instanceof YouTubeNoConfigurado;
+    if (!noConfig) console.error("Error in /comisiones/sesion/youtube-search:", err);
+    res.json({ success: false, disponible: false, videos: [], motivo: err?.message || "Error al buscar videos en YouTube" });
   }
 });
 
-// Transcripción "casi en vivo": subtítulos reales de YouTube (auto-generados o
-// cuando existan), sondeados periódicamente por el cliente mientras la sesión
-// está en curso. Si YouTube bloquea la petición o la pista aún no existe, se
-// devuelve disponible:false con el motivo real -- nunca texto inventado.
-apiRouter.get("/comisiones/sesion/transcripcion-vivo", async (req: Request, res: Response) => {
-  const videoId = String(req.query.videoId || "").trim();
-  if (!videoId) {
-    return res.status(400).json({ error: "Se requiere 'videoId'." });
+// Duración y partes de análisis de un video (YouTube Data API).
+apiRouter.get("/videos/:id/detalle", async (req: Request, res: Response) => {
+  const id = String(req.params.id || "");
+  if (!/^[\w-]{11}$/.test(id)) return res.status(400).json({ error: "Identificador de video no válido." });
+  if (!youtubeApiConfigurada()) {
+    return res.json({ id, segundos: null, partes: null, motivo: "Falta configurar YOUTUBE_API_KEY; se analizará sin conocer la duración." });
   }
   try {
-    const resultado = await fetchYouTubeLiveCaptionsSnapshot(videoId);
-    res.json({ videoId, ...resultado, updatedAt: new Date().toISOString() });
+    const det = (await detallesVideos([id]))[id];
+    if (!det) return res.json({ id, segundos: null, partes: null, motivo: "YouTube no encontró el video." });
+    const partes = det.segundos ? Math.max(1, Math.ceil(det.segundos / SEGUNDOS_POR_PARTE)) : null;
+    res.json({ id, ...det, partes, segundosPorParte: SEGUNDOS_POR_PARTE });
   } catch (err: any) {
-    res.status(500).json({ error: err.message || "Error al obtener la transcripción en vivo" });
+    res.json({ id, segundos: null, partes: null, motivo: err?.message || String(err) });
+  }
+});
+
+// Análisis con IA (Gemini) de una parte del video: expositores con su minuto,
+// resumen, acuerdos y votaciones. Transcripción automática, no oficial.
+apiRouter.get("/videos/:id/analisis", async (req: Request, res: Response) => {
+  const id = String(req.params.id || "");
+  const parte = Math.max(0, parseInt(String(req.query.parte || "0"), 10) || 0);
+  const duracionRaw = req.query.duracion ? parseInt(String(req.query.duracion), 10) : NaN;
+  try {
+    const r = await analizarParteVideo({
+      videoId: id,
+      parte,
+      duracion: isFinite(duracionRaw) && duracionRaw > 0 ? duracionRaw : null,
+      comision: req.query.comision ? String(req.query.comision).slice(0, 200) : undefined,
+      fecha: req.query.fecha ? String(req.query.fecha).slice(0, 80) : undefined,
+      materia: req.query.materia ? String(req.query.materia).slice(0, 600) : undefined
+    });
+    res.json(r);
+  } catch (err: any) {
+    res.json({ disponible: false, motivo: err?.message || String(err), parte });
   }
 });
 
@@ -2076,7 +2139,8 @@ apiRouter.post("/comisiones/sesion/generar-informe", async (req: Request, res: R
     invitados = "",
     tabla = [],
     acuerdosTexto = [],
-    actaTexto = ""
+    actaTexto = "",
+    analisisVideo = ""
   } = req.body;
 
   const videoContext = videoTitle ? `\n- Video / Transmisión Oficial de la Sesión: "${videoTitle}" (YouTube ID: ${videoId})` : "";
@@ -2106,17 +2170,12 @@ apiRouter.post("/comisiones/sesion/generar-informe", async (req: Request, res: R
   // mayoría de las peticiones de subtítulos hechas desde servidor (sin sesión de
   // navegador), así que esto suele fallar -- por eso el contenido curado de arriba
   // es la fuente principal y no depende de que esto funcione.
-  let transcript: Awaited<ReturnType<typeof fetchYouTubeVideoTranscript>> = null;
-  if (videoId) {
-    try {
-      transcript = await fetchYouTubeVideoTranscript(videoId);
-    } catch (err) {
-      console.warn("Could not fetch YouTube transcript for informe:", err);
-    }
-  }
+  // Análisis del video ya generado por el cliente (Gemini, con minutos), si existe.
+  const analisisTxt = typeof analisisVideo === "string" ? analisisVideo.slice(0, 20000) : "";
+  const transcript = analisisTxt ? { text: analisisTxt, auto: true, truncated: analisisVideo.length > 20000 } : null;
 
   const transcriptBlock = transcript
-    ? `\n\nTranscripción real de la sesión (subtítulos ${transcript.auto ? "auto-generados" : "oficiales"} de YouTube, con marcas de tiempo [MM:SS]${transcript.truncated ? ", truncada por extensión" : ""}):\n"""\n${transcript.text}\n"""\n\nÚsala como fuente principal para citas textuales de intervenciones, con su marca de tiempo entre paréntesis.`
+    ? `\n\nAnálisis del video oficial de la sesión (generado automáticamente del video oficial, con marcas de tiempo [H:MM:SS]${transcript.truncated ? ", truncada por extensión" : ""}):\n"""\n${transcript.text}\n"""\n\nÚsala como fuente principal para citas textuales de intervenciones, con su marca de tiempo entre paréntesis.`
     : "";
 
   // Solo hay CONTENIDO REAL de lo dicho en sala si existe transcripción de la

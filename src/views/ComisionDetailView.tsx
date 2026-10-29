@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { getAnalisisVideoFromFirestore } from "../services/firebaseService";
 import { useState, useEffect, useRef } from "react";
 import { motion } from "motion/react";
 import { 
@@ -73,7 +74,7 @@ import {
   getSesionesCompletadasFromFirestore,
   saveSesionVinculadaAProyecto
 } from "../services/firebaseService";
-import YouTubeTranscriptModal from "../components/YouTubeTranscriptModal";
+import YouTubeTranscriptModal, { analisisATexto } from "../components/YouTubeTranscriptModal";
 import ParlamentariosMatrix from "../components/ParlamentariosMatrix";
 import NotasColaborativasDrawer from "../components/NotasColaborativasDrawer";
 
@@ -82,6 +83,17 @@ import NotasColaborativasDrawer from "../components/NotasColaborativasDrawer";
 // evitar que el historial de sesiones se ordene por comparacion lexicografica de
 // IDs, lo que producia un orden cronologico incorrecto entre sesiones de distintos
 // meses (p. ej. "16jun2026" ordenaba despues de "04ago2026").
+
+/** Texto del análisis IA ya guardado del video (si existe), para enriquecer el informe. */
+async function textoAnalisisGuardado(videoId?: string): Promise<string> {
+  if (!videoId) return "";
+  try {
+    const guardado = await getAnalisisVideoFromFirestore(videoId);
+    return Array.isArray(guardado?.partes) ? analisisATexto(guardado.partes) : "";
+  } catch {
+    return "";
+  }
+}
 
 export function getPartyBadgeStyle(partido?: string): { bg: string; text: string; border: string } {
   const p = (partido || "").toLowerCase();
@@ -1142,8 +1154,8 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
 
   const suggestSubpageAISummary = (ses: SesionItem) => {
     setSubpageSummaryText("Generando propuesta de síntesis legislativa por IA...");
-    const extracted = ses.materia?.match(/\b\d{1,5}\.\d{1,3}-\d{2}\b/)?.[0];
-    const targetBoletin = showCustomBoletinInput ? customLinkedBoletinId : (linkedBoletinId || extracted || comision?.proyectos?.[0]?.id || comision?.proyectosIds?.[0] || "16.100-01");
+    const extracted = ses.materia?.match(/\b\d{1,2}\.?\d{3}-\d{1,2}\b/)?.[0];
+    const targetBoletin = showCustomBoletinInput ? customLinkedBoletinId : (linkedBoletinId || extracted || "");
 
     fetch("/api/comisiones/sesion/generar-informe", {
       method: "POST",
@@ -1303,8 +1315,9 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
   const suggestAISummary = () => {
     if (!selectedSesionForSummary) return;
     setSummaryText("Generando propuesta de síntesis legislativa por IA...");
-    const extracted = selectedSesionForSummary.materia?.match(/\b\d{1,5}\.\d{1,3}-\d{2}\b/)?.[0];
-    const targetBoletin = extracted || (comision?.proyectos?.[0]?.id) || (comision?.proyectosIds?.[0]) || "16.100-01";
+    const extracted = selectedSesionForSummary.materia?.match(/\b\d{1,2}\.?\d{3}-\d{1,2}\b/)?.[0];
+    // Solo el boletín que aparece en la materia; no se asume otro proyecto de la comisión.
+    const targetBoletin = extracted || "";
 
     fetch("/api/comisiones/sesion/generar-informe", {
       method: "POST",
@@ -1406,16 +1419,12 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
     
     // 1. Automatically detect bulletin from ses.materia or comision
     let finalBoletinId = "";
-    const match = ses.materia.match(/\b\d{1,5}\.\d{1,3}-\d{2}\b/);
+    const match = ses.materia.match(/\b\d{1,2}\.?\d{3}-\d{1,2}\b/);
     if (match) {
       finalBoletinId = match[0];
-    } else if (comision?.proyectos && comision.proyectos.length > 0) {
-      finalBoletinId = comision.proyectos[0].id;
-    } else if (comision?.proyectosIds && comision.proyectosIds.length > 0) {
-      finalBoletinId = comision.proyectosIds[0];
-    } else {
-      finalBoletinId = "16.100-01";
     }
+    // Si la materia no menciona un boletín, la sesión no se vincula a ningún proyecto
+    // (antes se asumía el primer proyecto de la comisión o uno fijo, lo que era falso).
 
     if (comision?.proyectosIds?.includes(finalBoletinId)) {
       setReportBoletinId(finalBoletinId);
@@ -1533,6 +1542,7 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
             boletinId: finalBoletinId,
             videoId: video.id,
             videoTitle: video.title,
+            analisisVideo: await textoAnalisisGuardado(video.id),
             invitados: ses.invitados,
             tabla: ses.tabla,
             acuerdosTexto: ses.acuerdosTexto,
@@ -1591,7 +1601,7 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
       } else {
         // Fallback default report if no video is available
         const defaultPages = [
-          `# SÍNTESIS LEGISLATIVA Y ANTECEDENTES GENERALES\n**Comisión:** ${comision?.nombre || "Comisión Técnica"}\n**Fecha:** ${ses.fecha}\n**Boletín:** ${finalBoletinId}\n\n## I. OBJETO Y MATERIA DE LA CONVOCATORIA\nLa Comisión se abocó al análisis de la materia:\n> "${ses.materia}"\n\n## II. AUTORIDADES Y EXPOSITORES\n${ses.invitados || "Representantes del Ejecutivo y especialistas del sector."}`,
+          `# SÍNTESIS LEGISLATIVA Y ANTECEDENTES GENERALES\n**Comisión:** ${comision?.nombre || "Comisión Técnica"}\n**Fecha:** ${ses.fecha}\n**Boletín:** ${finalBoletinId}\n\n## I. OBJETO Y MATERIA DE LA CONVOCATORIA\nLa Comisión se abocó al análisis de la materia:\n> "${ses.materia}"\n\n## II. AUTORIDADES Y EXPOSITORES\n${ses.invitados || "No informado en la citación."}`,
           `# FOCO DEL DEBATE PARLAMENTARIO Y AUDIENCIAS\n## III. PRINCIPALES EJES DE LA DISCUSIÓN\n* **Análisis de Indicaciones:** Revisión del articulado en tabla.\n* **Exposiciones Técnicas:** Fundamentación de las posturas ciudadanas e institucionales.\n* **Observaciones Parlamentarias:** Intervenciones de las y los integrantes de la Comisión.`,
           `# RESOLUCIONES, ACUERDOS Y ESTADO DE TRAMITACIÓN\n## IV. ACUERDOS ADOPTADOS\n* Total de acuerdos: ${ses.acuerdosCount || 1}.\n* Continuación del estudio en la siguiente citación legislativa.\n\n## V. PRÓXIMOS PASOS\nDespacho a Sala o tramitación en segundo trámite constitucional.`
         ];
@@ -1661,7 +1671,7 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
 
     setGeneratingReport(true);
     indexarSesionEnProyectos(selectedSesionForReport, selectedVideo, finalBoletinId);
-    fetch("/api/comisiones/sesion/generar-informe", {
+    textoAnalisisGuardado(selectedVideo.id).then(analisisVideo => fetch("/api/comisiones/sesion/generar-informe", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1673,12 +1683,13 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
         boletinId: finalBoletinId,
         videoId: selectedVideo.id,
         videoTitle: selectedVideo.title,
+        analisisVideo,
         invitados: selectedSesionForReport.invitados,
         tabla: selectedSesionForReport.tabla,
         acuerdosTexto: selectedSesionForReport.acuerdosTexto,
         actaTexto: selectedSesionForReport.actaTexto
       })
-    })
+    }))
       .then(async res => {
         const data = await res.json();
         if (!res.ok) {
@@ -2691,10 +2702,10 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
                               }
                             }}
                             className="bg-rose-600 hover:bg-rose-700 text-white font-bold py-2 px-3 rounded-xl text-xs transition-all cursor-pointer text-center shadow-md flex items-center justify-center gap-1.5"
-                            title="Ver Transcripción en Vivo (subtítulos reales de YouTube)"
+                            title="Ver el video oficial de la sesión y su análisis con IA"
                           >
                             <Tv className="w-3.5 h-3.5 text-rose-200" />
-                            <span>Transcripción en Vivo</span>
+                            <span>Video y análisis IA</span>
                           </button>
                           {/* La "próxima citación" es solo el nombre de este bloque de la UI --
                               si el usuario le puso una fecha que ya pasó (p. ej. corrigió la

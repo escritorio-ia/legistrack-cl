@@ -199,7 +199,7 @@ export async function fetchLiveSenateProject(query: string): Promise<Proyecto | 
 
   // v2: la versión anterior guardaba fichas sin vencimiento (y con datos supuestos);
   // se cambia la clave para descartarlas y ahora vencen a los 30 minutos.
-  const cacheKey = `senado_live_proy_v2_${digits}`;
+  const cacheKey = `senado_live_proy_v3_${digits}`;
   const cacheTsKey = `${cacheKey}_ts`;
   const cached = localStorage.getItem(cacheKey);
   const cachedTs = Number(localStorage.getItem(cacheTsKey) || 0);
