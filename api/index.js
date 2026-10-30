@@ -189839,16 +189839,16 @@ async function resumenConsolidadoInformesFinancieros(boletin) {
   const bloques = [];
   let leidos = 0;
   for (const inf of informes) {
-    let texto = "";
+    let texto2 = "";
     try {
-      texto = inf.pdf ? await textoInformeFinanciero(inf.pdf) : "";
+      texto2 = inf.pdf ? await textoInformeFinanciero(inf.pdf) : "";
     } catch {
-      texto = "";
+      texto2 = "";
     }
-    if (texto) leidos++;
+    if (texto2) leidos++;
     bloques.push(`=== IF N\xB0 ${inf.numero} (a\xF1o ${inf.anio}; estado: ${inf.estado}; mensaje ${inf.mensaje || "s/n"}) ===
 Materia: ${inf.materia}
-${texto ? `Texto: ${texto.slice(0, porInforme)}` : "(No se pudo leer el PDF; usa solo la materia.)"}`);
+${texto2 ? `Texto: ${texto2.slice(0, porInforme)}` : "(No se pudo leer el PDF; usa solo la materia.)"}`);
   }
   const prompt = `Eres analista de finanzas p\xFAblicas de la Biblioteca del Congreso Nacional de Chile. Abajo est\xE1n, en orden cronol\xF3gico, los ${informes.length} Informes Financieros (IF) oficiales de la DIPRES asociados al proyecto de ley Bolet\xEDn ${boletin}.
 
@@ -189862,17 +189862,33 @@ Redacta un RESUMEN CONSOLIDADO de aproximadamente 500 palabras (entre 420 y 560)
 5. Observaciones relevantes que los propios informes se\xF1alen (supuestos, gradualidad, efectos en otros organismos).
 Reglas: usa SOLO lo que dicen los textos; no inventes cifras; cita los n\xFAmeros de IF al referirte a cada uno; si un informe dice que no irroga mayor gasto, dilo.
 
-Responde \xDANICAMENTE con JSON v\xE1lido:
-{"resumen":"texto de ~500 palabras con p\xE1rrafos separados por \\n\\n","filas":[{"numero":"N\xB0 del IF","etapa":"a qu\xE9 corresponde, breve","efectoFiscal":"efecto fiscal en una frase con su monto si existe"}]}`;
-  let j = null;
+Responde en TEXTO PLANO con exactamente este formato (sin JSON, sin markdown):
+RESUMEN:
+(el resumen de ~500 palabras, con p\xE1rrafos separados por una l\xEDnea en blanco)
+TABLA:
+N\xB0 del IF | a qu\xE9 corresponde, breve | efecto fiscal en una frase con su monto si existe
+(una l\xEDnea por informe)`;
+  const intentos = [];
+  let resp = null;
   try {
-    const resp = await generarContenidoUniversalIA(prompt, 6e3);
-    j = resp ? safeJsonParse(resp) : null;
+    resp = await generarContenidoUniversalIA(prompt, 6e3, intentos);
   } catch {
-    j = null;
+    resp = null;
   }
-  if (!j?.resumen) {
-    return { disponible: false, motivo: "No fue posible generar el resumen con IA en este momento. Intente nuevamente en unos minutos.", total: informes.length };
+  const texto = String(resp || "").replace(/\r/g, "");
+  const iRes = texto.search(/RESUMEN:\s*/i);
+  const iTab = texto.search(/\n\s*TABLA:\s*/i);
+  const resumen = (iRes >= 0 ? texto.slice(iRes, iTab > iRes ? iTab : void 0).replace(/^RESUMEN:\s*/i, "") : texto).replace(/[*#]+/g, "").trim();
+  const j = { resumen: resumen.split(/\s+/).length >= 150 ? resumen : "", filas: [] };
+  if (iTab >= 0) {
+    for (const linea of texto.slice(iTab).split("\n").slice(1)) {
+      const partes = linea.split("|").map((x) => x.trim());
+      if (partes.length >= 3 && /\d+-\d{4}/.test(partes[0])) j.filas.push({ numero: partes[0], etapa: partes[1], efectoFiscal: partes.slice(2).join(" | ") });
+    }
+  }
+  if (!j.resumen) {
+    const det = intentos.filter((i) => i.configured && i.error).map((i) => `${i.provider}: ${String(i.error).slice(0, 80)}`).join(" | ");
+    return { disponible: false, motivo: `No fue posible generar el resumen con IA en este momento.${det ? ` Detalle: ${det}` : texto ? " La respuesta de la IA vino incompleta." : ""}`, total: informes.length };
   }
   const filasIA = Array.isArray(j.filas) ? j.filas : [];
   const r = {

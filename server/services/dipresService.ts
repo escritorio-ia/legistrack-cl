@@ -3,7 +3,7 @@
 // tabla todos los IF desde 2014 (N° de IF, materia, boletín, mensaje, estado,
 // PDF, ministerio y año), así que se descarga una vez y se filtra localmente.
 import { cache } from "./cacheService";
-import { generarContenidoUniversalIA, safeJsonParse } from "./aiService";
+import { generarContenidoUniversalIA, safeJsonParse, AIProviderAttempt } from "./aiService";
 
 const BASE = "https://www.dipres.gob.cl/604/";
 const URL_BUSQUEDA = `${BASE}w3-propertyvalue-22563.html`;
@@ -206,16 +206,30 @@ Redacta un RESUMEN CONSOLIDADO de aproximadamente 500 palabras (entre 420 y 560)
 5. Observaciones relevantes que los propios informes señalen (supuestos, gradualidad, efectos en otros organismos).
 Reglas: usa SOLO lo que dicen los textos; no inventes cifras; cita los números de IF al referirte a cada uno; si un informe dice que no irroga mayor gasto, dilo.
 
-Responde ÚNICAMENTE con JSON válido:
-{"resumen":"texto de ~500 palabras con párrafos separados por \\n\\n","filas":[{"numero":"N° del IF","etapa":"a qué corresponde, breve","efectoFiscal":"efecto fiscal en una frase con su monto si existe"}]}`;
+Responde en TEXTO PLANO con exactamente este formato (sin JSON, sin markdown):
+RESUMEN:
+(el resumen de ~500 palabras, con párrafos separados por una línea en blanco)
+TABLA:
+N° del IF | a qué corresponde, breve | efecto fiscal en una frase con su monto si existe
+(una línea por informe)`;
 
-  let j: any = null;
-  try {
-    const resp = await generarContenidoUniversalIA(prompt, 6000);
-    j = resp ? safeJsonParse<any>(resp) : null;
-  } catch { j = null; }
-  if (!j?.resumen) {
-    return { disponible: false, motivo: "No fue posible generar el resumen con IA en este momento. Intente nuevamente en unos minutos.", total: informes.length };
+  const intentos: AIProviderAttempt[] = [];
+  let resp: string | null = null;
+  try { resp = await generarContenidoUniversalIA(prompt, 6000, intentos); } catch { resp = null; }
+  const texto = String(resp || "").replace(/\r/g, "");
+  const iRes = texto.search(/RESUMEN:\s*/i);
+  const iTab = texto.search(/\n\s*TABLA:\s*/i);
+  const resumen = (iRes >= 0 ? texto.slice(iRes, iTab > iRes ? iTab : undefined).replace(/^RESUMEN:\s*/i, "") : texto).replace(/[*#]+/g, "").trim();
+  const j: any = { resumen: resumen.split(/\s+/).length >= 150 ? resumen : "", filas: [] as any[] };
+  if (iTab >= 0) {
+    for (const linea of texto.slice(iTab).split("\n").slice(1)) {
+      const partes = linea.split("|").map(x => x.trim());
+      if (partes.length >= 3 && /\d+-\d{4}/.test(partes[0])) j.filas.push({ numero: partes[0], etapa: partes[1], efectoFiscal: partes.slice(2).join(" | ") });
+    }
+  }
+  if (!j.resumen) {
+    const det = intentos.filter(i => i.configured && i.error).map(i => `${i.provider}: ${String(i.error).slice(0, 80)}`).join(" | ");
+    return { disponible: false, motivo: `No fue posible generar el resumen con IA en este momento.${det ? ` Detalle: ${det}` : texto ? " La respuesta de la IA vino incompleta." : ""}`, total: informes.length };
   }
   const filasIA: any[] = Array.isArray(j.filas) ? j.filas : [];
   const r: ResumenConsolidadoIF = {
