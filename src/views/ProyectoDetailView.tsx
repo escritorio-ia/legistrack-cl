@@ -1042,7 +1042,7 @@ export default function ProyectoDetailView({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6" id="project-detail-layout-split">
         
         {/* Left Column (Main description and dynamic tabs content) - 8 cols */}
-        <div className="lg:col-span-8 flex flex-col gap-4">
+        <div className="lg:col-span-12 flex flex-col gap-4">
           
           {/* Tab Navigation header */}
           <div className="border-b border-slate-200 flex flex-wrap gap-2 text-xs font-semibold" id="project-tabs-navigation">
@@ -2551,8 +2551,8 @@ export default function ProyectoDetailView({
 
         </div>
 
-        {/* Right Column (Visualizations, activity, related indexes) - 4 cols */}
-        <div className="lg:col-span-4 flex flex-col gap-5">
+        {/* Right Column (Visualizations, activity, related indexes) - oculta: repetía las pestañas */}
+        <div className="hidden lg:col-span-4 flex-col gap-5">
           
           {/* Trámite Legislativo Panel */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5" id="project-detail-activity-timeline">
