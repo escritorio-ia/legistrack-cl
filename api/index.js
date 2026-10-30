@@ -188038,7 +188038,8 @@ async function generarConOpenRouter(prompt, maxTokens = 1500) {
           max_tokens: maxTokens,
           temperature: 0.15
         }),
-        signal: AbortSignal.timeout(15e3)
+        // Tareas largas (leer varios documentos y redactar cientos de palabras) necesitan más tiempo.
+        signal: AbortSignal.timeout(maxTokens > 2e3 || prompt.length > 12e3 ? 7e4 : 15e3)
       });
       if (!resp.ok) {
         const errText = await resp.text().catch(() => "");
@@ -188158,7 +188159,7 @@ async function intentarClaude(prompt, maxTokens) {
     return { provider: "claude", configured: true, error: err?.message || String(err) };
   }
 }
-var LIMITE_TOTAL_IA_MS = 75e3;
+var LIMITE_TOTAL_IA_MS = 16e4;
 async function generarContenidoUniversalIA(prompt, maxTokens = 2e3, attempts) {
   return Promise.race([
     generarContenidoUniversalIAInterno(prompt, maxTokens, attempts),

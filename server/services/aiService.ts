@@ -290,7 +290,8 @@ export async function generarConOpenRouter(prompt: string, maxTokens = 1500): Pr
           max_tokens: maxTokens,
           temperature: 0.15,
         }),
-        signal: AbortSignal.timeout(15000)
+        // Tareas largas (leer varios documentos y redactar cientos de palabras) necesitan más tiempo.
+        signal: AbortSignal.timeout(maxTokens > 2000 || prompt.length > 12000 ? 70000 : 15000)
       });
 
       if (!resp.ok) {
@@ -447,7 +448,7 @@ async function intentarClaude(prompt: string, maxTokens: number): Promise<Provid
   }
 }
 
-const LIMITE_TOTAL_IA_MS = 75000;
+const LIMITE_TOTAL_IA_MS = 160000;
 
 // Tope de tiempo total de toda la cadena de proveedores: si alguno se cuelga,
 // se devuelve null (el llamador ya maneja "IA no disponible") en vez de dejar
