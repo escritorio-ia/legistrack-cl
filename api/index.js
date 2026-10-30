@@ -188961,6 +188961,112 @@ async function fetchTextoInformeDocx(url) {
     return null;
   }
 }
+var REGLAS_QUORUM = {
+  reforma: { tipo: "Reforma Constitucional", regla: "4/7 de las diputadas/os y senadoras/es en ejercicio de cada c\xE1mara.", diputados: "89 de 155 en ejercicio", senadores: "29 de 50 en ejercicio", orden: 5 },
+  interpretativa: { tipo: "Ley Interpretativa de la Constituci\xF3n", regla: "4/7 de las diputadas/os y senadoras/es en ejercicio de cada c\xE1mara.", diputados: "89 de 155 en ejercicio", senadores: "29 de 50 en ejercicio", orden: 4 },
+  loc: { tipo: "Ley Org\xE1nica Constitucional", regla: "Mayor\xEDa absoluta de las diputadas/os y senadoras/es en ejercicio de cada c\xE1mara. Requiere control preventivo del Tribunal Constitucional.", diputados: "78 de 155 en ejercicio", senadores: "26 de 50 en ejercicio", orden: 3 },
+  qc: { tipo: "Ley de Qu\xF3rum Calificado", regla: "Mayor\xEDa absoluta de las diputadas/os y senadoras/es en ejercicio de cada c\xE1mara.", diputados: "78 de 155 en ejercicio", senadores: "26 de 50 en ejercicio", orden: 2 },
+  comun: { tipo: "Ley Com\xFAn (Simple)", regla: "Mayor\xEDa simple de las diputadas/os y senadoras/es presentes en la Sala de cada c\xE1mara.", diputados: "Mayor\xEDa de los presentes", senadores: "Mayor\xEDa de los presentes", orden: 1 }
+};
+var RE_QUORUM = /(normas?\s+de\s+qu[oó]rum|qu[oó]rum\s+(?:especial|calificado)|car[aá]cter\s+(?:de\s+(?:ley\s+)?)?org[aá]nic[oa]\s+constitucional|org[aá]nic[oa]s?\s+constitucional(?:es)?|ley\s+interpretativa)/gi;
+function extractosQuorum(texto) {
+  const out = [];
+  let ultimo = -1e9;
+  for (const m of texto.matchAll(RE_QUORUM)) {
+    const i = m.index || 0;
+    if (i - ultimo < 1500) continue;
+    ultimo = i;
+    out.push(texto.slice(Math.max(0, i - 400), i + 1400));
+    if (out.length >= 4) break;
+  }
+  return out.join("\n[...]\n");
+}
+function clasificarPorFrases(ex) {
+  const t = ex.toLowerCase();
+  if (/ley\s+interpretativa/.test(t)) return "interpretativa";
+  if (/no\s+(?:contiene|hay|existen?|tiene)[^.]{0,80}(?:qu[oó]rum|org[aá]nic)/.test(t) && !/tienen?\s+(?:el\s+)?car[aá]cter\s+(?:de\s+)?(?:ley\s+)?org[aá]nic/.test(t)) return "comun";
+  if (/car[aá]cter\s+(?:de\s+(?:ley\s+)?)?org[aá]nic[oa]\s+constitucional/.test(t)) return "loc";
+  if (/qu[oó]rum\s+calificado/.test(t)) return "qc";
+  return null;
+}
+async function determinarQuorumProyecto(boletinId) {
+  const digits = String(boletinId || "").replace(/\./g, "").match(/\d{3,6}/)?.[0] || "";
+  if (!digits) return { disponible: false, motivo: "Bolet\xEDn no v\xE1lido." };
+  const clave = `quorum_proyecto_v1_${digits}`;
+  const previo = cache.get(clave);
+  if (previo) return previo;
+  const p = await fetchProyectoFromSenado(digits);
+  if (!p) return { disponible: false, motivo: "No se encontr\xF3 el proyecto en la ficha oficial del Senado." };
+  const armar = (k, extra) => ({
+    disponible: true,
+    clave: k,
+    tipo: REGLAS_QUORUM[k].tipo,
+    regla: REGLAS_QUORUM[k].regla,
+    votosDiputados: REGLAS_QUORUM[k].diputados,
+    votosSenadores: REGLAS_QUORUM[k].senadores,
+    ...extra
+  });
+  if (/reforma constitucional|modifica la constituci[oó]n|carta fundamental/i.test(p.titulo)) {
+    const r = armar("reforma", { explicacion: "El t\xEDtulo oficial indica que es un proyecto de reforma constitucional.", fuente: { titulo: "T\xEDtulo oficial del proyecto", url: p.linkCongreso || "" } });
+    cache.set(clave, r, 24 * 60 * 60 * 1e3);
+    return r;
+  }
+  const informes = (p.documentos || []).filter((d) => d.tipo === "Informe" && d.url).sort((a, b) => (b.fecha || "").localeCompare(a.fecha || "")).slice(0, 4);
+  const fuentes = [
+    ...informes.map((d) => ({ titulo: d.titulo, url: d.url })),
+    ...p.linkCongreso ? [{ titulo: "Mensaje / Moci\xF3n de ingreso", url: p.linkCongreso }] : []
+  ];
+  for (const f of fuentes) {
+    const texto = f.titulo.startsWith("Mensaje") ? await textoMensajeMocion(f.url) : await fetchTextoInformeDocx(f.url);
+    if (!texto) continue;
+    const ex = extractosQuorum(texto);
+    if (!ex) continue;
+    const prompt = `Eres abogado de la Biblioteca del Congreso Nacional de Chile. Abajo hay extractos de "${f.titulo}" del proyecto "${p.titulo}" (Bolet\xEDn ${p.id}) donde se califican las normas seg\xFAn su qu\xF3rum.
+
+Tipos posibles:
+- "interpretativa": ley interpretativa de la Constituci\xF3n (4/7 en ejercicio).
+- "loc": contiene normas de car\xE1cter org\xE1nico constitucional (mayor\xEDa absoluta en ejercicio, control preventivo del Tribunal Constitucional).
+- "qc": contiene normas de qu\xF3rum calificado (mayor\xEDa absoluta en ejercicio).
+- "comun": no contiene normas de qu\xF3rum especial (mayor\xEDa simple de presentes).
+Si hay normas de distinto tipo, "tipo" es el m\xE1s exigente (interpretativa > loc > qc > comun).
+
+EXTRACTOS:
+"""
+${ex.slice(0, 9e3)}
+"""
+
+Responde \xDANICAMENTE con JSON:
+{"tipo":"loc|qc|interpretativa|comun","normasEspeciales":[{"norma":"art\xEDculo o numeral","caracter":"org\xE1nico constitucional | qu\xF3rum calificado"}],"cita":"frase textual breve del extracto que lo respalda","explicacion":"1-2 frases"}
+Usa solo lo que dicen los extractos. Si los extractos no califican las normas de este proyecto, responde {"tipo":""}.`;
+    let k = null;
+    let extra = {};
+    try {
+      const resp = await generarContenidoUniversalIA(prompt, 2500);
+      const j = resp ? safeJsonParse(resp) : null;
+      if (j && ["loc", "qc", "interpretativa", "comun"].includes(j.tipo)) {
+        k = j.tipo;
+        extra = {
+          normasEspeciales: Array.isArray(j.normasEspeciales) ? j.normasEspeciales.slice(0, 12).map((n) => ({ norma: String(n.norma || ""), caracter: String(n.caracter || "") })) : [],
+          cita: j.cita ? String(j.cita).slice(0, 400) : void 0,
+          explicacion: j.explicacion ? String(j.explicacion) : void 0
+        };
+      }
+    } catch {
+    }
+    if (!k) {
+      k = clasificarPorFrases(ex);
+      if (k) extra = { explicacion: "Clasificaci\xF3n seg\xFAn las frases del documento oficial (sin IA disponible)." };
+    }
+    if (!k) continue;
+    const r = armar(k, { ...extra, fuente: f });
+    cache.set(clave, r, 24 * 60 * 60 * 1e3);
+    return r;
+  }
+  return {
+    disponible: false,
+    motivo: fuentes.length ? "Los documentos oficiales disponibles todav\xEDa no califican el qu\xF3rum de las normas del proyecto (suele aparecer en el primer informe de comisi\xF3n)." : "El expediente a\xFAn no tiene documentos donde se califique el qu\xF3rum."
+  };
+}
 
 // server/services/camaraService.ts
 var SENADO_COMISIONES_REALES = SENADO_COMISIONES_DETALLE.map((c) => ({
@@ -193531,6 +193637,13 @@ apiRouter.post("/camara/citaciones/importar", expressText({ type: "text/plain", 
     res.json({ ok: true, ...r });
   } catch (err) {
     res.status(422).json({ ok: false, error: err?.message || String(err) });
+  }
+});
+apiRouter.get("/proyecto/:id/quorum", async (req, res) => {
+  try {
+    res.json(await determinarQuorumProyecto(String(req.params.id)));
+  } catch (err) {
+    res.json({ disponible: false, motivo: err?.message || String(err) });
   }
 });
 apiRouter.get("/proyecto/:id/ficha-ejecutiva", async (req, res) => {

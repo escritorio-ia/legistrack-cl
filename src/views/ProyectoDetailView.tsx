@@ -388,6 +388,17 @@ export default function ProyectoDetailView({
     return () => { cancelado = true; };
   }, [proyectoId]);
   const fichaVista = fichaIA || proyecto.fichaTecnica;
+  // Quórum según los documentos oficiales (informes de comisión / mensaje o moción).
+  const [quorumDoc, setQuorumDoc] = useState<any | null>(null);
+  useEffect(() => {
+    let cancelado = false;
+    setQuorumDoc(null);
+    fetch(`/api/proyecto/${encodeURIComponent(proyectoId)}/quorum`)
+      .then(r => r.json())
+      .then(d => { if (!cancelado) setQuorumDoc(d); })
+      .catch(() => { if (!cancelado) setQuorumDoc({ disponible: false, motivo: "No se pudo consultar el quórum." }); });
+    return () => { cancelado = true; };
+  }, [proyectoId]);
 
   // Comparado real (pestaña "Comparado"): extraído por IA del texto real del
   // informe de comisión, en vez del comparador con datos precargados/fijos
@@ -939,8 +950,8 @@ export default function ProyectoDetailView({
         {/* Metric 2 */}
         <div className="bg-white rounded-xl border border-slate-200 p-4 font-sans text-center flex flex-col justify-center items-center gap-1 shadow-sm">
           <p className="text-[9px] uppercase font-bold tracking-wider text-slate-400 font-mono">QUÓRUM EXIGIDO</p>
-          <span className="text-[11px] font-extrabold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-md truncate max-w-full" title={proyecto.quorum?.tipo || "No informado"}>
-            {proyecto.quorum?.tipo || "No informado"}
+          <span className="text-[11px] font-extrabold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-md truncate max-w-full" title={quorumDoc?.disponible ? quorumDoc.tipo : (quorumDoc === null ? "Consultando…" : "No calificado aún")}>
+            {quorumDoc?.disponible ? quorumDoc.tipo : (quorumDoc === null ? "Consultando…" : "No calificado aún")}
           </span>
         </div>
         {/* Metric 3 */}
@@ -1377,50 +1388,49 @@ export default function ProyectoDetailView({
                   </div>
 
                   {(() => {
-                    if (!proyecto.quorum) {
-                      return (
-                        <p className="text-xs text-slate-500">
-                          La ficha oficial del proyecto no informa el quórum de aprobación. Se determina al calificar las normas en el informe de comisión.
-                        </p>
-                      );
+                    if (quorumDoc === null) {
+                      return <p className="text-xs text-slate-400 flex items-center gap-2"><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Buscando la calificación de quórum en los informes de comisión y en el mensaje/moción…</p>;
                     }
-                    const quorum = proyecto.quorum;
-
+                    if (!quorumDoc.disponible) {
+                      return <p className="text-xs text-slate-500">{quorumDoc.motivo || "Los documentos oficiales todavía no califican el quórum del proyecto."}</p>;
+                    }
+                    const q = quorumDoc;
+                    const ancho = q.clave === "reforma" || q.clave === "interpretativa" ? 57.1 : q.clave === "loc" || q.clave === "qc" ? 50.3 : 0;
                     return (
                       <div className="space-y-4">
-                        <p className="text-xs text-slate-600 leading-relaxed">
-                          <strong>Regla Aplicable:</strong> {quorum.descripcion}
-                        </p>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          {/* Cámara de Diputados */}
-                          <div className="bg-purple-50/40 border border-purple-100 rounded-xl p-4 flex flex-col gap-1.5">
-                            <span className="text-[10px] font-extrabold uppercase tracking-wider text-purple-900 font-mono">
-                              Cámara de Diputadas y Diputados (155)
-                            </span>
-                            <span className="text-sm font-black text-slate-900">{quorum.votosDiputados}</span>
-                            <div className="h-2 bg-purple-100 rounded-full overflow-hidden mt-1">
-                              <div 
-                                className="bg-purple-600 h-full rounded-full" 
-                                style={{ width: quorum.tipo.includes("4/7") || quorum.tipo.includes("Orgánica") ? "57.1%" : "50.3%" }}
-                              />
-                            </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-black text-purple-900 bg-purple-50 border border-purple-200 px-3 py-1 rounded-lg">{q.tipo}</span>
+                          {q.clave === "loc" && <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">Control preventivo del Tribunal Constitucional</span>}
+                        </div>
+                        <p className="text-xs text-slate-600 leading-relaxed"><strong>Regla aplicable:</strong> {q.regla}</p>
+                        {q.normasEspeciales && q.normasEspeciales.length > 0 && (
+                          <div className="text-xs text-slate-700">
+                            <strong>Normas con quórum especial:</strong>
+                            <ul className="list-disc list-inside mt-1 space-y-0.5">
+                              {q.normasEspeciales.map((n: any, i: number) => <li key={i}>{n.norma}{n.caracter ? ` — ${n.caracter}` : ""}</li>)}
+                            </ul>
+                            {q.clave !== "comun" && <p className="text-[11px] text-slate-500 mt-1">Las demás normas del proyecto se aprueban como ley común (mayoría de los presentes).</p>}
                           </div>
-
-                          {/* Senado */}
+                        )}
+                        {q.explicacion && <p className="text-xs text-slate-600">{q.explicacion}</p>}
+                        {q.cita && <p className="text-[11px] italic text-slate-500 border-l-2 border-purple-200 pl-2">«{q.cita}»</p>}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="bg-purple-50/40 border border-purple-100 rounded-xl p-4 flex flex-col gap-1.5">
+                            <span className="text-[10px] font-extrabold uppercase tracking-wider text-purple-900 font-mono">Cámara de Diputadas y Diputados (155)</span>
+                            <span className="text-sm font-black text-slate-900">{q.votosDiputados}</span>
+                            {ancho > 0 && <div className="h-2 bg-purple-100 rounded-full overflow-hidden mt-1"><div className="bg-purple-600 h-full rounded-full" style={{ width: `${ancho}%` }} /></div>}
+                          </div>
                           <div className="bg-blue-50/40 border border-blue-100 rounded-xl p-4 flex flex-col gap-1.5">
-                            <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-900 font-mono">
-                              Senado de la República (50)
-                            </span>
-                            <span className="text-sm font-black text-slate-900">{quorum.votosSenadores}</span>
-                            <div className="h-2 bg-blue-100 rounded-full overflow-hidden mt-1">
-                              <div 
-                                className="bg-blue-600 h-full rounded-full" 
-                                style={{ width: quorum.tipo.includes("4/7") || quorum.tipo.includes("Orgánica") ? "58%" : "50%" }}
-                              />
-                            </div>
+                            <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-900 font-mono">Senado de la República (50)</span>
+                            <span className="text-sm font-black text-slate-900">{q.votosSenadores}</span>
+                            {ancho > 0 && <div className="h-2 bg-blue-100 rounded-full overflow-hidden mt-1"><div className="bg-blue-600 h-full rounded-full" style={{ width: `${ancho === 57.1 ? 58 : 52}%` }} /></div>}
                           </div>
                         </div>
+                        {q.fuente?.url && (
+                          <p className="text-[10.5px] text-slate-500">
+                            Fuente: <a href={q.fuente.url} target="_blank" rel="noopener noreferrer" className="text-purple-700 font-bold hover:underline">{q.fuente.titulo}</a>. Verifique en el documento original.
+                          </p>
+                        )}
                       </div>
                     );
                   })()}

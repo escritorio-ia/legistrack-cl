@@ -1088,3 +1088,146 @@ export async function fetchTextoInformeDocx(url: string): Promise<string | null>
 }
 
 
+
+// ---------------------------------------------------------------------------
+// Quórum del proyecto según los documentos oficiales del expediente.
+// Los informes de comisión (y a veces el mensaje/moción) tienen una sección que
+// califica las normas: "normas de carácter orgánico constitucional", "de quórum
+// calificado" o "no contiene normas de quórum especial". Reglas de quórum
+// (Constitución, según material de la Cámara/BCN):
+//  - Reforma constitucional e interpretativa de la Constitución: 4/7 en ejercicio (89/155, 29/50).
+//  - Orgánica constitucional y quórum calificado: mayoría absoluta en ejercicio (78/155, 26/50).
+//  - Ley común: mayoría simple de los presentes.
+// ---------------------------------------------------------------------------
+export type TipoQuorum = "reforma" | "interpretativa" | "loc" | "qc" | "comun";
+
+export const REGLAS_QUORUM: Record<TipoQuorum, { tipo: string; regla: string; diputados: string; senadores: string; orden: number }> = {
+  reforma: { tipo: "Reforma Constitucional", regla: "4/7 de las diputadas/os y senadoras/es en ejercicio de cada cámara.", diputados: "89 de 155 en ejercicio", senadores: "29 de 50 en ejercicio", orden: 5 },
+  interpretativa: { tipo: "Ley Interpretativa de la Constitución", regla: "4/7 de las diputadas/os y senadoras/es en ejercicio de cada cámara.", diputados: "89 de 155 en ejercicio", senadores: "29 de 50 en ejercicio", orden: 4 },
+  loc: { tipo: "Ley Orgánica Constitucional", regla: "Mayoría absoluta de las diputadas/os y senadoras/es en ejercicio de cada cámara. Requiere control preventivo del Tribunal Constitucional.", diputados: "78 de 155 en ejercicio", senadores: "26 de 50 en ejercicio", orden: 3 },
+  qc: { tipo: "Ley de Quórum Calificado", regla: "Mayoría absoluta de las diputadas/os y senadoras/es en ejercicio de cada cámara.", diputados: "78 de 155 en ejercicio", senadores: "26 de 50 en ejercicio", orden: 2 },
+  comun: { tipo: "Ley Común (Simple)", regla: "Mayoría simple de las diputadas/os y senadoras/es presentes en la Sala de cada cámara.", diputados: "Mayoría de los presentes", senadores: "Mayoría de los presentes", orden: 1 }
+};
+
+export interface QuorumProyecto {
+  disponible: boolean;
+  motivo?: string;
+  clave?: TipoQuorum;
+  tipo?: string;
+  regla?: string;
+  votosDiputados?: string;
+  votosSenadores?: string;
+  normasEspeciales?: { norma: string; caracter: string }[];
+  explicacion?: string;
+  cita?: string;
+  fuente?: { titulo: string; url: string };
+}
+
+const RE_QUORUM = /(normas?\s+de\s+qu[oó]rum|qu[oó]rum\s+(?:especial|calificado)|car[aá]cter\s+(?:de\s+(?:ley\s+)?)?org[aá]nic[oa]\s+constitucional|org[aá]nic[oa]s?\s+constitucional(?:es)?|ley\s+interpretativa)/gi;
+
+function extractosQuorum(texto: string): string {
+  const out: string[] = [];
+  let ultimo = -1e9;
+  for (const m of texto.matchAll(RE_QUORUM)) {
+    const i = m.index || 0;
+    if (i - ultimo < 1500) continue;
+    ultimo = i;
+    out.push(texto.slice(Math.max(0, i - 400), i + 1400));
+    if (out.length >= 4) break;
+  }
+  return out.join("\n[...]\n");
+}
+
+function clasificarPorFrases(ex: string): TipoQuorum | null {
+  const t = ex.toLowerCase();
+  if (/ley\s+interpretativa/.test(t)) return "interpretativa";
+  if (/no\s+(?:contiene|hay|existen?|tiene)[^.]{0,80}(?:qu[oó]rum|org[aá]nic)/.test(t) && !/tienen?\s+(?:el\s+)?car[aá]cter\s+(?:de\s+)?(?:ley\s+)?org[aá]nic/.test(t)) return "comun";
+  if (/car[aá]cter\s+(?:de\s+(?:ley\s+)?)?org[aá]nic[oa]\s+constitucional/.test(t)) return "loc";
+  if (/qu[oó]rum\s+calificado/.test(t)) return "qc";
+  return null;
+}
+
+export async function determinarQuorumProyecto(boletinId: string): Promise<QuorumProyecto> {
+  const digits = String(boletinId || "").replace(/\./g, "").match(/\d{3,6}/)?.[0] || "";
+  if (!digits) return { disponible: false, motivo: "Boletín no válido." };
+  const clave = `quorum_proyecto_v1_${digits}`;
+  const previo = cache.get<QuorumProyecto>(clave);
+  if (previo) return previo;
+
+  const p = await fetchProyectoFromSenado(digits);
+  if (!p) return { disponible: false, motivo: "No se encontró el proyecto en la ficha oficial del Senado." };
+
+  const armar = (k: TipoQuorum, extra: Partial<QuorumProyecto>): QuorumProyecto => ({
+    disponible: true, clave: k, tipo: REGLAS_QUORUM[k].tipo, regla: REGLAS_QUORUM[k].regla,
+    votosDiputados: REGLAS_QUORUM[k].diputados, votosSenadores: REGLAS_QUORUM[k].senadores, ...extra
+  });
+
+  // Reforma constitucional: lo dice el propio título.
+  if (/reforma constitucional|modifica la constituci[oó]n|carta fundamental/i.test(p.titulo)) {
+    const r = armar("reforma", { explicacion: "El título oficial indica que es un proyecto de reforma constitucional.", fuente: { titulo: "Título oficial del proyecto", url: p.linkCongreso || "" } });
+    cache.set(clave, r, 24 * 60 * 60 * 1000);
+    return r;
+  }
+
+  // Documentos a revisar: informes de comisión (más recientes primero) y luego el mensaje/moción.
+  const informes = (p.documentos || []).filter(d => d.tipo === "Informe" && d.url).sort((a, b) => (b.fecha || "").localeCompare(a.fecha || "")).slice(0, 4);
+  const fuentes: { titulo: string; url: string }[] = [
+    ...informes.map(d => ({ titulo: d.titulo, url: d.url! })),
+    ...(p.linkCongreso ? [{ titulo: "Mensaje / Moción de ingreso", url: p.linkCongreso }] : [])
+  ];
+
+  for (const f of fuentes) {
+    const texto = f.titulo.startsWith("Mensaje") ? await textoMensajeMocion(f.url) : await fetchTextoInformeDocx(f.url);
+    if (!texto) continue;
+    const ex = extractosQuorum(texto);
+    if (!ex) continue;
+
+    const prompt = `Eres abogado de la Biblioteca del Congreso Nacional de Chile. Abajo hay extractos de "${f.titulo}" del proyecto "${p.titulo}" (Boletín ${p.id}) donde se califican las normas según su quórum.
+
+Tipos posibles:
+- "interpretativa": ley interpretativa de la Constitución (4/7 en ejercicio).
+- "loc": contiene normas de carácter orgánico constitucional (mayoría absoluta en ejercicio, control preventivo del Tribunal Constitucional).
+- "qc": contiene normas de quórum calificado (mayoría absoluta en ejercicio).
+- "comun": no contiene normas de quórum especial (mayoría simple de presentes).
+Si hay normas de distinto tipo, "tipo" es el más exigente (interpretativa > loc > qc > comun).
+
+EXTRACTOS:
+"""
+${ex.slice(0, 9000)}
+"""
+
+Responde ÚNICAMENTE con JSON:
+{"tipo":"loc|qc|interpretativa|comun","normasEspeciales":[{"norma":"artículo o numeral","caracter":"orgánico constitucional | quórum calificado"}],"cita":"frase textual breve del extracto que lo respalda","explicacion":"1-2 frases"}
+Usa solo lo que dicen los extractos. Si los extractos no califican las normas de este proyecto, responde {"tipo":""}.`;
+
+    let k: TipoQuorum | null = null;
+    let extra: Partial<QuorumProyecto> = {};
+    try {
+      const resp = await generarContenidoUniversalIA(prompt, 2500);
+      const j: any = resp ? safeJsonParse<any>(resp) : null;
+      if (j && ["loc", "qc", "interpretativa", "comun"].includes(j.tipo)) {
+        k = j.tipo;
+        extra = {
+          normasEspeciales: Array.isArray(j.normasEspeciales) ? j.normasEspeciales.slice(0, 12).map((n: any) => ({ norma: String(n.norma || ""), caracter: String(n.caracter || "") })) : [],
+          cita: j.cita ? String(j.cita).slice(0, 400) : undefined,
+          explicacion: j.explicacion ? String(j.explicacion) : undefined
+        };
+      }
+    } catch { /* se usa la clasificación por frases */ }
+    if (!k) {
+      k = clasificarPorFrases(ex);
+      if (k) extra = { explicacion: "Clasificación según las frases del documento oficial (sin IA disponible)." };
+    }
+    if (!k) continue;
+    const r = armar(k, { ...extra, fuente: f });
+    cache.set(clave, r, 24 * 60 * 60 * 1000);
+    return r;
+  }
+
+  return {
+    disponible: false,
+    motivo: fuentes.length
+      ? "Los documentos oficiales disponibles todavía no califican el quórum de las normas del proyecto (suele aparecer en el primer informe de comisión)."
+      : "El expediente aún no tiene documentos donde se califique el quórum."
+  };
+}

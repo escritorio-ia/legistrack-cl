@@ -25,7 +25,8 @@ import {
   estimarFichaTecnica,
   estimarOrigenDetalle,
   fichaEjecutivaProyecto,
-  textoMensajeMocion
+  textoMensajeMocion,
+  determinarQuorumProyecto
 } from "../services/senadoService";
 import {
   getTodasComisiones,
@@ -762,6 +763,14 @@ apiRouter.post("/camara/citaciones/importar", expressText({ type: "text/plain", 
     res.json({ ok: true, ...r });
   } catch (err: any) {
     res.status(422).json({ ok: false, error: err?.message || String(err) });
+  }
+});
+
+apiRouter.get("/proyecto/:id/quorum", async (req: Request, res: Response) => {
+  try {
+    res.json(await determinarQuorumProyecto(String(req.params.id)));
+  } catch (err: any) {
+    res.json({ disponible: false, motivo: err?.message || String(err) });
   }
 });
 
