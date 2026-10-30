@@ -77,6 +77,26 @@ export async function informesFinancierosDeBoletin(boletin: string): Promise<Inf
   return indice.filter(i => i.boletines.some(b => b === clave || b.split("-")[0] === digitos));
 }
 
+/** Texto completo del PDF de un informe financiero (solo dipres.gob.cl). Caché 7 días. */
+export async function textoInformeFinanciero(pdfUrl: string): Promise<string> {
+  const url = new URL(pdfUrl);
+  if (!/(^|\.)dipres\.gob\.cl$/i.test(url.hostname)) throw new Error("Solo se aceptan documentos de dipres.gob.cl");
+  const clave = `dipres_texto_if_${url.pathname}`;
+  const previo = cache.get<string>(clave);
+  if (previo) return previo;
+  const res = await fetch(url.toString(), {
+    headers: { "User-Agent": "Mozilla/5.0 (compatible; LegisTrackCL/1.0)" },
+    signal: AbortSignal.timeout(30000)
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const { extractText, getDocumentProxy } = await import("unpdf");
+  const pdf = await getDocumentProxy(new Uint8Array(await res.arrayBuffer()));
+  const { text } = await extractText(pdf, { mergePages: true });
+  const texto = String(text || "").replace(/\s+/g, " ").trim();
+  if (texto.length > 80) cache.set(clave, texto, 7 * 24 * 60 * 60 * 1000);
+  return texto;
+}
+
 export interface ResumenInformeFinanciero {
   disponible: boolean;
   motivo?: string;
@@ -101,15 +121,7 @@ export async function resumirInformeFinanciero(pdfUrl: string): Promise<ResumenI
   return cache.wrap(`dipres_resumen_if_${url.pathname}`, 7 * 24 * 60 * 60 * 1000, async () => {
     let texto = "";
     try {
-      const res = await fetch(url.toString(), {
-        headers: { "User-Agent": "Mozilla/5.0 (compatible; LegisTrackCL/1.0)" },
-        signal: AbortSignal.timeout(30000)
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const { extractText, getDocumentProxy } = await import("unpdf");
-      const pdf = await getDocumentProxy(new Uint8Array(await res.arrayBuffer()));
-      const { text } = await extractText(pdf, { mergePages: true });
-      texto = String(text || "").replace(/\s+/g, " ").trim();
+      texto = await textoInformeFinanciero(url.toString());
     } catch (err: any) {
       return { disponible: false, motivo: `No se pudo leer el PDF oficial: ${err?.message || err}`, fuente: url.toString() };
     }
@@ -142,4 +154,81 @@ ${texto.slice(0, 14000)}`;
     } catch { /* se entrega el extracto literal */ }
     return { disponible: true, extracto: texto.slice(0, 900), fuente: url.toString() };
   });
+}
+
+// ---------------------------------------------------------------------------
+// Resumen consolidado (~500 palabras) de todos los informes financieros de un
+// boletín: cuántos hay, a qué etapa corresponde cada uno, qué medidas costean,
+// cómo evoluciona el efecto fiscal y cómo se financia. Solo con el texto oficial.
+// ---------------------------------------------------------------------------
+export interface ResumenConsolidadoIF {
+  disponible: boolean;
+  motivo?: string;
+  total?: number;
+  resumen?: string;
+  filas?: { numero: string; anio: string; estado: string; materia: string; pdf: string; etapa: string; efectoFiscal: string }[];
+  leidos?: number;
+  generado?: string;
+}
+
+const ordenIF = (n: string) => { const [num, anio] = n.split("-").map(x => parseInt(x, 10) || 0); return anio * 10000 + num; };
+
+export async function resumenConsolidadoInformesFinancieros(boletin: string): Promise<ResumenConsolidadoIF> {
+  const informes = (await informesFinancierosDeBoletin(boletin)).sort((a, b) => ordenIF(a.numero) - ordenIF(b.numero));
+  if (informes.length === 0) return { disponible: false, motivo: "La DIPRES no registra informes financieros para este boletín.", total: 0 };
+
+  const clave = `dipres_consolidado_${claveBoletinIF(boletin)}_${informes.map(i => i.numero).join(",")}`;
+  const previo = cache.get<ResumenConsolidadoIF>(clave);
+  if (previo) return previo;
+
+  // Cada informe aporta su texto; se reparte el espacio para que quepan todos.
+  const porInforme = Math.max(2500, Math.floor(26000 / informes.length));
+  const bloques: string[] = [];
+  let leidos = 0;
+  for (const inf of informes) {
+    let texto = "";
+    try { texto = inf.pdf ? await textoInformeFinanciero(inf.pdf) : ""; } catch { texto = ""; }
+    if (texto) leidos++;
+    bloques.push(`=== IF N° ${inf.numero} (año ${inf.anio}; estado: ${inf.estado}; mensaje ${inf.mensaje || "s/n"}) ===
+Materia: ${inf.materia}
+${texto ? `Texto: ${texto.slice(0, porInforme)}` : "(No se pudo leer el PDF; usa solo la materia.)"}`);
+  }
+
+  const prompt = `Eres analista de finanzas públicas de la Biblioteca del Congreso Nacional de Chile. Abajo están, en orden cronológico, los ${informes.length} Informes Financieros (IF) oficiales de la DIPRES asociados al proyecto de ley Boletín ${boletin}.
+
+${bloques.join("\n\n")}
+
+Redacta un RESUMEN CONSOLIDADO de aproximadamente 500 palabras (entre 420 y 560), en prosa formal en español, en 4 a 6 párrafos, que cubra:
+1. Cuántos informes financieros se han presentado y a qué corresponde cada uno (proyecto original / mensaje, indicaciones, etapa o comisión si el texto lo indica).
+2. Qué medidas o disposiciones del proyecto costea cada informe.
+3. El efecto fiscal de cada uno y cómo evoluciona entre informes (mayor o menor gasto, montos con su unidad y año, régimen permanente vs. transitorio), comparando explícitamente los cambios.
+4. Cómo se financia el mayor gasto, según los informes.
+5. Observaciones relevantes que los propios informes señalen (supuestos, gradualidad, efectos en otros organismos).
+Reglas: usa SOLO lo que dicen los textos; no inventes cifras; cita los números de IF al referirte a cada uno; si un informe dice que no irroga mayor gasto, dilo.
+
+Responde ÚNICAMENTE con JSON válido:
+{"resumen":"texto de ~500 palabras con párrafos separados por \\n\\n","filas":[{"numero":"N° del IF","etapa":"a qué corresponde, breve","efectoFiscal":"efecto fiscal en una frase con su monto si existe"}]}`;
+
+  let j: any = null;
+  try {
+    const resp = await generarContenidoUniversalIA(prompt, 6000);
+    j = resp ? safeJsonParse<any>(resp) : null;
+  } catch { j = null; }
+  if (!j?.resumen) {
+    return { disponible: false, motivo: "No fue posible generar el resumen con IA en este momento. Intente nuevamente en unos minutos.", total: informes.length };
+  }
+  const filasIA: any[] = Array.isArray(j.filas) ? j.filas : [];
+  const r: ResumenConsolidadoIF = {
+    disponible: true,
+    total: informes.length,
+    leidos,
+    resumen: String(j.resumen).trim(),
+    filas: informes.map(inf => {
+      const f = filasIA.find(x => String(x?.numero || "").includes(inf.numero)) || {};
+      return { numero: inf.numero, anio: inf.anio, estado: inf.estado, materia: inf.materia, pdf: inf.pdf, etapa: String(f.etapa || ""), efectoFiscal: String(f.efectoFiscal || "") };
+    }),
+    generado: new Date().toISOString()
+  };
+  cache.set(clave, r, 7 * 24 * 60 * 60 * 1000);
+  return r;
 }

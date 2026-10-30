@@ -296,6 +296,33 @@ export async function getSesionesVinculadasDeProyecto(boletinId: string): Promis
   }
 }
 
+/** Resumen consolidado de informes financieros guardado en el historial del proyecto. */
+export async function getResumenIFDeProyecto(boletinId: string): Promise<any | null> {
+  if (!db || !boletinId) return null;
+  try {
+    const snap = await getDoc(doc(db, COLLECTIONS.HISTORIAL_PROYECTOS, claveBoletin(boletinId)));
+    return snap.exists() ? (snap.data().resumenInformesFinancieros || null) : null;
+  } catch (err) {
+    console.warn("No se pudo leer el resumen de informes financieros:", err);
+    return null;
+  }
+}
+
+export async function saveResumenIFDeProyecto(boletinId: string, resumen: any): Promise<boolean> {
+  if (!db || !boletinId) return false;
+  try {
+    await setDoc(doc(db, COLLECTIONS.HISTORIAL_PROYECTOS, claveBoletin(boletinId)), {
+      boletinId: claveBoletin(boletinId),
+      resumenInformesFinancieros: resumen,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+    return true;
+  } catch (err) {
+    console.warn("No se pudo guardar el resumen de informes financieros:", err);
+    return false;
+  }
+}
+
 /**
  * Análisis con IA del video oficial de una sesión (por videoId). Se guarda para
  * que nadie tenga que volver a procesar el mismo video.

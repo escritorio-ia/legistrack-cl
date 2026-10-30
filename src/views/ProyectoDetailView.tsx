@@ -53,7 +53,7 @@ import { formatFechaCL, parseFechaSesion } from "../utils/dateUtils";
 import MinutaEjecutivaModal from "../components/MinutaEjecutivaModal";
 import TerritorialImpactPanel from "../components/TerritorialImpactPanel";
 import NotasColaborativasDrawer from "../components/NotasColaborativasDrawer";
-import { getSesionesVinculadasDeProyecto, saveSesionVinculadaAProyecto, SesionVinculadaProyecto } from "../services/firebaseService";
+import { getSesionesVinculadasDeProyecto, saveSesionVinculadaAProyecto, SesionVinculadaProyecto, getResumenIFDeProyecto, saveResumenIFDeProyecto } from "../services/firebaseService";
 
 interface ProyectoDetailViewProps {
   proyectoId: string;
@@ -340,6 +340,32 @@ export default function ProyectoDetailView({
     informes: { numero: string; materia: string; mensaje: string; estado: string; ministerio: string; anio: string; pdf: string }[];
   } | null>(null);
   const [resumenesIF, setResumenesIF] = useState<Record<string, any>>({});
+  // Resumen consolidado (~500 palabras) de todos los informes financieros.
+  const [consolidadoIF, setConsolidadoIF] = useState<any | null>(null);
+  const [consolidadoIFCargando, setConsolidadoIFCargando] = useState(false);
+  const numerosIF = (informesFin?.informes || []).map(i => i.numero).sort().join(",");
+  useEffect(() => {
+    setConsolidadoIF(null);
+    if (!numerosIF) return;
+    let cancelado = false;
+    getResumenIFDeProyecto(proyectoId).then(g => {
+      // Solo se reutiliza si corresponde exactamente a los mismos informes.
+      if (!cancelado && g?.disponible && g.numeros === numerosIF) setConsolidadoIF(g);
+    });
+    return () => { cancelado = true; };
+  }, [proyectoId, numerosIF]);
+  const generarConsolidadoIF = () => {
+    setConsolidadoIFCargando(true);
+    fetch(`/api/proyecto/${encodeURIComponent(proyectoId)}/informes-financieros/consolidado`)
+      .then(r => r.json())
+      .then(d => {
+        const conNumeros = { ...d, numeros: numerosIF };
+        setConsolidadoIF(conNumeros);
+        if (d?.disponible) saveResumenIFDeProyecto(proyectoId, conNumeros);
+      })
+      .catch(() => setConsolidadoIF({ disponible: false, motivo: "No se pudo generar el resumen." }))
+      .finally(() => setConsolidadoIFCargando(false));
+  };
 
   useEffect(() => {
     let cancelado = false;
@@ -2484,6 +2510,53 @@ export default function ProyectoDetailView({
                       La DIPRES no registra informes financieros para este boletín.
                     </p>
                   ) : (
+                    <>
+                    {/* Resumen consolidado de todos los informes financieros */}
+                    <div className="bg-white border border-emerald-300 rounded-xl p-4 space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-xs font-black text-emerald-900">
+                          Resumen consolidado · {informesFin.informes.length} informe{informesFin.informes.length === 1 ? "" : "s"} financiero{informesFin.informes.length === 1 ? "" : "s"}
+                        </p>
+                        {!consolidadoIF?.disponible && (
+                          <button type="button" onClick={generarConsolidadoIF} disabled={consolidadoIFCargando}
+                            className="text-xs font-bold bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white px-3 py-1.5 rounded-lg cursor-pointer">
+                            {consolidadoIFCargando ? "Leyendo los informes… (puede tardar 1 minuto)" : "Generar resumen (~500 palabras)"}
+                          </button>
+                        )}
+                      </div>
+                      {consolidadoIF && !consolidadoIF.disponible && (
+                        <p className="text-xs text-amber-700">{consolidadoIF.motivo}</p>
+                      )}
+                      {consolidadoIF?.disponible && (
+                        <>
+                          <div className="text-xs text-slate-700 leading-relaxed space-y-2">
+                            {String(consolidadoIF.resumen).split(/\n\s*\n/).map((par: string, i: number) => <p key={i}>{par}</p>)}
+                          </div>
+                          {Array.isArray(consolidadoIF.filas) && consolidadoIF.filas.length > 0 && (
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-[11px] border border-emerald-100 rounded-lg">
+                                <thead className="bg-emerald-50 text-emerald-900">
+                                  <tr><th className="text-left p-2">IF</th><th className="text-left p-2">Corresponde a</th><th className="text-left p-2">Efecto fiscal</th><th className="p-2"></th></tr>
+                                </thead>
+                                <tbody>
+                                  {consolidadoIF.filas.map((f: any) => (
+                                    <tr key={f.numero} className="border-t border-emerald-100 align-top">
+                                      <td className="p-2 font-bold whitespace-nowrap">N° {f.numero}</td>
+                                      <td className="p-2">{f.etapa || f.materia}</td>
+                                      <td className="p-2">{f.efectoFiscal || "—"}</td>
+                                      <td className="p-2">{f.pdf && <a href={f.pdf} target="_blank" rel="noopener noreferrer" className="text-emerald-700 font-bold hover:underline">PDF</a>}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                          <p className="text-[10px] text-slate-500">
+                            Resumen generado con IA a partir de {consolidadoIF.leidos ?? consolidadoIF.total} informe(s) financiero(s) oficiales de la DIPRES. Verifique las cifras en cada PDF.
+                          </p>
+                        </>
+                      )}
+                    </div>
                     <ul className="flex flex-col gap-2">
                       {informesFin.informes.map(inf => {
                         const r = resumenesIF[inf.pdf];
@@ -2526,6 +2599,7 @@ export default function ProyectoDetailView({
                         );
                       })}
                     </ul>
+                    </>
                   )}
                 </div>
 

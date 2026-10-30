@@ -40,7 +40,7 @@ import {
   DIPUTADOS_COMISIONES_REALES
 } from "../services/camaraService";
 import { buscarVideosSesion, detallesVideos, analizarParteVideo, youtubeApiConfigurada, YouTubeNoConfigurado, SEGUNDOS_POR_PARTE } from "../services/youtubeService";
-import { fetchIndiceInformesFinancieros, informesFinancierosDeBoletin, resumirInformeFinanciero, claveBoletinIF } from "../services/dipresService";
+import { fetchIndiceInformesFinancieros, informesFinancierosDeBoletin, resumirInformeFinanciero, claveBoletinIF, resumenConsolidadoInformesFinancieros } from "../services/dipresService";
 import { 
   buscarDerechoComparado, 
   ResultadoComparado, 
@@ -839,6 +839,14 @@ apiRouter.get("/proyecto/:id/informes-financieros", async (req: Request, res: Re
 });
 
 // Descripción de un informe financiero a partir de su PDF oficial.
+apiRouter.get("/proyecto/:id/informes-financieros/consolidado", async (req: Request, res: Response) => {
+  try {
+    res.json(await resumenConsolidadoInformesFinancieros(String(req.params.id)));
+  } catch (err: any) {
+    res.json({ disponible: false, motivo: `No se pudo consultar la DIPRES: ${err?.message || err}` });
+  }
+});
+
 apiRouter.get("/informes-financieros/resumen", async (req: Request, res: Response) => {
   try {
     res.json(await resumirInformeFinanciero(String(req.query.url || "")));
