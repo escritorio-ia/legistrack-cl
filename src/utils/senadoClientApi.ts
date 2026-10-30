@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { limpiarNombreComision } from "./comisionesNombre";
 import { Proyecto, ActivityItem, VotacionItem } from "../types";
 import { formatBulletinNumber, MATERIA_COMISION_MAP } from "./proyectosResolver";
 
@@ -85,10 +86,8 @@ export function parseSenateXmlToProyecto(xml: string, originalQuery: string): Pr
 
     let comisionActual = mapping.comision;
     if (subetapa) {
-      const commMatch = subetapa.match(/comisión\s+de\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñA-ZÁÉÍÓÚÑ\s\-\,y]+)/i);
-      if (commMatch) {
-        comisionActual = `Comisión de ${commMatch[1].trim()}`;
-      }
+      const limpia = limpiarNombreComision(subetapa);
+      if (limpia) comisionActual = limpia;
     }
 
     const tramitacionBlock = extractTag(xml, "tramitacion");

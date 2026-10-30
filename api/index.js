@@ -188263,6 +188263,20 @@ async function testearProveedoresIAReal() {
   };
 }
 
+// src/utils/comisionesNombre.ts
+var CORTES = /\s*(?:,\s*y\b|\s+y\s*,|,?\s+posteriormente\b|,?\s+finalmente\b|,?\s+luego\b|\s+para\s|\s+con\s+ocasi[oó]n|\s+en\s+(?:el|la|los|las|su|sesi[oó]n)\b|\s+a\s+fin\b|\s+que\s|\s+por\s|[.;:(]).*$/i;
+function limpiarNombreComision(raw) {
+  let s = String(raw || "").replace(/\s+/g, " ").trim();
+  s = s.replace(/^(?:a\s+|por\s+)?(?:la|las)\s+/i, "");
+  const m = s.match(/comisi[oó]n\s+(?:especial\s+)?(?:mixta(?:\s+de\s+.+)?|de\s+.+|investigadora.+)/i);
+  if (!m) return "";
+  s = m[0].replace(CORTES, "").replace(/[\s,\-]+$/, "").trim();
+  s = s.replace(/^comisi[oó]n/i, "Comisi\xF3n");
+  s = s.replace(/\s+(?:y|e|de|del|la|el)$/i, "").trim();
+  if (s.length < 12 || s.length > 140) return "";
+  return s;
+}
+
 // server/services/senadoService.ts
 function parseFechaDDMMYYYY(fecha) {
   const m = fecha.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
@@ -188513,11 +188527,8 @@ async function fetchProyectoFromSenado(boletinId) {
       let comisionActual = mapeoSufijo ? mapeoSufijo.comision : "No informada";
       let siguienteSesion = void 0;
       if (subetapa) {
-        const commMatch = subetapa.match(/comisión\s+de\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñA-ZÁÉÍÓÚÑ\s\-\,y]+)/i);
-        if (commMatch) {
-          const parsedComm = commMatch[1].trim();
-          comisionActual = `Comisi\xF3n de ${parsedComm}`;
-        }
+        const limpia = limpiarNombreComision(subetapa);
+        if (limpia) comisionActual = limpia;
       }
       const tramitacionBlock = extractTag(xml, "tramitacion");
       const timeline = extractAll(tramitacionBlock, "tramite").map((t, idx) => {

@@ -2,6 +2,7 @@ import { Proyecto, ActivityItem, VotacionItem, PasoComision } from "../../src/ty
 import { cache } from "./cacheService";
 import { generarContenidoUniversalIA, safeJsonParse, AIProviderAttempt } from "./aiService";
 import { MATERIA_COMISION_MAP } from "../../src/utils/proyectosResolver";
+import { limpiarNombreComision } from "../../src/utils/comisionesNombre";
 
 export interface ProyectoListado {
   id: string;
@@ -459,11 +460,8 @@ export async function fetchProyectoFromSenado(boletinId: string): Promise<Proyec
       let siguienteSesion: string | undefined = undefined;
 
       if (subetapa) {
-        const commMatch = subetapa.match(/comisión\s+de\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñA-ZÁÉÍÓÚÑ\s\-\,y]+)/i);
-        if (commMatch) {
-          const parsedComm = commMatch[1].trim();
-          comisionActual = `Comisión de ${parsedComm}`;
-        }
+        const limpia = limpiarNombreComision(subetapa);
+        if (limpia) comisionActual = limpia;
       }
 
       const tramitacionBlock = extractTag(xml, "tramitacion");

@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { unirComisiones } from "../utils/comisionesNombre";
 import YouTubeTranscriptModal from "../components/YouTubeTranscriptModal";
 import { useState, useEffect } from "react";
 import { motion } from "motion/react";
@@ -421,10 +422,7 @@ export default function ProyectoDetailView({
   } | null>(null);
   const [indicacionesLoading, setIndicacionesLoading] = useState(false);
 
-  const projectCommissionsForComparador = Array.from(new Set([
-    proyecto.comisionActual,
-    ...(proyecto.comisionesHistoricas || [])
-  ].filter(Boolean) as string[]));
+  const projectCommissionsForComparador = unirComisiones([proyecto.comisionActual, ...(proyecto.comisionesHistoricas || [])]);
   const selectedComisionSafe = projectCommissionsForComparador.includes(selectedComisionComparador)
     ? selectedComisionComparador
     : (projectCommissionsForComparador[0] || "");
@@ -506,10 +504,7 @@ export default function ProyectoDetailView({
       })
       .then((data: Proyecto) => {
         setProyecto(data);
-        const comms = Array.from(new Set([
-          data.comisionActual,
-          ...(data.comisionesHistoricas || [])
-        ].filter(Boolean) as string[]));
+        const comms = unirComisiones([data.comisionActual, ...(data.comisionesHistoricas || [])]);
         if (comms.length > 0) {
           setSelectedComisionComparador(comms[0]);
         }
@@ -723,48 +718,19 @@ export default function ProyectoDetailView({
   }
 
   function getAllCommissions(p: any): string[] {
-    const coms = new Set<string>();
-    
-    if (p.comisionActual) {
-      coms.add(p.comisionActual.trim());
-    }
-    
-    if (p.comisionesHistoricas && Array.isArray(p.comisionesHistoricas)) {
-      p.comisionesHistoricas.forEach((c: string) => {
-        if (c) coms.add(c.trim());
-      });
-    }
-    
-    const timeline = p.timeline || [];
-    const commRegex = /(Comisión\s+de\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñA-ZÁÉÍÓÚÑ\s\-\,y\(\)]+|Comisión\s+Mixta)/gi;
-    
-    timeline.forEach((act: any) => {
-      const textToSearch = `${act.titulo || ""} ${act.descripcion || ""}`;
-      const matches = textToSearch.match(commRegex);
-      if (matches) {
-        matches.forEach((m: string) => {
-          let cleaned = m.trim().replace(/[\.\,\:\;\-\(]$/, "").trim();
-          if (cleaned.toLowerCase().startsWith("la comisión")) {
-            cleaned = cleaned.substring(3).trim();
-          }
-          if (cleaned) {
-            coms.add(cleaned);
-          }
-        });
-      }
-    });
-
-    return Array.from(coms);
+    // Solo nombres de comisión, limpiados de textos como "… y, posteriormente, por la …".
+    return unirComisiones([
+      p.comisionActual,
+      ...((p.comisionesHistoricas as string[]) || []),
+      ...((p.timeline || []) as any[]).map(act => `${act.titulo || ""} ${act.descripcion || ""}`)
+    ]);
   }
 
   useEffect(() => {
     // 1. Immediately resolve project from universal resolver (local / preloaded / dynamic)
     const initialProy = resolveProyecto(proyectoId);
     setProyecto(initialProy);
-    const initialComms = Array.from(new Set([
-      initialProy.comisionActual,
-      ...(initialProy.comisionesHistoricas || [])
-    ].filter(Boolean) as string[]));
+    const initialComms = unirComisiones([initialProy.comisionActual, ...(initialProy.comisionesHistoricas || [])]);
     if (initialComms.length > 0) {
       setSelectedComisionComparador(initialComms[0]);
     }
@@ -779,10 +745,7 @@ export default function ProyectoDetailView({
       .then((data: Proyecto) => {
         if (data && data.id) {
           setProyecto(data);
-          const comms = Array.from(new Set([
-            data.comisionActual,
-            ...(data.comisionesHistoricas || [])
-          ].filter(Boolean) as string[]));
+          const comms = unirComisiones([data.comisionActual, ...(data.comisionesHistoricas || [])]);
           if (comms.length > 0) {
             setSelectedComisionComparador(comms[0]);
           }
