@@ -188321,6 +188321,11 @@ function parseFechaChilena(fecha) {
   const [, d, mo, y] = m;
   return `${y}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`;
 }
+function urlOficialSenado(u) {
+  const s = String(u || "").trim().replace(/&amp;/g, "&");
+  if (!s) return "";
+  return s.replace(/^https?:\/\/(www\.)?senado\.cl\/appsenado/i, "https://tramitacion.senado.cl/appsenado").replace(/^http:\/\/tramitacion\.senado\.cl/i, "https://tramitacion.senado.cl");
+}
 function computeDiasTramitacion(fechaIngreso) {
   if (!fechaIngreso) return void 0;
   const start = new Date(fechaIngreso);
@@ -188497,7 +188502,7 @@ async function fetchProyectoFromSenado(boletinId) {
       const etapa = extractTag(descBlock, "etapa") || "En discusi\xF3n";
       const subetapa = extractTag(descBlock, "subetapa") || "";
       const estado = extractTag(descBlock, "estado") || "En discusi\xF3n";
-      const linkMocion = extractTagUrl(descBlock, "link_mensaje_mocion") || `https://tramitacion.senado.cl/wspublico/tramitacion.php?boletin=${digits}`;
+      const linkMocion = urlOficialSenado(extractTagUrl(descBlock, "link_mensaje_mocion")) || `https://tramitacion.senado.cl/wspublico/tramitacion.php?boletin=${digits}`;
       const autoresBlock = extractTag(xml, "autores");
       const autoresList = extractAll(autoresBlock, "autor").map((a) => extractTag(a, "PARLAMENTARIO")).filter(Boolean);
       const autores = autoresList.join(", ");
@@ -188545,10 +188550,10 @@ async function fetchProyectoFromSenado(boletinId) {
       const informesBlock = extractTag(xml, "informes");
       if (informesBlock) {
         extractAll(informesBlock, "informe").forEach((inf, idx) => {
-          const link = extractTagUrl(inf, "LINK_INFORME");
+          const link = urlOficialSenado(extractTagUrl(inf, "LINK_INFORME"));
           const tramite = extractTag(inf, "TRAMITE") || "Informe";
           const etapa2 = extractTag(inf, "ETAPA") || "";
-          const fecha = extractTag(inf, "FECHAINFORME") || fechaIngreso;
+          const fecha = parseFechaChilena(extractTag(inf, "FECHAINFORME") || "") || "";
           documentos.push({
             id: `doc-${digits}-inf-${idx}`,
             titulo: `${tramite}${etapa2 ? ` (${etapa2})` : ""}`,
@@ -188562,9 +188567,9 @@ async function fetchProyectoFromSenado(boletinId) {
       if (oficiosBlock) {
         const oficiosList = extractAll(oficiosBlock, "oficio");
         oficiosList.forEach((of, idx) => {
-          const link = extractTagUrl(of, "LINK_OFICIO");
+          const link = urlOficialSenado(extractTagUrl(of, "LINK_OFICIO"));
           const tipoDoc = extractTag(of, "TIPO") || "Oficio";
-          const fecha = extractTag(of, "FECHA") || fechaIngreso;
+          const fecha = parseFechaChilena(extractTag(of, "FECHA") || "") || "";
           const descripcion = extractTag(of, "DESCRIPCION");
           documentos.push({
             id: `doc-${digits}-of-${idx}`,
@@ -188909,30 +188914,37 @@ async function fetchSenadoCitacionesLive(forceRefresh = false) {
   });
 }
 async function fetchTextoInformeDocx(url) {
+  url = urlOficialSenado(url);
   if (!url) return null;
-  const cacheKey = `informe_docx_texto_${url}`;
-  return cache.wrap(cacheKey, 24 * 60 * 60 * 1e3, async () => {
-    try {
-      const res = await fetch(url, {
-        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
-        signal: AbortSignal.timeout(15e3)
-      });
-      if (!res.ok) return null;
-      const contentType = res.headers.get("content-type") || "";
-      const buffer = Buffer.from(await res.arrayBuffer());
-      if (contentType.includes("wordprocessingml") || url.toLowerCase().endsWith(".docx")) {
-        const mammoth = await import("mammoth");
-        const result = await mammoth.extractRawText({ buffer });
-        const texto2 = (result.value || "").replace(/\s+/g, " ").trim();
-        return texto2.length > 200 ? texto2 : null;
-      }
-      const texto = buffer.toString("utf-8").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
-      return texto.length > 200 ? texto : null;
-    } catch (err) {
-      console.warn(`Could not fetch/extract informe docx from ${url}:`, err);
-      return null;
+  const cacheKey = `documento_texto_v2_${url}`;
+  const previo = cache.get(cacheKey);
+  if (previo) return previo;
+  try {
+    const res = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
+      signal: AbortSignal.timeout(2e4)
+    });
+    if (!res.ok) return null;
+    const buffer = Buffer.from(await res.arrayBuffer());
+    let texto = "";
+    if (buffer.slice(0, 4).toString("latin1") === "%PDF") {
+      const { extractText, getDocumentProxy } = await import("unpdf");
+      const pdf = await getDocumentProxy(new Uint8Array(buffer));
+      texto = String((await extractText(pdf, { mergePages: true })).text || "");
+    } else if (buffer.slice(0, 2).toString("latin1") === "PK") {
+      const mammoth = await import("mammoth");
+      texto = (await mammoth.extractRawText({ buffer })).value || "";
+    } else if (/text|html/i.test(res.headers.get("content-type") || "")) {
+      texto = buffer.toString("utf-8").replace(/<[^>]*>/g, " ");
     }
-  });
+    texto = texto.replace(/\s+/g, " ").trim();
+    if (texto.length <= 200) return null;
+    cache.set(cacheKey, texto, 24 * 60 * 60 * 1e3);
+    return texto;
+  } catch (err) {
+    console.warn(`No se pudo leer el documento oficial ${url}:`, err);
+    return null;
+  }
 }
 
 // server/services/camaraService.ts
@@ -193178,77 +193190,96 @@ apiRouter.get("/proyecto/:id/comparado", async (req, res) => {
     return res.json({ disponible: false, razon: "No se pudo obtener la ficha oficial del proyecto." });
   }
   const normComision = comisionNombre.toLowerCase().replace(/^comisi[oó]n\s+de\s+/i, "");
-  const informes = (proyecto.documentos || []).filter((d) => d.tipo === "Informe" && d.url && (!normComision || d.titulo.toLowerCase().includes(normComision))).sort((a, b) => (b.fecha || "").localeCompare(a.fecha || ""));
-  if (informes.length === 0) {
-    return res.json({
-      disponible: false,
-      razon: comisionNombre ? `A\xFAn no hay un informe de comisi\xF3n publicado para "${comisionNombre}" en el expediente de este proyecto.` : "A\xFAn no hay informes de comisi\xF3n publicados en el expediente de este proyecto."
-    });
-  }
+  const docs = proyecto.documentos || [];
+  const informes = docs.filter((d) => d.tipo === "Informe" && d.url && (!normComision || d.titulo.toLowerCase().includes(normComision))).sort((a, b) => (b.fecha || "").localeCompare(a.fecha || ""));
+  const docsIndicaciones = docs.filter((d) => d.url && /indicaci/i.test(d.titulo)).slice(0, 3);
   const informe = informes[0];
-  const texto = await fetchTextoInformeDocx(informe.url);
-  if (!texto) {
+  const textoMensaje = await textoMensajeMocion(proyecto.linkCongreso || "");
+  const textoInforme = informe ? await fetchTextoInformeDocx(informe.url) : null;
+  const textosIndicaciones = [];
+  for (const d of docsIndicaciones) {
+    const t = await fetchTextoInformeDocx(d.url);
+    if (t) textosIndicaciones.push({ titulo: d.titulo, url: d.url, texto: t });
+  }
+  const base = {
+    mensajeUrl: proyecto.linkCongreso,
+    informeUrl: informe?.url,
+    informeTitulo: informe?.titulo,
+    informeFecha: informe?.fecha,
+    indicacionesDocs: textosIndicaciones.map((i) => ({ titulo: i.titulo, url: i.url })),
+    tieneIndicaciones: textosIndicaciones.length > 0
+  };
+  if (!textoMensaje && !textoInforme) {
     return res.json({
       disponible: false,
-      razon: "El informe de comisi\xF3n existe pero no se pudo descargar o leer su contenido.",
-      informeUrl: informe.url
+      ...base,
+      razon: "No se pudo leer el texto oficial del mensaje/moci\xF3n ni un informe de comisi\xF3n de este proyecto.",
+      filas: [],
+      comparaciones: []
     });
   }
-  const maxChars = 16e3;
-  const textoLower = texto.toLowerCase();
-  const marcador = ["discusi\xF3n particular", "discusion particular", "an\xE1lisis de las indicaciones", "modificaciones introducidas"].map((m) => textoLower.indexOf(m)).find((idx) => idx !== -1);
-  const inicio = marcador !== void 0 ? Math.max(0, marcador - 500) : 0;
-  const textoTruncado = texto.length > maxChars ? (inicio > 0 ? "[...inicio del documento omitido...] " : "") + texto.slice(inicio, inicio + maxChars) + " [...documento truncado por extensi\xF3n...]" : texto;
+  const recorte = (t, max, marcadores) => {
+    if (t.length <= max) return t;
+    const low = t.toLowerCase();
+    const pos = marcadores.map((m) => low.lastIndexOf(m)).filter((i) => i >= 0).sort((x, y) => y - x)[0];
+    const ini = pos !== void 0 && pos > 0 ? Math.max(0, Math.min(pos - 300, t.length - max)) : 0;
+    return (ini > 0 ? "[...] " : "") + t.slice(ini, ini + max) + " [...]";
+  };
+  const exMensaje = textoMensaje ? recorte(textoMensaje, 9e3, ["proyecto de ley", "art\xEDculo \xFAnico", "art\xEDculo 1"]) : "";
+  const exInforme = textoInforme ? recorte(textoInforme, 12e3, ["proyecto de ley", "texto aprobado", "texto del proyecto"]) : "";
+  const exIndic = textosIndicaciones.map((i) => `--- ${i.titulo} ---
+${i.texto.slice(0, 5e3)}`).join("\n\n");
   const modificaMatch = proyecto.titulo.match(/\b(?:modifica|introduce modificaciones a|deroga|sustituye|incorpora)\s+(?:la\s+|el\s+)?((?:ley\b|código\b|d\.?f\.?l\.?\b|decreto\s+ley\b)[^,.;]*)/i);
   const leyModificada = modificaMatch ? modificaMatch[1].trim().replace(/\s+/g, " ") : void 0;
-  const prompt = `Act\xFAa como un analista legislativo de la Biblioteca del Congreso Nacional de Chile. A continuaci\xF3n se entrega el TEXTO REAL del informe de comisi\xF3n "${informe.titulo}" del proyecto de ley Bolet\xEDn N\xB0 ${proyecto.id} ("${proyecto.titulo}").
-${leyModificada ? `
-IMPORTANTE: este proyecto MODIFICA la ${leyModificada}. Cuando el informe cite el texto vigente que se modifica, deja expl\xEDcito que corresponde a esa ley (no a un texto nuevo), tanto en "textoOriginal" como en "explicacion".
+  const prompt = `Eres analista legislativo de la Biblioteca del Congreso Nacional de Chile. Arma un COMPARADO del proyecto Bolet\xEDn N\xB0 ${proyecto.id} ("${proyecto.titulo}") usando SOLO los textos oficiales entregados.
+
+[A] TEXTO DEL MENSAJE/MOCI\xD3N (texto original del proyecto):
+"""
+${exMensaje || "(no disponible)"}
+"""
+
+[B] INFORME DE COMISI\xD3N${informe ? ` \u2014 ${informe.titulo}` : ""} (texto aprobado por la comisi\xF3n):
+"""
+${exInforme || "(a\xFAn no hay informe de esta comisi\xF3n)"}
+"""
+${exIndic ? `
+[C] INDICACIONES PRESENTADAS:
+"""
+${exIndic}
+"""
 ` : ""}
-
-Texto del informe:
-"""
-${textoTruncado}
-"""
-
-Identifica entre 3 y 6 modificaciones o disposiciones concretas que este informe introduce o discute sobre el texto del proyecto (art\xEDculos, indicaciones aprobadas, votaciones particulares). Responde \xDANICAMENTE con un arreglo JSON v\xE1lido, compacto, sin texto adicional, con este esquema exacto:
-[{"articulo":"Identificaci\xF3n del art\xEDculo o disposici\xF3n tal como aparece en el informe","textoOriginal":"Cita o resumen fiel del texto/planteamiento original seg\xFAn el informe","textoModificado":"Cita o resumen fiel de la modificaci\xF3n, indicaci\xF3n o acuerdo adoptado seg\xFAn el informe","explicacion":"Explicaci\xF3n breve y fiel al informe de qu\xE9 cambia y por qu\xE9"}]
-
-Usa EXCLUSIVAMENTE informaci\xF3n que est\xE9 efectivamente en el texto entregado. Si el informe no permite identificar modificaciones concretas art\xEDculo por art\xEDculo, responde con un arreglo vac\xEDo [].`;
+Responde \xDANICAMENTE con un arreglo JSON, una fila por art\xEDculo o numeral del proyecto (m\xE1ximo 10), en el orden del proyecto:
+[{"articulo":"Art\xEDculo 1 / Art\xEDculo \xFAnico, numeral 2, etc.","mensaje":"texto del art\xEDculo seg\xFAn [A], cita fiel o resumen fiel","comision":"texto aprobado por la comisi\xF3n seg\xFAn [B]; 'Sin modificaciones' si lo aprob\xF3 igual; '' si [B] no est\xE1 disponible","indicaciones":"${exIndic ? "indicaciones de [C] referidas a este art\xEDculo, resumidas fielmente; '' si no hay" : ""}","observacion":"qu\xE9 cambi\xF3 entre columnas, 1 frase; '' si nada"}]
+No inventes texto. Si un art\xEDculo no aparece en alguna fuente, deja ese campo vac\xEDo.`;
   const aiAttempts = [];
-  let comparaciones = [];
+  let filas = [];
   try {
-    const aiResponse = await generarContenidoUniversalIA(prompt, 3e3, aiAttempts);
+    const aiResponse = await generarContenidoUniversalIA(prompt, 6e3, aiAttempts);
     if (aiResponse) {
       const parsed = safeJsonParse(aiResponse);
-      if (Array.isArray(parsed)) comparaciones = parsed;
+      if (Array.isArray(parsed)) {
+        filas = parsed.filter((f) => f && (f.mensaje || f.comision)).map((f) => ({
+          articulo: String(f.articulo || ""),
+          mensaje: String(f.mensaje || ""),
+          comision: String(f.comision || ""),
+          indicaciones: String(f.indicaciones || ""),
+          observacion: String(f.observacion || "")
+        }));
+      }
     }
   } catch (err) {
     console.warn(`Could not generate comparado for bolet\xEDn ${proyecto.id}:`, err);
   }
-  let leyModificadaFinal = leyModificada;
-  if (!leyModificadaFinal && comparaciones.length > 0) {
-    const menciones = {};
-    for (const c of comparaciones) {
-      const texto2 = String(c.articulo || "");
-      const m = texto2.match(/\b(código\s+[a-záéíóúñ]+|ley\s*n[°º]?\s*[\d.]+|decreto\s+(?:con\s+fuerza\s+de\s+)?ley\s*n[°º]?\s*[\d.]+)/i);
-      if (m) {
-        const key = m[0].trim().replace(/\s+/g, " ");
-        menciones[key] = (menciones[key] || 0) + 1;
-      }
-    }
-    const masCitada = Object.entries(menciones).sort((a, b) => b[1] - a[1])[0];
-    if (masCitada && masCitada[1] >= 2) leyModificadaFinal = masCitada[0];
-  }
   res.json({
-    disponible: comparaciones.length > 0,
-    razon: comparaciones.length === 0 ? "La IA no pudo identificar modificaciones concretas en el texto del informe disponible." : void 0,
-    informeUrl: informe.url,
-    informeTitulo: informe.titulo,
-    informeFecha: informe.fecha,
-    leyModificada: leyModificadaFinal,
-    comparaciones,
-    aiDiagnostics: aiAttempts
+    disponible: filas.length > 0,
+    razon: filas.length === 0 ? `No se pudo armar el comparado. ${aiAttempts.filter((a) => a.configured && a.error).map((a) => `${a.provider}: ${String(a.error).slice(0, 80)}`).join(" | ")}`.trim() : void 0,
+    ...base,
+    textoMensajeLeido: !!textoMensaje,
+    textoInformeLeido: !!textoInforme,
+    leyModificada,
+    filas,
+    // Compatibilidad con la vista anterior.
+    comparaciones: filas.map((f) => ({ articulo: f.articulo, textoOriginal: f.mensaje, textoModificado: f.comision, explicacion: f.observacion }))
   });
 });
 apiRouter.get("/proyecto/:id/indicaciones", async (req, res) => {

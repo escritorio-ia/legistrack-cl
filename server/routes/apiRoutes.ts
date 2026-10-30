@@ -24,7 +24,8 @@ import {
   estimarQuorum,
   estimarFichaTecnica,
   estimarOrigenDetalle,
-  fichaEjecutivaProyecto
+  fichaEjecutivaProyecto,
+  textoMensajeMocion
 } from "../services/senadoService";
 import {
   getTodasComisiones,
@@ -384,115 +385,105 @@ apiRouter.get("/proyecto/:id/comparado", async (req: Request, res: Response) => 
   }
 
   const normComision = comisionNombre.toLowerCase().replace(/^comisi[oó]n\s+de\s+/i, "");
-  const informes = (proyecto.documentos || [])
+  const docs = proyecto.documentos || [];
+  const informes = docs
     .filter(d => d.tipo === "Informe" && d.url && (!normComision || d.titulo.toLowerCase().includes(normComision)))
     .sort((a, b) => (b.fecha || "").localeCompare(a.fecha || ""));
-
-  if (informes.length === 0) {
-    return res.json({
-      disponible: false,
-      razon: comisionNombre
-        ? `Aún no hay un informe de comisión publicado para "${comisionNombre}" en el expediente de este proyecto.`
-        : "Aún no hay informes de comisión publicados en el expediente de este proyecto."
-    });
-  }
-
+  const docsIndicaciones = docs.filter(d => d.url && /indicaci/i.test(d.titulo)).slice(0, 3);
   const informe = informes[0];
-  const texto = await fetchTextoInformeDocx(informe.url!);
-  if (!texto) {
+
+  // 1) Texto del mensaje o moción (columna base).
+  const textoMensaje = await textoMensajeMocion(proyecto.linkCongreso || "");
+  // 2) Texto del informe de la comisión seleccionada (si ya existe).
+  const textoInforme = informe ? await fetchTextoInformeDocx(informe.url!) : null;
+  // 3) Indicaciones presentadas (oficios del expediente), si las hay.
+  const textosIndicaciones: { titulo: string; url: string; texto: string }[] = [];
+  for (const d of docsIndicaciones) {
+    const t = await fetchTextoInformeDocx(d.url!);
+    if (t) textosIndicaciones.push({ titulo: d.titulo, url: d.url!, texto: t });
+  }
+
+  const base = {
+    mensajeUrl: proyecto.linkCongreso,
+    informeUrl: informe?.url,
+    informeTitulo: informe?.titulo,
+    informeFecha: informe?.fecha,
+    indicacionesDocs: textosIndicaciones.map(i => ({ titulo: i.titulo, url: i.url })),
+    tieneIndicaciones: textosIndicaciones.length > 0
+  };
+
+  if (!textoMensaje && !textoInforme) {
     return res.json({
       disponible: false,
-      razon: "El informe de comisión existe pero no se pudo descargar o leer su contenido.",
-      informeUrl: informe.url
+      ...base,
+      razon: "No se pudo leer el texto oficial del mensaje/moción ni un informe de comisión de este proyecto.",
+      filas: [], comparaciones: []
     });
   }
 
-  // Los informes de comisión son documentos largos (a veces >1 millón de
-  // caracteres) donde el detalle artículo por artículo suele vivir en la
-  // sección de "discusión particular", muy lejos del inicio (asistencia,
-  // antecedentes generales). Tomar solo los primeros N caracteres deja fuera
-  // justo el contenido que se necesita -- se busca esa sección y se centra
-  // la ventana ahí; si no aparece, se cae al inicio del documento.
-  const maxChars = 16000;
-  const textoLower = texto.toLowerCase();
-  const marcador = ["discusión particular", "discusion particular", "análisis de las indicaciones", "modificaciones introducidas"]
-    .map(m => textoLower.indexOf(m))
-    .find(idx => idx !== -1);
-  const inicio = marcador !== undefined ? Math.max(0, marcador - 500) : 0;
-  const textoTruncado = texto.length > maxChars
-    ? (inicio > 0 ? "[...inicio del documento omitido...] " : "") + texto.slice(inicio, inicio + maxChars) + " [...documento truncado por extensión...]"
-    : texto;
+  // El texto aprobado por la comisión suele estar al final del informe ("PROYECTO DE LEY").
+  const recorte = (t: string, max: number, marcadores: string[]) => {
+    if (t.length <= max) return t;
+    const low = t.toLowerCase();
+    const pos = marcadores.map(m => low.lastIndexOf(m)).filter(i => i >= 0).sort((x, y) => y - x)[0];
+    const ini = pos !== undefined && pos > 0 ? Math.max(0, Math.min(pos - 300, t.length - max)) : 0;
+    return (ini > 0 ? "[...] " : "") + t.slice(ini, ini + max) + " [...]";
+  };
+  const exMensaje = textoMensaje ? recorte(textoMensaje, 9000, ["proyecto de ley", "artículo único", "artículo 1"]) : "";
+  const exInforme = textoInforme ? recorte(textoInforme, 12000, ["proyecto de ley", "texto aprobado", "texto del proyecto"]) : "";
+  const exIndic = textosIndicaciones.map(i => `--- ${i.titulo} ---\n${i.texto.slice(0, 5000)}`).join("\n\n");
 
-  // Si el proyecto es una MODIFICACIÓN de una ley existente (el caso más
-  // común: "Modifica la ley N° X..."), el título oficial del proyecto ya lo
-  // dice explícitamente -- se extrae de ahí en vez de pedírselo a la IA, para
-  // no depender de que lo infiera bien y evitar que lo invente si no aplica.
-  // Cubre tanto leyes con número ("modifica la ley N° 19.628, sobre...") como
-  // leyes o códigos referidos por nombre sin número ("modifica el Código del
-  // Trabajo...", "modifica la Ley General de Urbanismo y Construcciones...").
   const modificaMatch = proyecto.titulo.match(/\b(?:modifica|introduce modificaciones a|deroga|sustituye|incorpora)\s+(?:la\s+|el\s+)?((?:ley\b|código\b|d\.?f\.?l\.?\b|decreto\s+ley\b)[^,.;]*)/i);
   const leyModificada = modificaMatch ? modificaMatch[1].trim().replace(/\s+/g, " ") : undefined;
 
-  const prompt = `Actúa como un analista legislativo de la Biblioteca del Congreso Nacional de Chile. A continuación se entrega el TEXTO REAL del informe de comisión "${informe.titulo}" del proyecto de ley Boletín N° ${proyecto.id} ("${proyecto.titulo}").
-${leyModificada ? `\nIMPORTANTE: este proyecto MODIFICA la ${leyModificada}. Cuando el informe cite el texto vigente que se modifica, deja explícito que corresponde a esa ley (no a un texto nuevo), tanto en "textoOriginal" como en "explicacion".\n` : ""}
+  const prompt = `Eres analista legislativo de la Biblioteca del Congreso Nacional de Chile. Arma un COMPARADO del proyecto Boletín N° ${proyecto.id} ("${proyecto.titulo}") usando SOLO los textos oficiales entregados.
 
-Texto del informe:
+[A] TEXTO DEL MENSAJE/MOCIÓN (texto original del proyecto):
 """
-${textoTruncado}
+${exMensaje || "(no disponible)"}
 """
 
-Identifica entre 3 y 6 modificaciones o disposiciones concretas que este informe introduce o discute sobre el texto del proyecto (artículos, indicaciones aprobadas, votaciones particulares). Responde ÚNICAMENTE con un arreglo JSON válido, compacto, sin texto adicional, con este esquema exacto:
-[{"articulo":"Identificación del artículo o disposición tal como aparece en el informe","textoOriginal":"Cita o resumen fiel del texto/planteamiento original según el informe","textoModificado":"Cita o resumen fiel de la modificación, indicación o acuerdo adoptado según el informe","explicacion":"Explicación breve y fiel al informe de qué cambia y por qué"}]
-
-Usa EXCLUSIVAMENTE información que esté efectivamente en el texto entregado. Si el informe no permite identificar modificaciones concretas artículo por artículo, responde con un arreglo vacío [].`;
+[B] INFORME DE COMISIÓN${informe ? ` — ${informe.titulo}` : ""} (texto aprobado por la comisión):
+"""
+${exInforme || "(aún no hay informe de esta comisión)"}
+"""
+${exIndic ? `\n[C] INDICACIONES PRESENTADAS:\n"""\n${exIndic}\n"""\n` : ""}
+Responde ÚNICAMENTE con un arreglo JSON, una fila por artículo o numeral del proyecto (máximo 10), en el orden del proyecto:
+[{"articulo":"Artículo 1 / Artículo único, numeral 2, etc.","mensaje":"texto del artículo según [A], cita fiel o resumen fiel","comision":"texto aprobado por la comisión según [B]; 'Sin modificaciones' si lo aprobó igual; '' si [B] no está disponible","indicaciones":"${exIndic ? "indicaciones de [C] referidas a este artículo, resumidas fielmente; '' si no hay" : ""}","observacion":"qué cambió entre columnas, 1 frase; '' si nada"}]
+No inventes texto. Si un artículo no aparece en alguna fuente, deja ese campo vacío.`;
 
   const aiAttempts: AIProviderAttempt[] = [];
-  let comparaciones: any[] = [];
+  let filas: any[] = [];
   try {
-    const aiResponse = await generarContenidoUniversalIA(prompt, 3000, aiAttempts);
+    const aiResponse = await generarContenidoUniversalIA(prompt, 6000, aiAttempts);
     if (aiResponse) {
       const parsed = safeJsonParse<any[]>(aiResponse);
-      if (Array.isArray(parsed)) comparaciones = parsed;
+      if (Array.isArray(parsed)) {
+        filas = parsed.filter(f => f && (f.mensaje || f.comision)).map(f => ({
+          articulo: String(f.articulo || ""),
+          mensaje: String(f.mensaje || ""),
+          comision: String(f.comision || ""),
+          indicaciones: String(f.indicaciones || ""),
+          observacion: String(f.observacion || "")
+        }));
+      }
     }
   } catch (err) {
     console.warn(`Could not generate comparado for boletín ${proyecto.id}:`, err);
   }
 
-  // Resguardo: si el título del proyecto no dice explícitamente "modifica..."
-  // (hay títulos como "Dicta normas para asegurar..." que en la práctica sí
-  // modifican una ley/código, pero no lo dicen con esa palabra), se busca la
-  // ley o código de referencia más citado en los artículos que la IA ya
-  // identificó a partir del texto real del informe.
-  let leyModificadaFinal = leyModificada;
-  if (!leyModificadaFinal && comparaciones.length > 0) {
-    // Se busca SOLO en "articulo" (ej. "artículo 11 del Código Tributario"),
-    // no concatenado con "textoOriginal": el grupo opcional de la segunda
-    // palabra del código terminaba "comiéndose" la primera palabra del texto
-    // siguiente (ej. "Código Tributario Los", "Código Tributario Obligación"),
-    // generando una clave distinta cada vez en vez de agrupar las menciones
-    // reales de la misma ley/código bajo una sola clave.
-    const menciones: Record<string, number> = {};
-    for (const c of comparaciones) {
-      const texto = String(c.articulo || "");
-      const m = texto.match(/\b(código\s+[a-záéíóúñ]+|ley\s*n[°º]?\s*[\d.]+|decreto\s+(?:con\s+fuerza\s+de\s+)?ley\s*n[°º]?\s*[\d.]+)/i);
-      if (m) {
-        const key = m[0].trim().replace(/\s+/g, " ");
-        menciones[key] = (menciones[key] || 0) + 1;
-      }
-    }
-    const masCitada = Object.entries(menciones).sort((a, b) => b[1] - a[1])[0];
-    if (masCitada && masCitada[1] >= 2) leyModificadaFinal = masCitada[0];
-  }
-
   res.json({
-    disponible: comparaciones.length > 0,
-    razon: comparaciones.length === 0 ? "La IA no pudo identificar modificaciones concretas en el texto del informe disponible." : undefined,
-    informeUrl: informe.url,
-    informeTitulo: informe.titulo,
-    informeFecha: informe.fecha,
-    leyModificada: leyModificadaFinal,
-    comparaciones,
-    aiDiagnostics: aiAttempts
+    disponible: filas.length > 0,
+    razon: filas.length === 0
+      ? `No se pudo armar el comparado. ${aiAttempts.filter(a => a.configured && a.error).map(a => `${a.provider}: ${String(a.error).slice(0, 80)}`).join(" | ")}`.trim()
+      : undefined,
+    ...base,
+    textoMensajeLeido: !!textoMensaje,
+    textoInformeLeido: !!textoInforme,
+    leyModificada,
+    filas,
+    // Compatibilidad con la vista anterior.
+    comparaciones: filas.map(f => ({ articulo: f.articulo, textoOriginal: f.mensaje, textoModificado: f.comision, explicacion: f.observacion }))
   });
 });
 

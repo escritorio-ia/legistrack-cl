@@ -97,6 +97,15 @@ export function parseFechaChilena(fecha: string): string {
   return `${y}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`;
 }
 
+/** Los enlaces del XML apuntan al sitio antiguo (www.senado.cl/appsenado), que ya no sirve los documentos. */
+export function urlOficialSenado(u: string): string {
+  const s = String(u || "").trim().replace(/&amp;/g, "&");
+  if (!s) return "";
+  return s
+    .replace(/^https?:\/\/(www\.)?senado\.cl\/appsenado/i, "https://tramitacion.senado.cl/appsenado")
+    .replace(/^http:\/\/tramitacion\.senado\.cl/i, "https://tramitacion.senado.cl");
+}
+
 export function computeDiasTramitacion(fechaIngreso: string): number | undefined {
   if (!fechaIngreso) return undefined;
   const start = new Date(fechaIngreso);
@@ -432,7 +441,7 @@ export async function fetchProyectoFromSenado(boletinId: string): Promise<Proyec
       const etapa = extractTag(descBlock, "etapa") || "En discusión";
       const subetapa = extractTag(descBlock, "subetapa") || "";
       const estado = extractTag(descBlock, "estado") || "En discusión";
-      const linkMocion = extractTagUrl(descBlock, "link_mensaje_mocion") || `https://tramitacion.senado.cl/wspublico/tramitacion.php?boletin=${digits}`;
+      const linkMocion = urlOficialSenado(extractTagUrl(descBlock, "link_mensaje_mocion")) || `https://tramitacion.senado.cl/wspublico/tramitacion.php?boletin=${digits}`;
 
       const autoresBlock = extractTag(xml, "autores");
       const autoresList = extractAll(autoresBlock, "autor").map(a => extractTag(a, "PARLAMENTARIO")).filter(Boolean);
@@ -496,10 +505,10 @@ export async function fetchProyectoFromSenado(boletinId: string): Promise<Proyec
       const informesBlock = extractTag(xml, "informes");
       if (informesBlock) {
         extractAll(informesBlock, "informe").forEach((inf, idx) => {
-          const link = extractTagUrl(inf, "LINK_INFORME");
+          const link = urlOficialSenado(extractTagUrl(inf, "LINK_INFORME"));
           const tramite = extractTag(inf, "TRAMITE") || "Informe";
           const etapa = extractTag(inf, "ETAPA") || "";
-          const fecha = extractTag(inf, "FECHAINFORME") || fechaIngreso;
+          const fecha = parseFechaChilena(extractTag(inf, "FECHAINFORME") || "") || "";
           documentos.push({
             id: `doc-${digits}-inf-${idx}`,
             titulo: `${tramite}${etapa ? ` (${etapa})` : ""}`,
@@ -514,9 +523,9 @@ export async function fetchProyectoFromSenado(boletinId: string): Promise<Proyec
       if (oficiosBlock) {
         const oficiosList = extractAll(oficiosBlock, "oficio");
         oficiosList.forEach((of, idx) => {
-          const link = extractTagUrl(of, "LINK_OFICIO");
+          const link = urlOficialSenado(extractTagUrl(of, "LINK_OFICIO"));
           const tipoDoc = extractTag(of, "TIPO") || "Oficio";
-          const fecha = extractTag(of, "FECHA") || fechaIngreso;
+          const fecha = parseFechaChilena(extractTag(of, "FECHA") || "") || "";
           const descripcion = extractTag(of, "DESCRIPCION");
           documentos.push({
             id: `doc-${digits}-of-${idx}`,
@@ -1042,33 +1051,37 @@ export async function fetchSenadoCitacionesLive(forceRefresh = false): Promise<{
  * nativos, para que funcione dentro de una función serverless.
  */
 export async function fetchTextoInformeDocx(url: string): Promise<string | null> {
+  url = urlOficialSenado(url);
   if (!url) return null;
-  const cacheKey = `informe_docx_texto_${url}`;
-  return cache.wrap(cacheKey, 24 * 60 * 60 * 1000, async () => {
-    try {
-      const res = await fetch(url, {
-        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
-        signal: AbortSignal.timeout(15000)
-      });
-      if (!res.ok) return null;
-      const contentType = res.headers.get("content-type") || "";
-      const buffer = Buffer.from(await res.arrayBuffer());
-
-      if (contentType.includes("wordprocessingml") || url.toLowerCase().endsWith(".docx")) {
-        const mammoth = await import("mammoth");
-        const result = await mammoth.extractRawText({ buffer });
-        const texto = (result.value || "").replace(/\s+/g, " ").trim();
-        return texto.length > 200 ? texto : null;
-      }
-
-      // Respaldo: si no es .docx, intentar tratarlo como texto/HTML plano.
-      const texto = buffer.toString("utf-8").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
-      return texto.length > 200 ? texto : null;
-    } catch (err) {
-      console.warn(`Could not fetch/extract informe docx from ${url}:`, err);
-      return null;
+  const cacheKey = `documento_texto_v2_${url}`;
+  const previo = cache.get<string>(cacheKey);
+  if (previo) return previo;
+  try {
+    const res = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
+      signal: AbortSignal.timeout(20000)
+    });
+    if (!res.ok) return null;
+    const buffer = Buffer.from(await res.arrayBuffer());
+    let texto = "";
+    if (buffer.slice(0, 4).toString("latin1") === "%PDF") {
+      const { extractText, getDocumentProxy } = await import("unpdf");
+      const pdf = await getDocumentProxy(new Uint8Array(buffer));
+      texto = String((await extractText(pdf, { mergePages: true })).text || "");
+    } else if (buffer.slice(0, 2).toString("latin1") === "PK") {
+      const mammoth = await import("mammoth");
+      texto = (await mammoth.extractRawText({ buffer })).value || "";
+    } else if (/text|html/i.test(res.headers.get("content-type") || "")) {
+      texto = buffer.toString("utf-8").replace(/<[^>]*>/g, " ");
     }
-  });
+    texto = texto.replace(/\s+/g, " ").trim();
+    if (texto.length <= 200) return null;
+    cache.set(cacheKey, texto, 24 * 60 * 60 * 1000);
+    return texto;
+  } catch (err) {
+    console.warn(`No se pudo leer el documento oficial ${url}:`, err);
+    return null;
+  }
 }
 
 

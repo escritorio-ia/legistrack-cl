@@ -125,12 +125,15 @@ export function parseSenateXmlToProyecto(xml: string, originalQuery: string): Pr
     const informesBlock = extractTag(xml, "informes");
     if (informesBlock) {
       extractAll(informesBlock, "informe").forEach((inf, idx) => {
-        const link = extractTag(inf, "LINK");
-        const tipoDoc = extractTag(inf, "TIPODOC") || "Informe";
-        const fecha = extractTag(inf, "FECHADEVOLUCION") || fechaIngreso;
+        // Tags reales del XML: LINK_INFORME, TRAMITE, ETAPA, FECHAINFORME (dd/mm/aaaa).
+        const link = extractTag(inf, "LINK_INFORME").replace(/&amp;/g, "&");
+        const tramite = extractTag(inf, "TRAMITE") || "Informe de comisión";
+        const etapa = extractTag(inf, "ETAPA");
+        const f = extractTag(inf, "FECHAINFORME").match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+        const fecha = f ? `${f[3]}-${f[2].padStart(2, "0")}-${f[1].padStart(2, "0")}` : "";
         documentos.push({
           id: `doc-${digits}-inf-${idx}`,
-          titulo: `${tipoDoc} de Comisión`,
+          titulo: `${tramite}${etapa ? ` (${etapa})` : ""}`,
           tipo: "Informe",
           fecha,
           url: link

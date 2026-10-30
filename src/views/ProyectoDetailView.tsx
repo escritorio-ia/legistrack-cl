@@ -399,7 +399,13 @@ export default function ProyectoDetailView({
     informeFecha?: string;
     leyModificada?: string;
     comparaciones: ComparativaArticulo[];
+    filas?: { articulo: string; mensaje: string; comision: string; indicaciones: string; observacion: string }[];
+    mensajeUrl?: string;
+    tieneIndicaciones?: boolean;
+    indicacionesDocs?: { titulo: string; url: string }[];
   } | null>(null);
+  // Filtro de la pestaña Documentos.
+  const [filtroDocs, setFiltroDocs] = useState<"todos" | "mensaje" | "informes" | "indicaciones" | "oficios">("todos");
   const [comparadoLoading, setComparadoLoading] = useState(false);
 
   // Visor de indicaciones (pestaña "Indicaciones"): igual que comparadoReal,
@@ -1983,47 +1989,70 @@ export default function ProyectoDetailView({
                       abajo si tiene un enlace oficial real. */}
                 </div>
 
-                {proyecto.documentos.length === 0 ? (
-                  <div className="text-center py-6 text-xs text-slate-400">No hay documentos cargados en el expediente legislativo.</div>
-                ) : (
-                  <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100">
-                    {proyecto.documentos.map((doc) => (
-                      <div key={doc.id} className="p-3.5 flex justify-between items-center hover:bg-slate-50/50 transition-colors group">
-                        <div className="flex items-center gap-3">
-                          <FileText className="w-5 h-5 text-slate-400 group-hover:text-blue-600" />
-                          <div>
-                            <h4 className="text-xs font-bold text-slate-800 group-hover:text-slate-900">{doc.titulo}</h4>
-                            <p className="text-[10px] text-slate-400 font-sans mt-0.5">
-                              {doc.tipo} &bull; Publicado el {new Date(doc.fecha).toLocaleDateString("es-CL")}
-                            </p>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => {
-                            if (doc.isReport && doc.reportContent) {
-                              setSelectedReportForViewer(doc);
-                              setViewerCurrentPage(1);
-                            } else if (doc.url) {
-                              window.open(doc.url, "_blank", "noopener,noreferrer");
-                            } else {
-                              alert("No hay un enlace oficial disponible todavía para este documento. Revísalo en Cámara.cl o Senado.cl.");
-                            }
-                          }}
-                          disabled={!doc.isReport && !doc.url}
-                          className={`px-3 py-1 text-[10px] font-bold rounded-lg transition-all ${
-                            !doc.isReport && !doc.url
-                              ? "border border-slate-100 text-slate-300 cursor-not-allowed"
-                              : doc.isReport
-                              ? "bg-blue-600 hover:bg-blue-700 text-white border border-blue-600 cursor-pointer"
-                              : "border border-slate-200 hover:border-slate-400 text-slate-700 cursor-pointer"
-                          }`}
-                        >
-                          {doc.isReport ? "Ver Informe (3 Págs)" : doc.url ? "Ver PDF" : "Sin enlace"}
-                        </button>
+                {(() => {
+                  const urlDoc = (u?: string) => String(u || "").replace(/&amp;/g, "&")
+                    .replace(/^https?:\/\/(www\.)?senado\.cl\/appsenado/i, "https://tramitacion.senado.cl/appsenado")
+                    .replace(/^http:\/\/tramitacion\.senado\.cl/i, "https://tramitacion.senado.cl");
+                  const categoria = (d: any) =>
+                    /indicaci/i.test(d.titulo) ? "indicaciones"
+                    : (d.tipo === "Moción" || d.tipo === "Mensaje" || /mensaje|moci[oó]n/i.test(d.titulo)) ? "mensaje"
+                    : d.tipo === "Informe" ? "informes" : "oficios";
+                  const docs = proyecto.documentos.map(d => ({ ...d, _cat: categoria(d), _url: urlDoc(d.url) }));
+                  const cuenta = (c: string) => docs.filter(d => d._cat === c).length;
+                  const visibles = filtroDocs === "todos" ? docs : docs.filter(d => d._cat === filtroDocs);
+                  const filtros: { id: typeof filtroDocs; label: string }[] = [
+                    { id: "todos", label: `Todos (${docs.length})` },
+                    { id: "mensaje", label: `Mensaje / Moción (${cuenta("mensaje")})` },
+                    { id: "informes", label: `Informes (${cuenta("informes")})` },
+                    { id: "indicaciones", label: `Indicaciones (${cuenta("indicaciones")})` },
+                    { id: "oficios", label: `Oficios (${cuenta("oficios")})` }
+                  ];
+                  if (docs.length === 0) return <div className="text-center py-6 text-xs text-slate-400">No hay documentos cargados en el expediente legislativo.</div>;
+                  return (
+                    <>
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        {filtros.map(f => (
+                          <button key={f.id} type="button" onClick={() => setFiltroDocs(f.id)}
+                            className={`px-3 py-1 rounded-lg text-[11px] font-bold border cursor-pointer ${filtroDocs === f.id ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"}`}>
+                            {f.label}
+                          </button>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                )}
+                      {visibles.length === 0 ? (
+                        <div className="text-center py-6 text-xs text-slate-400">No hay documentos de este tipo en el expediente.</div>
+                      ) : (
+                        <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100">
+                          {visibles.map((doc) => (
+                            <div key={doc.id} className="p-3.5 flex justify-between items-center hover:bg-slate-50/50 transition-colors group gap-3">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <FileText className="w-5 h-5 text-slate-400 group-hover:text-blue-600 shrink-0" />
+                                <div className="min-w-0">
+                                  <h4 className="text-xs font-bold text-slate-800 group-hover:text-slate-900">{doc.titulo}</h4>
+                                  <p className="text-[10px] text-slate-400 font-sans mt-0.5">
+                                    {doc.tipo} &bull; {doc.fecha && parseFechaSesion(doc.fecha) ? `Publicado el ${formatFechaCL(doc.fecha)}` : "Fecha no informada"}
+                                  </p>
+                                </div>
+                              </div>
+                              {doc.isReport && doc.reportContent ? (
+                                <button onClick={() => { setSelectedReportForViewer(doc); setViewerCurrentPage(1); }}
+                                  className="px-3 py-1 text-[10px] font-bold rounded-lg bg-blue-600 hover:bg-blue-700 text-white border border-blue-600 cursor-pointer shrink-0">
+                                  Ver Informe (3 Págs)
+                                </button>
+                              ) : doc._url ? (
+                                <a href={doc._url} target="_blank" rel="noopener noreferrer"
+                                  className="px-3 py-1 text-[10px] font-bold rounded-lg border border-slate-200 hover:border-slate-400 text-slate-700 shrink-0">
+                                  Abrir documento
+                                </a>
+                              ) : (
+                                <span className="px-3 py-1 text-[10px] font-bold rounded-lg border border-slate-100 text-slate-300 shrink-0">Sin enlace</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             )}
 
@@ -2180,7 +2209,7 @@ export default function ProyectoDetailView({
                       <span>Tabla Comparativa Legislativa</span>
                     </h3>
                     <p className="text-xs text-slate-500 font-medium mt-1">
-                      Visualización de texto refundido versus texto vigente original con las modificaciones propuestas de cada comisión que analiza el proyecto.
+                      Texto del mensaje o moción comparado con el texto aprobado por cada comisión y, si existen, las indicaciones presentadas.
                     </p>
                   </div>
                   
@@ -2190,7 +2219,7 @@ export default function ProyectoDetailView({
                     </div>
                   ) : comparadoReal?.disponible ? (
                     <div className="bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl text-[10px] font-extrabold text-emerald-800 flex items-center gap-1.5 self-start sm:self-auto uppercase tracking-wider font-sans">
-                      <span>Generado con IA desde el informe real</span>
+                      <span>Generado con IA desde documentos oficiales</span>
                     </div>
                   ) : null}
                 </div>
@@ -2247,7 +2276,7 @@ export default function ProyectoDetailView({
                       {comparadoLoading ? (
                         <div className="text-center py-10 text-xs text-slate-400 font-bold flex flex-col items-center gap-2">
                           <RefreshCw className="w-6 h-6 animate-spin text-blue-500" />
-                          <span>Leyendo el informe real de {safeSelected} y extrayendo las modificaciones con IA...</span>
+                          <span>Leyendo el mensaje/moción, el informe de {safeSelected} y las indicaciones… puede tardar hasta un minuto.</span>
                         </div>
                       ) : !comparadoReal?.disponible ? (
                         <div className="text-center py-10 text-xs text-slate-400 font-bold max-w-md mx-auto">
@@ -2259,47 +2288,54 @@ export default function ProyectoDetailView({
                           )}
                         </div>
                       ) : safeSelected ? (
-                        <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-xs divide-y divide-slate-150">
-
-                          {/* Column Headers */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 bg-slate-50 border-b border-slate-200 text-center uppercase tracking-wider text-[10px] font-black text-slate-500 divide-y md:divide-y-0 md:divide-x divide-slate-200 font-sans p-3">
-                            <span className="py-1">Texto de Ley Vigente Original o Propuesta Base</span>
-                            <span className="py-1">Modificaciones Promovidas por la Comisión</span>
-                          </div>
-
-                          {/* Comparison Rows */}
-                          {(comparadoReal.comparaciones || []).map((item, idx) => (
-                            <div key={idx} className="flex flex-col border-b border-slate-150/65 last:border-b-0 hover:bg-slate-50/20 transition-colors">
-                              
-                              {/* Article title bar header */}
-                              <div className="bg-slate-100/50 px-4 py-2 border-b border-slate-150/50 text-xs font-bold text-slate-700 flex items-center justify-between">
-                                <span className="font-sans font-extrabold">{item.articulo}</span>
-                                <span className="text-[9px] font-mono font-bold px-2.5 py-0.5 bg-blue-50 border border-blue-100 text-blue-700 rounded-full">
-                                  Enmienda de {safeSelected}
+                        (() => {
+                          const filas = comparadoReal.filas && comparadoReal.filas.length > 0
+                            ? comparadoReal.filas
+                            : (comparadoReal.comparaciones || []).map(c => ({ articulo: c.articulo, mensaje: c.textoOriginal, comision: c.textoModificado, indicaciones: "", observacion: c.explicacion || "" }));
+                          const conIndic = !!comparadoReal.tieneIndicaciones && filas.some(f => f.indicaciones);
+                          const cols = conIndic ? "md:grid-cols-3" : "md:grid-cols-2";
+                          return (
+                            <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+                              <div className={`grid grid-cols-1 ${cols} bg-slate-50 border-b border-slate-200 text-center uppercase tracking-wider text-[10px] font-black text-slate-500 md:divide-x divide-slate-200 p-3`}>
+                                <span className="py-1">
+                                  Mensaje / Moción (texto original)
+                                  {comparadoReal.mensajeUrl && <a href={comparadoReal.mensajeUrl} target="_blank" rel="noopener noreferrer" className="block normal-case tracking-normal font-semibold text-blue-600 hover:underline">ver documento</a>}
                                 </span>
+                                <span className="py-1">
+                                  Texto aprobado por {safeSelected}
+                                  {comparadoReal.informeUrl && <a href={comparadoReal.informeUrl} target="_blank" rel="noopener noreferrer" className="block normal-case tracking-normal font-semibold text-blue-600 hover:underline">ver informe</a>}
+                                </span>
+                                {conIndic && (
+                                  <span className="py-1">
+                                    Indicaciones
+                                    {(comparadoReal.indicacionesDocs || []).slice(0, 2).map((d, i) => (
+                                      <a key={i} href={d.url} target="_blank" rel="noopener noreferrer" className="block normal-case tracking-normal font-semibold text-blue-600 hover:underline truncate">{d.titulo}</a>
+                                    ))}
+                                  </span>
+                                )}
                               </div>
-                              
-                              {/* Diff content row */}
-                              <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-200 text-[11px] font-mono leading-relaxed p-4 whitespace-pre-wrap">
-                                <div className="pb-3.5 md:pb-0 md:pr-4 text-slate-600 min-h-[40px] flex flex-col justify-start">
-                                  <span className="text-[9px] uppercase font-bold tracking-wider text-slate-400 block mb-2 font-sans font-semibold">Texto Base</span>
-                                  <p className="italic bg-slate-50 p-2.5 rounded-lg border border-slate-150/50">{item.textoOriginal}</p>
+                              {filas.map((f, idx) => (
+                                <div key={idx} className="border-b border-slate-150 last:border-b-0">
+                                  <div className="bg-slate-100/60 px-4 py-2 text-xs font-extrabold text-slate-700">{f.articulo || `Disposición ${idx + 1}`}</div>
+                                  <div className={`grid grid-cols-1 ${cols} md:divide-x divide-slate-200 text-[11px] leading-relaxed whitespace-pre-wrap`}>
+                                    <div className="p-3 text-slate-700">{f.mensaje || <span className="text-slate-400 italic">No aparece en el mensaje/moción</span>}</div>
+                                    <div className="p-3 text-emerald-900 bg-emerald-50/30">{f.comision || <span className="text-slate-400 italic">{comparadoReal.informeUrl ? "No aparece en el informe" : "Aún sin informe de esta comisión"}</span>}</div>
+                                    {conIndic && <div className="p-3 text-amber-900 bg-amber-50/30">{f.indicaciones || <span className="text-slate-400 italic">Sin indicaciones</span>}</div>}
+                                  </div>
+                                  {f.observacion && (
+                                    <div className="px-4 py-2 border-t border-slate-100 text-[10.5px] text-slate-600 flex gap-2 items-start bg-blue-50/20">
+                                      <HelpCircle className="w-3.5 h-3.5 text-blue-500 shrink-0 mt-0.5" />
+                                      <span><strong className="text-slate-800">Cambio:</strong> {f.observacion}</span>
+                                    </div>
+                                  )}
                                 </div>
-                                <div className="pt-3.5 md:pt-0 md:pl-4 text-emerald-800 min-h-[40px] flex flex-col justify-start">
-                                  <span className="text-[9px] uppercase font-bold tracking-wider text-emerald-600 block mb-2 font-sans font-semibold">Texto Modificado</span>
-                                  <p className="font-bold bg-emerald-50/40 p-2.5 rounded-lg border border-emerald-100">{item.textoModificado}</p>
-                                </div>
-                              </div>
-                              
-                              {item.explicacion && (
-                                <div className="bg-blue-50/20 px-4 py-3 border-t border-slate-150/45 text-[10px] text-slate-600 font-sans leading-relaxed flex gap-2 items-start">
-                                  <HelpCircle className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
-                                  <span><strong className="font-extrabold text-slate-800">Análisis Técnico de la Enmienda:</strong> {item.explicacion}</span>
-                                </div>
-                              )}
+                              ))}
+                              <p className="text-[10px] text-slate-500 px-4 py-2 bg-slate-50 border-t border-slate-200">
+                                Comparado generado con IA a partir de los documentos oficiales del expediente. Verifique en los documentos originales.
+                              </p>
                             </div>
-                          ))}
-                        </div>
+                          );
+                        })()
                       ) : (
                         <div className="text-center py-8 text-xs text-slate-400 font-bold">
                           No se encontraron comisiones o trámites asociados para estructurar el comparador legislativo.
