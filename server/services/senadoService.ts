@@ -1231,3 +1231,115 @@ Usa solo lo que dicen los extractos. Si los extractos no califican las normas de
       : "El expediente aún no tiene documentos donde se califique el quórum."
   };
 }
+
+// ---------------------------------------------------------------------------
+// Resumen del paso del proyecto por una comisión, desde sus informes oficiales:
+// fechas, sesiones, expositores (nombre, cargo, qué planteó), votaciones y cambios.
+// ---------------------------------------------------------------------------
+export interface ResumenComision {
+  disponible: boolean;
+  motivo?: string;
+  comision?: string;
+  informes?: { titulo: string; url: string; fecha: string }[];
+  periodo?: string;
+  sesiones?: string;
+  expositores?: { nombre: string; cargo: string; planteo: string }[];
+  votaciones?: string[];
+  cambios?: string[];
+  resumen?: string;
+  generado?: string;
+}
+
+function ventanas(texto: string, marcadores: RegExp, ancho: number, max: number): string {
+  const out: string[] = [];
+  let ultimo = -1e9;
+  for (const m of texto.matchAll(marcadores)) {
+    const i = m.index || 0;
+    if (i - ultimo < ancho) continue;
+    ultimo = i;
+    out.push(texto.slice(Math.max(0, i - 200), i + ancho));
+    if (out.length >= max) break;
+  }
+  return out.join("\n[...]\n");
+}
+
+export async function resumenPasoComision(boletinId: string, comision: string): Promise<ResumenComision> {
+  const digits = String(boletinId || "").replace(/\./g, "").match(/\d{3,6}/)?.[0] || "";
+  if (!digits || !comision) return { disponible: false, motivo: "Faltan el boletín o la comisión." };
+  const norm = (x: string) => x.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const clave = `resumen_comision_v1_${digits}_${norm(comision)}`;
+  const previo = cache.get<ResumenComision>(clave);
+  if (previo) return previo;
+
+  const p = await fetchProyectoFromSenado(digits);
+  if (!p) return { disponible: false, motivo: "No se encontró el proyecto en la ficha oficial del Senado." };
+  const nucleo = norm(comision).replace(/^comision\s+(especial\s+)?(de\s+)?/, "").split(/[,\s]+/).filter(w => w.length > 3).slice(0, 2);
+  const informes = (p.documentos || [])
+    .filter(d => d.tipo === "Informe" && d.url && nucleo.every(w => norm(d.titulo).includes(w)))
+    .sort((a, b) => (a.fecha || "").localeCompare(b.fecha || ""))
+    .slice(0, 2);
+  if (informes.length === 0) {
+    return { disponible: false, comision, motivo: "Esta comisión aún no ha emitido un informe en el expediente; el resumen estará disponible cuando lo publique." };
+  }
+
+  const bloques: string[] = [];
+  for (const inf of informes) {
+    const t = await fetchTextoInformeDocx(inf.url!);
+    if (!t) continue;
+    const inicio = t.slice(0, 9000);
+    const exposiciones = ventanas(t, /(expuso|expus[oi]eron|señal[oó]|manifest[oó]|indic[oó] que|explic[oó]|sostuvo|planteó|intervino|hizo uso de la palabra)/gi, 1600, 7);
+    const votos = ventanas(t, /(votaci[oó]n|aprob[oó]|rechaz[oó]|unanimidad|votos a favor)/gi, 700, 5);
+    bloques.push(`=== ${inf.titulo} (${inf.fecha || "s/f"}) ===\n[INICIO]\n${inicio}\n[EXPOSICIONES]\n${exposiciones.slice(0, 11000)}\n[VOTACIONES]\n${votos.slice(0, 3500)}`);
+  }
+  if (bloques.length === 0) return { disponible: false, comision, motivo: "No se pudo leer el texto de los informes de esta comisión." };
+
+  const prompt = `Eres analista de la Biblioteca del Congreso Nacional de Chile. Abajo hay extractos de los informes oficiales de la ${comision} sobre el proyecto "${p.titulo}" (Boletín ${p.id}).
+
+${bloques.join("\n\n")}
+
+Responde en TEXTO PLANO con exactamente este formato (sin JSON ni markdown):
+PERIODO: fechas o sesiones en que la comisión trató el proyecto, según el informe ("No informado" si no aparece)
+SESIONES: número de sesiones dedicadas al proyecto según el informe ("No informado" si no aparece)
+EXPOSITORES:
+nombre | cargo e institución | qué planteó, 1-2 frases
+(una línea por expositor o invitado que intervino; no incluyas a los parlamentarios integrantes)
+VOTACIONES:
+- resultado de cada votación relevante (en general / en particular), con votos si el informe los da
+CAMBIOS:
+- principales cambios o acuerdos de la comisión sobre el texto
+RESUMEN:
+150-250 palabras sobre el paso del proyecto por la comisión.
+
+Reglas: usa SOLO lo que dicen los extractos; no inventes nombres, cargos, cifras ni votos; si algo no aparece, escribe "No informado". Usa guion normal.`;
+
+  const intentos: AIProviderAttempt[] = [];
+  let resp: string | null = null;
+  try { resp = await generarContenidoUniversalIA(prompt, 6000, intentos); } catch { resp = null; }
+  const texto = String(resp || "").replace(/\r/g, "").replace(/[‐-―]/g, "-").replace(/[*#]+/g, "");
+  const seccion = (nombre: string) => {
+    const re = new RegExp(`(?:^|\\n)\\s*${nombre}:\\s*([\\s\\S]*?)(?=\\n\\s*(?:PERIODO|SESIONES|EXPOSITORES|VOTACIONES|CAMBIOS|RESUMEN):|$)`, "i");
+    return (texto.match(re)?.[1] || "").trim();
+  };
+  const lista = (b: string) => b.split("\n").map(l => l.replace(/^\s*[-•]\s*/, "").trim()).filter(l => l && !/^no informado\.?$/i.test(l));
+  const expositores = seccion("EXPOSITORES").split("\n").map(l => l.split("|").map(x => x.trim())).filter(x => x.length >= 2 && x[0] && !/^nombre$/i.test(x[0]))
+    .map(x => ({ nombre: x[0].replace(/^\s*[-•]\s*/, ""), cargo: x[1] || "", planteo: x.slice(2).join(" | ") }));
+  const resumen = seccion("RESUMEN");
+  if (!resumen && expositores.length === 0) {
+    const det = intentos.filter(i => i.configured && i.error).map(i => `${i.provider}: ${String(i.error).slice(0, 80)}`).join(" | ");
+    return { disponible: false, comision, motivo: `No fue posible generar el resumen con IA en este momento.${det ? ` Detalle: ${det}` : ""}` };
+  }
+  const r: ResumenComision = {
+    disponible: true,
+    comision,
+    informes: informes.map(i => ({ titulo: i.titulo, url: i.url!, fecha: i.fecha })),
+    periodo: seccion("PERIODO") || "No informado",
+    sesiones: seccion("SESIONES") || "No informado",
+    expositores,
+    votaciones: lista(seccion("VOTACIONES")),
+    cambios: lista(seccion("CAMBIOS")),
+    resumen,
+    generado: new Date().toISOString()
+  };
+  cache.set(clave, r, 7 * 24 * 60 * 60 * 1000);
+  return r;
+}

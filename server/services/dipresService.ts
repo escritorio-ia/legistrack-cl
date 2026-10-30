@@ -177,7 +177,7 @@ export async function resumenConsolidadoInformesFinancieros(boletin: string): Pr
   const informes = (await informesFinancierosDeBoletin(boletin)).sort((a, b) => ordenIF(a.numero) - ordenIF(b.numero));
   if (informes.length === 0) return { disponible: false, motivo: "La DIPRES no registra informes financieros para este boletín.", total: 0 };
 
-  const clave = `dipres_consolidado_${claveBoletinIF(boletin)}_${informes.map(i => i.numero).join(",")}`;
+  const clave = `dipres_consolidado_v2_${claveBoletinIF(boletin)}_${informes.map(i => i.numero).join(",")}`;
   const previo = cache.get<ResumenConsolidadoIF>(clave);
   if (previo) return previo;
 
@@ -198,13 +198,18 @@ ${texto ? `Texto: ${texto.slice(0, porInforme)}` : "(No se pudo leer el PDF; usa
 
 ${bloques.join("\n\n")}
 
-Redacta un RESUMEN CONSOLIDADO de aproximadamente 500 palabras (entre 420 y 560), en prosa formal en español, en 4 a 6 párrafos, que cubra:
+Redacta un RESUMEN CONSOLIDADO de entre 450 y 520 palabras (no más de 520), en prosa formal en español, en 4 a 6 párrafos, que cubra:
 1. Cuántos informes financieros se han presentado y a qué corresponde cada uno (proyecto original / mensaje, indicaciones, etapa o comisión si el texto lo indica).
 2. Qué medidas o disposiciones del proyecto costea cada informe.
 3. El efecto fiscal de cada uno y cómo evoluciona entre informes (mayor o menor gasto, montos con su unidad y año, régimen permanente vs. transitorio), comparando explícitamente los cambios.
 4. Cómo se financia el mayor gasto, según los informes.
 5. Observaciones relevantes que los propios informes señalen (supuestos, gradualidad, efectos en otros organismos).
-Reglas: usa SOLO lo que dicen los textos; no inventes cifras; cita los números de IF al referirte a cada uno; si un informe dice que no irroga mayor gasto, dilo.
+Reglas estrictas:
+- Usa SOLO lo que dicen los textos. No hagas suposiciones ni inferencias: prohibido usar "se sobreentiende", "se asume", "probablemente" o similares.
+- Copia las cifras EXACTAMENTE como aparecen, con su unidad (ej. "$37.894 miles" o "M$ 37.894"); no redondees ni conviertas.
+- Si los informes no indican cómo se financia el gasto, escribe: "Los informes no indican la fuente de financiamiento."
+- Cita el número de IF al referirte a cada uno; si un informe dice que no irroga mayor gasto, dilo.
+- Escribe los números de IF con guion normal (ej. 114-2026).
 
 Responde en TEXTO PLANO con exactamente este formato (sin JSON, sin markdown):
 RESUMEN:
@@ -216,7 +221,8 @@ N° del IF | a qué corresponde, breve | efecto fiscal en una frase con su monto
   const intentos: AIProviderAttempt[] = [];
   let resp: string | null = null;
   try { resp = await generarContenidoUniversalIA(prompt, 6000, intentos); } catch { resp = null; }
-  const texto = String(resp || "").replace(/\r/g, "");
+  // Normaliza guiones tipográficos (‐ ‑ ‒ – —) a guion normal para reconocer los N° de IF.
+  const texto = String(resp || "").replace(/\r/g, "").replace(/[\u2010-\u2015]/g, "-");
   const iRes = texto.search(/RESUMEN:\s*/i);
   const iTab = texto.search(/\n\s*TABLA:\s*/i);
   const resumen = (iRes >= 0 ? texto.slice(iRes, iTab > iRes ? iTab : undefined).replace(/^RESUMEN:\s*/i, "") : texto).replace(/[*#]+/g, "").trim();
@@ -238,7 +244,7 @@ N° del IF | a qué corresponde, breve | efecto fiscal en una frase con su monto
     leidos,
     resumen: String(j.resumen).trim(),
     filas: informes.map(inf => {
-      const f = filasIA.find(x => String(x?.numero || "").includes(inf.numero)) || {};
+      const f = filasIA.find(x => String(x?.numero || "").replace(/[\u2010-\u2015]/g, "-").includes(inf.numero)) || {};
       return { numero: inf.numero, anio: inf.anio, estado: inf.estado, materia: inf.materia, pdf: inf.pdf, etapa: String(f.etapa || ""), efectoFiscal: String(f.efectoFiscal || "") };
     }),
     generado: new Date().toISOString()

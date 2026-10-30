@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import ResumenComisionPanel from "../components/ResumenComisionPanel";
 import { unirComisiones } from "../utils/comisionesNombre";
 import YouTubeTranscriptModal from "../components/YouTubeTranscriptModal";
 import { useState, useEffect } from "react";
@@ -1799,6 +1800,8 @@ export default function ProyectoDetailView({
                             </button>
                           )}
                         </div>
+
+                        <ResumenComisionPanel proyectoId={proyectoId} comision={commName} />
 
                         {/* Días reales en esta comisión, calculados desde la ficha oficial de
                             tramitación (fechas de "Pasa a Comisión de X" reales, no estimadas). */}

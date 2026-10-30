@@ -26,7 +26,8 @@ import {
   estimarOrigenDetalle,
   fichaEjecutivaProyecto,
   textoMensajeMocion,
-  determinarQuorumProyecto
+  determinarQuorumProyecto,
+  resumenPasoComision
 } from "../services/senadoService";
 import {
   getTodasComisiones,
@@ -763,6 +764,14 @@ apiRouter.post("/camara/citaciones/importar", expressText({ type: "text/plain", 
     res.json({ ok: true, ...r });
   } catch (err: any) {
     res.status(422).json({ ok: false, error: err?.message || String(err) });
+  }
+});
+
+apiRouter.get("/proyecto/:id/comision-resumen", async (req: Request, res: Response) => {
+  try {
+    res.json(await resumenPasoComision(String(req.params.id), String(req.query.comision || "").slice(0, 160)));
+  } catch (err: any) {
+    res.json({ disponible: false, motivo: err?.message || String(err) });
   }
 });
 

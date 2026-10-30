@@ -296,6 +296,37 @@ export async function getSesionesVinculadasDeProyecto(boletinId: string): Promis
   }
 }
 
+/** Resúmenes por comisión guardados en el historial del proyecto (clave = nombre de comisión normalizado). */
+export function claveComision(nombre: string): string {
+  return String(nombre || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 80);
+}
+
+export async function getResumenComisionDeProyecto(boletinId: string, comision: string): Promise<any | null> {
+  if (!db || !boletinId || !comision) return null;
+  try {
+    const snap = await getDoc(doc(db, COLLECTIONS.HISTORIAL_PROYECTOS, claveBoletin(boletinId)));
+    return snap.exists() ? (snap.data().resumenesComision?.[claveComision(comision)] || null) : null;
+  } catch (err) {
+    console.warn("No se pudo leer el resumen de la comisión:", err);
+    return null;
+  }
+}
+
+export async function saveResumenComisionDeProyecto(boletinId: string, comision: string, resumen: any): Promise<boolean> {
+  if (!db || !boletinId || !comision) return false;
+  try {
+    await setDoc(doc(db, COLLECTIONS.HISTORIAL_PROYECTOS, claveBoletin(boletinId)), {
+      boletinId: claveBoletin(boletinId),
+      resumenesComision: { [claveComision(comision)]: resumen },
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+    return true;
+  } catch (err) {
+    console.warn("No se pudo guardar el resumen de la comisión:", err);
+    return false;
+  }
+}
+
 /** Resumen consolidado de informes financieros guardado en el historial del proyecto. */
 export async function getResumenIFDeProyecto(boletinId: string): Promise<any | null> {
   if (!db || !boletinId) return null;

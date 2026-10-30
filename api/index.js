@@ -189067,6 +189067,100 @@ Usa solo lo que dicen los extractos. Si los extractos no califican las normas de
     motivo: fuentes.length ? "Los documentos oficiales disponibles todav\xEDa no califican el qu\xF3rum de las normas del proyecto (suele aparecer en el primer informe de comisi\xF3n)." : "El expediente a\xFAn no tiene documentos donde se califique el qu\xF3rum."
   };
 }
+function ventanas(texto, marcadores, ancho, max) {
+  const out = [];
+  let ultimo = -1e9;
+  for (const m of texto.matchAll(marcadores)) {
+    const i = m.index || 0;
+    if (i - ultimo < ancho) continue;
+    ultimo = i;
+    out.push(texto.slice(Math.max(0, i - 200), i + ancho));
+    if (out.length >= max) break;
+  }
+  return out.join("\n[...]\n");
+}
+async function resumenPasoComision(boletinId, comision) {
+  const digits = String(boletinId || "").replace(/\./g, "").match(/\d{3,6}/)?.[0] || "";
+  if (!digits || !comision) return { disponible: false, motivo: "Faltan el bolet\xEDn o la comisi\xF3n." };
+  const norm3 = (x) => x.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const clave = `resumen_comision_v1_${digits}_${norm3(comision)}`;
+  const previo = cache.get(clave);
+  if (previo) return previo;
+  const p = await fetchProyectoFromSenado(digits);
+  if (!p) return { disponible: false, motivo: "No se encontr\xF3 el proyecto en la ficha oficial del Senado." };
+  const nucleo = norm3(comision).replace(/^comision\s+(especial\s+)?(de\s+)?/, "").split(/[,\s]+/).filter((w) => w.length > 3).slice(0, 2);
+  const informes = (p.documentos || []).filter((d) => d.tipo === "Informe" && d.url && nucleo.every((w) => norm3(d.titulo).includes(w))).sort((a, b) => (a.fecha || "").localeCompare(b.fecha || "")).slice(0, 2);
+  if (informes.length === 0) {
+    return { disponible: false, comision, motivo: "Esta comisi\xF3n a\xFAn no ha emitido un informe en el expediente; el resumen estar\xE1 disponible cuando lo publique." };
+  }
+  const bloques = [];
+  for (const inf of informes) {
+    const t = await fetchTextoInformeDocx(inf.url);
+    if (!t) continue;
+    const inicio = t.slice(0, 9e3);
+    const exposiciones = ventanas(t, /(expuso|expus[oi]eron|señal[oó]|manifest[oó]|indic[oó] que|explic[oó]|sostuvo|planteó|intervino|hizo uso de la palabra)/gi, 1600, 7);
+    const votos = ventanas(t, /(votaci[oó]n|aprob[oó]|rechaz[oó]|unanimidad|votos a favor)/gi, 700, 5);
+    bloques.push(`=== ${inf.titulo} (${inf.fecha || "s/f"}) ===
+[INICIO]
+${inicio}
+[EXPOSICIONES]
+${exposiciones.slice(0, 11e3)}
+[VOTACIONES]
+${votos.slice(0, 3500)}`);
+  }
+  if (bloques.length === 0) return { disponible: false, comision, motivo: "No se pudo leer el texto de los informes de esta comisi\xF3n." };
+  const prompt = `Eres analista de la Biblioteca del Congreso Nacional de Chile. Abajo hay extractos de los informes oficiales de la ${comision} sobre el proyecto "${p.titulo}" (Bolet\xEDn ${p.id}).
+
+${bloques.join("\n\n")}
+
+Responde en TEXTO PLANO con exactamente este formato (sin JSON ni markdown):
+PERIODO: fechas o sesiones en que la comisi\xF3n trat\xF3 el proyecto, seg\xFAn el informe ("No informado" si no aparece)
+SESIONES: n\xFAmero de sesiones dedicadas al proyecto seg\xFAn el informe ("No informado" si no aparece)
+EXPOSITORES:
+nombre | cargo e instituci\xF3n | qu\xE9 plante\xF3, 1-2 frases
+(una l\xEDnea por expositor o invitado que intervino; no incluyas a los parlamentarios integrantes)
+VOTACIONES:
+- resultado de cada votaci\xF3n relevante (en general / en particular), con votos si el informe los da
+CAMBIOS:
+- principales cambios o acuerdos de la comisi\xF3n sobre el texto
+RESUMEN:
+150-250 palabras sobre el paso del proyecto por la comisi\xF3n.
+
+Reglas: usa SOLO lo que dicen los extractos; no inventes nombres, cargos, cifras ni votos; si algo no aparece, escribe "No informado". Usa guion normal.`;
+  const intentos = [];
+  let resp = null;
+  try {
+    resp = await generarContenidoUniversalIA(prompt, 6e3, intentos);
+  } catch {
+    resp = null;
+  }
+  const texto = String(resp || "").replace(/\r/g, "").replace(/[‐-―]/g, "-").replace(/[*#]+/g, "");
+  const seccion = (nombre) => {
+    const re = new RegExp(`(?:^|\\n)\\s*${nombre}:\\s*([\\s\\S]*?)(?=\\n\\s*(?:PERIODO|SESIONES|EXPOSITORES|VOTACIONES|CAMBIOS|RESUMEN):|$)`, "i");
+    return (texto.match(re)?.[1] || "").trim();
+  };
+  const lista2 = (b) => b.split("\n").map((l) => l.replace(/^\s*[-•]\s*/, "").trim()).filter((l) => l && !/^no informado\.?$/i.test(l));
+  const expositores = seccion("EXPOSITORES").split("\n").map((l) => l.split("|").map((x) => x.trim())).filter((x) => x.length >= 2 && x[0] && !/^nombre$/i.test(x[0])).map((x) => ({ nombre: x[0].replace(/^\s*[-•]\s*/, ""), cargo: x[1] || "", planteo: x.slice(2).join(" | ") }));
+  const resumen = seccion("RESUMEN");
+  if (!resumen && expositores.length === 0) {
+    const det = intentos.filter((i) => i.configured && i.error).map((i) => `${i.provider}: ${String(i.error).slice(0, 80)}`).join(" | ");
+    return { disponible: false, comision, motivo: `No fue posible generar el resumen con IA en este momento.${det ? ` Detalle: ${det}` : ""}` };
+  }
+  const r = {
+    disponible: true,
+    comision,
+    informes: informes.map((i) => ({ titulo: i.titulo, url: i.url, fecha: i.fecha })),
+    periodo: seccion("PERIODO") || "No informado",
+    sesiones: seccion("SESIONES") || "No informado",
+    expositores,
+    votaciones: lista2(seccion("VOTACIONES")),
+    cambios: lista2(seccion("CAMBIOS")),
+    resumen,
+    generado: (/* @__PURE__ */ new Date()).toISOString()
+  };
+  cache.set(clave, r, 7 * 24 * 60 * 60 * 1e3);
+  return r;
+}
 
 // server/services/camaraService.ts
 var SENADO_COMISIONES_REALES = SENADO_COMISIONES_DETALLE.map((c) => ({
@@ -189832,7 +189926,7 @@ var ordenIF = (n) => {
 async function resumenConsolidadoInformesFinancieros(boletin) {
   const informes = (await informesFinancierosDeBoletin(boletin)).sort((a, b) => ordenIF(a.numero) - ordenIF(b.numero));
   if (informes.length === 0) return { disponible: false, motivo: "La DIPRES no registra informes financieros para este bolet\xEDn.", total: 0 };
-  const clave = `dipres_consolidado_${claveBoletinIF(boletin)}_${informes.map((i) => i.numero).join(",")}`;
+  const clave = `dipres_consolidado_v2_${claveBoletinIF(boletin)}_${informes.map((i) => i.numero).join(",")}`;
   const previo = cache.get(clave);
   if (previo) return previo;
   const porInforme = Math.max(2500, Math.floor(26e3 / informes.length));
@@ -189854,13 +189948,18 @@ ${texto2 ? `Texto: ${texto2.slice(0, porInforme)}` : "(No se pudo leer el PDF; u
 
 ${bloques.join("\n\n")}
 
-Redacta un RESUMEN CONSOLIDADO de aproximadamente 500 palabras (entre 420 y 560), en prosa formal en espa\xF1ol, en 4 a 6 p\xE1rrafos, que cubra:
+Redacta un RESUMEN CONSOLIDADO de entre 450 y 520 palabras (no m\xE1s de 520), en prosa formal en espa\xF1ol, en 4 a 6 p\xE1rrafos, que cubra:
 1. Cu\xE1ntos informes financieros se han presentado y a qu\xE9 corresponde cada uno (proyecto original / mensaje, indicaciones, etapa o comisi\xF3n si el texto lo indica).
 2. Qu\xE9 medidas o disposiciones del proyecto costea cada informe.
 3. El efecto fiscal de cada uno y c\xF3mo evoluciona entre informes (mayor o menor gasto, montos con su unidad y a\xF1o, r\xE9gimen permanente vs. transitorio), comparando expl\xEDcitamente los cambios.
 4. C\xF3mo se financia el mayor gasto, seg\xFAn los informes.
 5. Observaciones relevantes que los propios informes se\xF1alen (supuestos, gradualidad, efectos en otros organismos).
-Reglas: usa SOLO lo que dicen los textos; no inventes cifras; cita los n\xFAmeros de IF al referirte a cada uno; si un informe dice que no irroga mayor gasto, dilo.
+Reglas estrictas:
+- Usa SOLO lo que dicen los textos. No hagas suposiciones ni inferencias: prohibido usar "se sobreentiende", "se asume", "probablemente" o similares.
+- Copia las cifras EXACTAMENTE como aparecen, con su unidad (ej. "$37.894 miles" o "M$ 37.894"); no redondees ni conviertas.
+- Si los informes no indican c\xF3mo se financia el gasto, escribe: "Los informes no indican la fuente de financiamiento."
+- Cita el n\xFAmero de IF al referirte a cada uno; si un informe dice que no irroga mayor gasto, dilo.
+- Escribe los n\xFAmeros de IF con guion normal (ej. 114-2026).
 
 Responde en TEXTO PLANO con exactamente este formato (sin JSON, sin markdown):
 RESUMEN:
@@ -189875,7 +189974,7 @@ N\xB0 del IF | a qu\xE9 corresponde, breve | efecto fiscal en una frase con su m
   } catch {
     resp = null;
   }
-  const texto = String(resp || "").replace(/\r/g, "");
+  const texto = String(resp || "").replace(/\r/g, "").replace(/[\u2010-\u2015]/g, "-");
   const iRes = texto.search(/RESUMEN:\s*/i);
   const iTab = texto.search(/\n\s*TABLA:\s*/i);
   const resumen = (iRes >= 0 ? texto.slice(iRes, iTab > iRes ? iTab : void 0).replace(/^RESUMEN:\s*/i, "") : texto).replace(/[*#]+/g, "").trim();
@@ -189897,7 +189996,7 @@ N\xB0 del IF | a qu\xE9 corresponde, breve | efecto fiscal en una frase con su m
     leidos,
     resumen: String(j.resumen).trim(),
     filas: informes.map((inf) => {
-      const f = filasIA.find((x) => String(x?.numero || "").includes(inf.numero)) || {};
+      const f = filasIA.find((x) => String(x?.numero || "").replace(/[\u2010-\u2015]/g, "-").includes(inf.numero)) || {};
       return { numero: inf.numero, anio: inf.anio, estado: inf.estado, materia: inf.materia, pdf: inf.pdf, etapa: String(f.etapa || ""), efectoFiscal: String(f.efectoFiscal || "") };
     }),
     generado: (/* @__PURE__ */ new Date()).toISOString()
@@ -193727,6 +193826,13 @@ apiRouter.post("/camara/citaciones/importar", expressText({ type: "text/plain", 
     res.json({ ok: true, ...r });
   } catch (err) {
     res.status(422).json({ ok: false, error: err?.message || String(err) });
+  }
+});
+apiRouter.get("/proyecto/:id/comision-resumen", async (req, res) => {
+  try {
+    res.json(await resumenPasoComision(String(req.params.id), String(req.query.comision || "").slice(0, 160)));
+  } catch (err) {
+    res.json({ disponible: false, motivo: err?.message || String(err) });
   }
 });
 apiRouter.get("/proyecto/:id/quorum", async (req, res) => {
