@@ -1069,6 +1069,11 @@ export async function fetchTextoInformeDocx(url: string): Promise<string | null>
     } else if (buffer.slice(0, 2).toString("latin1") === "PK") {
       const mammoth = await import("mammoth");
       texto = (await mammoth.extractRawText({ buffer })).value || "";
+    } else if (buffer.slice(0, 4).equals(Buffer.from([0xd0, 0xcf, 0x11, 0xe0]))) {
+      // Word antiguo (.doc, formato OLE): muchos informes del Senado vienen así.
+      const WordExtractor = (await import("word-extractor")).default as any;
+      const doc = await new WordExtractor().extract(buffer);
+      texto = String(doc.getBody() || "");
     } else if (/text|html/i.test(res.headers.get("content-type") || "")) {
       texto = buffer.toString("utf-8").replace(/<[^>]*>/g, " ");
     }

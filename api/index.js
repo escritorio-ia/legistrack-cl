@@ -188945,6 +188945,10 @@ async function fetchTextoInformeDocx(url) {
     } else if (buffer.slice(0, 2).toString("latin1") === "PK") {
       const mammoth = await import("mammoth");
       texto = (await mammoth.extractRawText({ buffer })).value || "";
+    } else if (buffer.slice(0, 4).equals(Buffer.from([208, 207, 17, 224]))) {
+      const WordExtractor = (await import("word-extractor")).default;
+      const doc = await new WordExtractor().extract(buffer);
+      texto = String(doc.getBody() || "");
     } else if (/text|html/i.test(res.headers.get("content-type") || "")) {
       texto = buffer.toString("utf-8").replace(/<[^>]*>/g, " ");
     }
