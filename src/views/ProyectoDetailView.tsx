@@ -66,6 +66,15 @@ interface ProyectoDetailViewProps {
   setComparadoInitialQuery?: (query: string) => void;
 }
 
+/** Tema del proyecto para buscar en Derecho Comparado, a partir del título oficial. */
+function temaParaComparado(titulo: string, materia?: string): string {
+  const t = String(titulo || "").replace(/\s+/g, " ").trim();
+  const m = t.match(/\b(?:en materia de|sobre|que regula|relativ[oa] a|para regular|con el objeto de|para)\s+(.{12,})$/i);
+  const tema = (m ? m[1] : t).replace(/[.;]+$/, "").trim();
+  if (tema.length >= 12) return tema.slice(0, 160);
+  return materia && !/sin clasificar/i.test(materia) ? materia : t.slice(0, 160);
+}
+
 function diffDays(fromStr?: string, toStr?: string): number | undefined {
   if (!fromStr || !toStr) return undefined;
   const from = new Date(fromStr);
@@ -831,6 +840,7 @@ export default function ProyectoDetailView({
 
           <button 
             onClick={() => {
+              setComparadoInitialQuery?.(temaParaComparado(proyecto.titulo, proyecto.materia));
               setView("legislacion-comparada");
             }}
             className="flex items-center gap-1.5 font-bold text-xs px-3.5 py-2 rounded-xl border border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100 shadow-2xs transition-all cursor-pointer"
@@ -1450,7 +1460,7 @@ export default function ProyectoDetailView({
                   </div>
                   <button
                     onClick={() => {
-                      setComparadoInitialQuery?.(proyecto.materia || proyecto.titulo);
+                      setComparadoInitialQuery?.(temaParaComparado(proyecto.titulo, proyecto.materia));
                       setView("legislacion-comparada");
                     }}
                     className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs px-5 py-2.5 rounded-xl transition-all shadow-md shrink-0 cursor-pointer flex items-center gap-1.5"
