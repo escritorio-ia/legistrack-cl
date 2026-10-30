@@ -1,6 +1,6 @@
 import { Proyecto, ActivityItem, VotacionItem, PasoComision } from "../../src/types";
 import { cache } from "./cacheService";
-import { generarContenidoUniversalIA, safeJsonParse } from "./aiService";
+import { generarContenidoUniversalIA, safeJsonParse, AIProviderAttempt } from "./aiService";
 import { MATERIA_COMISION_MAP } from "../../src/utils/proyectosResolver";
 
 export interface ProyectoListado {
@@ -253,8 +253,9 @@ export async function fichaEjecutivaProyecto(boletinId: string): Promise<{ dispo
   const p = await fetchProyectoFromSenado(digits);
   if (!p) return { disponible: false, motivo: "No se encontró el proyecto en la ficha oficial del Senado." };
   const texto = await textoMensajeMocion(p.linkCongreso || "");
-  const ficha = await generarFichaTecnicaIA(p.titulo, p.resumen, texto);
-  if (!ficha) return { disponible: false, motivo: "La IA no está disponible en este momento." };
+  const diag: string[] = [];
+  const ficha = await generarFichaTecnicaIA(p.titulo, p.resumen, texto, diag);
+  if (!ficha) return { disponible: false, motivo: `No se pudo generar la síntesis (texto oficial ${texto ? `leído, ${texto.length} caracteres` : "no leído"}). ${diag.join(" ")}`.trim() };
   const r = { disponible: true, ficha, textoUrl: p.linkCongreso };
   cache.set(clave, r, ficha.fuente === "texto" ? 7 * 24 * 60 * 60 * 1000 : 60 * 60 * 1000);
   return r;
@@ -268,7 +269,8 @@ export async function fichaEjecutivaProyecto(boletinId: string): Promise<{ dispo
 export async function generarFichaTecnicaIA(
   titulo: string,
   _resumen: string,
-  textoProyecto = ""
+  textoProyecto = "",
+  diagnostico?: string[]
 ): Promise<{ objeto: string; mecanismos: string; fiscalizacion: string; fuente: "texto" | "titulo" } | null> {
   const conTexto = textoProyecto.length > 300;
   const prompt = conTexto
@@ -296,11 +298,16 @@ Reglas: usa solo el texto entregado; no inventes cifras, instituciones ni efecto
 Responde ÚNICAMENTE con JSON válido: {"objeto":"..."}
 "objeto": 1-2 frases que expliquen en lenguaje claro lo que propone el proyecto según su título. No agregues nada que el título no diga.`;
 
-  const respuesta = await generarContenidoUniversalIA(prompt, conTexto ? 900 : 300);
-  if (!respuesta) return null;
+  // Margen amplio: los modelos de razonamiento gastan parte de los tokens en "pensar".
+  const intentos: AIProviderAttempt[] = [];
+  const respuesta = await generarContenidoUniversalIA(prompt, conTexto ? 3000 : 1200, intentos);
+  if (!respuesta) {
+    diagnostico?.push("Ningún proveedor de IA respondió: " + intentos.filter(i => i.configured).map(i => `${i.provider}: ${(i.error || "sin respuesta").slice(0, 90)}`).join(" | "));
+    return null;
+  }
   try {
     const parsed = safeJsonParse<{ objeto?: string; mecanismos?: string; fiscalizacion?: string }>(respuesta);
-    if (!parsed?.objeto) return null;
+    if (!parsed?.objeto) { diagnostico?.push("La IA respondió sin el campo 'objeto': " + respuesta.slice(0, 160)); return null; }
     if (!conTexto) {
       return {
         objeto: parsed.objeto,
@@ -309,9 +316,14 @@ Responde ÚNICAMENTE con JSON válido: {"objeto":"..."}
         fuente: "titulo"
       };
     }
-    if (!parsed.mecanismos || !parsed.fiscalizacion) return null;
-    return { objeto: parsed.objeto, mecanismos: parsed.mecanismos, fiscalizacion: parsed.fiscalizacion, fuente: "texto" };
+    return {
+      objeto: parsed.objeto,
+      mecanismos: parsed.mecanismos || "El texto del proyecto no permite identificar con claridad a quiénes afecta.",
+      fiscalizacion: parsed.fiscalizacion || "El texto del proyecto no establece un órgano fiscalizador ni sanciones específicas.",
+      fuente: "texto"
+    };
   } catch {
+    diagnostico?.push("La IA no devolvió JSON válido: " + respuesta.slice(0, 160));
     return null;
   }
 }

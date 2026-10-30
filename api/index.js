@@ -188394,13 +188394,14 @@ async function fichaEjecutivaProyecto(boletinId) {
   const p = await fetchProyectoFromSenado(digits);
   if (!p) return { disponible: false, motivo: "No se encontr\xF3 el proyecto en la ficha oficial del Senado." };
   const texto = await textoMensajeMocion(p.linkCongreso || "");
-  const ficha = await generarFichaTecnicaIA(p.titulo, p.resumen, texto);
-  if (!ficha) return { disponible: false, motivo: "La IA no est\xE1 disponible en este momento." };
+  const diag = [];
+  const ficha = await generarFichaTecnicaIA(p.titulo, p.resumen, texto, diag);
+  if (!ficha) return { disponible: false, motivo: `No se pudo generar la s\xEDntesis (texto oficial ${texto ? `le\xEDdo, ${texto.length} caracteres` : "no le\xEDdo"}). ${diag.join(" ")}`.trim() };
   const r = { disponible: true, ficha, textoUrl: p.linkCongreso };
   cache.set(clave, r, ficha.fuente === "texto" ? 7 * 24 * 60 * 60 * 1e3 : 60 * 60 * 1e3);
   return r;
 }
-async function generarFichaTecnicaIA(titulo, _resumen, textoProyecto = "") {
+async function generarFichaTecnicaIA(titulo, _resumen, textoProyecto = "", diagnostico) {
   const conTexto = textoProyecto.length > 300;
   const prompt = conTexto ? `Eres analista de Asesor\xEDa T\xE9cnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile. Abajo est\xE1 el t\xEDtulo y el TEXTO OFICIAL (mensaje o moci\xF3n) de un proyecto de ley chileno.
 
@@ -188424,11 +188425,18 @@ Reglas: usa solo el texto entregado; no inventes cifras, instituciones ni efecto
 
 Responde \xDANICAMENTE con JSON v\xE1lido: {"objeto":"..."}
 "objeto": 1-2 frases que expliquen en lenguaje claro lo que propone el proyecto seg\xFAn su t\xEDtulo. No agregues nada que el t\xEDtulo no diga.`;
-  const respuesta = await generarContenidoUniversalIA(prompt, conTexto ? 900 : 300);
-  if (!respuesta) return null;
+  const intentos = [];
+  const respuesta = await generarContenidoUniversalIA(prompt, conTexto ? 3e3 : 1200, intentos);
+  if (!respuesta) {
+    diagnostico?.push("Ning\xFAn proveedor de IA respondi\xF3: " + intentos.filter((i) => i.configured).map((i) => `${i.provider}: ${(i.error || "sin respuesta").slice(0, 90)}`).join(" | "));
+    return null;
+  }
   try {
     const parsed = safeJsonParse(respuesta);
-    if (!parsed?.objeto) return null;
+    if (!parsed?.objeto) {
+      diagnostico?.push("La IA respondi\xF3 sin el campo 'objeto': " + respuesta.slice(0, 160));
+      return null;
+    }
     if (!conTexto) {
       return {
         objeto: parsed.objeto,
@@ -188437,9 +188445,14 @@ Responde \xDANICAMENTE con JSON v\xE1lido: {"objeto":"..."}
         fuente: "titulo"
       };
     }
-    if (!parsed.mecanismos || !parsed.fiscalizacion) return null;
-    return { objeto: parsed.objeto, mecanismos: parsed.mecanismos, fiscalizacion: parsed.fiscalizacion, fuente: "texto" };
+    return {
+      objeto: parsed.objeto,
+      mecanismos: parsed.mecanismos || "El texto del proyecto no permite identificar con claridad a qui\xE9nes afecta.",
+      fiscalizacion: parsed.fiscalizacion || "El texto del proyecto no establece un \xF3rgano fiscalizador ni sanciones espec\xEDficas.",
+      fuente: "texto"
+    };
   } catch {
+    diagnostico?.push("La IA no devolvi\xF3 JSON v\xE1lido: " + respuesta.slice(0, 160));
     return null;
   }
 }
