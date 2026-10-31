@@ -776,6 +776,19 @@ apiRouter.get("/proyecto/:id/comision-resumen", async (req: Request, res: Respon
   }
 });
 
+// Texto de un documento oficial del Senado (solo tramitacion.senado.cl), por tramos.
+apiRouter.get("/documento/texto", async (req: Request, res: Response) => {
+  const url = String(req.query.url || "");
+  if (!/^https:\/\/tramitacion\.senado\.cl\/appsenado\/index\.php\?/.test(url)) {
+    return res.status(400).json({ error: "Solo se aceptan documentos de tramitacion.senado.cl." });
+  }
+  const desde = Math.max(0, parseInt(String(req.query.desde || "0"), 10) || 0);
+  const largo = Math.min(60000, Math.max(1000, parseInt(String(req.query.largo || "20000"), 10) || 20000));
+  const texto = await fetchTextoInformeDocx(url);
+  if (!texto) return res.json({ disponible: false, motivo: "No se pudo leer el documento." });
+  res.json({ disponible: true, total: texto.length, desde, texto: texto.slice(desde, desde + largo) });
+});
+
 apiRouter.get("/proyecto/:id/quorum", async (req: Request, res: Response) => {
   try {
     res.json(await determinarQuorumProyecto(String(req.params.id)));

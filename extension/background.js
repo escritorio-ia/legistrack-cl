@@ -69,3 +69,53 @@ chrome.runtime.onMessage.addListener((msg, _sender, responder) => {
     return true;
   }
 });
+
+// ---------------------------------------------------------------------------
+// Recordatorio de la Cámara: camara.cl no permite lectura automática, así que
+// entre viernes y lunes, si hace más de 4 días que no se envían citaciones, se
+// avisa con una notificación. Al hacer clic se abre la semana correspondiente
+// y el envío ocurre al cargar la página (con una persona mirando).
+// ---------------------------------------------------------------------------
+function semanaISO(fecha) {
+  const d = new Date(Date.UTC(fecha.getFullYear(), fecha.getMonth(), fecha.getDate()));
+  const dia = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dia);
+  const inicio = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const n = Math.ceil(((d - inicio) / 86400000 + 1) / 7);
+  return `${d.getUTCFullYear()}-${String(n).padStart(2, "0")}`;
+}
+
+function urlSemanaCamara() {
+  const hoy = new Date();
+  // De viernes a domingo interesa la semana siguiente; el lunes, la que empieza.
+  const objetivo = new Date(hoy);
+  if ([5, 6, 0].includes(hoy.getDay())) objetivo.setDate(hoy.getDate() + (8 - (hoy.getDay() || 7)));
+  return `https://www.camara.cl/legislacion/comisiones/citaciones_semana.aspx?prmSemana=${semanaISO(objetivo)}`;
+}
+
+async function revisarRecordatorioCamara() {
+  const dia = new Date().getDay();
+  if (![5, 6, 0, 1].includes(dia)) return;
+  const { camara, ultimoAviso } = await chrome.storage.local.get(["camara", "ultimoAviso"]);
+  const ultimoEnvio = camara?.ok ? new Date(camara.fecha).getTime() : 0;
+  if (Date.now() - ultimoEnvio < 4 * 86400000) return;
+  if (ultimoAviso && Date.now() - ultimoAviso < 12 * 3600000) return;
+  await chrome.storage.local.set({ ultimoAviso: Date.now() });
+  chrome.notifications.create("recordatorio-camara", {
+    type: "basic",
+    iconUrl: "icono128.png",
+    title: "Legislación++: citaciones de la Cámara",
+    message: "Hay una semana de citaciones por enviar. Haz clic para abrirla; se envía sola al cargar.",
+    priority: 1
+  });
+}
+
+chrome.notifications.onClicked.addListener(id => {
+  if (id !== "recordatorio-camara") return;
+  chrome.tabs.create({ url: urlSemanaCamara() });
+  chrome.notifications.clear(id);
+});
+
+chrome.alarms.onAlarm.addListener(a => { if (a.name === "recordatorio-camara") revisarRecordatorioCamara(); });
+chrome.runtime.onInstalled.addListener(() => chrome.alarms.create("recordatorio-camara", { periodInMinutes: 120 }));
+chrome.runtime.onStartup.addListener(() => { chrome.alarms.create("recordatorio-camara", { periodInMinutes: 120 }); revisarRecordatorioCamara(); });
