@@ -960,7 +960,11 @@ export function parsearCitacionesSenado(raw: any): { citaciones: any[]; porComis
       const allBoletines = [...new Set([...boletinesPoints, ...materiaMatches])];
 
       const comId = String(c.ID_COMISION);
-      const comNombre = c.COMINOMBRE?.startsWith("de ") ? `Comisión ${c.COMINOMBRE}` : (c.COMINOMBRE?.startsWith("Comisión") ? c.COMINOMBRE : `Comisión de ${c.COMINOMBRE}`);
+      const nomRaw = String(c.COMINOMBRE || "").trim();
+        const comNombre = /^comisi[oó]n/i.test(nomRaw) ? nomRaw
+          : /^(de|del)\s/i.test(nomRaw) ? `Comisión ${nomRaw}`
+          : /^(especial|mixta|investigadora|revisora)\b/i.test(nomRaw) ? `Comisión ${nomRaw}`
+          : `Comisión de ${nomRaw}`;
 
       const citItem = {
         id: `senado-cit-${c.ID_CITACION}`,

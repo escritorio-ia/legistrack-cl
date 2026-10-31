@@ -188854,7 +188854,8 @@ function parsearCitacionesSenado(raw) {
       const materiaMatches = [...materiaText.matchAll(/(?:bol(?:et[ií]n)?\.?\s*n[°º\s]*|bolet[ií]n\s+)?([0-9]{1,2}\.?[0-9]{3}-[0-9]{2})/gi)].map((m) => m[1].replace(/\./g, "").trim()).filter((b) => /^\d{3,6}-\d{2}$/.test(b));
       const allBoletines = [.../* @__PURE__ */ new Set([...boletinesPoints, ...materiaMatches])];
       const comId = String(c.ID_COMISION);
-      const comNombre = c.COMINOMBRE?.startsWith("de ") ? `Comisi\xF3n ${c.COMINOMBRE}` : c.COMINOMBRE?.startsWith("Comisi\xF3n") ? c.COMINOMBRE : `Comisi\xF3n de ${c.COMINOMBRE}`;
+      const nomRaw = String(c.COMINOMBRE || "").trim();
+      const comNombre = /^comisi[oó]n/i.test(nomRaw) ? nomRaw : /^(de|del)\s/i.test(nomRaw) ? `Comisi\xF3n ${nomRaw}` : /^(especial|mixta|investigadora|revisora)\b/i.test(nomRaw) ? `Comisi\xF3n ${nomRaw}` : `Comisi\xF3n de ${nomRaw}`;
       const citItem = {
         id: `senado-cit-${c.ID_CITACION}`,
         idCitacion: c.ID_CITACION,
