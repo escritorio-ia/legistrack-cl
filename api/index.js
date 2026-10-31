@@ -188842,6 +188842,88 @@ var estadoCitacionesSenado = {
   detalle: "Sin consultar todav\xEDa",
   actualizado: ""
 };
+function parsearCitacionesSenado(raw) {
+  const senadoCitacionesFlat = [];
+  const senadoCitacionesByComId = {};
+  const senadoCitacionesByDay = [];
+  for (const day of raw.data || []) {
+    const dayCitaciones = [];
+    for (const c of day.CITACIONES || []) {
+      const boletinesPoints = c.PUNTOS_PROPUESTOS?.map((p) => p.NUMERO_BOLETIN).filter(Boolean) || [];
+      const materiaText = c.MATERIA || "";
+      const materiaMatches = [...materiaText.matchAll(/(?:bol(?:et[ií]n)?\.?\s*n[°º\s]*|bolet[ií]n\s+)?([0-9]{1,2}\.?[0-9]{3}-[0-9]{2})/gi)].map((m) => m[1].replace(/\./g, "").trim()).filter((b) => /^\d{3,6}-\d{2}$/.test(b));
+      const allBoletines = [.../* @__PURE__ */ new Set([...boletinesPoints, ...materiaMatches])];
+      const comId = String(c.ID_COMISION);
+      const comNombre = c.COMINOMBRE?.startsWith("de ") ? `Comisi\xF3n ${c.COMINOMBRE}` : c.COMINOMBRE?.startsWith("Comisi\xF3n") ? c.COMINOMBRE : `Comisi\xF3n de ${c.COMINOMBRE}`;
+      const citItem = {
+        id: `senado-cit-${c.ID_CITACION}`,
+        idCitacion: c.ID_CITACION,
+        idComision: c.ID_COMISION,
+        comision: comNombre,
+        fecha: day.FECHA,
+        hora: c.HORARIO || "Horario reglamentario",
+        lugar: c.LUGAR || "Valpara\xEDso / Santiago",
+        materia: materiaText.trim() || "Sesi\xF3n de Comisi\xF3n",
+        tabla: materiaText ? materiaText.split("\n").map((s) => s.trim()).filter(Boolean) : [],
+        boletines: allBoletines,
+        boletin: allBoletines[0] || void 0,
+        tipo: "Sesi\xF3n de Comisi\xF3n",
+        canalTransmision: c.TV === 1 ? "TV Senado / Se\xF1al Online" : "Sin transmisi\xF3n",
+        citacionNumero: `Citaci\xF3n N\xB0 ${c.ID_CITACION}`,
+        chamber: "SR",
+        linkOficial: "https://www.senado.cl/actividad-legislativa/comisiones/citaciones"
+      };
+      senadoCitacionesFlat.push(citItem);
+      dayCitaciones.push(citItem);
+      if (!senadoCitacionesByComId[comId]) {
+        senadoCitacionesByComId[comId] = [];
+      }
+      senadoCitacionesByComId[comId].push(citItem);
+    }
+    if (dayCitaciones.length > 0) {
+      senadoCitacionesByDay.push({
+        fecha: day.FECHA,
+        citaciones: dayCitaciones
+      });
+    }
+  }
+  return { citaciones: senadoCitacionesFlat, porComision: senadoCitacionesByComId, porDia: senadoCitacionesByDay };
+}
+var FS_PROY_S = process.env.VITE_FIREBASE_PROJECT_ID || "legistrack-d75bc";
+var FS_KEY_S = process.env.VITE_FIREBASE_API_KEY || "AIzaSyAZvd-S6AmPpV05UYEkRRULgDezD7mAkaE";
+var FS_DOC_S = `https://firestore.googleapis.com/v1/projects/${FS_PROY_S}/databases/(default)/documents/citaciones_senado/actual?key=${FS_KEY_S}`;
+var senadoImportado = null;
+var senadoImportadoLeidoEn = 0;
+async function leerSenadoImportado() {
+  if (senadoImportado && Date.now() - senadoImportadoLeidoEn < 5 * 60 * 1e3) return senadoImportado;
+  try {
+    const r = await fetch(FS_DOC_S, { signal: AbortSignal.timeout(8e3) });
+    if (r.ok) {
+      const d = await r.json();
+      const txt = d?.fields?.payload?.stringValue;
+      senadoImportado = txt ? JSON.parse(txt) : null;
+    }
+    senadoImportadoLeidoEn = Date.now();
+  } catch {
+  }
+  return senadoImportado;
+}
+async function importarCitacionesSenado(raw) {
+  const datos = parsearCitacionesSenado(raw);
+  if (datos.citaciones.length === 0) throw new Error("La respuesta del Senado no contiene citaciones.");
+  const registro = { raw, importadoEn: (/* @__PURE__ */ new Date()).toISOString() };
+  const r = await fetch(FS_DOC_S, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fields: { payload: { stringValue: JSON.stringify(registro) }, actualizado: { stringValue: registro.importadoEn } } }),
+    signal: AbortSignal.timeout(1e4)
+  });
+  if (!r.ok) throw new Error(`Firestore respondi\xF3 HTTP ${r.status}`);
+  senadoImportado = registro;
+  senadoImportadoLeidoEn = Date.now();
+  cache.delete("senado_citaciones_live");
+  return { citaciones: datos.citaciones.length, dias: datos.porDia.length };
+}
 async function fetchSenadoCitacionesLive(forceRefresh = false) {
   const cacheKey = "senado_citaciones_live";
   if (forceRefresh) {
@@ -188864,50 +188946,7 @@ async function fetchSenadoCitacionesLive(forceRefresh = false) {
         throw new Error(`HTTP ${res.status}`);
       }
       const raw = await res.json();
-      const senadoCitacionesFlat = [];
-      const senadoCitacionesByComId = {};
-      const senadoCitacionesByDay = [];
-      for (const day of raw.data || []) {
-        const dayCitaciones = [];
-        for (const c of day.CITACIONES || []) {
-          const boletinesPoints = c.PUNTOS_PROPUESTOS?.map((p) => p.NUMERO_BOLETIN).filter(Boolean) || [];
-          const materiaText = c.MATERIA || "";
-          const materiaMatches = [...materiaText.matchAll(/(?:bol(?:et[ií]n)?\.?\s*n[°º\s]*|bolet[ií]n\s+)?([0-9]{1,2}\.?[0-9]{3}-[0-9]{2})/gi)].map((m) => m[1].replace(/\./g, "").trim()).filter((b) => /^\d{3,6}-\d{2}$/.test(b));
-          const allBoletines = [.../* @__PURE__ */ new Set([...boletinesPoints, ...materiaMatches])];
-          const comId = String(c.ID_COMISION);
-          const comNombre = c.COMINOMBRE?.startsWith("de ") ? `Comisi\xF3n ${c.COMINOMBRE}` : c.COMINOMBRE?.startsWith("Comisi\xF3n") ? c.COMINOMBRE : `Comisi\xF3n de ${c.COMINOMBRE}`;
-          const citItem = {
-            id: `senado-cit-${c.ID_CITACION}`,
-            idCitacion: c.ID_CITACION,
-            idComision: c.ID_COMISION,
-            comision: comNombre,
-            fecha: day.FECHA,
-            hora: c.HORARIO || "Horario reglamentario",
-            lugar: c.LUGAR || "Valpara\xEDso / Santiago",
-            materia: materiaText.trim() || "Sesi\xF3n de Comisi\xF3n",
-            tabla: materiaText ? materiaText.split("\n").map((s) => s.trim()).filter(Boolean) : [],
-            boletines: allBoletines,
-            boletin: allBoletines[0] || void 0,
-            tipo: "Sesi\xF3n de Comisi\xF3n",
-            canalTransmision: c.TV === 1 ? "TV Senado / Se\xF1al Online" : "Sin transmisi\xF3n",
-            citacionNumero: `Citaci\xF3n N\xB0 ${c.ID_CITACION}`,
-            chamber: "SR",
-            linkOficial: "https://www.senado.cl/actividad-legislativa/comisiones/citaciones"
-          };
-          senadoCitacionesFlat.push(citItem);
-          dayCitaciones.push(citItem);
-          if (!senadoCitacionesByComId[comId]) {
-            senadoCitacionesByComId[comId] = [];
-          }
-          senadoCitacionesByComId[comId].push(citItem);
-        }
-        if (dayCitaciones.length > 0) {
-          senadoCitacionesByDay.push({
-            fecha: day.FECHA,
-            citaciones: dayCitaciones
-          });
-        }
-      }
+      const { citaciones: senadoCitacionesFlat, porComision: senadoCitacionesByComId, porDia: senadoCitacionesByDay } = parsearCitacionesSenado(raw);
       estadoCitacionesSenado.fuente = "vivo";
       estadoCitacionesSenado.detalle = `Le\xEDdas de web-back.senado.cl (${senadoCitacionesFlat.length} citaciones)`;
       estadoCitacionesSenado.actualizado = (/* @__PURE__ */ new Date()).toISOString();
@@ -188917,6 +188956,16 @@ async function fetchSenadoCitacionesLive(forceRefresh = false) {
         porDia: senadoCitacionesByDay
       };
     } catch (err) {
+      const imp = await leerSenadoImportado();
+      if (imp && Date.now() - new Date(imp.importadoEn).getTime() < 3 * 864e5) {
+        const datos = parsearCitacionesSenado(imp.raw);
+        if (datos.citaciones.length > 0) {
+          estadoCitacionesSenado.fuente = "vivo";
+          estadoCitacionesSenado.detalle = `Le\xEDdas de web-back.senado.cl con navegador (\xFAltima lectura: ${imp.importadoEn})`;
+          estadoCitacionesSenado.actualizado = imp.importadoEn;
+          return datos;
+        }
+      }
       estadoCitacionesSenado.fuente = "sin datos";
       estadoCitacionesSenado.detalle = `No se pudo consultar web-back.senado.cl: ${err?.message || err}`;
       estadoCitacionesSenado.actualizado = (/* @__PURE__ */ new Date()).toISOString();
@@ -193848,6 +193897,24 @@ apiRouter.get("/proyecto/:id/ficha-ejecutiva", async (req, res) => {
     res.json(await fichaEjecutivaProyecto(String(req.params.id)));
   } catch (err) {
     res.json({ disponible: false, motivo: err?.message || String(err) });
+  }
+});
+apiRouter.post("/senado/citaciones/importar", expressText({ type: "text/plain", limit: "5mb" }), async (req, res) => {
+  let body = req.body;
+  if (typeof body === "string") {
+    try {
+      body = JSON.parse(body);
+    } catch {
+      return res.status(400).json({ ok: false, error: "Cuerpo no es JSON v\xE1lido." });
+    }
+  }
+  const token = process.env.CITACIONES_IMPORT_TOKEN;
+  if (token && body?.token !== token) return res.status(401).json({ ok: false, error: "Token de importaci\xF3n inv\xE1lido." });
+  if (!body?.raw || !Array.isArray(body.raw.data)) return res.status(400).json({ ok: false, error: "Falta la respuesta de web-back.senado.cl." });
+  try {
+    res.json({ ok: true, ...await importarCitacionesSenado(body.raw) });
+  } catch (err) {
+    res.status(422).json({ ok: false, error: err?.message || String(err) });
   }
 });
 apiRouter.get("/proyecto/:id/sesiones", async (req, res) => {

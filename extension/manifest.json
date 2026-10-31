@@ -1,0 +1,44 @@
+{
+  "manifest_version": 3,
+  "name": "Legislación++ · Citaciones",
+  "version": "1.0.0",
+  "description": "Envía a Legislación++ las citaciones de comisiones de la Cámara (al abrir su página) y del Senado (automáticamente).",
+  "permissions": [
+    "alarms",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://web-back.senado.cl/*",
+    "https://legistrack-cl.vercel.app/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.camara.cl/legislacion/comisiones/citaciones_semana.aspx*",
+        "https://camara.cl/legislacion/comisiones/citaciones_semana.aspx*"
+      ],
+      "js": [
+        "camara.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.senado.cl/actividad-legislativa/comisiones/citaciones*",
+        "https://senado.cl/actividad-legislativa/comisiones/citaciones*"
+      ],
+      "js": [
+        "senado.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Legislación++ · Citaciones"
+  },
+  "options_page": "options.html"
+}

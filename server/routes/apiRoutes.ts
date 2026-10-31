@@ -27,7 +27,8 @@ import {
   fichaEjecutivaProyecto,
   textoMensajeMocion,
   determinarQuorumProyecto,
-  resumenPasoComision
+  resumenPasoComision,
+  importarCitacionesSenado
 } from "../services/senadoService";
 import {
   getTodasComisiones,
@@ -788,6 +789,22 @@ apiRouter.get("/proyecto/:id/ficha-ejecutiva", async (req: Request, res: Respons
     res.json(await fichaEjecutivaProyecto(String(req.params.id)));
   } catch (err: any) {
     res.json({ disponible: false, motivo: err?.message || String(err) });
+  }
+});
+
+// Citaciones del Senado enviadas por la extensión de navegador (JSON de web-back.senado.cl).
+apiRouter.post("/senado/citaciones/importar", expressText({ type: "text/plain", limit: "5mb" }), async (req: Request, res: Response) => {
+  let body: any = req.body;
+  if (typeof body === "string") {
+    try { body = JSON.parse(body); } catch { return res.status(400).json({ ok: false, error: "Cuerpo no es JSON válido." }); }
+  }
+  const token = process.env.CITACIONES_IMPORT_TOKEN;
+  if (token && body?.token !== token) return res.status(401).json({ ok: false, error: "Token de importación inválido." });
+  if (!body?.raw || !Array.isArray(body.raw.data)) return res.status(400).json({ ok: false, error: "Falta la respuesta de web-back.senado.cl." });
+  try {
+    res.json({ ok: true, ...(await importarCitacionesSenado(body.raw)) });
+  } catch (err: any) {
+    res.status(422).json({ ok: false, error: err?.message || String(err) });
   }
 });
 
