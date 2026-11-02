@@ -188159,7 +188159,39 @@ async function generarContenidoUniversalIAInterno(prompt, maxTokens, attempts) {
   const claudeRes = await intentarClaude(prompt, maxTokens);
   attempts?.push({ provider: claudeRes.provider, configured: claudeRes.configured, error: claudeRes.error });
   if (claudeRes.text) return claudeRes.text;
+  const respaldo = await intentarGeminiRespaldo(prompt, maxTokens);
+  attempts?.push({ provider: "gemini-respaldo", configured: respaldo.configured, error: respaldo.error });
+  if (respaldo.text) return respaldo.text;
   return null;
+}
+async function intentarGeminiRespaldo(prompt, maxTokens) {
+  const key = process.env.GEMINI_VIDEO_API_KEY;
+  if (!key || key === process.env.GEMINI_API_KEY) return { configured: false };
+  let ultimo = "";
+  for (const model of ["gemini-2.5-flash", "gemini-2.5-flash-lite"]) {
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { maxOutputTokens: Math.max(maxTokens, 2048), temperature: 0.15 }
+        }),
+        signal: AbortSignal.timeout(6e4)
+      });
+      if (!res.ok) {
+        ultimo = `${model} HTTP ${res.status}: ${(await res.text().catch(() => "")).slice(0, 120)}`;
+        continue;
+      }
+      const data = await res.json();
+      const text = (data?.candidates?.[0]?.content?.parts || []).map((p) => p.text || "").join("").trim();
+      if (text) return { configured: true, text };
+      ultimo = `${model}: respuesta vac\xEDa`;
+    } catch (e) {
+      ultimo = `${model}: ${e?.message || e}`;
+    }
+  }
+  return { configured: true, error: ultimo };
 }
 async function responderCopilotoLegislativo(params) {
   const { mensaje, contextoBoletin, contextoComision, historial = [] } = params;
