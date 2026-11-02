@@ -199,7 +199,8 @@ export async function analizarParteVideo(params: {
   materia?: string;
 }): Promise<AnalisisParteVideo> {
   const { videoId, parte } = params;
-  const apiKey = process.env.GEMINI_API_KEY;
+  // Clave dedicada a videos (otro proyecto de Google = cuota gratuita propia); si no existe, la general.
+  const apiKey = process.env.GEMINI_VIDEO_API_KEY || process.env.GEMINI_API_KEY;
   const desde = parte * SEGUNDOS_POR_PARTE;
   const hasta = params.duracion ? Math.min(params.duracion, desde + SEGUNDOS_POR_PARTE) : (params.duracion === null ? null : desde + SEGUNDOS_POR_PARTE);
   if (!/^[\w-]{11}$/.test(videoId)) return { disponible: false, motivo: "Identificador de video no válido.", parte, desde, hasta };

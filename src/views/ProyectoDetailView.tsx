@@ -1178,14 +1178,24 @@ export default function ProyectoDetailView({
 
                   {/* Visual 5-Step Pipeline Progress Bar */}
                   {(() => {
-                    const etapaLow = (proyecto.etapa || proyecto.estado || "").toLowerCase();
+                    // Se determina UNA etapa actual y todas las anteriores quedan cumplidas
+                    // (antes cada paso se evaluaba por separado y, p. ej., en Comisión Mixta
+                    // el 2do trámite aparecía sin cumplir).
+                    const etapaLow = `${proyecto.etapa || ""} ${proyecto.subetapa || ""} ${proyecto.estado || ""}`.toLowerCase();
+                    const esLey = /publicad|promulgad|\bley n|diario oficial|tramitaci[oó]n terminada/.test(etapaLow);
+                    const actual = esLey ? 5
+                      : /mixta|tribunal constitucional|veto|observaciones del presidente|control de constitucionalidad/.test(etapaLow) ? 4
+                      : /segundo|tercer|2[º°o]?\s*tr[aá]mite|3[º°o]?\s*tr[aá]mite/.test(etapaLow) ? 3
+                      : 2;
+                    const enTercer = /tercer|3[º°o]?\s*tr[aá]mite/.test(etapaLow) && actual === 3;
+                    const segundaCamara = proyecto.camaraOrigen === "Senado" ? "Cámara Dip." : "Senado";
                     const stagesList = [
-                      { num: 1, label: "Ingreso", sub: proyecto.camaraOrigen || "Origen", done: true, current: false },
-                      { num: 2, label: "1er Trámite", sub: "Comisión y Sala", done: true, current: !etapaLow.includes("segundo") && !etapaLow.includes("publicado") && !etapaLow.includes("promulgado") && !etapaLow.includes("mixta") },
-                      { num: 3, label: "2do Trámite", sub: proyecto.camaraOrigen === "Senado" ? "Cámara Dip." : "Senado", done: etapaLow.includes("segundo") || etapaLow.includes("tercer") || etapaLow.includes("publicado") || etapaLow.includes("promulgado"), current: etapaLow.includes("segundo") },
-                      { num: 4, label: "Comisión Mixta / TC", sub: "Discrepancias", done: etapaLow.includes("mixta") || etapaLow.includes("publicado") || etapaLow.includes("promulgado"), current: etapaLow.includes("mixta") },
-                      { num: 5, label: "Promulgación y Ley", sub: "Diario Oficial", done: etapaLow.includes("publicado") || etapaLow.includes("promulgado"), current: etapaLow.includes("publicado") || etapaLow.includes("promulgado") }
-                    ];
+                      { num: 1, label: "Ingreso", sub: proyecto.camaraOrigen || "Origen" },
+                      { num: 2, label: "1er Trámite", sub: "Comisión y Sala" },
+                      { num: 3, label: enTercer ? "3er Trámite" : "2do Trámite", sub: enTercer ? `Vuelve a ${proyecto.camaraOrigen === "Senado" ? "Senado" : "Cámara Dip."}` : segundaCamara },
+                      { num: 4, label: "Comisión Mixta / TC", sub: "Discrepancias" },
+                      { num: 5, label: "Promulgación y Ley", sub: "Diario Oficial" }
+                    ].map(st => ({ ...st, done: esLey || st.num < actual, current: !esLey && st.num === actual }));
 
                     return (
                       <div className="py-2">
