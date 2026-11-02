@@ -2,7 +2,7 @@
 // "Comisión de Agricultura y, posteriormente, por la Comisión de Constitución…"
 // o "comisión de Agricultura para discutir en general…" → solo el nombre.
 
-const CORTES = /\s*(?:,\s*y\b|\s+y\s*,|,?\s+posteriormente\b|,?\s+finalmente\b|,?\s+luego\b|\s+para\s|\s+con\s+ocasi[oó]n|\s+en\s+(?:el|la|los|las|su|sesi[oó]n)\b|\s+a\s+fin\b|\s+que\s|\s+por\s|[.:(]).*$/i;
+const CORTES = /\s*(?:,\s*y\b|\s+y\s*,|,?\s+posteriormente\b|,?\s+finalmente\b|,?\s+luego\b|\s+para\s|\s+con\s+ocasi[oó]n|\s+en\s+(?:el|la|los|las|lo|su|sesi[oó]n)\b|\s+el\s+rechazo|\s+rechaz|\s+a\s+fin\b|\s+que\s|\s+por\s|[.:(]).*$/i;
 
 /** Devuelve solo el nombre de la comisión ("Comisión de Agricultura"), o "" si no parece una. */
 export function limpiarNombreComision(raw: string): string {
