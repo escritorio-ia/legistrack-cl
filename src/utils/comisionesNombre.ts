@@ -10,7 +10,9 @@ export function limpiarNombreComision(raw: string): string {
   s = s.replace(/^(?:a\s+|por\s+)?(?:la|las)\s+/i, "");
   const m = s.match(/comisi[oó]n\s+(?:especial\s+)?(?:mixta(?:\s+de\s+.+)?|de\s+.+|investigadora.+)/i);
   if (!m) return "";
-  s = m[0].replace(CORTES, "").replace(/[\s,\-]+$/, "").trim();
+  // ";" solo corta si sigue texto en minúscula (continuación de la frase); en nombres
+  // como "Economía, Fomento; Micro, Pequeña…" lo que sigue va con mayúscula.
+  s = m[0].replace(/;\s*(?=[a-záéíóúñ])[\s\S]*$/, "").replace(CORTES, "").replace(/[\s,;\-]+$/, "").trim();
   s = s.replace(/^comisi[oó]n/i, "Comisión");
   // Un nombre real no termina en conectores sueltos.
   s = s.replace(/\s+(?:y|e|de|del|la|el)$/i, "").trim();

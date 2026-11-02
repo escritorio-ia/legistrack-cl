@@ -188246,7 +188246,7 @@ function limpiarNombreComision(raw) {
   s = s.replace(/^(?:a\s+|por\s+)?(?:la|las)\s+/i, "");
   const m = s.match(/comisi[oó]n\s+(?:especial\s+)?(?:mixta(?:\s+de\s+.+)?|de\s+.+|investigadora.+)/i);
   if (!m) return "";
-  s = m[0].replace(CORTES, "").replace(/[\s,\-]+$/, "").trim();
+  s = m[0].replace(/;\s*(?=[a-záéíóúñ])[\s\S]*$/, "").replace(CORTES, "").replace(/[\s,;\-]+$/, "").trim();
   s = s.replace(/^comisi[oó]n/i, "Comisi\xF3n");
   s = s.replace(/\s+(?:y|e|de|del|la|el)$/i, "").trim();
   if (s.length < 12 || s.length > 140) return "";

@@ -901,7 +901,7 @@ export default function ProyectoDetailView({
 
           <button 
             onClick={() => setActiveTab("comparado")}
-            className="flex items-center gap-1.5 font-bold text-xs px-3.5 py-2 rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-800 hover:bg-indigo-100 shadow-2xs transition-all cursor-pointer"
+            className="hidden items-center gap-1.5 font-bold text-xs px-3.5 py-2 rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-800 hover:bg-indigo-100 shadow-2xs transition-all cursor-pointer"
             title="Comparador Visual de Textos e Indicaciones"
             id="open-diff-viewer-btn"
           >
@@ -965,7 +965,7 @@ export default function ProyectoDetailView({
             href={`https://www.camara.cl/legislacion/proyectos/busqueda.aspx?prmTexto=${encodeURIComponent(proyecto.id)}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1.5 font-bold text-xs px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 shadow-2xs transition-all"
+            className="hidden items-center gap-1.5 font-bold text-xs px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 shadow-2xs transition-all"
             title="Consultar expediente en portal de la Cámara de Diputadas y Diputados"
           >
             <ExternalLink className="w-3.5 h-3.5 text-blue-600" />
@@ -976,7 +976,7 @@ export default function ProyectoDetailView({
             href={`https://www.senado.cl/actividad-legislativa/proyectos-de-ley?buscar=${encodeURIComponent(proyecto.id)}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1.5 font-bold text-xs px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 shadow-2xs transition-all"
+            className="hidden items-center gap-1.5 font-bold text-xs px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 shadow-2xs transition-all"
             title="Consultar expediente en portal del Senado de la República"
           >
             <ExternalLink className="w-3.5 h-3.5 text-blue-600" />
@@ -985,7 +985,7 @@ export default function ProyectoDetailView({
           
           <button 
             onClick={handleDownloadMinutaWord}
-            className="flex items-center gap-1.5 bg-[#003366] text-white font-bold text-xs px-3.5 py-2 rounded-xl hover:bg-slate-900 transition-colors cursor-pointer shadow-2xs"
+            className="hidden items-center gap-1.5 bg-[#003366] text-white font-bold text-xs px-3.5 py-2 rounded-xl hover:bg-slate-900 transition-colors cursor-pointer shadow-2xs"
             id="download-record-word-btn"
             title="Descargar Minuta Ejecutiva en Word (.doc)"
           >
