@@ -169481,33 +169481,10 @@ export function getProyectosForComision(meta: ComisionMeta): Proyecto[] {
 
 // Sesiones concluidas con respaldo documental (acta y/o video oficial). Solo se
 // registran aquí sesiones verificables; no se generan sesiones genéricas.
-const SESIONES_CONCLUIDAS_DOCUMENTADAS: Record<string, SesionItem[]> = {
-  agricultura: [
-        {
-          id: "ses-agri-01sep2026",
-          fecha: "Martes 01 de septiembre de 2026",
-          hora: "15:00 a 17:00 hrs.",
-          lugar: "Sala Pedro Pablo Álvarez-Salamanca (Valparaíso)",
-          tipo: "Sesión de Comisión",
-          citacionNumero: "Citación Oficial N° 85",
-          materia: "Continuar con la discusión del proyecto de ley que 'Modifica la Ley General de Urbanismo y Construcciones, y otros cuerpos legales, para regular el desarrollo de zonas residenciales en el medio rural' (Boletín N° 17.006-01). Audiencias con Ministro de Agricultura y Ministro de Vivienda y Urbanismo (MINVU).",
-          invitados: "Ministro de Agricultura (Jaime Campos); Ministro de Vivienda y Urbanismo (Iván Poduje); Representantes de gremios rurales y técnicos del sector.",
-          acuerdosCount: 2,
-          completada: true,
-          videoUrl: "https://www.youtube.com/watch?v=xehoHfI93oY",
-          actaTexto: "Se inició la sesión para proseguir el análisis del Boletín 17.006-01 sobre loteos y subdivisiones prediales en el medio rural. Expusieron los Ministros de Agricultura y MINVU sobre impacto en suelo agrícola y exigencias sanitarias.",
-          acuerdosTexto: [
-            "Se acuerda recibir propuesta de indicaciones del Ejecutivo sobre estándares mínimos sanitarios y servidumbres de paso.",
-            "Se fija plazo para recibir observaciones de asociaciones gremiales hasta la próxima sesión ordinaria."
-          ],
-          tabla: [
-            "1. Boletín N° 17.006-01: Regulación de loteos y desarrollo de zonas residenciales en el medio rural.",
-            "2. Exposición del Ministerio de Agricultura sobre protección de suelo agrícola y DL 3.516.",
-            "3. Exposición del MINVU sobre Ley General de Urbanismo y Construcciones."
-          ]
-        }
-  ]
-};
+// Vacío: las sesiones concluidas ahora vienen de fuentes reales (videos oficiales
+// de YouTube, citaciones guardadas y, en el Senado, su registro oficial de sesiones).
+// La entrada escrita a mano que había para Agricultura tenía acuerdos sin fuente.
+const SESIONES_CONCLUIDAS_DOCUMENTADAS: Record<string, SesionItem[]> = {};
 
 export function generateFullComisionData(meta: ComisionMeta): Comision {
   const isSenado = meta.chamber === "SR" || meta.prefix === "senado-";

@@ -168571,33 +168571,7 @@ function getProyectosForComision(meta) {
   }
   return [];
 }
-var SESIONES_CONCLUIDAS_DOCUMENTADAS = {
-  agricultura: [
-    {
-      id: "ses-agri-01sep2026",
-      fecha: "Martes 01 de septiembre de 2026",
-      hora: "15:00 a 17:00 hrs.",
-      lugar: "Sala Pedro Pablo \xC1lvarez-Salamanca (Valpara\xEDso)",
-      tipo: "Sesi\xF3n de Comisi\xF3n",
-      citacionNumero: "Citaci\xF3n Oficial N\xB0 85",
-      materia: "Continuar con la discusi\xF3n del proyecto de ley que 'Modifica la Ley General de Urbanismo y Construcciones, y otros cuerpos legales, para regular el desarrollo de zonas residenciales en el medio rural' (Bolet\xEDn N\xB0 17.006-01). Audiencias con Ministro de Agricultura y Ministro de Vivienda y Urbanismo (MINVU).",
-      invitados: "Ministro de Agricultura (Jaime Campos); Ministro de Vivienda y Urbanismo (Iv\xE1n Poduje); Representantes de gremios rurales y t\xE9cnicos del sector.",
-      acuerdosCount: 2,
-      completada: true,
-      videoUrl: "https://www.youtube.com/watch?v=xehoHfI93oY",
-      actaTexto: "Se inici\xF3 la sesi\xF3n para proseguir el an\xE1lisis del Bolet\xEDn 17.006-01 sobre loteos y subdivisiones prediales en el medio rural. Expusieron los Ministros de Agricultura y MINVU sobre impacto en suelo agr\xEDcola y exigencias sanitarias.",
-      acuerdosTexto: [
-        "Se acuerda recibir propuesta de indicaciones del Ejecutivo sobre est\xE1ndares m\xEDnimos sanitarios y servidumbres de paso.",
-        "Se fija plazo para recibir observaciones de asociaciones gremiales hasta la pr\xF3xima sesi\xF3n ordinaria."
-      ],
-      tabla: [
-        "1. Bolet\xEDn N\xB0 17.006-01: Regulaci\xF3n de loteos y desarrollo de zonas residenciales en el medio rural.",
-        "2. Exposici\xF3n del Ministerio de Agricultura sobre protecci\xF3n de suelo agr\xEDcola y DL 3.516.",
-        "3. Exposici\xF3n del MINVU sobre Ley General de Urbanismo y Construcciones."
-      ]
-    }
-  ]
-};
+var SESIONES_CONCLUIDAS_DOCUMENTADAS = {};
 function generateFullComisionData(meta) {
   const isSenado = meta.chamber === "SR" || meta.prefix === "senado-";
   const periodoStr = isSenado ? "Senado de la Rep\xFAblica (2022 - 2030)" : "56\xBA Per\xEDodo Legislativo (2022 - 2026)";
@@ -189133,14 +189107,14 @@ function ventanas(texto, marcadores, ancho, max) {
 async function resumenPasoComision(boletinId, comision) {
   const digits = String(boletinId || "").replace(/\./g, "").match(/\d{3,6}/)?.[0] || "";
   if (!digits || !comision) return { disponible: false, motivo: "Faltan el bolet\xEDn o la comisi\xF3n." };
-  const norm3 = (x) => x.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
-  const clave = `resumen_comision_v1_${digits}_${norm3(comision)}`;
+  const norm4 = (x) => x.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const clave = `resumen_comision_v1_${digits}_${norm4(comision)}`;
   const previo = cache.get(clave);
   if (previo) return previo;
   const p = await fetchProyectoFromSenado(digits);
   if (!p) return { disponible: false, motivo: "No se encontr\xF3 el proyecto en la ficha oficial del Senado." };
-  const nucleo = norm3(comision).replace(/^comision\s+(especial\s+)?(de\s+)?/, "").split(/[,\s]+/).filter((w) => w.length > 3).slice(0, 2);
-  const informes = (p.documentos || []).filter((d) => d.tipo === "Informe" && d.url && nucleo.every((w) => norm3(d.titulo).includes(w))).sort((a, b) => (a.fecha || "").localeCompare(b.fecha || "")).slice(0, 2);
+  const nucleo = norm4(comision).replace(/^comision\s+(especial\s+)?(de\s+)?/, "").split(/[,\s]+/).filter((w) => w.length > 3).slice(0, 2);
+  const informes = (p.documentos || []).filter((d) => d.tipo === "Informe" && d.url && nucleo.every((w) => norm4(d.titulo).includes(w))).sort((a, b) => (a.fecha || "").localeCompare(b.fecha || "")).slice(0, 2);
   if (informes.length === 0) {
     return { disponible: false, comision, motivo: "Esta comisi\xF3n a\xFAn no ha emitido un informe en el expediente; el resumen estar\xE1 disponible cuando lo publique." };
   }
@@ -189971,6 +189945,150 @@ Ordena las intervenciones cronol\xF3gicamente y registra cada cambio relevante d
   })();
   if (resultado.disponible) cache.set(claveCache, resultado, 7 * 24 * 60 * 60 * 1e3);
   return resultado;
+}
+
+// server/services/sesionesCamaraService.ts
+var MESES3 = { enero: 0, febrero: 1, marzo: 2, abril: 3, mayo: 4, junio: 5, julio: 6, agosto: 7, septiembre: 8, setiembre: 8, octubre: 9, noviembre: 10, diciembre: 11 };
+var norm2 = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim();
+var FS_PROY = process.env.VITE_FIREBASE_PROJECT_ID || "legistrack-d75bc";
+var FS_KEY2 = process.env.VITE_FIREBASE_API_KEY || "AIzaSyAZvd-S6AmPpV05UYEkRRULgDezD7mAkaE";
+function fechaISO(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function parsearTituloSesion(titulo) {
+  const t = String(titulo || "").replace(/\s+/g, " ").trim();
+  const m = t.match(/^((?:comisi[oó]n|cei|subcomisi[oó]n)\b.*?)\s*[-–|]\s*(?:lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo)?\s*,?\s*(\d{1,2})\s+(?:de\s+)?([a-záéíóú]+)\s+(?:de\s+)?(\d{4})/i);
+  if (!m) return null;
+  const mes = MESES3[norm2(m[3])];
+  if (mes === void 0) return null;
+  return { comision: m[1].trim(), fecha: fechaISO(new Date(+m[4], mes, +m[2])) };
+}
+function formatoDuracion2(seg) {
+  if (!seg) return "";
+  const h = Math.floor(seg / 3600), mi = Math.floor(seg % 3600 / 60), s = seg % 60;
+  return h ? `${h}:${String(mi).padStart(2, "0")}:${String(s).padStart(2, "0")}` : `${mi}:${String(s).padStart(2, "0")}`;
+}
+async function videosSesionesCamara() {
+  const key = process.env.YOUTUBE_API_KEY;
+  if (!key) return [];
+  return cache.wrap("yt_sesiones_camara_v1", 6 * 60 * 60 * 1e3, async () => {
+    const playlist = "UU" + CANALES_YOUTUBE.diputados.id.slice(2);
+    const limite = Date.now() - 270 * 864e5;
+    const items = [];
+    let pageToken = "";
+    for (let pagina = 0; pagina < 40; pagina++) {
+      const qs = new URLSearchParams({ part: "snippet", playlistId: playlist, maxResults: "50", key, ...pageToken ? { pageToken } : {} });
+      const r = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?${qs}`, { signal: AbortSignal.timeout(12e3) });
+      if (!r.ok) break;
+      const d = await r.json();
+      let viejo = false;
+      for (const it of d.items || []) {
+        const publicado = new Date(it.snippet?.publishedAt || 0).getTime();
+        if (publicado && publicado < limite) {
+          viejo = true;
+          continue;
+        }
+        const id = it.snippet?.resourceId?.videoId;
+        if (id) items.push({ videoId: id, titulo: String(it.snippet?.title || "") });
+      }
+      pageToken = d.nextPageToken || "";
+      if (!pageToken || viejo) break;
+    }
+    const sesiones = items.map((i) => ({ ...i, p: parsearTituloSesion(i.titulo) })).filter((i) => i.p);
+    const duraciones = {};
+    for (let i = 0; i < sesiones.length; i += 50) {
+      const det = await detallesVideos(sesiones.slice(i, i + 50).map((s) => s.videoId)).catch(() => ({}));
+      for (const [id, v] of Object.entries(det)) duraciones[id] = v.segundos ?? null;
+    }
+    return sesiones.map((s) => ({ videoId: s.videoId, comision: s.p.comision, fecha: s.p.fecha, duracion: formatoDuracion2(duraciones[s.videoId] ?? null), titulo: s.titulo }));
+  });
+}
+async function citacionesCamaraHistoricas() {
+  return cache.wrap("citaciones_camara_historicas_v1", 15 * 60 * 1e3, async () => {
+    const out = [];
+    let pageToken = "";
+    for (let i = 0; i < 10; i++) {
+      const qs = new URLSearchParams({ pageSize: "100", key: FS_KEY2, ...pageToken ? { pageToken } : {} });
+      const r = await fetch(`https://firestore.googleapis.com/v1/projects/${FS_PROY}/databases/(default)/documents/citaciones_camara?${qs}`, { signal: AbortSignal.timeout(1e4) });
+      if (!r.ok) break;
+      const d = await r.json();
+      for (const doc of d.documents || []) {
+        if (!/\/semana_[^/]+$/.test(doc.name || "")) continue;
+        try {
+          const reg = JSON.parse(doc.fields?.payload?.stringValue || "null");
+          for (const c of reg?.datos?.todas || []) out.push({ ...c, _semana: reg.semana });
+        } catch {
+        }
+      }
+      pageToken = d.nextPageToken || "";
+      if (!pageToken) break;
+    }
+    return out;
+  });
+}
+var DIA_CIT = /(\d{1,2})\s+de\s+([a-záéíóú]+)\s+de\s+(\d{4})/i;
+function fechaCitacion(f) {
+  const m = String(f || "").match(DIA_CIT);
+  if (!m) return "";
+  const mes = MESES3[norm2(m[2])];
+  return mes === void 0 ? "" : fechaISO(new Date(+m[3], mes, +m[1]));
+}
+function mismaComision(nombreVideo, nombreComision) {
+  const limpiar2 = (s) => norm2(s).replace(/^(sub)?comision\s+(especial\s+)?(investigadora\s+)?(de\s+|del\s+|sobre\s+)?/, "").replace(/[,.]/g, " ");
+  const v = limpiar2(nombreVideo).split(" ").filter((w) => w.length > 3 && !["para", "sobre", "como"].includes(w));
+  const c = limpiar2(nombreComision);
+  if (v.length === 0) return false;
+  return v.slice(0, 2).every((w) => c.includes(w));
+}
+async function sesionesCamaraDeComision(slug, nombre) {
+  const [videos, citas] = await Promise.all([
+    videosSesionesCamara().catch(() => []),
+    citacionesCamaraHistoricas().catch(() => [])
+  ]);
+  const porFecha = /* @__PURE__ */ new Map();
+  const hoy = fechaISO(/* @__PURE__ */ new Date());
+  for (const c of citas) {
+    if (c.comisionSlug !== slug) continue;
+    const f = fechaCitacion(c.fecha);
+    if (!f) continue;
+    porFecha.set(f, {
+      id: `ses-cd-hist-${f}`,
+      fecha: f,
+      hora: c.hora,
+      lugar: c.lugar,
+      tipo: c.tipo || "Sesi\xF3n de Comisi\xF3n",
+      materia: c.materia || "Materia no informada",
+      invitados: /^no informado/i.test(c.invitados || "") ? "" : c.invitados || "",
+      tabla: c.tabla,
+      completada: f < hoy,
+      acuerdosCount: 0,
+      fuente: "Citaci\xF3n oficial (camara.cl)"
+    });
+  }
+  for (const v of videos) {
+    if (!mismaComision(v.comision, nombre)) continue;
+    const previa = porFecha.get(v.fecha);
+    const video = { videoUrl: `https://www.youtube.com/watch?v=${v.videoId}`, duracionVideo: v.duracion };
+    if (previa) porFecha.set(v.fecha, { ...previa, ...video, completada: true, fuente: "Citaci\xF3n oficial y video oficial" });
+    else porFecha.set(v.fecha, {
+      id: `ses-cd-hist-${v.fecha}`,
+      fecha: v.fecha,
+      tipo: "Sesi\xF3n de Comisi\xF3n",
+      materia: "Materia no informada (sesi\xF3n registrada en el canal oficial de YouTube)",
+      invitados: "",
+      completada: true,
+      acuerdosCount: 0,
+      ...video,
+      fuente: "Video oficial (YouTube de la C\xE1mara)"
+    });
+  }
+  const DIAS = ["Domingo", "Lunes", "Martes", "Mi\xE9rcoles", "Jueves", "Viernes", "S\xE1bado"];
+  const NOMBRES_MES = Object.keys(MESES3).filter((k) => k !== "setiembre");
+  return Array.from(porFecha.values()).sort((a, b) => b.fecha.localeCompare(a.fecha)).map((s) => {
+    const [y, m, d] = s.fecha.split("-").map(Number);
+    const dt = new Date(y, m - 1, d);
+    return { ...s, fecha: `${DIAS[dt.getDay()]} ${d} de ${NOMBRES_MES[m - 1]} de ${y}` };
+  });
 }
 
 // server/services/dipresService.ts
@@ -193003,12 +193121,12 @@ import fs from "fs";
 import path from "path";
 import Papa from "papaparse";
 var sinAcentos = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "");
-var norm2 = (s) => sinAcentos(s).toLowerCase().trim();
+var norm3 = (s) => sinAcentos(s).toLowerCase().trim();
 function normalizarBoletin(b) {
   return b.replace(/\./g, "").replace(/\s+/g, "").replace(/-0+(\d)/, "-$1").trim();
 }
 function normalizarNorma(n) {
-  return norm2(n).replace(/\./g, "").replace(/\s+/g, " ");
+  return norm3(n).replace(/\./g, "").replace(/\s+/g, " ");
 }
 var STOPWORDS = /* @__PURE__ */ new Set([
   "sobre",
@@ -193052,7 +193170,7 @@ function terminos(inv) {
   const out = /* @__PURE__ */ new Set();
   const fuentes = [...inv.palabrasClave, inv.materia];
   for (const f of fuentes) {
-    for (const w of norm2(f).split(/[^a-z0-9ñ]+/)) {
+    for (const w of norm3(f).split(/[^a-z0-9ñ]+/)) {
       if (w.length >= 5 && !STOPWORDS.has(w)) out.add(raiz(w));
     }
   }
@@ -193073,12 +193191,12 @@ function inicioDeSemana(ref) {
   d.setDate(d.getDate() - dow);
   return d;
 }
-var MESES3 = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+var MESES4 = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 function semanaActual(ref = /* @__PURE__ */ new Date()) {
   const desde = inicioDeSemana(ref);
   const hasta = new Date(desde);
   hasta.setDate(hasta.getDate() + 6);
-  const f = (d) => `${d.getDate()} ${MESES3[d.getMonth()].toUpperCase()}`;
+  const f = (d) => `${d.getDate()} ${MESES4[d.getMonth()].toUpperCase()}`;
   return { desde, hasta, etiqueta: `${f(desde)} \u2013 ${f(hasta)}` };
 }
 function iso(base, diasOffset) {
@@ -193122,7 +193240,7 @@ function datosDemo() {
 }
 var lista = (v) => String(v ?? "").split(/[;|]/).map((x) => x.trim()).filter(Boolean);
 function aEstado(v) {
-  const s = norm2(String(v ?? ""));
+  const s = norm3(String(v ?? ""));
   if (s.startsWith("entreg") || s === "cerrada" || s === "finalizada") return "entregada";
   if (s.startsWith("archiv")) return "archivada";
   return "en_curso";
@@ -193139,7 +193257,7 @@ function parsearInvestigacionesCsv(texto) {
   const parsed = Papa.parse(texto.replace(/^﻿/, ""), {
     header: true,
     skipEmptyLines: true,
-    transformHeader: (h) => norm2(h).replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")
+    transformHeader: (h) => norm3(h).replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")
   });
   const registros = [];
   const rechazados = [];
@@ -193156,7 +193274,7 @@ function parsearInvestigacionesCsv(texto) {
       id,
       area,
       investigador: (r.investigador || "").trim() || "(sin asignar)",
-      tipo: norm2(r.tipo || "").startsWith("parl") ? "parlamentario" : "comision",
+      tipo: norm3(r.tipo || "").startsWith("parl") ? "parlamentario" : "comision",
       solicitante: (r.solicitante || r.comision || "").trim(),
       comision: (r.comision || "").trim() || void 0,
       boletines: lista(r.boletines || r.boletin).map(normalizarBoletin),
@@ -193176,7 +193294,7 @@ function parsearAsignacionesCsv(texto) {
   const parsed = Papa.parse(texto.replace(/^﻿/, ""), {
     header: true,
     skipEmptyLines: true,
-    transformHeader: (h) => norm2(h).replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")
+    transformHeader: (h) => norm3(h).replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")
   });
   const registros = [];
   const rechazados = [];
@@ -193341,11 +193459,11 @@ function detectarConexiones(datos, agenda) {
   for (const inv of activas) {
     if (!inv.comision) continue;
     const seguidores = datos.asignaciones.filter(
-      (s) => norm2(s.comision) === norm2(inv.comision) && norm2(s.investigador) !== norm2(inv.investigador)
+      (s) => norm3(s.comision) === norm3(inv.comision) && norm3(s.investigador) !== norm3(inv.investigador)
     );
     for (const s of seguidores) {
       coordinacion.push({
-        id: `com-${inv.id}-${norm2(s.investigador).replace(/\s+/g, "-")}`,
+        id: `com-${inv.id}-${norm3(s.investigador).replace(/\s+/g, "-")}`,
         tipo: "coordinacion",
         titulo: `Informe para ${inv.comision}`,
         mensaje: `${s.investigador} (${s.area || "ATP"}) acompa\xF1a esta comisi\xF3n y quiz\xE1 no sabe que se est\xE1 elaborando este trabajo.`,
@@ -193378,8 +193496,8 @@ function detectarConexiones(datos, agenda) {
     if (!previas || previas.length === 0) continue;
     const comisionesAgenda = agenda.porBoletin.get(bol) || [];
     const yaCubierto = continuidad.some((c) => c.id.startsWith(`cont-${bol}-`));
-    const comisionesATP = new Set(previas.map((p) => norm2(p.comision || "")));
-    const nuevaComision = comisionesAgenda.find((c) => !comisionesATP.has(norm2(c)));
+    const comisionesATP = new Set(previas.map((p) => norm3(p.comision || "")));
+    const nuevaComision = comisionesAgenda.find((c) => !comisionesATP.has(norm3(c)));
     if (yaCubierto || !nuevaComision) continue;
     continuidad.push({
       id: `cont-agenda-${bol}`,
@@ -194335,228 +194453,14 @@ apiRouter.get("/comision/:id", async (req, res) => {
       } catch (err) {
         console.warn("Could not refresh live citaciones for commission:", err);
       }
-      if (matchDetalle.id === "agricultura") {
-        const sesionesAgriReales = [
-          {
-            id: "ses-agri-08sep2026",
-            fecha: "Martes 08 de septiembre de 2026",
-            hora: "15:00 a 17:00 hrs.",
-            lugar: "Sala Pedro Pablo \xC1lvarez-Salamanca (Valpara\xEDso)",
-            tipo: "Sesi\xF3n Ordinaria",
-            citacionNumero: "Citaci\xF3n Oficial N\xB0 86",
-            materia: "Continuar con el estudio t\xE9cnico y votaci\xF3n particular del proyecto de ley que 'Modifica la Ley General de Urbanismo y Construcciones, y otros cuerpos legales, para regular el desarrollo de zonas residenciales en el medio rural' (Bolet\xEDn N\xB0 17.006-01), y an\xE1lisis de medidas fitosanitarias de emergencia.",
-            invitados: "Subsecretario de Agricultura, Director Nacional del SAG, representantes de la Sociedad Nacional de Agricultura (SNA) y Federaci\xF3n de Productores de Frutas (Fedefruta).",
-            acuerdosCount: 3,
-            completada: true,
-            videoUrl: "https://www.youtube.com/watch?v=hAoqbh-qgDk",
-            actaTexto: "La Comisi\xF3n de Agricultura de la C\xE1mara sesion\xF3 para continuar la tramitaci\xF3n del Bolet\xEDn 17.006-01 sobre parcelaciones y sustentabilidad del suelo agr\xEDcola, recibiendo las observaciones del SAG y gremios agr\xEDcolas.",
-            acuerdosTexto: [
-              "Se aprueba en particular el art\xEDculo referente a servidumbres y caminos de acceso rural.",
-              "Se acuerda oficiar al SAG para informe de fiscalizaci\xF3n sobre cambio de uso de suelo.",
-              "Se fija sesi\xF3n especial para votaci\xF3n de indicaciones sustitutivas."
-            ],
-            tabla: [
-              "1. Bolet\xEDn N\xB0 17.006-01: Regulaci\xF3n de subdivisiones y desarrollo habitacional en suelo rural.",
-              "2. Presentaci\xF3n del Servicio Agr\xEDcola y Ganadero (SAG) sobre control de plagas y resguardo de la producci\xF3n agr\xEDcola.",
-              "3. Votaci\xF3n de indicaciones parlamentarias al texto legal."
-            ]
-          },
-          {
-            id: "ses-agri-01sep2026",
-            fecha: "Martes 01 de septiembre de 2026",
-            hora: "15:00 a 17:00 hrs.",
-            lugar: "Sala Pedro Pablo \xC1lvarez-Salamanca (Valpara\xEDso)",
-            tipo: "Sesi\xF3n Ordinaria",
-            citacionNumero: "Citaci\xF3n Oficial N\xB0 85",
-            materia: "Continuar con la discusi\xF3n del proyecto de ley que 'Modifica la Ley General de Urbanismo y Construcciones, y otros cuerpos legales, para regular el desarrollo de zonas residenciales en el medio rural' (Bolet\xEDn N\xB0 17.006-01). Audiencias con Ministro de Agricultura y Ministro de Vivienda y Urbanismo (MINVU).",
-            invitados: "Ministro de Agricultura (Jaime Campos); Ministro de Vivienda y Urbanismo (Iv\xE1n Poduje); Representantes de gremios rurales y t\xE9cnicos del sector.",
-            acuerdosCount: 2,
-            completada: true,
-            videoUrl: "https://www.youtube.com/watch?v=xehoHfI93oY",
-            actaTexto: "Se inici\xF3 la sesi\xF3n para proseguir el an\xE1lisis del Bolet\xEDn 17.006-01 sobre loteos y subdivisiones prediales en el medio rural. Expusieron los Ministros de Agricultura y MINVU sobre impacto en suelo agr\xEDcola y exigencias sanitarias.",
-            acuerdosTexto: [
-              "Se acuerda recibir propuesta de indicaciones del Ejecutivo sobre est\xE1ndares m\xEDnimos sanitarios y servidumbres de paso.",
-              "Se fija plazo para recibir observaciones de asociaciones gremiales hasta la pr\xF3xima sesi\xF3n ordinaria."
-            ],
-            tabla: [
-              "1. Bolet\xEDn N\xB0 17.006-01: Regulaci\xF3n de loteos y desarrollo de zonas residenciales en el medio rural.",
-              "2. Exposici\xF3n del Ministerio de Agricultura sobre protecci\xF3n de suelo agr\xEDcola y DL 3.516.",
-              "3. Exposici\xF3n del MINVU sobre Ley General de Urbanismo y Construcciones."
-            ]
-          },
-          {
-            id: "ses-agri-18ago2026",
-            fecha: "Martes 18 de agosto de 2026",
-            hora: "15:00 a 17:30 hrs.",
-            lugar: "Sala Pedro Pablo \xC1lvarez-Salamanca (Valpara\xEDso)",
-            tipo: "Sesi\xF3n Ordinaria",
-            citacionNumero: "Citaci\xF3n Oficial N\xB0 84",
-            materia: "Tratamiento de la crisis h\xEDdrica en cuencas agr\xEDcolas del centro y sur del pa\xEDs. Estado de avance en obras de riego tecnificado Ley N\xB0 18.450 y subsidios a la peque\xF1a agricultura campesina (INDAP).",
-            invitados: "Director Nacional de INDAP, Secretario Ejecutivo de la Comisi\xF3n Nacional de Riego (CNR), Directiva de la Asociaci\xF3n de Canalistas.",
-            acuerdosCount: 2,
-            completada: true,
-            videoUrl: "https://www.youtube.com/watch?v=z8l4wcbGnqk",
-            actaTexto: "Audiencia sostenida con la CNR e INDAP para evaluar asignaci\xF3n de fondos de fomento al riego e infraestructura de acumulaci\xF3n h\xEDdrica para medianos y peque\xF1os agricultores.",
-            acuerdosTexto: [
-              "Se solicita a CNR remitir n\xF3mina de proyectos de riego aprobados por regi\xF3n.",
-              "Se oficia a Direcci\xF3n General de Aguas sobre balance h\xEDdrico interanual."
-            ],
-            tabla: [
-              "1. Evaluaci\xF3n presupuestaria Ley N\xB0 18.450 de Fomento al Riego.",
-              "2. Exposici\xF3n de asociaciones de regantes de la Cuenca del Maule y O'Higgins.",
-              "3. Plan de emergencia para peque\xF1os agricultores INDAP."
-            ]
-          },
-          {
-            id: "ses-agri-04ago2026",
-            fecha: "Martes 04 de agosto de 2026",
-            hora: "15:00 a 17:15 hrs.",
-            lugar: "Sala Pedro Pablo \xC1lvarez-Salamanca (Valpara\xEDso)",
-            tipo: "Sesi\xF3n Ordinaria",
-            citacionNumero: "Citaci\xF3n Oficial N\xB0 83",
-            materia: "An\xE1lisis del impacto fitosanitario y medidas de bioseguridad ante detecci\xF3n de focos de plagas cuarentenarias en frutales mayores y menores. Modernizaci\xF3n de barreras fitosanitarias terrestres y portuarias.",
-            invitados: "Jefa de Divisi\xF3n de Protecci\xF3n Agr\xEDcola y Forestal del SAG, Presidente de la Asociaci\xF3n de Exportadores de Frutas de Chile (ASOEX).",
-            acuerdosCount: 1,
-            completada: true,
-            videoUrl: "https://www.youtube.com/watch?v=cGhdIBAMC3s",
-            actaTexto: "Se analiz\xF3 la situaci\xF3n fitosanitaria de exportaci\xF3n de cerezas, ar\xE1ndanos y carozos frente a exigencias internacionales y convenios de exportaci\xF3n bilateral.",
-            acuerdosTexto: [
-              "Acuerdo para coordinar mesa de trabajo permanente entre SAG y comit\xE9s t\xE9cnicos frut\xEDcolas."
-            ],
-            tabla: [
-              "1. Exposici\xF3n SAG sobre control integrado de plagas cuarentenarias.",
-              "2. Medidas de mitigaci\xF3n en plantas de empaque y puertos de salida.",
-              "3. Refuerzo de presupuesto para fiscalizaci\xF3n en pasos fronterizos."
-            ]
-          },
-          {
-            id: "ses-agri-16jun2026",
-            fecha: "Martes 16 de junio de 2026",
-            hora: "15:00 a 17:00 hrs.",
-            lugar: "Sala Pedro Pablo \xC1lvarez-Salamanca (Valpara\xEDso)",
-            tipo: "Sesi\xF3n Ordinaria",
-            citacionNumero: "Citaci\xF3n Oficial N\xB0 82",
-            materia: "Discusi\xF3n sobre seguridad y soberan\xEDa alimentaria nacional, costos de insumos agr\xEDcolas (fertilizantes, semillas y energ\xEDa) y mecanismos de apoyo al cultivo de granos tradicionales (trigo, ma\xEDz, arroz).",
-            invitados: "Presidente de la Sociedad Nacional de Agricultura (SNA), Presidente de COTRISA (Comercializadora de Trigo S.A.), Decano de la Facultad de Agronom\xEDa de la Universidad de Chile.",
-            acuerdosCount: 2,
-            completada: true,
-            videoUrl: "https://www.youtube.com/watch?v=ii8gDPmRIjU",
-            actaTexto: "Audiencia p\xFAblica con actores del mercado de cereales nacionales sobre rentabilidad y competitividad de la producci\xF3n cerealera frente a precios internacionales de importaci\xF3n.",
-            acuerdosTexto: [
-              "Solicitud al Ejecutivo para evaluar l\xEDneas de cr\xE9dito con garant\xEDa estatal (FOGAPE) para siembras de temporada.",
-              "Oficio a ODEPA para entrega peri\xF3dica de boletines de precios al productor."
-            ],
-            tabla: [
-              "1. Diagn\xF3stico del sector de granos y cereales en la zona centro-sur.",
-              "2. Rol de COTRISA en la transparencia de precios de compra de cosechas.",
-              "3. Pol\xEDticas p\xFAblicas de incentivo a la producci\xF3n agr\xEDcola estrat\xE9gica."
-            ]
-          },
-          {
-            id: "ses-agri-12may2026",
-            fecha: "Martes 12 de mayo de 2026",
-            hora: "15:00 a 17:20 hrs.",
-            lugar: "Sala Pedro Pablo \xC1lvarez-Salamanca (Valpara\xEDso)",
-            tipo: "Sesi\xF3n Ordinaria",
-            citacionNumero: "Citaci\xF3n Oficial N\xB0 81",
-            materia: "Proyecto de ley sobre regularizaci\xF3n de pozos e inscripciones de derechos de aprovechamiento de aguas para comunidades agr\xEDcolas y peque\xF1os campesinos.",
-            invitados: "Director General de Aguas (DGA), Director del Instituto de Investigaciones Agropecuarias (INIA), representantes de cooperativas campesinas.",
-            acuerdosCount: 2,
-            completada: true,
-            videoUrl: "https://www.youtube.com/watch?v=gwR25MhhRLI",
-            actaTexto: "Discusi\xF3n sobre simplificaci\xF3n de tr\xE1mites y plazos para la inscripci\xF3n en el Catastro P\xFAblico de Aguas conforme a la reforma del C\xF3digo de Aguas.",
-            acuerdosTexto: [
-              "Se aprueba en general por unanimidad el proyecto de simplificaci\xF3n registral.",
-              "Se fija plazo de indicaciones para la pr\xF3xima semana."
-            ],
-            tabla: [
-              "1. Proyecto de ley de perfeccionamiento del registro de t\xEDtulos de aguas.",
-              "2. Informe de avance de la DGA sobre regularizaciones tramitadas en 2026.",
-              "3. Audiencias con federaciones campesinas de la zona norte y central."
-            ]
-          },
-          {
-            id: "ses-agri-21abr2026",
-            fecha: "Martes 21 de abril de 2026",
-            hora: "15:00 a 16:30 hrs.",
-            lugar: "Sala Pedro Pablo \xC1lvarez-Salamanca (Valpara\xEDso)",
-            tipo: "Sesi\xF3n Ordinaria",
-            citacionNumero: "Citaci\xF3n Oficial N\xB0 80",
-            materia: "Modernizaci\xF3n del Servicio Agr\xEDcola y Ganadero (SAG) y fortalecimiento de sus facultades de inspecci\xF3n en materia de sanidad vegetal y animal.",
-            invitados: "Directorio Nacional de la Asociaci\xF3n de Funcionarios del SAG (AFUSAG), Ministro de Agricultura.",
-            acuerdosCount: 1,
-            completada: true,
-            videoUrl: "https://www.youtube.com/watch?v=ynvw-kxPLzU",
-            actaTexto: "Presentaci\xF3n del gremio AFUSAG respecto a dotaci\xF3n de inspectores de campo y requerimientos presupuestarios para cubrir la fiscalizaci\xF3n fitosanitaria.",
-            acuerdosTexto: [
-              "Se solicita mesa t\xE9cnica entre Hacienda, Agricultura y AFUSAG para mejoras en dotaci\xF3n."
-            ],
-            tabla: [
-              "1. Proyecto de fortalecimiento institucional del SAG.",
-              "2. Exposici\xF3n de AFUSAG sobre condiciones laborales y fiscalizaci\xF3n en terreno.",
-              "3. Intervenci\xF3n de las autoridades del Ministerio de Agricultura."
-            ]
-          },
-          {
-            id: "ses-agri-07abr2026",
-            fecha: "Martes 07 de abril de 2026",
-            hora: "15:00 a 17:15 hrs.",
-            lugar: "Sala Pedro Pablo \xC1lvarez-Salamanca (Valpara\xEDso)",
-            tipo: "Sesi\xF3n Ordinaria",
-            citacionNumero: "Citaci\xF3n Oficial N\xB0 79",
-            materia: "Plan Nacional de Prevenci\xF3n y Combate de Incendios Forestales 2026. Coordinaci\xF3n entre CONAF, SENAPRED, Bomberos de Chile y sector silvoagropecuario.",
-            invitados: "Director Ejecutivo de CONAF, Director Nacional de SENAPRED, Presidente Nacional de Bomberos de Chile, Presidente de CORMA.",
-            acuerdosCount: 2,
-            completada: true,
-            videoUrl: "https://www.youtube.com/watch?v=8u2ZemH0gv8",
-            actaTexto: "Evaluaci\xF3n de la temporada de incendios y requerimientos normativos para la creaci\xF3n de cortafuegos obligatorios y zonas de interfaz urbano-rural.",
-            acuerdosTexto: [
-              "Se acuerda enviar oficio a CONAF solicitando mapa de vulnerabilidad forestal por regiones.",
-              "Se aprueba citar a los Ministerios de Vivienda e Interior para legislar sobre interfaz urbana-forestal."
-            ],
-            tabla: [
-              "1. Balance de la temporada de prevenci\xF3n de incendios 2025-2026.",
-              "2. Estrategia de cortafuegos y medidas de protecci\xF3n en predios agr\xEDcolas y forestales.",
-              "3. Equipamiento y log\xEDstica a\xE9rea para combate de siniestros."
-            ]
-          },
-          {
-            id: "ses-agri-24mar2026",
-            fecha: "Martes 24 de marzo de 2026",
-            hora: "15:00 a 17:30 hrs.",
-            lugar: "Sala Pedro Pablo \xC1lvarez-Salamanca (Valpara\xEDso)",
-            tipo: "Sesi\xF3n Ordinaria",
-            citacionNumero: "Citaci\xF3n Oficial N\xB0 78",
-            materia: "Fijaci\xF3n de la tabla legislativa del per\xEDodo 2026. Priorizaci\xF3n de proyectos de ley sobre sustentabilidad del suelo, fomento a la agroecolog\xEDa, seguro agr\xEDcola y modernizaci\xF3n del riego.",
-            invitados: "Integrantes titulares de la Comisi\xF3n, Asesores legislativos del Ministerio de Agricultura.",
-            acuerdosCount: 3,
-            completada: true,
-            videoUrl: "https://www.youtube.com/watch?v=zjQe5yTUz1k",
-            actaTexto: "Definici\xF3n del calendario de trabajo y temas prioritarios a despachar en el primer semestre legislativo 2026.",
-            acuerdosTexto: [
-              "Se acuerda sesionar ordinariamente todos los d\xEDas martes de 15:00 a 17:00 horas.",
-              "Se prioriza como primer proyecto en tabla el Bolet\xEDn N\xB0 17.006-01 (subdivisiones y zonas residenciales rurales).",
-              "Se establece agenda mensual de audiencias con gremios y comunidades agr\xEDcolas."
-            ],
-            tabla: [
-              "1. Elecci\xF3n de Presidente de Comisi\xF3n y calendario de sesiones ordinarias.",
-              "2. Determinaci\xF3n de prioridades legislativas para el a\xF1o 2026.",
-              "3. Presentaci\xF3n de proyectos en tr\xE1mite radicados en la comisi\xF3n."
-            ]
-          }
-        ];
-        const existingIds = new Set(fullComision.sesiones.map((s) => s.id));
-        for (const ses of sesionesAgriReales) {
-          if (!existingIds.has(ses.id)) {
-            fullComision.sesiones.push(ses);
-          } else {
-            const idx = fullComision.sesiones.findIndex((s) => s.id === ses.id);
-            if (idx !== -1) {
-              fullComision.sesiones[idx] = { ...fullComision.sesiones[idx], ...ses };
-            }
-          }
+      try {
+        const hist = await sesionesCamaraDeComision(matchDetalle.id, matchDetalle.nombre);
+        if (hist.length > 0) {
+          fullComision.sesiones = [...fullComision.sesiones.filter((s) => !s.id.startsWith("ses-agri-")), ...hist];
+          fullComision.sesionesRealizadas = Math.max(fullComision.sesionesRealizadas || 0, hist.filter((h) => h.completada).length);
         }
-        fullComision.sesiones.sort(compareSesionesDesc);
+      } catch (err) {
+        console.warn("No se pudo armar el historial de sesiones de la C\xE1mara:", err);
       }
     }
     fullComision.sesiones = mergeSesionesDuplicadas(
