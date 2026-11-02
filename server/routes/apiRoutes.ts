@@ -988,9 +988,10 @@ apiRouter.get("/comision/:id", async (req: Request, res: Response) => {
           // Historial real de sesiones (lista oficial del Senado enviada por la extensión).
           const hist = await sesionesSenadoDeComision(String(matchDetalle.senadoId)).catch(() => ({ sesiones: [] as any[] }));
           if (hist.sesiones.length > 0) {
-            const existentes = new Set(fullComision.sesiones.map(s => `${s.fecha}`));
+            // El registro oficial manda: se quitan las citaciones de esos mismos días.
+            const fechasOficiales = new Set(hist.sesiones.map((h: any) => h.fecha));
+            fullComision.sesiones = fullComision.sesiones.filter(s => !fechasOficiales.has(String(s.fecha)));
             const historicas = hist.sesiones
-              .filter((h: any) => !existentes.has(h.fecha))
               .map((h: any) => ({
                 id: `ses-sen-hist-${h.idSesion}`,
                 fecha: h.fecha,

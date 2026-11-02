@@ -187666,7 +187666,8 @@ function mergeSesionesDuplicadas(sesiones) {
   const ordenGrupos = [];
   sesiones.forEach((s, idx) => {
     const d = parseFechaSesion(s.fecha);
-    const key = d ? `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}` : `__sin_fecha_${s.id || idx}`;
+    const idOficial = s.senadoSesionId ? `-${s.senadoSesionId}` : "";
+    const key = d ? `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}${idOficial}` : `__sin_fecha_${s.id || idx}`;
     if (!grupos.has(key)) {
       grupos.set(key, []);
       ordenGrupos.push(key);
@@ -194304,8 +194305,9 @@ apiRouter.get("/comision/:id", async (req, res) => {
           }
           const hist = await sesionesSenadoDeComision(String(matchDetalle.senadoId)).catch(() => ({ sesiones: [] }));
           if (hist.sesiones.length > 0) {
-            const existentes = new Set(fullComision.sesiones.map((s) => `${s.fecha}`));
-            const historicas = hist.sesiones.filter((h) => !existentes.has(h.fecha)).map((h) => ({
+            const fechasOficiales = new Set(hist.sesiones.map((h) => h.fecha));
+            fullComision.sesiones = fullComision.sesiones.filter((s) => !fechasOficiales.has(String(s.fecha)));
+            const historicas = hist.sesiones.map((h) => ({
               id: `ses-sen-hist-${h.idSesion}`,
               fecha: h.fecha,
               hora: [h.inicio, h.termino].filter(Boolean).join(" a "),

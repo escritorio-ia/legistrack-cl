@@ -137,7 +137,9 @@ export function mergeSesionesDuplicadas<T extends SesionLike>(sesiones: T[]): T[
 
   sesiones.forEach((s, idx) => {
     const d = parseFechaSesion(s.fecha);
-    const key = d ? `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}` : `__sin_fecha_${s.id || idx}`;
+    // Dos sesiones oficiales distintas el mismo día (con su propio ID del Senado) no se fusionan.
+    const idOficial = (s as any).senadoSesionId ? `-${(s as any).senadoSesionId}` : "";
+    const key = d ? `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}${idOficial}` : `__sin_fecha_${s.id || idx}`;
     if (!grupos.has(key)) {
       grupos.set(key, []);
       ordenGrupos.push(key);
