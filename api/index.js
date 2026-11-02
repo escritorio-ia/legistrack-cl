@@ -188120,19 +188120,28 @@ async function intentarGroq(prompt, maxTokens) {
 async function intentarClaude(prompt, maxTokens) {
   const claude = getClaudeClient();
   if (!claude) return { provider: "claude", configured: !!process.env.ANTHROPIC_API_KEY };
-  try {
-    const resp = await claude.messages.create({
-      model: "claude-3-5-haiku-20241022",
-      max_tokens: maxTokens,
-      temperature: 0.15,
-      messages: [{ role: "user", content: prompt }]
-    });
-    const text = resp.content[0].type === "text" ? resp.content[0].text : "";
-    return text ? { provider: "claude", configured: true, text } : { provider: "claude", configured: true, error: "respuesta vac\xEDa" };
-  } catch (err) {
-    handleClaudeError("Claude Universal", err);
-    return { provider: "claude", configured: true, error: err?.message || String(err) };
+  const modelos = Array.from(new Set([process.env.ANTHROPIC_MODEL, "claude-haiku-5-5", "claude-haiku-4-5"].filter(Boolean)));
+  let ultimoError = "";
+  for (const model of modelos) {
+    try {
+      const resp = await claude.messages.create({
+        model,
+        max_tokens: maxTokens,
+        messages: [{ role: "user", content: prompt }]
+      });
+      const bloque = resp.content.find((c) => c.type === "text");
+      const text = bloque?.text || "";
+      if (text) return { provider: "claude", configured: true, text };
+      ultimoError = "respuesta vac\xEDa";
+    } catch (err) {
+      ultimoError = err?.message || String(err);
+      if (!/not[_ ]found|404|model/i.test(ultimoError)) {
+        handleClaudeError("Claude Universal", err);
+        break;
+      }
+    }
   }
+  return { provider: "claude", configured: true, error: ultimoError };
 }
 var LIMITE_TOTAL_IA_MS = 16e4;
 async function generarContenidoUniversalIA(prompt, maxTokens = 2e3, attempts) {

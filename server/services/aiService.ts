@@ -433,19 +433,31 @@ async function intentarGroq(prompt: string, maxTokens: number): Promise<Provider
 async function intentarClaude(prompt: string, maxTokens: number): Promise<ProviderRunResult> {
   const claude = getClaudeClient();
   if (!claude) return { provider: "claude", configured: !!process.env.ANTHROPIC_API_KEY };
-  try {
-    const resp = await claude.messages.create({
-      model: "claude-3-5-haiku-20241022",
-      max_tokens: maxTokens,
-      temperature: 0.15,
-      messages: [{ role: "user", content: prompt }]
-    });
-    const text = resp.content[0].type === "text" ? resp.content[0].text : "";
-    return text ? { provider: "claude", configured: true, text } : { provider: "claude", configured: true, error: "respuesta vacía" };
-  } catch (err: any) {
-    handleClaudeError("Claude Universal", err);
-    return { provider: "claude", configured: true, error: err?.message || String(err) };
+  // Modelo configurable (ANTHROPIC_MODEL); por defecto el Haiku vigente, el más económico.
+  // Si un modelo no existe para la cuenta, se prueba el siguiente.
+  const modelos = Array.from(new Set([process.env.ANTHROPIC_MODEL, "claude-haiku-5-5", "claude-haiku-4-5"].filter(Boolean) as string[]));
+  let ultimoError = "";
+  for (const model of modelos) {
+    try {
+      const resp = await claude.messages.create({
+        model,
+        max_tokens: maxTokens,
+        messages: [{ role: "user", content: prompt }]
+      });
+      const bloque = resp.content.find((c: any) => c.type === "text") as any;
+      const text = bloque?.text || "";
+      if (text) return { provider: "claude", configured: true, text };
+      ultimoError = "respuesta vacía";
+    } catch (err: any) {
+      ultimoError = err?.message || String(err);
+      // Modelo inexistente o no disponible: probar el siguiente. Otros errores (clave, saldo): cortar.
+      if (!/not[_ ]found|404|model/i.test(ultimoError)) {
+        handleClaudeError("Claude Universal", err);
+        break;
+      }
+    }
   }
+  return { provider: "claude", configured: true, error: ultimoError };
 }
 
 const LIMITE_TOTAL_IA_MS = 160000;
