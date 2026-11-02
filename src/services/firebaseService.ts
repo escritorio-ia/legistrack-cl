@@ -121,7 +121,7 @@ export async function saveInformeToFirestore(reportData: {
     const docId = `rep_${reportData.sesionId}`;
     const docRef = doc(db, COLLECTIONS.INFORMES_COMISION, docId);
     await setDoc(docRef, {
-      ...reportData,
+      ...JSON.parse(JSON.stringify(reportData)),
       updatedAt: new Date().toISOString()
     }, { merge: true });
     console.log(`[Firebase Cloud] Report saved successfully: ${docId}`);

@@ -189994,6 +189994,34 @@ async function videosSesionesCanal(camara) {
   const key = process.env.YOUTUBE_API_KEY;
   if (!key) return [];
   return cache.wrap(`yt_sesiones_${camara}_v2`, 6 * 60 * 60 * 1e3, async () => {
+    const docUrl = `https://firestore.googleapis.com/v1/projects/${FS_PROY}/databases/(default)/documents/videos_sesiones/${camara}?key=${FS_KEY2}`;
+    try {
+      const r = await fetch(docUrl, { signal: AbortSignal.timeout(8e3) });
+      if (r.ok) {
+        const d = await r.json();
+        const act = d?.fields?.actualizado?.stringValue;
+        if (act && Date.now() - new Date(act).getTime() < 12 * 60 * 60 * 1e3) {
+          const lista3 = JSON.parse(d?.fields?.payload?.stringValue || "[]");
+          if (Array.isArray(lista3) && lista3.length > 0) return lista3;
+        }
+      }
+    } catch {
+    }
+    const lista2 = await videosDesdeYouTube(camara, key);
+    if (lista2.length > 0) {
+      fetch(docUrl, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fields: { payload: { stringValue: JSON.stringify(lista2) }, actualizado: { stringValue: (/* @__PURE__ */ new Date()).toISOString() } } }),
+        signal: AbortSignal.timeout(1e4)
+      }).catch(() => {
+      });
+    }
+    return lista2;
+  });
+}
+async function videosDesdeYouTube(camara, key) {
+  {
     const playlist = "UU" + CANALES_YOUTUBE[camara].id.slice(2);
     const limite = Date.now() - 270 * 864e5;
     const items = [];
@@ -190023,7 +190051,7 @@ async function videosSesionesCanal(camara) {
       for (const [id, v] of Object.entries(det)) duraciones[id] = v.segundos ?? null;
     }
     return sesiones.map((s) => ({ videoId: s.videoId, comision: s.p.comision, fecha: s.p.fecha, duracion: formatoDuracion2(duraciones[s.videoId] ?? null), titulo: s.titulo, publicado: s.publicado }));
-  });
+  }
 }
 async function resultadosCamaraHistoricos() {
   const docs = await documentosCitacionesCamara();
