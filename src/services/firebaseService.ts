@@ -317,12 +317,45 @@ export async function saveResumenComisionDeProyecto(boletinId: string, comision:
   try {
     await setDoc(doc(db, COLLECTIONS.HISTORIAL_PROYECTOS, claveBoletin(boletinId)), {
       boletinId: claveBoletin(boletinId),
-      resumenesComision: { [claveComision(comision)]: resumen },
+      resumenesComision: { [claveComision(comision)]: JSON.parse(JSON.stringify(resumen ?? {})) },
       updatedAt: new Date().toISOString()
     }, { merge: true });
     return true;
   } catch (err) {
     console.warn("No se pudo guardar el resumen de la comisión:", err);
+    return false;
+  }
+}
+
+/**
+ * Resultados ya generados para un proyecto (ficha ejecutiva, quórum, comparados),
+ * guardados en su historial para que se muestren al instante y no se regeneren.
+ * `ruta` admite un nivel de anidación: "comparados.comision_de_agricultura".
+ */
+export async function getGuardadoProyecto(boletinId: string, ruta: string): Promise<any | null> {
+  if (!db || !boletinId) return null;
+  try {
+    const snap = await getDoc(doc(db, COLLECTIONS.HISTORIAL_PROYECTOS, claveBoletin(boletinId)));
+    if (!snap.exists()) return null;
+    return ruta.split(".").reduce((o: any, k) => (o ? o[k] : undefined), snap.data()) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveGuardadoProyecto(boletinId: string, ruta: string, valor: any): Promise<boolean> {
+  if (!db || !boletinId) return false;
+  const [a, b] = ruta.split(".");
+  // Firestore rechaza campos "undefined": se limpian pasando por JSON.
+  const dato = { ...JSON.parse(JSON.stringify(valor ?? {})), guardadoEn: new Date().toISOString() };
+  try {
+    await setDoc(doc(db, COLLECTIONS.HISTORIAL_PROYECTOS, claveBoletin(boletinId)), {
+      boletinId: claveBoletin(boletinId),
+      ...(b ? { [a]: { [b]: dato } } : { [a]: dato }),
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+    return true;
+  } catch {
     return false;
   }
 }
@@ -344,7 +377,7 @@ export async function saveResumenIFDeProyecto(boletinId: string, resumen: any): 
   try {
     await setDoc(doc(db, COLLECTIONS.HISTORIAL_PROYECTOS, claveBoletin(boletinId)), {
       boletinId: claveBoletin(boletinId),
-      resumenInformesFinancieros: resumen,
+      resumenInformesFinancieros: JSON.parse(JSON.stringify(resumen ?? {})),
       updatedAt: new Date().toISOString()
     }, { merge: true });
     return true;

@@ -54,7 +54,7 @@ import { formatFechaCL, parseFechaSesion } from "../utils/dateUtils";
 import MinutaEjecutivaModal from "../components/MinutaEjecutivaModal";
 import TerritorialImpactPanel from "../components/TerritorialImpactPanel";
 import NotasColaborativasDrawer from "../components/NotasColaborativasDrawer";
-import { getSesionesVinculadasDeProyecto, saveSesionVinculadaAProyecto, SesionVinculadaProyecto, getResumenIFDeProyecto, saveResumenIFDeProyecto } from "../services/firebaseService";
+import { getSesionesVinculadasDeProyecto, saveSesionVinculadaAProyecto, SesionVinculadaProyecto, getResumenIFDeProyecto, saveResumenIFDeProyecto, getGuardadoProyecto, saveGuardadoProyecto, claveComision } from "../services/firebaseService";
 
 interface ProyectoDetailViewProps {
   proyectoId: string;
@@ -429,11 +429,20 @@ export default function ProyectoDetailView({
     let cancelado = false;
     setFichaIA(null);
     setFichaLoading(true);
-    fetch(`/api/proyecto/${encodeURIComponent(proyectoId)}/ficha-ejecutiva`)
-      .then(r => r.json())
-      .then(d => { if (!cancelado && d?.disponible && d.ficha) setFichaIA(d.ficha); })
-      .catch(() => {})
-      .finally(() => { if (!cancelado) setFichaLoading(false); });
+    // Primero lo guardado (instantáneo); si no existe, se genera y se guarda.
+    getGuardadoProyecto(proyectoId, "fichaEjecutiva").then(g => {
+      if (cancelado) return;
+      if (g?.ficha && g.ficha.fuente === "texto") { setFichaIA(g.ficha); setFichaLoading(false); return; }
+      fetch(`/api/proyecto/${encodeURIComponent(proyectoId)}/ficha-ejecutiva`)
+        .then(r => r.json())
+        .then(d => {
+          if (cancelado || !d?.disponible || !d.ficha) return;
+          setFichaIA(d.ficha);
+          if (d.ficha.fuente === "texto") saveGuardadoProyecto(proyectoId, "fichaEjecutiva", { ficha: d.ficha });
+        })
+        .catch(() => {})
+        .finally(() => { if (!cancelado) setFichaLoading(false); });
+    });
     return () => { cancelado = true; };
   }, [proyectoId]);
   const fichaVista = fichaIA || proyecto.fichaTecnica;
@@ -442,10 +451,18 @@ export default function ProyectoDetailView({
   useEffect(() => {
     let cancelado = false;
     setQuorumDoc(null);
-    fetch(`/api/proyecto/${encodeURIComponent(proyectoId)}/quorum`)
-      .then(r => r.json())
-      .then(d => { if (!cancelado) setQuorumDoc(d); })
-      .catch(() => { if (!cancelado) setQuorumDoc({ disponible: false, motivo: "No se pudo consultar el quórum." }); });
+    getGuardadoProyecto(proyectoId, "quorum").then(g => {
+      if (cancelado) return;
+      if (g?.disponible) { setQuorumDoc(g); return; }
+      fetch(`/api/proyecto/${encodeURIComponent(proyectoId)}/quorum`)
+        .then(r => r.json())
+        .then(d => {
+          if (cancelado) return;
+          setQuorumDoc(d);
+          if (d?.disponible) saveGuardadoProyecto(proyectoId, "quorum", d);
+        })
+        .catch(() => { if (!cancelado) setQuorumDoc({ disponible: false, motivo: "No se pudo consultar el quórum." }); });
+    });
     return () => { cancelado = true; };
   }, [proyectoId]);
 
@@ -492,11 +509,20 @@ export default function ProyectoDetailView({
     let cancelado = false;
     setComparadoLoading(true);
     setComparadoReal(null);
-    fetch(`/api/proyecto/${encodeURIComponent(proyecto.id)}/comparado?comision=${encodeURIComponent(selectedComisionSafe)}`)
-      .then(res => res.json())
-      .then(data => { if (!cancelado) setComparadoReal(data); })
-      .catch(() => { if (!cancelado) setComparadoReal({ disponible: false, razon: "No fue posible consultar el comparado en este momento.", comparaciones: [] }); })
-      .finally(() => { if (!cancelado) setComparadoLoading(false); });
+    const rutaComparado = `comparados.${claveComision(selectedComisionSafe)}`;
+    getGuardadoProyecto(proyecto.id, rutaComparado).then(g => {
+      if (cancelado) return;
+      if (g?.disponible) { setComparadoReal(g); setComparadoLoading(false); return; }
+      fetch(`/api/proyecto/${encodeURIComponent(proyecto.id)}/comparado?comision=${encodeURIComponent(selectedComisionSafe)}`)
+        .then(res => res.json())
+        .then(data => {
+          if (cancelado) return;
+          setComparadoReal(data);
+          if (data?.disponible) saveGuardadoProyecto(proyecto.id, rutaComparado, data);
+        })
+        .catch(() => { if (!cancelado) setComparadoReal({ disponible: false, razon: "No fue posible consultar el comparado en este momento.", comparaciones: [] }); })
+        .finally(() => { if (!cancelado) setComparadoLoading(false); });
+    });
     return () => { cancelado = true; };
   }, [activeTab, proyecto.id, selectedComisionSafe]);
 
