@@ -189150,7 +189150,7 @@ async function resumenPasoComision(boletinId, comision) {
   const digits = String(boletinId || "").replace(/\./g, "").match(/\d{3,6}/)?.[0] || "";
   if (!digits || !comision) return { disponible: false, motivo: "Faltan el bolet\xEDn o la comisi\xF3n." };
   const norm4 = (x) => x.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
-  const clave = `resumen_comision_v2_${digits}_${norm4(comision)}`;
+  const clave = `resumen_comision_v3_${digits}_${norm4(comision)}`;
   const previo = cache.get(clave);
   if (previo) return previo;
   const p = await fetchProyectoFromSenado(digits);
@@ -189182,7 +189182,7 @@ ${votos.slice(0, Math.round(2e3 * factor))}`);
 ${bloques.join("\n\n")}
 
 Responde en TEXTO PLANO con exactamente este formato (sin JSON ni markdown):
-PERIODO: fechas o sesiones en que la comisi\xF3n trat\xF3 el proyecto, seg\xFAn el informe ("No informado" si no aparece)
+PERIODO: fechas de las sesiones en que la comisi\xF3n trat\xF3 el proyecto, seg\xFAn el informe ("No informado" si no aparece). NO uses plazos de urgencia ni fechas futuras como per\xEDodo; la fecha de hoy es ${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}
 SESIONES: n\xFAmero de sesiones dedicadas al proyecto seg\xFAn el informe ("No informado" si no aparece)
 EXPOSITORES:
 nombre | cargo e instituci\xF3n | qu\xE9 plante\xF3, 1-2 frases
@@ -189194,7 +189194,7 @@ CAMBIOS:
 RESUMEN:
 150-250 palabras sobre el paso del proyecto por la comisi\xF3n.
 
-Reglas: usa SOLO lo que dicen los extractos; no inventes nombres, cargos, cifras ni votos; si algo no aparece, escribe "No informado". Usa guion normal.`;
+Reglas: usa SOLO lo que dicen los extractos; no inventes nombres, cargos, cifras ni votos; si algo no aparece, escribe "No informado". Usa guion normal. No menciones plazos de urgencia en el RESUMEN, salvo que el informe los destaque; y si lo haces, usa el tiempo verbal seg\xFAn la fecha de hoy (un plazo futuro no "venci\xF3").`;
   const intentos = [];
   let resp = null;
   try {
@@ -189216,6 +189216,7 @@ Reglas: usa SOLO lo que dicen los extractos; no inventes nombres, cargos, cifras
   }
   const r = {
     disponible: true,
+    version: 3,
     comision,
     informes: informes.map((i) => ({ titulo: i.titulo, url: i.url, fecha: i.fecha })),
     periodo: seccion("PERIODO") || "No informado",

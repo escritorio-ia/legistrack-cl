@@ -15,7 +15,7 @@ export default function ResumenComisionPanel({ proyectoId, comision, retrasoMs =
     setDatos(null);
     getResumenComisionDeProyecto(proyectoId, comision).then(g => {
       if (cancelado) return;
-      if (g?.disponible) { setDatos(g); return; }
+      if (g?.disponible && g.version >= 3) { setDatos(g); return; }
       timer = setTimeout(() => { if (!cancelado) generar(); }, retrasoMs);
     });
     return () => { cancelado = true; if (timer) clearTimeout(timer); };
@@ -35,10 +35,12 @@ export default function ResumenComisionPanel({ proyectoId, comision, retrasoMs =
     <div className="bg-white border border-indigo-200 rounded-xl p-4 space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs font-black text-indigo-900 flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5" /> Resumen del paso por la comisión</p>
-        {!datos?.disponible && !cargando && (
+        {!cargando && (
           <button type="button" onClick={generar} disabled={cargando}
-            className="text-xs font-bold bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white px-3 py-1.5 rounded-lg cursor-pointer flex items-center gap-1.5">
-            {cargando ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Leyendo el informe… (hasta 1 minuto)</> : "Generar resumen desde el informe"}
+            className={datos?.disponible
+              ? "text-[11px] font-bold text-indigo-700 hover:underline cursor-pointer"
+              : "text-xs font-bold bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white px-3 py-1.5 rounded-lg cursor-pointer flex items-center gap-1.5"}>
+            {datos?.disponible ? "Regenerar" : "Generar resumen desde el informe"}
           </button>
         )}
       </div>

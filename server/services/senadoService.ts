@@ -1301,6 +1301,7 @@ Usa solo lo que dicen los extractos. Si los extractos no califican las normas de
 // ---------------------------------------------------------------------------
 export interface ResumenComision {
   disponible: boolean;
+  version?: number;
   motivo?: string;
   comision?: string;
   informes?: { titulo: string; url: string; fecha: string }[];
@@ -1330,7 +1331,7 @@ export async function resumenPasoComision(boletinId: string, comision: string): 
   const digits = String(boletinId || "").replace(/\./g, "").match(/\d{3,6}/)?.[0] || "";
   if (!digits || !comision) return { disponible: false, motivo: "Faltan el boletín o la comisión." };
   const norm = (x: string) => x.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
-  const clave = `resumen_comision_v2_${digits}_${norm(comision)}`;
+  const clave = `resumen_comision_v3_${digits}_${norm(comision)}`;
   const previo = cache.get<ResumenComision>(clave);
   if (previo) return previo;
 
@@ -1363,7 +1364,7 @@ export async function resumenPasoComision(boletinId: string, comision: string): 
 ${bloques.join("\n\n")}
 
 Responde en TEXTO PLANO con exactamente este formato (sin JSON ni markdown):
-PERIODO: fechas o sesiones en que la comisión trató el proyecto, según el informe ("No informado" si no aparece)
+PERIODO: fechas de las sesiones en que la comisión trató el proyecto, según el informe ("No informado" si no aparece). NO uses plazos de urgencia ni fechas futuras como período; la fecha de hoy es ${new Date().toISOString().slice(0, 10)}
 SESIONES: número de sesiones dedicadas al proyecto según el informe ("No informado" si no aparece)
 EXPOSITORES:
 nombre | cargo e institución | qué planteó, 1-2 frases
@@ -1375,7 +1376,7 @@ CAMBIOS:
 RESUMEN:
 150-250 palabras sobre el paso del proyecto por la comisión.
 
-Reglas: usa SOLO lo que dicen los extractos; no inventes nombres, cargos, cifras ni votos; si algo no aparece, escribe "No informado". Usa guion normal.`;
+Reglas: usa SOLO lo que dicen los extractos; no inventes nombres, cargos, cifras ni votos; si algo no aparece, escribe "No informado". Usa guion normal. No menciones plazos de urgencia en el RESUMEN, salvo que el informe los destaque; y si lo haces, usa el tiempo verbal según la fecha de hoy (un plazo futuro no "venció").`;
 
   const intentos: AIProviderAttempt[] = [];
   let resp: string | null = null;
@@ -1394,7 +1395,7 @@ Reglas: usa SOLO lo que dicen los extractos; no inventes nombres, cargos, cifras
     return { disponible: false, comision, motivo: `No fue posible generar el resumen con IA en este momento.${det ? ` Detalle: ${det}` : ""}` };
   }
   const r: ResumenComision = {
-    disponible: true,
+    disponible: true, version: 3,
     comision,
     informes: informes.map(i => ({ titulo: i.titulo, url: i.url!, fecha: i.fecha })),
     periodo: seccion("PERIODO") || "No informado",
