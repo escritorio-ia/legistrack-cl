@@ -250,9 +250,10 @@ Ordena las intervenciones cronológicamente y registra cada cambio relevante de 
     for (const m of candidatos) {
       model = m;
       try {
-        res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${apiKey}`, {
+        res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          // La clave va en el encabezado: funciona con claves "AIza…" y con las nuevas "AQ.…".
+          headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
           body: JSON.stringify({
             contents: [{
               parts: [

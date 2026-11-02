@@ -189879,9 +189879,10 @@ Ordena las intervenciones cronol\xF3gicamente y registra cada cambio relevante d
     for (const m of candidatos) {
       model = m;
       try {
-        res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${apiKey}`, {
+        res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          // La clave va en el encabezado: funciona con claves "AIza…" y con las nuevas "AQ.…".
+          headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
           body: JSON.stringify({
             contents: [{
               parts: [
@@ -190218,7 +190219,7 @@ async function textoInformeFinanciero(pdfUrl) {
   if (previo) return previo;
   const res = await fetch(url.toString(), {
     headers: { "User-Agent": "Mozilla/5.0 (compatible; LegisTrackCL/1.0)" },
-    signal: AbortSignal.timeout(3e4)
+    signal: AbortSignal.timeout(25e3)
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const { extractText, getDocumentProxy } = await import("unpdf");
@@ -190276,19 +190277,24 @@ var ordenIF = (n) => {
 async function resumenConsolidadoInformesFinancieros(boletin) {
   const informes = (await informesFinancierosDeBoletin(boletin)).sort((a, b) => ordenIF(a.numero) - ordenIF(b.numero));
   if (informes.length === 0) return { disponible: false, motivo: "La DIPRES no registra informes financieros para este bolet\xEDn.", total: 0 };
-  const clave = `dipres_consolidado_v2_${claveBoletinIF(boletin)}_${informes.map((i) => i.numero).join(",")}`;
+  const clave = `dipres_consolidado_v3_${claveBoletinIF(boletin)}_${informes.map((i) => i.numero).join(",")}`;
   const previo = cache.get(clave);
   if (previo) return previo;
-  const porInforme = Math.max(2500, Math.floor(26e3 / informes.length));
+  const porInforme = Math.max(1600, Math.floor(28e3 / informes.length));
+  const textos = new Array(informes.length).fill("");
+  for (let i = 0; i < informes.length; i += 5) {
+    await Promise.all(informes.slice(i, i + 5).map(async (inf, j2) => {
+      try {
+        textos[i + j2] = inf.pdf ? await textoInformeFinanciero(inf.pdf) : "";
+      } catch {
+        textos[i + j2] = "";
+      }
+    }));
+  }
   const bloques = [];
   let leidos = 0;
-  for (const inf of informes) {
-    let texto2 = "";
-    try {
-      texto2 = inf.pdf ? await textoInformeFinanciero(inf.pdf) : "";
-    } catch {
-      texto2 = "";
-    }
+  for (const [idx, inf] of informes.entries()) {
+    const texto2 = textos[idx];
     if (texto2) leidos++;
     bloques.push(`=== IF N\xB0 ${inf.numero} (a\xF1o ${inf.anio}; estado: ${inf.estado}; mensaje ${inf.mensaje || "s/n"}) ===
 Materia: ${inf.materia}

@@ -344,14 +344,18 @@ export default function ProyectoDetailView({
   // Resumen consolidado (~500 palabras) de todos los informes financieros.
   const [consolidadoIF, setConsolidadoIF] = useState<any | null>(null);
   const [consolidadoIFCargando, setConsolidadoIFCargando] = useState(false);
+  const [consolidadoIFPendiente, setConsolidadoIFPendiente] = useState(false);
   const numerosIF = (informesFin?.informes || []).map(i => i.numero).sort().join(",");
   useEffect(() => {
     setConsolidadoIF(null);
     if (!numerosIF) return;
     let cancelado = false;
     getResumenIFDeProyecto(proyectoId).then(g => {
-      // Solo se reutiliza si corresponde exactamente a los mismos informes.
-      if (!cancelado && g?.disponible && g.numeros === numerosIF) setConsolidadoIF(g);
+      if (cancelado) return;
+      // Solo se reutiliza si corresponde exactamente a los mismos informes;
+      // si no existe, se genera solo al abrir la pestaña Informes.
+      if (g?.disponible && g.numeros === numerosIF) setConsolidadoIF(g);
+      else setConsolidadoIFPendiente(true);
     });
     return () => { cancelado = true; };
   }, [proyectoId, numerosIF]);
@@ -367,6 +371,15 @@ export default function ProyectoDetailView({
       .catch(() => setConsolidadoIF({ disponible: false, motivo: "No se pudo generar el resumen." }))
       .finally(() => setConsolidadoIFCargando(false));
   };
+
+  // Al abrir la pestaña Informes, si no hay resumen guardado, se genera solo.
+  useEffect(() => {
+    if (activeTab === "informes-bcn" && consolidadoIFPendiente && !consolidadoIF && !consolidadoIFCargando) {
+      setConsolidadoIFPendiente(false);
+      generarConsolidadoIF();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, consolidadoIFPendiente]);
 
   useEffect(() => {
     let cancelado = false;
@@ -2537,7 +2550,10 @@ export default function ProyectoDetailView({
                           </button>
                         )}
                       </div>
-                      {consolidadoIF && !consolidadoIF.disponible && (
+                      {consolidadoIFCargando && (
+                        <p className="text-xs text-emerald-800">Leyendo los {informesFin.informes.length} informes financieros y redactando el resumen… (puede tardar 1 a 2 minutos)</p>
+                      )}
+                      {consolidadoIF && !consolidadoIF.disponible && !consolidadoIFCargando && (
                         <p className="text-xs text-amber-700">{consolidadoIF.motivo}</p>
                       )}
                       {consolidadoIF?.disponible && (

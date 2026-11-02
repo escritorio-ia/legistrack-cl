@@ -86,7 +86,7 @@ export async function textoInformeFinanciero(pdfUrl: string): Promise<string> {
   if (previo) return previo;
   const res = await fetch(url.toString(), {
     headers: { "User-Agent": "Mozilla/5.0 (compatible; LegisTrackCL/1.0)" },
-    signal: AbortSignal.timeout(30000)
+    signal: AbortSignal.timeout(25000)
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const { extractText, getDocumentProxy } = await import("unpdf");
@@ -177,17 +177,23 @@ export async function resumenConsolidadoInformesFinancieros(boletin: string): Pr
   const informes = (await informesFinancierosDeBoletin(boletin)).sort((a, b) => ordenIF(a.numero) - ordenIF(b.numero));
   if (informes.length === 0) return { disponible: false, motivo: "La DIPRES no registra informes financieros para este boletín.", total: 0 };
 
-  const clave = `dipres_consolidado_v2_${claveBoletinIF(boletin)}_${informes.map(i => i.numero).join(",")}`;
+  const clave = `dipres_consolidado_v3_${claveBoletinIF(boletin)}_${informes.map(i => i.numero).join(",")}`;
   const previo = cache.get<ResumenConsolidadoIF>(clave);
   if (previo) return previo;
 
   // Cada informe aporta su texto; se reparte el espacio para que quepan todos.
-  const porInforme = Math.max(2500, Math.floor(26000 / informes.length));
+  const porInforme = Math.max(1600, Math.floor(28000 / informes.length));
+  // Los PDF se descargan en paralelo (de a 5), para que alcancen todos dentro del tiempo.
+  const textos: string[] = new Array(informes.length).fill("");
+  for (let i = 0; i < informes.length; i += 5) {
+    await Promise.all(informes.slice(i, i + 5).map(async (inf, j) => {
+      try { textos[i + j] = inf.pdf ? await textoInformeFinanciero(inf.pdf) : ""; } catch { textos[i + j] = ""; }
+    }));
+  }
   const bloques: string[] = [];
   let leidos = 0;
-  for (const inf of informes) {
-    let texto = "";
-    try { texto = inf.pdf ? await textoInformeFinanciero(inf.pdf) : ""; } catch { texto = ""; }
+  for (const [idx, inf] of informes.entries()) {
+    const texto = textos[idx];
     if (texto) leidos++;
     bloques.push(`=== IF N° ${inf.numero} (año ${inf.anio}; estado: ${inf.estado}; mensaje ${inf.mensaje || "s/n"}) ===
 Materia: ${inf.materia}
