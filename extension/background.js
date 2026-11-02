@@ -125,11 +125,36 @@ chrome.runtime.onStartup.addListener(() => { chrome.alarms.create("recordatorio-
 // sesiones más recientes de cada comisión a la API pública que usa senado.cl
 // y se envían a la app.
 // ---------------------------------------------------------------------------
+// Detalle (puntos, aspectos, acuerdos, invitados) de las sesiones de los últimos 60
+// días que aún no se han enviado. Las ya enviadas se recuerdan para no repetir.
+function fechaDMY(f) { const m = String(f || "").match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/); return m ? new Date(+m[3], +m[2] - 1, +m[1]) : null; }
+
+async function enviarDetallesRecientes(idComision, filas) {
+  const limite = Date.now() - 60 * 86400000;
+  const { detallesSenado = {} } = await chrome.storage.local.get("detallesSenado");
+  const pendientes = filas.filter(f => { const d = fechaDMY(f.FECHA); return d && d.getTime() >= limite && d.getTime() <= Date.now() && !detallesSenado[f.ID_SESION]; }).slice(0, 15);
+  const lote = [];
+  for (const f of pendientes) {
+    try {
+      const r = await fetch(`https://web-back.senado.cl/api/commission_session?id_sesion=${f.ID_SESION}`, { headers: { Accept: "application/json" } });
+      if (r.ok) lote.push({ idComision, idSesion: String(f.ID_SESION), raw: await r.json() });
+    } catch { /* se reintenta en la próxima sincronización */ }
+    await new Promise(r => setTimeout(r, 300));
+  }
+  if (lote.length === 0) return 0;
+  try {
+    const res = await enviar("/api/senado/sesiones/detalle/importar", { detalles: lote });
+    for (const x of lote) detallesSenado[x.idSesion] = Date.now();
+    await chrome.storage.local.set({ detallesSenado });
+    return res.detalles || 0;
+  } catch { return 0; }
+}
+
 async function sincronizarSesionesSenado() {
   try {
     const { app } = await config();
     const { ids } = await (await fetch(`${app}/api/senado/comisiones-ids`)).json();
-    let ok = 0, total = 0, errores = 0;
+    let ok = 0, total = 0, errores = 0, detallesEnviados = 0;
     for (const id of ids || []) {
       try {
         const r = await fetch(`https://web-back.senado.cl/api/commission_sessions?id_comision=${id}&limit=100&offset=0&sort=fecha&order=desc`, { headers: { Accept: "application/json" } });
@@ -139,10 +164,11 @@ async function sincronizarSesionesSenado() {
         if (filas.length === 0) continue;
         const res = await enviar("/api/senado/sesiones/importar", { idComision: String(id), sesiones: filas });
         ok++; total += res.sesiones || 0;
+        detallesEnviados += await enviarDetallesRecientes(String(id), filas);
       } catch { errores++; }
       await new Promise(r => setTimeout(r, 400)); // sin apuro: no cargar el servidor del Senado
     }
-    await registrar("sesiones", { ok: ok > 0, detalle: `${total} sesiones de ${ok} comisiones${errores ? ` (${errores} con error)` : ""}` });
+    await registrar("sesiones", { ok: ok > 0, detalle: `${total} sesiones de ${ok} comisiones; ${detallesEnviados} detalles nuevos${errores ? ` (${errores} con error)` : ""}` });
   } catch (e) {
     await registrar("sesiones", { ok: false, detalle: e.message });
   }

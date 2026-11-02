@@ -31,7 +31,8 @@ import {
   importarCitacionesSenado,
   importarSesionesSenado,
   sesionesSenadoDeComision,
-  detalleSesionSenado
+  detalleSesionSenado,
+  importarDetallesSesionesSenado
 } from "../services/senadoService";
 import {
   getTodasComisiones,
@@ -833,6 +834,16 @@ apiRouter.post("/senado/sesiones/importar", expressText({ type: "text/plain", li
   const id = String(body?.idComision || "");
   if (!/^\d+$/.test(id) || !Array.isArray(body?.sesiones)) return res.status(400).json({ ok: false, error: "Faltan idComision o sesiones." });
   try { res.json({ ok: true, sesiones: await importarSesionesSenado(id, body.sesiones) }); }
+  catch (err: any) { res.status(422).json({ ok: false, error: err?.message || String(err) }); }
+});
+
+apiRouter.post("/senado/sesiones/detalle/importar", expressText({ type: "text/plain", limit: "10mb" }), async (req: Request, res: Response) => {
+  let body: any = req.body;
+  if (typeof body === "string") { try { body = JSON.parse(body); } catch { return res.status(400).json({ ok: false, error: "Cuerpo no es JSON válido." }); } }
+  const token = process.env.CITACIONES_IMPORT_TOKEN;
+  if (token && body?.token !== token) return res.status(401).json({ ok: false, error: "Token de importación inválido." });
+  if (!Array.isArray(body?.detalles)) return res.status(400).json({ ok: false, error: "Faltan detalles." });
+  try { res.json({ ok: true, detalles: await importarDetallesSesionesSenado(body.detalles.slice(0, 60)) }); }
   catch (err: any) { res.status(422).json({ ok: false, error: err?.message || String(err) }); }
 });
 

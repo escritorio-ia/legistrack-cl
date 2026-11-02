@@ -1460,30 +1460,68 @@ export interface DetalleSesionSenado {
 
 const textoPlano = (h: any) => String(h ?? "").replace(/<br\s*\/?>/gi, "\n").replace(/<\/p>/gi, "\n").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/[ \t]+/g, " ").replace(/\n\s+/g, "\n").trim();
 
+const nombresDe = (v: any): string => Array.isArray(v)
+  ? v.map((x: any) => String(x?.PARLAMENTARIO || x?.NOMBRE || "").trim()).filter(Boolean).join("; ")
+  : textoPlano(v);
+
+/** Convierte el objeto de sesión del Senado (API o página) al formato de la app. */
+export function parsearDetalleSesionSenado(d: any, url: string): DetalleSesionSenado {
+  return {
+    disponible: true, url,
+    comision: String(d.COMISION || ""), fecha: String(d.FECHA || ""), inicio: String(d.INICIO || ""), termino: String(d.TERMINO || ""), lugar: String(d.LUGAR || ""),
+    puntos: (d.PUNTOS || []).map((p: any) => ({
+      numero: String(p.NUMERO_PUNTO ?? ""), boletin: String(p.NUMERO_BOLETIN || ""), tema: textoPlano(p.PUNTO_TABLA),
+      aspectos: textoPlano(p.ASPECTOS_CONSIDERADOS), acuerdos: textoPlano(p.ACUERDOS),
+      invitados: textoPlano(p.INVITADOS && p.INVITADOS !== "null" ? p.INVITADOS : (p.OTROS_ASISTENTES && p.OTROS_ASISTENTES !== "null" ? p.OTROS_ASISTENTES : "")),
+      asistentes: nombresDe(p.INTEGRANTES && (Array.isArray(p.INTEGRANTES) ? p.INTEGRANTES.length : 1) ? p.INTEGRANTES : p.ASISTENTES)
+    })),
+    presentaciones: (d.PRESENTACIONES || []).map((x: any) => ({ titulo: String(x.TITULO || x.NOMBRE || "Presentación"), url: String(x.URL || x.LINK || "") })).filter((x: any) => x.url)
+  };
+}
+
+const FS_DET = (id: string) => `https://firestore.googleapis.com/v1/projects/${FS_PROY_S}/databases/(default)/documents/sesiones_senado_detalle/${encodeURIComponent(id)}?key=${FS_KEY_S}`;
+
+/** Guarda detalles de sesiones enviados por la extensión (respuesta de web-back commission_session). */
+export async function importarDetallesSesionesSenado(items: { idComision: string; idSesion: string; raw: any }[]): Promise<number> {
+  let n = 0;
+  for (const it of items || []) {
+    const d = Array.isArray(it?.raw?.data) ? it.raw.data[0] : it?.raw;
+    if (!d || !/^\d+$/.test(String(it.idSesion)) || !/^\d+$/.test(String(it.idComision))) continue;
+    const det = parsearDetalleSesionSenado(d, `https://www.senado.cl/actividad-legislativa/comisiones/${it.idComision}/${it.idSesion}`);
+    const r = await fetch(FS_DET(String(it.idSesion)), {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fields: { payload: { stringValue: JSON.stringify(det) }, actualizado: { stringValue: new Date().toISOString() } } }),
+      signal: AbortSignal.timeout(10000)
+    });
+    if (r.ok) { n++; cache.set(`detalle_sesion_senado_${it.idComision}_${it.idSesion}`, det, 7 * 24 * 60 * 60 * 1000); }
+  }
+  return n;
+}
+
 export async function detalleSesionSenado(idComision: string, idSesion: string): Promise<DetalleSesionSenado> {
   if (!/^\d+$/.test(idComision) || !/^\d+$/.test(idSesion)) return { disponible: false, motivo: "Identificadores no válidos." };
   const url = `https://www.senado.cl/actividad-legislativa/comisiones/${idComision}/${idSesion}`;
   const clave = `detalle_sesion_senado_${idComision}_${idSesion}`;
   const previo = cache.get<DetalleSesionSenado>(clave);
   if (previo) return previo;
+  // 1) Lo enviado por la extensión (senado.cl bloquea a Vercel).
+  try {
+    const r = await fetch(FS_DET(idSesion), { signal: AbortSignal.timeout(8000) });
+    if (r.ok) {
+      const d: any = await r.json();
+      const det = JSON.parse(d?.fields?.payload?.stringValue || "null");
+      if (det?.disponible) { cache.set(clave, det, 7 * 24 * 60 * 60 * 1000); return det; }
+    }
+  } catch { /* sigue */ }
+  // 2) Página pública (funciona desde un PC; desde Vercel suele responder 403).
   try {
     const r = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; LegisTrackCL/1.0)", "Accept-Language": "es-CL,es" }, signal: AbortSignal.timeout(15000) });
-    if (!r.ok) return { disponible: false, motivo: `senado.cl respondió HTTP ${r.status}`, url };
+    if (!r.ok) return { disponible: false, motivo: "El detalle de esta sesión aún no se ha sincronizado (la extensión lo envía para las sesiones de los últimos 60 días).", url };
     const html = await r.text();
     const m = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
-    if (!m) return { disponible: false, motivo: "La página de la sesión no trae datos legibles.", url };
-    const d = JSON.parse(m[1])?.props?.pageProps?.resource?.data?.commissionSessionData;
-    if (!d) return { disponible: false, motivo: "La página de la sesión no trae datos de la sesión.", url };
-    const res: DetalleSesionSenado = {
-      disponible: true, url,
-      comision: String(d.COMISION || ""), fecha: String(d.FECHA || ""), inicio: String(d.INICIO || ""), termino: String(d.TERMINO || ""), lugar: String(d.LUGAR || ""),
-      puntos: (d.PUNTOS || []).map((p: any) => ({
-        numero: String(p.NUMERO_PUNTO ?? ""), boletin: String(p.NUMERO_BOLETIN || ""), tema: textoPlano(p.PUNTO_TABLA),
-        aspectos: textoPlano(p.ASPECTOS_CONSIDERADOS), acuerdos: textoPlano(p.ACUERDOS),
-        invitados: textoPlano(p.INVITADOS || p.OTROS_ASISTENTES), asistentes: textoPlano(p.ASISTENTES || p.INTEGRANTES)
-      })),
-      presentaciones: (d.PRESENTACIONES || []).map((x: any) => ({ titulo: String(x.TITULO || x.NOMBRE || "Presentación"), url: String(x.URL || x.LINK || "") })).filter((x: any) => x.url)
-    };
+    const d = m ? JSON.parse(m[1])?.props?.pageProps?.resource?.data?.commissionSessionData : null;
+    if (!d) return { disponible: false, motivo: "La página de la sesión no trae datos legibles.", url };
+    const res = parsearDetalleSesionSenado(d, url);
     cache.set(clave, res, 7 * 24 * 60 * 60 * 1000);
     return res;
   } catch (err: any) {

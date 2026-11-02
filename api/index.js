@@ -189247,6 +189247,48 @@ async function sesionesSenadoDeComision(idComision) {
   });
 }
 var textoPlano = (h) => String(h ?? "").replace(/<br\s*\/?>/gi, "\n").replace(/<\/p>/gi, "\n").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/[ \t]+/g, " ").replace(/\n\s+/g, "\n").trim();
+var nombresDe = (v) => Array.isArray(v) ? v.map((x) => String(x?.PARLAMENTARIO || x?.NOMBRE || "").trim()).filter(Boolean).join("; ") : textoPlano(v);
+function parsearDetalleSesionSenado(d, url) {
+  return {
+    disponible: true,
+    url,
+    comision: String(d.COMISION || ""),
+    fecha: String(d.FECHA || ""),
+    inicio: String(d.INICIO || ""),
+    termino: String(d.TERMINO || ""),
+    lugar: String(d.LUGAR || ""),
+    puntos: (d.PUNTOS || []).map((p) => ({
+      numero: String(p.NUMERO_PUNTO ?? ""),
+      boletin: String(p.NUMERO_BOLETIN || ""),
+      tema: textoPlano(p.PUNTO_TABLA),
+      aspectos: textoPlano(p.ASPECTOS_CONSIDERADOS),
+      acuerdos: textoPlano(p.ACUERDOS),
+      invitados: textoPlano(p.INVITADOS && p.INVITADOS !== "null" ? p.INVITADOS : p.OTROS_ASISTENTES && p.OTROS_ASISTENTES !== "null" ? p.OTROS_ASISTENTES : ""),
+      asistentes: nombresDe(p.INTEGRANTES && (Array.isArray(p.INTEGRANTES) ? p.INTEGRANTES.length : 1) ? p.INTEGRANTES : p.ASISTENTES)
+    })),
+    presentaciones: (d.PRESENTACIONES || []).map((x) => ({ titulo: String(x.TITULO || x.NOMBRE || "Presentaci\xF3n"), url: String(x.URL || x.LINK || "") })).filter((x) => x.url)
+  };
+}
+var FS_DET = (id) => `https://firestore.googleapis.com/v1/projects/${FS_PROY_S}/databases/(default)/documents/sesiones_senado_detalle/${encodeURIComponent(id)}?key=${FS_KEY_S}`;
+async function importarDetallesSesionesSenado(items) {
+  let n = 0;
+  for (const it of items || []) {
+    const d = Array.isArray(it?.raw?.data) ? it.raw.data[0] : it?.raw;
+    if (!d || !/^\d+$/.test(String(it.idSesion)) || !/^\d+$/.test(String(it.idComision))) continue;
+    const det = parsearDetalleSesionSenado(d, `https://www.senado.cl/actividad-legislativa/comisiones/${it.idComision}/${it.idSesion}`);
+    const r = await fetch(FS_DET(String(it.idSesion)), {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fields: { payload: { stringValue: JSON.stringify(det) }, actualizado: { stringValue: (/* @__PURE__ */ new Date()).toISOString() } } }),
+      signal: AbortSignal.timeout(1e4)
+    });
+    if (r.ok) {
+      n++;
+      cache.set(`detalle_sesion_senado_${it.idComision}_${it.idSesion}`, det, 7 * 24 * 60 * 60 * 1e3);
+    }
+  }
+  return n;
+}
 async function detalleSesionSenado(idComision, idSesion) {
   if (!/^\d+$/.test(idComision) || !/^\d+$/.test(idSesion)) return { disponible: false, motivo: "Identificadores no v\xE1lidos." };
   const url = `https://www.senado.cl/actividad-legislativa/comisiones/${idComision}/${idSesion}`;
@@ -189254,32 +189296,25 @@ async function detalleSesionSenado(idComision, idSesion) {
   const previo = cache.get(clave);
   if (previo) return previo;
   try {
+    const r = await fetch(FS_DET(idSesion), { signal: AbortSignal.timeout(8e3) });
+    if (r.ok) {
+      const d = await r.json();
+      const det = JSON.parse(d?.fields?.payload?.stringValue || "null");
+      if (det?.disponible) {
+        cache.set(clave, det, 7 * 24 * 60 * 60 * 1e3);
+        return det;
+      }
+    }
+  } catch {
+  }
+  try {
     const r = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; LegisTrackCL/1.0)", "Accept-Language": "es-CL,es" }, signal: AbortSignal.timeout(15e3) });
-    if (!r.ok) return { disponible: false, motivo: `senado.cl respondi\xF3 HTTP ${r.status}`, url };
+    if (!r.ok) return { disponible: false, motivo: "El detalle de esta sesi\xF3n a\xFAn no se ha sincronizado (la extensi\xF3n lo env\xEDa para las sesiones de los \xFAltimos 60 d\xEDas).", url };
     const html = await r.text();
     const m = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
-    if (!m) return { disponible: false, motivo: "La p\xE1gina de la sesi\xF3n no trae datos legibles.", url };
-    const d = JSON.parse(m[1])?.props?.pageProps?.resource?.data?.commissionSessionData;
-    if (!d) return { disponible: false, motivo: "La p\xE1gina de la sesi\xF3n no trae datos de la sesi\xF3n.", url };
-    const res = {
-      disponible: true,
-      url,
-      comision: String(d.COMISION || ""),
-      fecha: String(d.FECHA || ""),
-      inicio: String(d.INICIO || ""),
-      termino: String(d.TERMINO || ""),
-      lugar: String(d.LUGAR || ""),
-      puntos: (d.PUNTOS || []).map((p) => ({
-        numero: String(p.NUMERO_PUNTO ?? ""),
-        boletin: String(p.NUMERO_BOLETIN || ""),
-        tema: textoPlano(p.PUNTO_TABLA),
-        aspectos: textoPlano(p.ASPECTOS_CONSIDERADOS),
-        acuerdos: textoPlano(p.ACUERDOS),
-        invitados: textoPlano(p.INVITADOS || p.OTROS_ASISTENTES),
-        asistentes: textoPlano(p.ASISTENTES || p.INTEGRANTES)
-      })),
-      presentaciones: (d.PRESENTACIONES || []).map((x) => ({ titulo: String(x.TITULO || x.NOMBRE || "Presentaci\xF3n"), url: String(x.URL || x.LINK || "") })).filter((x) => x.url)
-    };
+    const d = m ? JSON.parse(m[1])?.props?.pageProps?.resource?.data?.commissionSessionData : null;
+    if (!d) return { disponible: false, motivo: "La p\xE1gina de la sesi\xF3n no trae datos legibles.", url };
+    const res = parsearDetalleSesionSenado(d, url);
     cache.set(clave, res, 7 * 24 * 60 * 60 * 1e3);
     return res;
   } catch (err) {
@@ -194018,6 +194053,24 @@ apiRouter.post("/senado/sesiones/importar", expressText({ type: "text/plain", li
   if (!/^\d+$/.test(id) || !Array.isArray(body?.sesiones)) return res.status(400).json({ ok: false, error: "Faltan idComision o sesiones." });
   try {
     res.json({ ok: true, sesiones: await importarSesionesSenado(id, body.sesiones) });
+  } catch (err) {
+    res.status(422).json({ ok: false, error: err?.message || String(err) });
+  }
+});
+apiRouter.post("/senado/sesiones/detalle/importar", expressText({ type: "text/plain", limit: "10mb" }), async (req, res) => {
+  let body = req.body;
+  if (typeof body === "string") {
+    try {
+      body = JSON.parse(body);
+    } catch {
+      return res.status(400).json({ ok: false, error: "Cuerpo no es JSON v\xE1lido." });
+    }
+  }
+  const token = process.env.CITACIONES_IMPORT_TOKEN;
+  if (token && body?.token !== token) return res.status(401).json({ ok: false, error: "Token de importaci\xF3n inv\xE1lido." });
+  if (!Array.isArray(body?.detalles)) return res.status(400).json({ ok: false, error: "Faltan detalles." });
+  try {
+    res.json({ ok: true, detalles: await importarDetallesSesionesSenado(body.detalles.slice(0, 60)) });
   } catch (err) {
     res.status(422).json({ ok: false, error: err?.message || String(err) });
   }
