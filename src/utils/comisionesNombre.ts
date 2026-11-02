@@ -2,7 +2,7 @@
 // "Comisión de Agricultura y, posteriormente, por la Comisión de Constitución…"
 // o "comisión de Agricultura para discutir en general…" → solo el nombre.
 
-const CORTES = /\s*(?:,\s*y\b|\s+y\s*,|,?\s+posteriormente\b|,?\s+finalmente\b|,?\s+luego\b|\s+para\s|\s+con\s+ocasi[oó]n|\s+en\s+(?:el|la|los|las|su|sesi[oó]n)\b|\s+a\s+fin\b|\s+que\s|\s+por\s|[.;:(]).*$/i;
+const CORTES = /\s*(?:,\s*y\b|\s+y\s*,|,?\s+posteriormente\b|,?\s+finalmente\b|,?\s+luego\b|\s+para\s|\s+con\s+ocasi[oó]n|\s+en\s+(?:el|la|los|las|su|sesi[oó]n)\b|\s+a\s+fin\b|\s+que\s|\s+por\s|[.:(]).*$/i;
 
 /** Devuelve solo el nombre de la comisión ("Comisión de Agricultura"), o "" si no parece una. */
 export function limpiarNombreComision(raw: string): string {
@@ -45,5 +45,19 @@ export function unirComisiones(lista: (string | undefined | null)[]): string[] {
     const hayMasLargo = base.includes(",") && claves.some(o => o !== k && o.length > k.length && o.startsWith(base));
     if (!hayMasLargo) resultado.push(vistos.get(k)!);
   }
-  return resultado;
+  // Mismo nombre largo con distinta versión (p. ej. el nombre anterior y el actual de
+  // "Economía, Fomento…"): si comparten las dos primeras palabras y ambos tienen
+  // coma, es la misma comisión y se conserva el nombre más completo.
+  const raiz = (n: string) => {
+    const k = n.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/^comision\s+(especial\s+)?(de\s+|del\s+)?/, "");
+    return k.includes(",") ? k.split(/[\s,;]+/).filter(Boolean).slice(0, 2).join(" ") : "";
+  };
+  const finales: string[] = [];
+  for (const n of resultado) {
+    const r = raiz(n);
+    const i = r ? finales.findIndex(f => raiz(f) === r) : -1;
+    if (i === -1) finales.push(n);
+    else if (n.length > finales[i].length) finales[i] = n;
+  }
+  return finales;
 }
