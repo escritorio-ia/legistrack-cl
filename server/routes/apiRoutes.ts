@@ -28,7 +28,10 @@ import {
   textoMensajeMocion,
   determinarQuorumProyecto,
   resumenPasoComision,
-  importarCitacionesSenado
+  importarCitacionesSenado,
+  importarSesionesSenado,
+  sesionesSenadoDeComision,
+  detalleSesionSenado
 } from "../services/senadoService";
 import {
   getTodasComisiones,
@@ -821,6 +824,33 @@ apiRouter.post("/senado/citaciones/importar", expressText({ type: "text/plain", 
   }
 });
 
+// Sesiones de comisiones del Senado enviadas por la extensión (lista desde web-back).
+apiRouter.post("/senado/sesiones/importar", expressText({ type: "text/plain", limit: "5mb" }), async (req: Request, res: Response) => {
+  let body: any = req.body;
+  if (typeof body === "string") { try { body = JSON.parse(body); } catch { return res.status(400).json({ ok: false, error: "Cuerpo no es JSON válido." }); } }
+  const token = process.env.CITACIONES_IMPORT_TOKEN;
+  if (token && body?.token !== token) return res.status(401).json({ ok: false, error: "Token de importación inválido." });
+  const id = String(body?.idComision || "");
+  if (!/^\d+$/.test(id) || !Array.isArray(body?.sesiones)) return res.status(400).json({ ok: false, error: "Faltan idComision o sesiones." });
+  try { res.json({ ok: true, sesiones: await importarSesionesSenado(id, body.sesiones) }); }
+  catch (err: any) { res.status(422).json({ ok: false, error: err?.message || String(err) }); }
+});
+
+// IDs de comisiones del Senado que conoce la app (para que la extensión sepa qué pedir).
+apiRouter.get("/senado/comisiones-ids", async (_req: Request, res: Response) => {
+  const todas: any[] = await getTodasComisiones();
+  const ids = Array.from(new Set(todas.map(c => findComisionMetaById(c.id)?.senadoId).filter(Boolean)));
+  res.json({ ids });
+});
+
+apiRouter.get("/senado/comision/:id/sesiones", async (req: Request, res: Response) => {
+  res.json(await sesionesSenadoDeComision(String(req.params.id)));
+});
+
+apiRouter.get("/senado/sesion/:comision/:sesion", async (req: Request, res: Response) => {
+  res.json(await detalleSesionSenado(String(req.params.comision), String(req.params.sesion)));
+});
+
 apiRouter.get("/proyecto/:id/sesiones", async (req: Request, res: Response) => {
   const digits = digitosBoletin(String(req.params.id));
   if (digits.length < 3) return res.json({ sesiones: [], fuentes: {} });
@@ -941,6 +971,30 @@ apiRouter.get("/comision/:id", async (req: Request, res: Response) => {
             fullComision.proyectosContados = liveSenadoProjects.length;
             fullComision.proyectosIds = liveSenadoProjects.map(p => p.id);
             fullComision.proyectosFuente = "vivo";
+          }
+
+          // Historial real de sesiones (lista oficial del Senado enviada por la extensión).
+          const hist = await sesionesSenadoDeComision(String(matchDetalle.senadoId)).catch(() => ({ sesiones: [] as any[] }));
+          if (hist.sesiones.length > 0) {
+            const existentes = new Set(fullComision.sesiones.map(s => `${s.fecha}`));
+            const historicas = hist.sesiones
+              .filter((h: any) => !existentes.has(h.fecha))
+              .map((h: any) => ({
+                id: `ses-sen-hist-${h.idSesion}`,
+                fecha: h.fecha,
+                hora: [h.inicio, h.termino].filter(Boolean).join(" a "),
+                lugar: h.lugar,
+                tipo: h.fracasada ? "Sesión fracasada" : "Sesión de Comisión",
+                materia: h.materia || "Materia no informada",
+                invitados: "",
+                acuerdosCount: 0,
+                completada: true,
+                tabla: h.materia ? [h.materia] : [],
+                senadoComisionId: String(matchDetalle.senadoId),
+                senadoSesionId: String(h.idSesion)
+              }));
+            fullComision.sesiones = [...fullComision.sesiones, ...historicas];
+            fullComision.sesionesRealizadas = Math.max(fullComision.sesionesRealizadas || 0, historicas.length);
           }
 
           if (liveSenadoCit && liveSenadoCit.porComision && liveSenadoCit.porComision[matchDetalle.senadoId]) {
@@ -2198,10 +2252,28 @@ apiRouter.post("/comisiones/sesion/generar-informe", async (req: Request, res: R
   // lo que tanto la IA como el respaldo sin IA terminaban rellenando el informe
   // con generalidades sin sustancia ("Ministros de Estado del Ramo: Presentación
   // de antecedentes técnicos...") en vez de contenido real de la sesión.
-  const invitadosList: string = typeof invitados === "string" ? invitados : "";
-  const tablaList: string[] = Array.isArray(tabla) ? tabla : [];
-  const acuerdosList: string[] = Array.isArray(acuerdosTexto) ? acuerdosTexto : [];
-  const actaTextoStr: string = typeof actaTexto === "string" ? actaTexto : "";
+  let invitadosList: string = typeof invitados === "string" ? invitados : "";
+  let tablaList: string[] = Array.isArray(tabla) ? tabla : [];
+  let acuerdosList: string[] = Array.isArray(acuerdosTexto) ? acuerdosTexto : [];
+  let actaTextoStr: string = typeof actaTexto === "string" ? actaTexto : "";
+
+  // Sesiones del Senado: se usa el registro oficial de la sesión en senado.cl
+  // (aspectos considerados, acuerdos, invitados por punto de tabla).
+  const sesIdMatch = String(req.body?.sesionId || "").match(/^ses-sen-hist-(\d+)$/);
+  const metaCom = req.body?.comisionId ? findComisionMetaById(String(req.body.comisionId)) : null;
+  const senComId = String(req.body?.senadoComisionId || metaCom?.senadoId || "");
+  const senSesId = String(req.body?.senadoSesionId || sesIdMatch?.[1] || "");
+  let fuenteOficialSesion = "";
+  if (senComId && senSesId) {
+    const det = await detalleSesionSenado(senComId, senSesId);
+    if (det.disponible && det.puntos && det.puntos.length > 0) {
+      fuenteOficialSesion = det.url || "";
+      tablaList = det.puntos.map(p => `${p.boletin ? `Boletín ${p.boletin}: ` : ""}${p.tema}`);
+      actaTextoStr = det.puntos.map(p => `Punto ${p.numero}${p.boletin ? ` (Boletín ${p.boletin})` : ""}: ${p.aspectos}`).filter(Boolean).join("\n");
+      acuerdosList = det.puntos.map(p => p.acuerdos).filter(a => a && !/^pendiente\.?$/i.test(a));
+      invitadosList = Array.from(new Set(det.puntos.map(p => p.invitados).filter(Boolean))).join("\n");
+    }
+  }
 
   const curatedParts: string[] = [];
   if (invitadosList) curatedParts.push(`Invitados y expositores convocados a la sesión: ${invitadosList}`);
@@ -2230,6 +2302,23 @@ apiRouter.post("/comisiones/sesion/generar-informe", async (req: Request, res: R
   // lista de invitados o la tabla, que no dicen qué planteó cada uno).
   const hayContenidoRealDeIntervenciones = !!transcript || !!actaTextoStr || acuerdosList.length > 0;
   const fuentesDisponibles = curatedParts.length > 0 || transcript;
+
+  // Sin ninguna fuente real (ni acta, ni acuerdos, ni análisis del video) no se
+  // redacta un informe: la IA solo produciría texto genérico. Se entrega una ficha
+  // con lo que sí se sabe y dónde verificar.
+  if (!hayContenidoRealDeIntervenciones) {
+    const ficha = `# FICHA DE LA SESIÓN
+**Comisión:** ${comisionNombre}
+**Fecha:** ${sesionFecha}
+${boletinId && boletinId !== "S/B" ? `**Boletín:** ${boletinId}\n` : ""}
+## Materia citada
+${sesionMateria}
+${tablaList.length ? `\n## Tabla\n${tablaList.map(t => `* ${t}`).join("\n")}\n` : ""}${invitadosList ? `\n## Invitados según la citación\n${invitadosList}\n` : ""}
+## ⚠️ Sin registro de lo ocurrido en la sesión
+No hay acta, acuerdos ni análisis del video disponibles para esta sesión, por lo que no se generó un informe: la IA solo podría suponer lo que se dijo.
+${videoTitle ? `\nPuede revisar la transmisión oficial: "${videoTitle}".` : ""}${fuenteOficialSesion ? `\nRegistro oficial: ${fuenteOficialSesion}` : ""}`;
+    return res.json({ success: true, sinFuentes: true, documento: { reportContent: [ficha], boletinId, sesionFecha, comisionNombre, videoTitle, videoId, transcriptAvailable: false }, reportContent: [ficha], transcriptAvailable: false });
+  }
 
   const prompt = `Actúa como un analista legislativo experto de la Biblioteca del Congreso Nacional de Chile.
 Redacta un informe técnico de 3 secciones/páginas de la sesión parlamentaria para ser publicado en el expediente del proyecto de ley.

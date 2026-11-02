@@ -123,6 +123,9 @@ export interface SesionItem {
   tabla?: string[];
   videoUrl?: string;
   completada?: boolean;
+  /** Sesiones del Senado: identificadores para consultar su detalle oficial. */
+  senadoComisionId?: string;
+  senadoSesionId?: string;
 }
 
 export interface DocGroupItem {

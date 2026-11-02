@@ -1406,3 +1406,87 @@ Reglas: usa SOLO lo que dicen los extractos; no inventes nombres, cargos, cifras
   cache.set(clave, r, 7 * 24 * 60 * 60 * 1000);
   return r;
 }
+
+// ---------------------------------------------------------------------------
+// Sesiones de comisiones del Senado.
+//  - Lista: web-back.senado.cl/api/commission_sessions (bloquea a Vercel), la envía
+//    la extensión de navegador y se guarda en Firestore (sesiones_senado/{idComision}).
+//  - Detalle: la página pública www.senado.cl/actividad-legislativa/comisiones/{c}/{s}
+//    trae los datos en __NEXT_DATA__ (puntos, boletín, aspectos, acuerdos, invitados).
+// ---------------------------------------------------------------------------
+const FS_SES = (id: string) => `https://firestore.googleapis.com/v1/projects/${FS_PROY_S}/databases/(default)/documents/sesiones_senado/${encodeURIComponent(id)}?key=${FS_KEY_S}`;
+
+export interface SesionSenadoLista { idSesion: number; fecha: string; inicio: string; termino: string; lugar: string; materia: string; fracasada: boolean; }
+
+export async function importarSesionesSenado(idComision: string, filas: any[]): Promise<number> {
+  const sesiones: SesionSenadoLista[] = (filas || []).filter(f => f && f.ID_SESION).map(f => ({
+    idSesion: Number(f.ID_SESION), fecha: String(f.FECHA || ""), inicio: String(f.HORA_INICIO || ""), termino: String(f.HORA_TERMINO || ""),
+    lugar: String(f.LUGAR || "").trim(), materia: String(f.MATERIA || "").trim(), fracasada: /^s[ií]/i.test(String(f.FRACASADA || ""))
+  }));
+  if (sesiones.length === 0) throw new Error("No llegaron sesiones.");
+  const r = await fetch(FS_SES(idComision), {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fields: { payload: { stringValue: JSON.stringify(sesiones) }, actualizado: { stringValue: new Date().toISOString() } } }),
+    signal: AbortSignal.timeout(10000)
+  });
+  if (!r.ok) throw new Error(`Firestore respondió HTTP ${r.status}`);
+  cache.delete(`sesiones_senado_${idComision}`);
+  return sesiones.length;
+}
+
+export async function sesionesSenadoDeComision(idComision: string): Promise<{ sesiones: SesionSenadoLista[]; actualizado?: string }> {
+  return cache.wrap(`sesiones_senado_${idComision}`, 10 * 60 * 1000, async () => {
+    try {
+      const r = await fetch(FS_SES(idComision), { signal: AbortSignal.timeout(8000) });
+      if (!r.ok) return { sesiones: [] };
+      const d: any = await r.json();
+      return { sesiones: JSON.parse(d?.fields?.payload?.stringValue || "[]"), actualizado: d?.fields?.actualizado?.stringValue };
+    } catch {
+      return { sesiones: [] };
+    }
+  });
+}
+
+export interface DetalleSesionSenado {
+  disponible: boolean;
+  motivo?: string;
+  comision?: string;
+  fecha?: string; inicio?: string; termino?: string; lugar?: string;
+  puntos?: { numero: string; boletin: string; tema: string; aspectos: string; acuerdos: string; invitados: string; asistentes: string }[];
+  presentaciones?: { titulo: string; url: string }[];
+  url?: string;
+}
+
+const textoPlano = (h: any) => String(h ?? "").replace(/<br\s*\/?>/gi, "\n").replace(/<\/p>/gi, "\n").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/[ \t]+/g, " ").replace(/\n\s+/g, "\n").trim();
+
+export async function detalleSesionSenado(idComision: string, idSesion: string): Promise<DetalleSesionSenado> {
+  if (!/^\d+$/.test(idComision) || !/^\d+$/.test(idSesion)) return { disponible: false, motivo: "Identificadores no válidos." };
+  const url = `https://www.senado.cl/actividad-legislativa/comisiones/${idComision}/${idSesion}`;
+  const clave = `detalle_sesion_senado_${idComision}_${idSesion}`;
+  const previo = cache.get<DetalleSesionSenado>(clave);
+  if (previo) return previo;
+  try {
+    const r = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; LegisTrackCL/1.0)", "Accept-Language": "es-CL,es" }, signal: AbortSignal.timeout(15000) });
+    if (!r.ok) return { disponible: false, motivo: `senado.cl respondió HTTP ${r.status}`, url };
+    const html = await r.text();
+    const m = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+    if (!m) return { disponible: false, motivo: "La página de la sesión no trae datos legibles.", url };
+    const d = JSON.parse(m[1])?.props?.pageProps?.resource?.data?.commissionSessionData;
+    if (!d) return { disponible: false, motivo: "La página de la sesión no trae datos de la sesión.", url };
+    const res: DetalleSesionSenado = {
+      disponible: true, url,
+      comision: String(d.COMISION || ""), fecha: String(d.FECHA || ""), inicio: String(d.INICIO || ""), termino: String(d.TERMINO || ""), lugar: String(d.LUGAR || ""),
+      puntos: (d.PUNTOS || []).map((p: any) => ({
+        numero: String(p.NUMERO_PUNTO ?? ""), boletin: String(p.NUMERO_BOLETIN || ""), tema: textoPlano(p.PUNTO_TABLA),
+        aspectos: textoPlano(p.ASPECTOS_CONSIDERADOS), acuerdos: textoPlano(p.ACUERDOS),
+        invitados: textoPlano(p.INVITADOS || p.OTROS_ASISTENTES), asistentes: textoPlano(p.ASISTENTES || p.INTEGRANTES)
+      })),
+      presentaciones: (d.PRESENTACIONES || []).map((x: any) => ({ titulo: String(x.TITULO || x.NOMBRE || "Presentación"), url: String(x.URL || x.LINK || "") })).filter((x: any) => x.url)
+    };
+    cache.set(clave, res, 7 * 24 * 60 * 60 * 1000);
+    return res;
+  } catch (err: any) {
+    return { disponible: false, motivo: `No se pudo consultar senado.cl: ${err?.message || err}`, url };
+  }
+}

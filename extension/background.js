@@ -119,3 +119,38 @@ chrome.notifications.onClicked.addListener(id => {
 chrome.alarms.onAlarm.addListener(a => { if (a.name === "recordatorio-camara") revisarRecordatorioCamara(); });
 chrome.runtime.onInstalled.addListener(() => chrome.alarms.create("recordatorio-camara", { periodInMinutes: 120 }));
 chrome.runtime.onStartup.addListener(() => { chrome.alarms.create("recordatorio-camara", { periodInMinutes: 120 }); revisarRecordatorioCamara(); });
+
+// ---------------------------------------------------------------------------
+// Sesiones de comisiones del Senado (historial): cada 12 horas se piden las 100
+// sesiones más recientes de cada comisión a la API pública que usa senado.cl
+// y se envían a la app.
+// ---------------------------------------------------------------------------
+async function sincronizarSesionesSenado() {
+  try {
+    const { app } = await config();
+    const { ids } = await (await fetch(`${app}/api/senado/comisiones-ids`)).json();
+    let ok = 0, total = 0, errores = 0;
+    for (const id of ids || []) {
+      try {
+        const r = await fetch(`https://web-back.senado.cl/api/commission_sessions?id_comision=${id}&limit=100&offset=0&sort=fecha&order=desc`, { headers: { Accept: "application/json" } });
+        if (!r.ok) { errores++; continue; }
+        const j = await r.json();
+        const filas = j?.data?.data || [];
+        if (filas.length === 0) continue;
+        const res = await enviar("/api/senado/sesiones/importar", { idComision: String(id), sesiones: filas });
+        ok++; total += res.sesiones || 0;
+      } catch { errores++; }
+      await new Promise(r => setTimeout(r, 400)); // sin apuro: no cargar el servidor del Senado
+    }
+    await registrar("sesiones", { ok: ok > 0, detalle: `${total} sesiones de ${ok} comisiones${errores ? ` (${errores} con error)` : ""}` });
+  } catch (e) {
+    await registrar("sesiones", { ok: false, detalle: e.message });
+  }
+}
+
+chrome.alarms.onAlarm.addListener(a => { if (a.name === "sesiones-senado") sincronizarSesionesSenado(); });
+chrome.runtime.onInstalled.addListener(() => { chrome.alarms.create("sesiones-senado", { periodInMinutes: 720 }); sincronizarSesionesSenado(); });
+chrome.runtime.onStartup.addListener(() => chrome.alarms.create("sesiones-senado", { periodInMinutes: 720 }));
+chrome.runtime.onMessage.addListener((msg, _s, responder) => {
+  if (msg?.tipo === "sesiones-ahora") { sincronizarSesionesSenado().then(() => responder({ ok: true })); return true; }
+});
