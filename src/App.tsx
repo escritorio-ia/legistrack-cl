@@ -21,7 +21,7 @@ import SettingsView from "./views/SettingsView";
 import EscritorioHubView from "./views/EscritorioHubView";
 import StaticDataAnalyticsView from "./views/StaticDataAnalyticsView";
 import ComisionesGraficas from "./components/ComisionesGraficas";
-import CitacionesCamaraWidget from "./components/CitacionesCamaraWidget";
+import CitacionesCamaraWidget from "./components/CitacionesSemanaWidget";
 import { 
   Users, 
   Shield, 

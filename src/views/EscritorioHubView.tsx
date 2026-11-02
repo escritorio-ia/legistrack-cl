@@ -18,7 +18,7 @@ import {
   Radio,
   FileSpreadsheet
 } from "lucide-react";
-import CitacionesCamaraWidget from "../components/CitacionesCamaraWidget";
+import CitacionesCamaraWidget from "../components/CitacionesSemanaWidget";
 
 interface EscritorioHubViewProps {
   setView: (view: string) => void;
