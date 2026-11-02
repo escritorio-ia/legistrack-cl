@@ -46,7 +46,7 @@ import {
   SENADO_COMISIONES_REALES,
   DIPUTADOS_COMISIONES_REALES
 } from "../services/camaraService";
-import { sesionesCamaraDeComision } from "../services/sesionesCamaraService";
+import { sesionesCamaraDeComision, videosSenadoPorFecha } from "../services/sesionesCamaraService";
 import { buscarVideosSesion, detallesVideos, analizarParteVideo, youtubeApiConfigurada, YouTubeNoConfigurado, SEGUNDOS_POR_PARTE } from "../services/youtubeService";
 import { fetchIndiceInformesFinancieros, informesFinancierosDeBoletin, resumirInformeFinanciero, claveBoletinIF, resumenConsolidadoInformesFinancieros } from "../services/dipresService";
 import { 
@@ -1029,6 +1029,22 @@ apiRouter.get("/comision/:id", async (req: Request, res: Response) => {
                 senadoComisionId: String(matchDetalle.senadoId),
                 senadoSesionId: String(h.idSesion)
               }));
+            // Videos oficiales de TV Senado: por fecha; si hubo varias sesiones ese día,
+            // se asignan en orden (primera sesión ↔ primer video publicado).
+            try {
+              const videos = await videosSenadoPorFecha(matchDetalle.nombre);
+              const iso = (f: string) => { const m = String(f).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/); return m ? `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}` : ""; };
+              const porDia = new Map<string, any[]>();
+              for (const h of historicas) { const k = iso(h.fecha); if (k) porDia.set(k, [...(porDia.get(k) || []), h]); }
+              for (const [dia, sesionesDia] of porDia) {
+                const vids = videos.get(dia) || [];
+                sesionesDia.sort((a: any, b: any) => String(a.hora).localeCompare(String(b.hora)));
+                sesionesDia.forEach((ses: any, i: number) => {
+                  const v = vids[i];
+                  if (v) { ses.videoUrl = `https://www.youtube.com/watch?v=${v.videoId}`; ses.duracionVideo = v.duracion; }
+                });
+              }
+            } catch { /* sin videos */ }
             fullComision.sesiones = [...fullComision.sesiones, ...historicas];
             fullComision.sesionesRealizadas = Math.max(fullComision.sesionesRealizadas || 0, historicas.length);
           }

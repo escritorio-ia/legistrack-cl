@@ -14,7 +14,7 @@ const norm = (s: string) => String(s || "").toLowerCase().normalize("NFD").repla
 const FS_PROY = process.env.VITE_FIREBASE_PROJECT_ID || "legistrack-d75bc";
 const FS_KEY = process.env.VITE_FIREBASE_API_KEY || "AIzaSyAZvd-S6AmPpV05UYEkRRULgDezD7mAkaE";
 
-export interface VideoSesionCamara { videoId: string; comision: string; fecha: string; duracion: string; titulo: string }
+export interface VideoSesionCamara { videoId: string; comision: string; fecha: string; duracion: string; titulo: string; publicado?: string }
 
 function fechaISO(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -36,16 +36,21 @@ function formatoDuracion(seg: number | null): string {
   return h ? `${h}:${String(mi).padStart(2, "0")}:${String(s).padStart(2, "0")}` : `${mi}:${String(s).padStart(2, "0")}`;
 }
 
-/** Videos de sesiones de comisión subidos al canal oficial en los últimos ~9 meses (caché 6 h). */
+/** Videos de sesiones de comisión de la Cámara (canal oficial). */
 export async function videosSesionesCamara(): Promise<VideoSesionCamara[]> {
+  return videosSesionesCanal("diputados");
+}
+
+/** Videos de sesiones de comisión subidos a un canal oficial en los últimos ~9 meses (caché 6 h). */
+export async function videosSesionesCanal(camara: "diputados" | "senado"): Promise<VideoSesionCamara[]> {
   const key = process.env.YOUTUBE_API_KEY;
   if (!key) return [];
-  return cache.wrap("yt_sesiones_camara_v1", 6 * 60 * 60 * 1000, async () => {
-    const playlist = "UU" + CANALES_YOUTUBE.diputados.id.slice(2);
+  return cache.wrap(`yt_sesiones_${camara}_v2`, 6 * 60 * 60 * 1000, async () => {
+    const playlist = "UU" + CANALES_YOUTUBE[camara].id.slice(2);
     const limite = Date.now() - 270 * 86400000;
-    const items: { videoId: string; titulo: string }[] = [];
+    const items: { videoId: string; titulo: string; publicado: string }[] = [];
     let pageToken = "";
-    for (let pagina = 0; pagina < 40; pagina++) {
+    for (let pagina = 0; pagina < (camara === "senado" ? 120 : 60); pagina++) {
       const qs = new URLSearchParams({ part: "snippet", playlistId: playlist, maxResults: "50", key, ...(pageToken ? { pageToken } : {}) });
       const r = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?${qs}`, { signal: AbortSignal.timeout(12000) });
       if (!r.ok) break;
@@ -55,7 +60,7 @@ export async function videosSesionesCamara(): Promise<VideoSesionCamara[]> {
         const publicado = new Date(it.snippet?.publishedAt || 0).getTime();
         if (publicado && publicado < limite) { viejo = true; continue; }
         const id = it.snippet?.resourceId?.videoId;
-        if (id) items.push({ videoId: id, titulo: String(it.snippet?.title || "") });
+        if (id) items.push({ videoId: id, titulo: String(it.snippet?.title || ""), publicado: String(it.snippet?.publishedAt || "") });
       }
       pageToken = d.nextPageToken || "";
       if (!pageToken || viejo) break;
@@ -67,7 +72,7 @@ export async function videosSesionesCamara(): Promise<VideoSesionCamara[]> {
       const det = await detallesVideos(sesiones.slice(i, i + 50).map(s => s.videoId)).catch(() => ({} as Record<string, any>));
       for (const [id, v] of Object.entries(det)) duraciones[id] = (v as any).segundos ?? null;
     }
-    return sesiones.map(s => ({ videoId: s.videoId, comision: s.p!.comision, fecha: s.p!.fecha, duracion: formatoDuracion(duraciones[s.videoId] ?? null), titulo: s.titulo }));
+    return sesiones.map(s => ({ videoId: s.videoId, comision: s.p!.comision, fecha: s.p!.fecha, duracion: formatoDuracion(duraciones[s.videoId] ?? null), titulo: s.titulo, publicado: s.publicado }));
   });
 }
 
@@ -212,4 +217,21 @@ export async function sesionesCamaraDeComision(slug: string, nombre: string): Pr
       const dt = new Date(y, m - 1, d);
       return { ...s, fecha: `${DIAS[dt.getDay()]} ${d} de ${NOMBRES_MES[m - 1]} de ${y}` };
     });
+}
+
+/**
+ * Videos oficiales del Senado (TV Senado) para una comisión, agrupados por fecha ISO.
+ * Si una comisión sesionó dos veces el mismo día hay dos videos ese día.
+ */
+export async function videosSenadoPorFecha(nombreComision: string): Promise<Map<string, VideoSesionCamara[]>> {
+  const videos = await videosSesionesCanal("senado").catch(() => [] as VideoSesionCamara[]);
+  const mapa = new Map<string, VideoSesionCamara[]>();
+  for (const v of videos) {
+    if (!mismaComision(v.comision, nombreComision)) continue;
+    const lista = mapa.get(v.fecha) || [];
+    lista.push(v);
+    mapa.set(v.fecha, lista);
+  }
+  for (const lista of mapa.values()) lista.sort((a, b) => String(a.publicado).localeCompare(String(b.publicado)));
+  return mapa;
 }

@@ -189987,14 +189987,17 @@ function formatoDuracion2(seg) {
   return h ? `${h}:${String(mi).padStart(2, "0")}:${String(s).padStart(2, "0")}` : `${mi}:${String(s).padStart(2, "0")}`;
 }
 async function videosSesionesCamara() {
+  return videosSesionesCanal("diputados");
+}
+async function videosSesionesCanal(camara) {
   const key = process.env.YOUTUBE_API_KEY;
   if (!key) return [];
-  return cache.wrap("yt_sesiones_camara_v1", 6 * 60 * 60 * 1e3, async () => {
-    const playlist = "UU" + CANALES_YOUTUBE.diputados.id.slice(2);
+  return cache.wrap(`yt_sesiones_${camara}_v2`, 6 * 60 * 60 * 1e3, async () => {
+    const playlist = "UU" + CANALES_YOUTUBE[camara].id.slice(2);
     const limite = Date.now() - 270 * 864e5;
     const items = [];
     let pageToken = "";
-    for (let pagina = 0; pagina < 40; pagina++) {
+    for (let pagina = 0; pagina < (camara === "senado" ? 120 : 60); pagina++) {
       const qs = new URLSearchParams({ part: "snippet", playlistId: playlist, maxResults: "50", key, ...pageToken ? { pageToken } : {} });
       const r = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?${qs}`, { signal: AbortSignal.timeout(12e3) });
       if (!r.ok) break;
@@ -190007,7 +190010,7 @@ async function videosSesionesCamara() {
           continue;
         }
         const id = it.snippet?.resourceId?.videoId;
-        if (id) items.push({ videoId: id, titulo: String(it.snippet?.title || "") });
+        if (id) items.push({ videoId: id, titulo: String(it.snippet?.title || ""), publicado: String(it.snippet?.publishedAt || "") });
       }
       pageToken = d.nextPageToken || "";
       if (!pageToken || viejo) break;
@@ -190018,7 +190021,7 @@ async function videosSesionesCamara() {
       const det = await detallesVideos(sesiones.slice(i, i + 50).map((s) => s.videoId)).catch(() => ({}));
       for (const [id, v] of Object.entries(det)) duraciones[id] = v.segundos ?? null;
     }
-    return sesiones.map((s) => ({ videoId: s.videoId, comision: s.p.comision, fecha: s.p.fecha, duracion: formatoDuracion2(duraciones[s.videoId] ?? null), titulo: s.titulo }));
+    return sesiones.map((s) => ({ videoId: s.videoId, comision: s.p.comision, fecha: s.p.fecha, duracion: formatoDuracion2(duraciones[s.videoId] ?? null), titulo: s.titulo, publicado: s.publicado }));
   });
 }
 async function resultadosCamaraHistoricos() {
@@ -190146,6 +190149,18 @@ async function sesionesCamaraDeComision(slug, nombre) {
     const dt = new Date(y, m - 1, d);
     return { ...s, fecha: `${DIAS[dt.getDay()]} ${d} de ${NOMBRES_MES[m - 1]} de ${y}` };
   });
+}
+async function videosSenadoPorFecha(nombreComision) {
+  const videos = await videosSesionesCanal("senado").catch(() => []);
+  const mapa = /* @__PURE__ */ new Map();
+  for (const v of videos) {
+    if (!mismaComision(v.comision, nombreComision)) continue;
+    const lista2 = mapa.get(v.fecha) || [];
+    lista2.push(v);
+    mapa.set(v.fecha, lista2);
+  }
+  for (const lista2 of mapa.values()) lista2.sort((a, b) => String(a.publicado).localeCompare(String(b.publicado)));
+  return mapa;
 }
 
 // server/services/dipresService.ts
@@ -194407,6 +194422,30 @@ apiRouter.get("/comision/:id", async (req, res) => {
               senadoComisionId: String(matchDetalle.senadoId),
               senadoSesionId: String(h.idSesion)
             }));
+            try {
+              const videos = await videosSenadoPorFecha(matchDetalle.nombre);
+              const iso2 = (f) => {
+                const m = String(f).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+                return m ? `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}` : "";
+              };
+              const porDia = /* @__PURE__ */ new Map();
+              for (const h of historicas) {
+                const k = iso2(h.fecha);
+                if (k) porDia.set(k, [...porDia.get(k) || [], h]);
+              }
+              for (const [dia, sesionesDia] of porDia) {
+                const vids = videos.get(dia) || [];
+                sesionesDia.sort((a, b) => String(a.hora).localeCompare(String(b.hora)));
+                sesionesDia.forEach((ses, i) => {
+                  const v = vids[i];
+                  if (v) {
+                    ses.videoUrl = `https://www.youtube.com/watch?v=${v.videoId}`;
+                    ses.duracionVideo = v.duracion;
+                  }
+                });
+              }
+            } catch {
+            }
             fullComision.sesiones = [...fullComision.sesiones, ...historicas];
             fullComision.sesionesRealizadas = Math.max(fullComision.sesionesRealizadas || 0, historicas.length);
           }
