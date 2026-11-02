@@ -1801,7 +1801,7 @@ export default function ProyectoDetailView({
                           )}
                         </div>
 
-                        <ResumenComisionPanel proyectoId={proyectoId} comision={commName} />
+                        <ResumenComisionPanel proyectoId={proyectoId} comision={commName} retrasoMs={idx * 6000} />
 
                         {/* Días reales en esta comisión, calculados desde la ficha oficial de
                             tramitación (fechas de "Pasa a Comisión de X" reales, no estimadas). */}

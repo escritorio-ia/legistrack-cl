@@ -3,15 +3,23 @@ import { Sparkles, Users, Gavel, FileText, Loader2 } from "lucide-react";
 import { getResumenComisionDeProyecto, saveResumenComisionDeProyecto } from "../services/firebaseService";
 
 /** Resumen del paso del proyecto por una comisión, generado desde sus informes oficiales. */
-export default function ResumenComisionPanel({ proyectoId, comision }: { proyectoId: string; comision: string }) {
+export default function ResumenComisionPanel({ proyectoId, comision, retrasoMs = 0 }: { proyectoId: string; comision: string; retrasoMs?: number }) {
   const [datos, setDatos] = useState<any | null>(null);
   const [cargando, setCargando] = useState(false);
 
+  // Si ya existe un resumen guardado se muestra; si no, se genera solo (escalonado
+  // entre comisiones para no saturar la IA) y queda guardado para todos.
   useEffect(() => {
     let cancelado = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     setDatos(null);
-    getResumenComisionDeProyecto(proyectoId, comision).then(g => { if (!cancelado && g?.disponible) setDatos(g); });
-    return () => { cancelado = true; };
+    getResumenComisionDeProyecto(proyectoId, comision).then(g => {
+      if (cancelado) return;
+      if (g?.disponible) { setDatos(g); return; }
+      timer = setTimeout(() => { if (!cancelado) generar(); }, retrasoMs);
+    });
+    return () => { cancelado = true; if (timer) clearTimeout(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [proyectoId, comision]);
 
   const generar = () => {
@@ -27,7 +35,7 @@ export default function ResumenComisionPanel({ proyectoId, comision }: { proyect
     <div className="bg-white border border-indigo-200 rounded-xl p-4 space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs font-black text-indigo-900 flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5" /> Resumen del paso por la comisión</p>
-        {!datos?.disponible && (
+        {!datos?.disponible && !cargando && (
           <button type="button" onClick={generar} disabled={cargando}
             className="text-xs font-bold bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white px-3 py-1.5 rounded-lg cursor-pointer flex items-center gap-1.5">
             {cargando ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Leyendo el informe… (hasta 1 minuto)</> : "Generar resumen desde el informe"}
@@ -35,7 +43,10 @@ export default function ResumenComisionPanel({ proyectoId, comision }: { proyect
         )}
       </div>
 
-      {datos && !datos.disponible && <p className="text-xs text-amber-700">{datos.motivo}</p>}
+      {cargando && (
+        <p className="text-xs text-indigo-700 flex items-center gap-1.5"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Leyendo el informe de la comisión y preparando el resumen (hasta 1 minuto)…</p>
+      )}
+      {datos && !datos.disponible && !cargando && <p className="text-xs text-amber-700">{datos.motivo}</p>}
 
       {datos?.disponible && (
         <div className="space-y-3 text-xs text-slate-700">
