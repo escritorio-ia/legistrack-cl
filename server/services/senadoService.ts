@@ -1330,7 +1330,7 @@ export async function resumenPasoComision(boletinId: string, comision: string): 
   const digits = String(boletinId || "").replace(/\./g, "").match(/\d{3,6}/)?.[0] || "";
   if (!digits || !comision) return { disponible: false, motivo: "Faltan el boletín o la comisión." };
   const norm = (x: string) => x.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
-  const clave = `resumen_comision_v1_${digits}_${norm(comision)}`;
+  const clave = `resumen_comision_v2_${digits}_${norm(comision)}`;
   const previo = cache.get<ResumenComision>(clave);
   if (previo) return previo;
 
@@ -1345,14 +1345,16 @@ export async function resumenPasoComision(boletinId: string, comision: string): 
     return { disponible: false, comision, motivo: "Esta comisión aún no ha emitido un informe en el expediente; el resumen estará disponible cuando lo publique." };
   }
 
+  // Extractos acotados (~14 mil caracteres en total) para que quepan en los modelos gratuitos.
+  const factor = informes.length > 1 ? 0.5 : 1;
   const bloques: string[] = [];
   for (const inf of informes) {
     const t = await fetchTextoInformeDocx(inf.url!);
     if (!t) continue;
-    const inicio = t.slice(0, 9000);
+    const inicio = t.slice(0, Math.round(4500 * factor));
     const exposiciones = ventanas(t, /(expuso|expus[oi]eron|señal[oó]|manifest[oó]|indic[oó] que|explic[oó]|sostuvo|planteó|intervino|hizo uso de la palabra)/gi, 1600, 7);
     const votos = ventanas(t, /(votaci[oó]n|aprob[oó]|rechaz[oó]|unanimidad|votos a favor)/gi, 700, 5);
-    bloques.push(`=== ${inf.titulo} (${inf.fecha || "s/f"}) ===\n[INICIO]\n${inicio}\n[EXPOSICIONES]\n${exposiciones.slice(0, 11000)}\n[VOTACIONES]\n${votos.slice(0, 3500)}`);
+    bloques.push(`=== ${inf.titulo} (${inf.fecha || "s/f"}) ===\n[INICIO]\n${inicio}\n[EXPOSICIONES]\n${exposiciones.slice(0, Math.round(7000 * factor))}\n[VOTACIONES]\n${votos.slice(0, Math.round(2000 * factor))}`);
   }
   if (bloques.length === 0) return { disponible: false, comision, motivo: "No se pudo leer el texto de los informes de esta comisión." };
 
@@ -1377,7 +1379,7 @@ Reglas: usa SOLO lo que dicen los extractos; no inventes nombres, cargos, cifras
 
   const intentos: AIProviderAttempt[] = [];
   let resp: string | null = null;
-  try { resp = await generarContenidoUniversalIA(prompt, 6000, intentos); } catch { resp = null; }
+  try { resp = await generarContenidoUniversalIA(prompt, 2500, intentos); } catch { resp = null; }
   const texto = String(resp || "").replace(/\r/g, "").replace(/[‐-―]/g, "-").replace(/[*#]+/g, "");
   const seccion = (nombre: string) => {
     const re = new RegExp(`(?:^|\\n)\\s*${nombre}:\\s*([\\s\\S]*?)(?=\\n\\s*(?:PERIODO|SESIONES|EXPOSITORES|VOTACIONES|CAMBIOS|RESUMEN):|$)`, "i");

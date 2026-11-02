@@ -499,7 +499,12 @@ export default function ProyectoDetailView({
   } | null>(null);
   const [indicacionesLoading, setIndicacionesLoading] = useState(false);
 
-  const projectCommissionsForComparador = unirComisiones([proyecto.comisionActual, ...(proyecto.comisionesHistoricas || [])]);
+  // Todas las comisiones por las que pasó el proyecto (incluidas las del historial de tramitación).
+  const projectCommissionsForComparador = unirComisiones([
+    proyecto.comisionActual,
+    ...(proyecto.comisionesHistoricas || []),
+    ...((proyecto.timeline || []) as any[]).map(act => `${act.titulo || ""} ${act.descripcion || ""}`)
+  ]);
   const selectedComisionSafe = projectCommissionsForComparador.includes(selectedComisionComparador)
     ? selectedComisionComparador
     : (projectCommissionsForComparador[0] || "");

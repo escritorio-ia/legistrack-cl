@@ -35,5 +35,15 @@ export function unirComisiones(lista: (string | undefined | null)[]): string[] {
       if (!vistos.has(k)) vistos.set(k, c);
     }
   }
-  return Array.from(vistos.values());
+  // Si un nombre es el comienzo de otro ("Economía, Fomento" / "Economía, Fomento y
+  // Desarrollo"), son la misma comisión: se conserva el nombre completo.
+  const claves = Array.from(vistos.keys());
+  const resultado: string[] = [];
+  for (const k of claves) {
+    const base = k.replace(/[,\s]+$/, "");
+    // Solo nombres ya cortados (con coma): "Agricultura" (Senado) y "Agricultura, Silvicultura…" (Cámara) son distintas.
+    const hayMasLargo = base.includes(",") && claves.some(o => o !== k && o.length > k.length && o.startsWith(base));
+    if (!hayMasLargo) resultado.push(vistos.get(k)!);
+  }
+  return resultado;
 }

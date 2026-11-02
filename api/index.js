@@ -189109,7 +189109,7 @@ async function resumenPasoComision(boletinId, comision) {
   const digits = String(boletinId || "").replace(/\./g, "").match(/\d{3,6}/)?.[0] || "";
   if (!digits || !comision) return { disponible: false, motivo: "Faltan el bolet\xEDn o la comisi\xF3n." };
   const norm4 = (x) => x.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
-  const clave = `resumen_comision_v1_${digits}_${norm4(comision)}`;
+  const clave = `resumen_comision_v2_${digits}_${norm4(comision)}`;
   const previo = cache.get(clave);
   if (previo) return previo;
   const p = await fetchProyectoFromSenado(digits);
@@ -189119,20 +189119,21 @@ async function resumenPasoComision(boletinId, comision) {
   if (informes.length === 0) {
     return { disponible: false, comision, motivo: "Esta comisi\xF3n a\xFAn no ha emitido un informe en el expediente; el resumen estar\xE1 disponible cuando lo publique." };
   }
+  const factor = informes.length > 1 ? 0.5 : 1;
   const bloques = [];
   for (const inf of informes) {
     const t = await fetchTextoInformeDocx(inf.url);
     if (!t) continue;
-    const inicio = t.slice(0, 9e3);
+    const inicio = t.slice(0, Math.round(4500 * factor));
     const exposiciones = ventanas(t, /(expuso|expus[oi]eron|señal[oó]|manifest[oó]|indic[oó] que|explic[oó]|sostuvo|planteó|intervino|hizo uso de la palabra)/gi, 1600, 7);
     const votos = ventanas(t, /(votaci[oó]n|aprob[oó]|rechaz[oó]|unanimidad|votos a favor)/gi, 700, 5);
     bloques.push(`=== ${inf.titulo} (${inf.fecha || "s/f"}) ===
 [INICIO]
 ${inicio}
 [EXPOSICIONES]
-${exposiciones.slice(0, 11e3)}
+${exposiciones.slice(0, Math.round(7e3 * factor))}
 [VOTACIONES]
-${votos.slice(0, 3500)}`);
+${votos.slice(0, Math.round(2e3 * factor))}`);
   }
   if (bloques.length === 0) return { disponible: false, comision, motivo: "No se pudo leer el texto de los informes de esta comisi\xF3n." };
   const prompt = `Eres analista de la Biblioteca del Congreso Nacional de Chile. Abajo hay extractos de los informes oficiales de la ${comision} sobre el proyecto "${p.titulo}" (Bolet\xEDn ${p.id}).
@@ -189156,7 +189157,7 @@ Reglas: usa SOLO lo que dicen los extractos; no inventes nombres, cargos, cifras
   const intentos = [];
   let resp = null;
   try {
-    resp = await generarContenidoUniversalIA(prompt, 6e3, intentos);
+    resp = await generarContenidoUniversalIA(prompt, 2500, intentos);
   } catch {
     resp = null;
   }
