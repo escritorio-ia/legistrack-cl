@@ -1370,8 +1370,8 @@ export default function ProyectoDetailView({
                   )}
                 </div>
 
-                {/* FICHA TÉCNICA EN 3 EJES */}
-                <div className="bg-gradient-to-br from-slate-50 via-white to-blue-50/20 rounded-2xl border border-slate-200/90 shadow-sm p-6 space-y-4">
+                {/* FICHA TÉCNICA EN 3 EJES — oculta: repetía el contenido de la Ficha Ejecutiva */}
+                <div className="hidden bg-gradient-to-br from-slate-50 via-white to-blue-50/20 rounded-2xl border border-slate-200/90 shadow-sm p-6 space-y-4">
                   <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3">
                     <div className="flex items-center gap-2">
                       <div className="p-1.5 bg-blue-100 text-blue-700 rounded-lg">
