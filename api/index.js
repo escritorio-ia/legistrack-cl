@@ -189479,6 +189479,23 @@ async function importarCitacionesCamara(html, semana) {
   cache.delete("camara_citaciones_semanales_live");
   return { semana: clave, citaciones: datos.todas.length, dias: datos.porDia.length };
 }
+async function importarResultadosCamara(html, semana) {
+  const datos = parsearCitacionesCamaraHtml(html);
+  if (datos.todas.length === 0) throw new Error("El HTML recibido no contiene resultados legibles.");
+  const clave = /^\d{4}-\d{1,2}$/.test(semana) ? semana : (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+  const resultados = datos.todas.map((c) => ({
+    fecha: c.fecha,
+    comisionNombre: c.comisionNombre,
+    comisionSlug: c.comisionSlug,
+    hora: c.hora,
+    lugar: c.lugar,
+    materia: c.materia,
+    resultado: c.invitados && !/^No informado/i.test(c.invitados) ? c.invitados : "",
+    boletines: c.boletinesRelacionados || []
+  }));
+  await guardarDocFirestore(`resultados_${clave}`, { semana: clave, importadoEn: (/* @__PURE__ */ new Date()).toISOString(), payload: JSON.stringify({ semana: clave, resultados }) });
+  return { semana: clave, sesiones: resultados.length };
+}
 async function citacionesImportadasVigentes() {
   const semanas = Object.values(await leerSemanasImportadas()).filter((s) => Date.now() - new Date(s.importadoEn).getTime() < 10 * 864e5).sort((a, b) => a.semana.localeCompare(b.semana));
   if (semanas.length === 0) return null;
@@ -190004,25 +190021,44 @@ async function videosSesionesCamara() {
     return sesiones.map((s) => ({ videoId: s.videoId, comision: s.p.comision, fecha: s.p.fecha, duracion: formatoDuracion2(duraciones[s.videoId] ?? null), titulo: s.titulo }));
   });
 }
-async function citacionesCamaraHistoricas() {
-  return cache.wrap("citaciones_camara_historicas_v1", 15 * 60 * 1e3, async () => {
-    const out = [];
+async function resultadosCamaraHistoricos() {
+  const docs = await documentosCitacionesCamara();
+  const out = [];
+  for (const doc of docs) {
+    if (!/\/resultados_[^/]+$/.test(doc.name || "")) continue;
+    try {
+      out.push(...JSON.parse(doc.fields?.payload?.stringValue || "{}").resultados || []);
+    } catch {
+    }
+  }
+  return out;
+}
+async function documentosCitacionesCamara() {
+  return cache.wrap("citaciones_camara_docs_v1", 15 * 60 * 1e3, async () => {
+    const docs = [];
     let pageToken = "";
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 20; i++) {
       const qs = new URLSearchParams({ pageSize: "100", key: FS_KEY2, ...pageToken ? { pageToken } : {} });
       const r = await fetch(`https://firestore.googleapis.com/v1/projects/${FS_PROY}/databases/(default)/documents/citaciones_camara?${qs}`, { signal: AbortSignal.timeout(1e4) });
       if (!r.ok) break;
       const d = await r.json();
-      for (const doc of d.documents || []) {
-        if (!/\/semana_[^/]+$/.test(doc.name || "")) continue;
-        try {
-          const reg = JSON.parse(doc.fields?.payload?.stringValue || "null");
-          for (const c of reg?.datos?.todas || []) out.push({ ...c, _semana: reg.semana });
-        } catch {
-        }
-      }
+      docs.push(...d.documents || []);
       pageToken = d.nextPageToken || "";
       if (!pageToken) break;
+    }
+    return docs;
+  });
+}
+async function citacionesCamaraHistoricas() {
+  return cache.wrap("citaciones_camara_historicas_v2", 15 * 60 * 1e3, async () => {
+    const out = [];
+    for (const doc of await documentosCitacionesCamara()) {
+      if (!/\/semana_[^/]+$/.test(doc.name || "")) continue;
+      try {
+        const reg = JSON.parse(doc.fields?.payload?.stringValue || "null");
+        for (const c of reg?.datos?.todas || []) out.push({ ...c, _semana: reg.semana });
+      } catch {
+      }
     }
     return out;
   });
@@ -190042,9 +190078,10 @@ function mismaComision(nombreVideo, nombreComision) {
   return v.slice(0, 2).every((w) => c.includes(w));
 }
 async function sesionesCamaraDeComision(slug, nombre) {
-  const [videos, citas] = await Promise.all([
+  const [videos, citas, resultados] = await Promise.all([
     videosSesionesCamara().catch(() => []),
-    citacionesCamaraHistoricas().catch(() => [])
+    citacionesCamaraHistoricas().catch(() => []),
+    resultadosCamaraHistoricos().catch(() => [])
   ]);
   const porFecha = /* @__PURE__ */ new Map();
   const hoy = fechaISO(/* @__PURE__ */ new Date());
@@ -190065,6 +190102,25 @@ async function sesionesCamaraDeComision(slug, nombre) {
       acuerdosCount: 0,
       fuente: "Citaci\xF3n oficial (camara.cl)"
     });
+  }
+  for (const r of resultados) {
+    if (r.comisionSlug !== slug) continue;
+    const f = fechaCitacion(r.fecha);
+    if (!f || !r.resultado) continue;
+    const previa = porFecha.get(f);
+    const base = previa || {
+      id: `ses-cd-hist-${f}`,
+      fecha: f,
+      hora: r.hora,
+      lugar: r.lugar,
+      tipo: "Sesi\xF3n de Comisi\xF3n",
+      materia: r.materia || "Materia no informada",
+      invitados: "",
+      completada: true,
+      acuerdosCount: 0,
+      fuente: "Resultado oficial (camara.cl)"
+    };
+    porFecha.set(f, { ...base, actaTexto: r.resultado, completada: true, fuente: base.fuente.includes("Resultado") ? base.fuente : `${base.fuente} + resultado oficial` });
   }
   for (const v of videos) {
     if (!mismaComision(v.comision, nombre)) continue;
@@ -194204,6 +194260,36 @@ apiRouter.get("/senado/comision/:id/sesiones", async (req, res) => {
 });
 apiRouter.get("/senado/sesion/:comision/:sesion", async (req, res) => {
   res.json(await detalleSesionSenado(String(req.params.comision), String(req.params.sesion)));
+});
+apiRouter.options("/camara/resultados/importar", (req, res) => {
+  const origen = String(req.headers.origin || "");
+  if (ORIGEN_CAMARA.test(origen)) {
+    res.setHeader("Access-Control-Allow-Origin", origen);
+    res.setHeader("Access-Control-Allow-Methods", "POST");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  }
+  res.sendStatus(204);
+});
+apiRouter.post("/camara/resultados/importar", expressText({ type: "text/plain", limit: "5mb" }), async (req, res) => {
+  const origen = String(req.headers.origin || "");
+  if (ORIGEN_CAMARA.test(origen)) res.setHeader("Access-Control-Allow-Origin", origen);
+  let body = req.body;
+  if (typeof body === "string") {
+    try {
+      body = JSON.parse(body);
+    } catch {
+      return res.status(400).json({ ok: false, error: "Cuerpo no es JSON v\xE1lido." });
+    }
+  }
+  const token = process.env.CITACIONES_IMPORT_TOKEN;
+  if (token && body?.token !== token) return res.status(401).json({ ok: false, error: "Token de importaci\xF3n inv\xE1lido." });
+  const html = String(body?.html || "");
+  if (html.length < 200) return res.status(400).json({ ok: false, error: "Falta el HTML de la p\xE1gina de resultados." });
+  try {
+    res.json({ ok: true, ...await importarResultadosCamara(html, String(body?.semana || "")) });
+  } catch (err) {
+    res.status(422).json({ ok: false, error: err?.message || String(err) });
+  }
 });
 apiRouter.get("/proyecto/:id/sesiones", async (req, res) => {
   const digits = digitosBoletin(String(req.params.id));

@@ -234,6 +234,23 @@ export async function importarCitacionesCamara(html: string, semana: string): Pr
   return { semana: clave, citaciones: datos.todas.length, dias: datos.porDia.length };
 }
 
+/**
+ * Resultados semanales de las sesiones (camara.cl/…/resultados_semana.aspx). Misma
+ * estructura que las citaciones: la columna "Resultado" (que el parser deja en
+ * "invitados") trae lo realizado, las exposiciones y los diputados asistentes.
+ */
+export async function importarResultadosCamara(html: string, semana: string): Promise<{ semana: string; sesiones: number }> {
+  const datos = parsearCitacionesCamaraHtml(html);
+  if (datos.todas.length === 0) throw new Error("El HTML recibido no contiene resultados legibles.");
+  const clave = /^\d{4}-\d{1,2}$/.test(semana) ? semana : new Date().toISOString().slice(0, 10);
+  const resultados = datos.todas.map((c: any) => ({
+    fecha: c.fecha, comisionNombre: c.comisionNombre, comisionSlug: c.comisionSlug, hora: c.hora, lugar: c.lugar,
+    materia: c.materia, resultado: c.invitados && !/^No informado/i.test(c.invitados) ? c.invitados : "", boletines: c.boletinesRelacionados || []
+  }));
+  await guardarDocFirestore(`resultados_${clave}`, { semana: clave, importadoEn: new Date().toISOString(), payload: JSON.stringify({ semana: clave, resultados }) });
+  return { semana: clave, sesiones: resultados.length };
+}
+
 /** Citaciones importadas recientes (últimos 10 días), unidas en orden cronológico. */
 async function citacionesImportadasVigentes(): Promise<{ datos: { porDia: any[]; porComision: Record<string, any[]>; todas: any[] }; importadoEn: string } | null> {
   const semanas = Object.values(await leerSemanasImportadas())

@@ -58,6 +58,12 @@ chrome.runtime.onMessage.addListener((msg, _sender, responder) => {
       .catch(async e => { await registrar("camara", { ok: false, detalle: e.message }); responder({ ok: false, error: e.message }); });
     return true;
   }
+  if (msg?.tipo === "camara-resultados") {
+    enviar("/api/camara/resultados/importar", { semana: msg.semana, html: msg.html })
+      .then(async j => { await registrar("resultados", { ok: true, detalle: `Semana ${j.semana}: ${j.sesiones} sesiones` }); responder({ ok: true, ...j }); })
+      .catch(async e => { await registrar("resultados", { ok: false, detalle: e.message }); responder({ ok: false, error: e.message }); });
+    return true;
+  }
   if (msg?.tipo === "senado-raw") {
     enviar("/api/senado/citaciones/importar", { raw: msg.raw })
       .then(async j => { await registrar("senado", { ok: true, detalle: `${j.citaciones} citaciones (${j.dias} días) desde senado.cl` }); responder({ ok: true }); })
@@ -113,6 +119,9 @@ async function revisarRecordatorioCamara() {
 chrome.notifications.onClicked.addListener(id => {
   if (id !== "recordatorio-camara") return;
   chrome.tabs.create({ url: urlSemanaCamara() });
+  // Resultados de la semana recién terminada (lo realizado en cada sesión).
+  const pasada = new Date(); pasada.setDate(pasada.getDate() - ([5, 6, 0].includes(pasada.getDay()) ? 0 : 7));
+  chrome.tabs.create({ url: `https://www.camara.cl/legislacion/comisiones/resultados_semana.aspx?prmSemana=${semanaISO(pasada)}`, active: false });
   chrome.notifications.clear(id);
 });
 

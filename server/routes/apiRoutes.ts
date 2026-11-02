@@ -42,6 +42,7 @@ import {
   fetchCamaraVotacionDetalle,
   estadoCitacionesCamara,
   importarCitacionesCamara,
+  importarResultadosCamara,
   SENADO_COMISIONES_REALES,
   DIPUTADOS_COMISIONES_REALES
 } from "../services/camaraService";
@@ -861,6 +862,28 @@ apiRouter.get("/senado/comision/:id/sesiones", async (req: Request, res: Respons
 
 apiRouter.get("/senado/sesion/:comision/:sesion", async (req: Request, res: Response) => {
   res.json(await detalleSesionSenado(String(req.params.comision), String(req.params.sesion)));
+});
+
+apiRouter.options("/camara/resultados/importar", (req: Request, res: Response) => {
+  const origen = String(req.headers.origin || "");
+  if (ORIGEN_CAMARA.test(origen)) {
+    res.setHeader("Access-Control-Allow-Origin", origen);
+    res.setHeader("Access-Control-Allow-Methods", "POST");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  }
+  res.sendStatus(204);
+});
+apiRouter.post("/camara/resultados/importar", expressText({ type: "text/plain", limit: "5mb" }), async (req: Request, res: Response) => {
+  const origen = String(req.headers.origin || "");
+  if (ORIGEN_CAMARA.test(origen)) res.setHeader("Access-Control-Allow-Origin", origen);
+  let body: any = req.body;
+  if (typeof body === "string") { try { body = JSON.parse(body); } catch { return res.status(400).json({ ok: false, error: "Cuerpo no es JSON válido." }); } }
+  const token = process.env.CITACIONES_IMPORT_TOKEN;
+  if (token && body?.token !== token) return res.status(401).json({ ok: false, error: "Token de importación inválido." });
+  const html = String(body?.html || "");
+  if (html.length < 200) return res.status(400).json({ ok: false, error: "Falta el HTML de la página de resultados." });
+  try { res.json({ ok: true, ...(await importarResultadosCamara(html, String(body?.semana || ""))) }); }
+  catch (err: any) { res.status(422).json({ ok: false, error: err?.message || String(err) }); }
 });
 
 apiRouter.get("/proyecto/:id/sesiones", async (req: Request, res: Response) => {

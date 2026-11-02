@@ -71,8 +71,50 @@ export async function videosSesionesCamara(): Promise<VideoSesionCamara[]> {
   });
 }
 
+/** Resultados oficiales de sesiones guardados (citaciones_camara/resultados_*). */
+export async function resultadosCamaraHistoricos(): Promise<any[]> {
+  const docs = await documentosCitacionesCamara();
+  const out: any[] = [];
+  for (const doc of docs) {
+    if (!/\/resultados_[^/]+$/.test(doc.name || "")) continue;
+    try { out.push(...(JSON.parse(doc.fields?.payload?.stringValue || "{}").resultados || [])); } catch { /* ilegible */ }
+  }
+  return out;
+}
+
+async function documentosCitacionesCamara(): Promise<any[]> {
+  return cache.wrap("citaciones_camara_docs_v1", 15 * 60 * 1000, async () => {
+    const docs: any[] = [];
+    let pageToken = "";
+    for (let i = 0; i < 20; i++) {
+      const qs = new URLSearchParams({ pageSize: "100", key: FS_KEY, ...(pageToken ? { pageToken } : {}) });
+      const r = await fetch(`https://firestore.googleapis.com/v1/projects/${FS_PROY}/databases/(default)/documents/citaciones_camara?${qs}`, { signal: AbortSignal.timeout(10000) });
+      if (!r.ok) break;
+      const d: any = await r.json();
+      docs.push(...(d.documents || []));
+      pageToken = d.nextPageToken || "";
+      if (!pageToken) break;
+    }
+    return docs;
+  });
+}
+
 /** Todas las semanas de citaciones de la Cámara guardadas en Firestore (caché 15 min). */
 export async function citacionesCamaraHistoricas(): Promise<any[]> {
+  return cache.wrap("citaciones_camara_historicas_v2", 15 * 60 * 1000, async () => {
+    const out: any[] = [];
+    for (const doc of await documentosCitacionesCamara()) {
+      if (!/\/semana_[^/]+$/.test(doc.name || "")) continue;
+      try {
+        const reg = JSON.parse(doc.fields?.payload?.stringValue || "null");
+        for (const c of reg?.datos?.todas || []) out.push({ ...c, _semana: reg.semana });
+      } catch { /* documento ilegible */ }
+    }
+    return out;
+  });
+}
+
+async function _citacionesViejo(): Promise<any[]> {
   return cache.wrap("citaciones_camara_historicas_v1", 15 * 60 * 1000, async () => {
     const out: any[] = [];
     let pageToken = "";
@@ -115,12 +157,15 @@ function mismaComision(nombreVideo: string, nombreComision: string): boolean {
 export interface SesionCamaraHist {
   id: string; fecha: string; hora?: string; lugar?: string; tipo: string; materia: string; invitados: string;
   tabla?: string[]; videoUrl?: string; duracionVideo?: string; completada: boolean; acuerdosCount: number; fuente: string;
+  /** Resultado oficial publicado por la Cámara (lo realizado en la sesión). */
+  actaTexto?: string;
 }
 
 export async function sesionesCamaraDeComision(slug: string, nombre: string): Promise<SesionCamaraHist[]> {
-  const [videos, citas] = await Promise.all([
+  const [videos, citas, resultados] = await Promise.all([
     videosSesionesCamara().catch(() => [] as VideoSesionCamara[]),
-    citacionesCamaraHistoricas().catch(() => [] as any[])
+    citacionesCamaraHistoricas().catch(() => [] as any[]),
+    resultadosCamaraHistoricos().catch(() => [] as any[])
   ]);
   const porFecha = new Map<string, SesionCamaraHist>();
   const hoy = fechaISO(new Date());
@@ -135,6 +180,19 @@ export async function sesionesCamaraDeComision(slug: string, nombre: string): Pr
       tabla: c.tabla, completada: f < hoy, acuerdosCount: 0, fuente: "Citación oficial (camara.cl)"
     });
   }
+  // Resultado oficial de la sesión (lo realizado, exposiciones y asistentes).
+  for (const r of resultados) {
+    if (r.comisionSlug !== slug) continue;
+    const f = fechaCitacion(r.fecha);
+    if (!f || !r.resultado) continue;
+    const previa = porFecha.get(f);
+    const base: SesionCamaraHist = previa || {
+      id: `ses-cd-hist-${f}`, fecha: f, hora: r.hora, lugar: r.lugar, tipo: "Sesión de Comisión",
+      materia: r.materia || "Materia no informada", invitados: "", completada: true, acuerdosCount: 0, fuente: "Resultado oficial (camara.cl)"
+    };
+    porFecha.set(f, { ...base, actaTexto: r.resultado, completada: true, fuente: base.fuente.includes("Resultado") ? base.fuente : `${base.fuente} + resultado oficial` });
+  }
+
   for (const v of videos) {
     if (!mismaComision(v.comision, nombre)) continue;
     const previa = porFecha.get(v.fecha);

@@ -5,8 +5,8 @@ function pintar(id, v) {
   el.textContent = `${v.ok ? "✓" : "✗"} ${v.detalle} · ${new Date(v.fecha).toLocaleString("es-CL")}`;
 }
 async function refrescar() {
-  const d = await chrome.storage.local.get(["senado", "camara", "sesiones"]);
-  pintar("senado", d.senado); pintar("camara", d.camara); pintar("sesiones", d.sesiones);
+  const d = await chrome.storage.local.get(["senado", "camara", "sesiones", "resultados"]);
+  pintar("senado", d.senado); pintar("camara", d.camara); pintar("sesiones", d.sesiones); pintar("resultados", d.resultados);
 }
 document.getElementById("sync").onclick = async () => {
   document.getElementById("senado").textContent = "Sincronizando…";
