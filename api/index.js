@@ -188281,7 +188281,7 @@ async function testearProveedoresIAReal() {
 }
 
 // src/utils/comisionesNombre.ts
-var CORTES = /\s*(?:,\s*y\b|\s+y\s*,|,?\s+posteriormente\b|,?\s+finalmente\b|,?\s+luego\b|\s+para\s|\s+con\s+ocasi[oó]n|\s+en\s+(?:el|la|los|las|su|sesi[oó]n)\b|\s+a\s+fin\b|\s+que\s|\s+por\s|[.:(]).*$/i;
+var CORTES = /\s*(?:,\s*y\b|\s+y\s*,|,?\s+posteriormente\b|,?\s+finalmente\b|,?\s+luego\b|\s+para\s|\s+con\s+ocasi[oó]n|\s+en\s+(?:el|la|los|las|lo|su|sesi[oó]n)\b|\s+el\s+rechazo|\s+rechaz|\s+a\s+fin\b|\s+que\s|\s+por\s|[.:(]).*$/i;
 function limpiarNombreComision(raw) {
   let s = String(raw || "").replace(/\s+/g, " ").trim();
   s = s.replace(/^(?:a\s+|por\s+)?(?:la|las)\s+/i, "");
@@ -189956,7 +189956,7 @@ Ordena las intervenciones cronol\xF3gicamente y registra cada cambio relevante d
         detalle = txt.slice(0, 160);
       }
       errores.push(`${m}: HTTP ${res.status}${detalle ? ` (${detalle})` : ""}`);
-      if (res.status !== 429 && res.status !== 404) break;
+      if (![429, 404, 500, 502, 503, 504].includes(res.status)) break;
       res = null;
     }
     if (!res || !res.ok) {

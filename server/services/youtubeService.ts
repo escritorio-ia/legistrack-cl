@@ -282,7 +282,7 @@ Ordena las intervenciones cronológicamente y registra cada cambio relevante de 
         detalle = viol.map((v: any) => v.quotaId || v.quotaMetric).filter(Boolean).join(", ") || String(j?.error?.message || "").slice(0, 160);
       } catch { detalle = txt.slice(0, 160); }
       errores.push(`${m}: HTTP ${res.status}${detalle ? ` (${detalle})` : ""}`);
-      if (res.status !== 429 && res.status !== 404) break;
+      if (![429, 404, 500, 502, 503, 504].includes(res.status)) break;
       res = null;
     }
     if (!res || !res.ok) {
