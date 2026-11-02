@@ -189155,7 +189155,7 @@ async function resumenPasoComision(boletinId, comision) {
   if (previo) return previo;
   const p = await fetchProyectoFromSenado(digits);
   if (!p) return { disponible: false, motivo: "No se encontr\xF3 el proyecto en la ficha oficial del Senado." };
-  const nucleo = norm4(comision).replace(/^comision\s+(especial\s+)?(de\s+)?/, "").split(/[,\s]+/).filter((w) => w.length > 3).slice(0, 2);
+  const nucleo = norm4(comision).replace(/^comision\s+(especial\s+)?(de\s+)?/, "").split(/[^a-z0-9]+/).filter((w) => w.length > 3).slice(0, 2);
   const informes = (p.documentos || []).filter((d) => d.tipo === "Informe" && d.url && nucleo.every((w) => norm4(d.titulo).includes(w))).sort((a, b) => (a.fecha || "").localeCompare(b.fecha || "")).slice(0, 2);
   if (informes.length === 0) {
     return { disponible: false, comision, motivo: "Esta comisi\xF3n a\xFAn no ha emitido un informe en el expediente; el resumen estar\xE1 disponible cuando lo publique." };

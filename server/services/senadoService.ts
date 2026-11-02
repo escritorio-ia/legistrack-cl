@@ -1336,7 +1336,7 @@ export async function resumenPasoComision(boletinId: string, comision: string): 
 
   const p = await fetchProyectoFromSenado(digits);
   if (!p) return { disponible: false, motivo: "No se encontró el proyecto en la ficha oficial del Senado." };
-  const nucleo = norm(comision).replace(/^comision\s+(especial\s+)?(de\s+)?/, "").split(/[,\s]+/).filter(w => w.length > 3).slice(0, 2);
+  const nucleo = norm(comision).replace(/^comision\s+(especial\s+)?(de\s+)?/, "").split(/[^a-z0-9]+/).filter(w => w.length > 3).slice(0, 2);
   const informes = (p.documentos || [])
     .filter(d => d.tipo === "Informe" && d.url && nucleo.every(w => norm(d.titulo).includes(w)))
     .sort((a, b) => (a.fecha || "").localeCompare(b.fecha || ""))
