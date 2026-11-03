@@ -189822,7 +189822,8 @@ async function buscarVideosSesion(comision, fecha, camara = "diputados") {
     const params = {
       part: "snippet",
       channelId: canal.id,
-      q: `Comisi\xF3n ${limpio}`,
+      // Solo la primera parte del nombre: los títulos de YouTube dicen "Comisión de Agricultura - fecha".
+      q: `Comisi\xF3n ${limpio.split(/[,;]/)[0].trim()}`,
       type: "video",
       maxResults: "15",
       order: dia ? "relevance" : "date"

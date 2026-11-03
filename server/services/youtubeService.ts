@@ -109,7 +109,8 @@ export async function buscarVideosSesion(comision: string, fecha?: string, camar
     const params: Record<string, string> = {
       part: "snippet",
       channelId: canal.id,
-      q: `Comisión ${limpio}`,
+      // Solo la primera parte del nombre: los títulos de YouTube dicen "Comisión de Agricultura - fecha".
+      q: `Comisión ${limpio.split(/[,;]/)[0].trim()}`,
       type: "video",
       maxResults: "15",
       order: dia ? "relevance" : "date"

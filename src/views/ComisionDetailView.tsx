@@ -1525,7 +1525,11 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
       setSearchLoading(false);
 
       {
-        const video = videos[0] || null;
+        // Si la sesión ya trae su video oficial (listado oficial de la comisión), se usa ese.
+        const idPropio = (String(ses.videoUrl || "").match(/(?:v=|youtu\.be\/)([\w-]{11})/) || [])[1];
+        const video = idPropio
+          ? (videos.find((v: any) => v.id === idPropio) || { id: idPropio, title: `${comision?.nombre || "Comisión"} - ${ses.fecha}`, url: ses.videoUrl, channel: "Canal Oficial del Congreso" })
+          : (videos[0] || null);
         if (video) {
           setSelectedVideo(video);
           indexarSesionEnProyectos(ses, video, finalBoletinId);
