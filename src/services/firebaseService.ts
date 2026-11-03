@@ -115,6 +115,9 @@ export async function saveInformeToFirestore(reportData: {
   reportContent: string[];
   createdAt: string;
   updatedAt?: string;
+  revisadoVideo?: boolean;
+  conAnalisisVideo?: boolean;
+  editado?: boolean;
 }): Promise<boolean> {
   if (!db) return false;
   try {

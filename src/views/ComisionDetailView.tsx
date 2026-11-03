@@ -1443,7 +1443,7 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
       const storedSessionReport = localStorage.getItem(sessionReportKey);
       if (storedSessionReport) {
         const parsed = JSON.parse(storedSessionReport);
-        if (parsed && parsed.reportContent && parsed.reportContent.length > 0) {
+        if (parsed && parsed.reportContent && parsed.reportContent.length > 0 && (parsed.revisadoVideo || parsed.editado)) {
           setGeneratedReport(parsed);
           setEditableReportPages(parsed.reportContent);
           setGeneratingReport(false);
@@ -1466,7 +1466,7 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
         const parsedList = JSON.parse(storedBoletinReports);
         if (Array.isArray(parsedList) && parsedList.length > 0) {
           const matchSes = parsedList.find((r: any) => r.fecha === ses.fecha || r.sesionId === ses.id);
-          if (matchSes && matchSes.reportContent && matchSes.reportContent.length > 0) {
+          if (matchSes && matchSes.reportContent && matchSes.reportContent.length > 0 && (matchSes.revisadoVideo || matchSes.editado)) {
             setGeneratedReport(matchSes);
             setEditableReportPages(matchSes.reportContent);
             setGeneratingReport(false);
@@ -1492,7 +1492,7 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
     try {
       const cloudReport = await getInformeFromFirestore(ses.id);
       if (activeReportSessionIdRef.current !== ses.id) return; // el usuario ya abrió otra sesión mientras esto cargaba
-      if (cloudReport && cloudReport.reportContent && cloudReport.reportContent.length > 0) {
+      if (cloudReport && cloudReport.reportContent && cloudReport.reportContent.length > 0 && (cloudReport.revisadoVideo || cloudReport.editado)) {
         setGeneratedReport(cloudReport);
         setEditableReportPages(cloudReport.reportContent);
         setIsEditingReport(false);
@@ -1583,6 +1583,8 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
           videoUrl: video ? (video.url || `https://www.youtube.com/watch?v=${video.id}`) : "",
           videoTitle: video?.title || "",
           reportContent: pages,
+          revisadoVideo: true,
+          conAnalisisVideo: !!analisisDelVideo,
           createdAt: new Date().toISOString()
         };
 
@@ -1598,6 +1600,8 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
           videoUrl: video ? (video.url || `https://www.youtube.com/watch?v=${video.id}`) : "",
           videoTitle: video?.title || "",
           reportContent: pages,
+          revisadoVideo: true,
+          conAnalisisVideo: !!analisisDelVideo,
           createdAt: new Date().toISOString()
         }).catch(err => console.warn("Could not sync report to Firestore:", err));
 
@@ -1725,6 +1729,7 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
           videoUrl: selectedVideo.url || `https://www.youtube.com/watch?v=${selectedVideo.id}`,
           videoTitle: selectedVideo.title,
           reportContent: pages,
+          revisadoVideo: true,
           createdAt: new Date().toISOString()
         }).catch(err => console.warn("Could not sync regenerated report to Firestore:", err));
 
@@ -1761,6 +1766,7 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
       videoUrl: selectedVideo?.url || `https://www.youtube.com/watch?v=${selectedVideo?.id || ''}`,
       videoTitle: selectedVideo?.title,
       reportContent: editableReportPages,
+      editado: true,
       createdAt: new Date().toISOString()
     };
 
