@@ -134,7 +134,7 @@ export default function YouTubeTranscriptModal({
       try {
         r = await fetch(`/api/videos/${id}/analisis?${qs}`).then(x => x.json());
       } catch (e: any) {
-        r = { disponible: false, motivo: "No se pudo conectar con el servidor (el análisis pudo exceder el tiempo máximo).", parte, desde: parte * 3600, hasta: null };
+        r = { disponible: false, motivo: "No se pudo conectar con el servidor (el análisis pudo exceder el tiempo máximo).", parte, desde: parte * 1800, hasta: null };
       }
       if (cancelado.current) return;
       if (!r.disponible) {

@@ -189866,7 +189866,7 @@ async function buscarVideosSesion(comision, fecha, camara = "diputados") {
     return videos.filter((x) => !clave || norm(x.v.title).includes(clave)).map((x) => x.v).slice(0, 10);
   });
 }
-var SEGUNDOS_POR_PARTE = 3600;
+var SEGUNDOS_POR_PARTE = 1800;
 function aSegundos(v) {
   if (typeof v === "number" && isFinite(v)) return Math.max(0, Math.round(v));
   const p = String(v || "").trim().split(":").map((n) => parseInt(n, 10));
@@ -189919,8 +189919,14 @@ Ordena las intervenciones cronol\xF3gicamente y registra cada cambio relevante d
     let res = null;
     let model = candidatos[0];
     const errores = [];
+    const limiteTotal = Date.now() + 27e4;
     for (const m of candidatos) {
       model = m;
+      const restante = limiteTotal - Date.now();
+      if (restante < 2e4) {
+        errores.push(`${m}: sin tiempo restante`);
+        break;
+      }
       try {
         res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, {
           method: "POST",
@@ -189940,10 +189946,12 @@ Ordena las intervenciones cronol\xF3gicamente y registra cada cambio relevante d
               mediaResolution: "MEDIA_RESOLUTION_LOW"
             }
           }),
-          signal: AbortSignal.timeout(27e4)
+          signal: AbortSignal.timeout(Math.min(11e4, restante))
         });
       } catch (err) {
-        return { disponible: false, motivo: `No se pudo contactar a Gemini: ${err?.message || err}`, parte, desde, hasta };
+        errores.push(`${m}: ${err?.name === "TimeoutError" ? "sin respuesta a tiempo" : err?.message || err}`);
+        res = null;
+        continue;
       }
       if (res.ok) break;
       const txt = await res.text().catch(() => "");

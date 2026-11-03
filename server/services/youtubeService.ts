@@ -181,7 +181,7 @@ export interface AnalisisParteVideo {
 }
 
 /** Segundos por parte. Partes de 1 hora para no exceder el límite de tiempo de la función. */
-export const SEGUNDOS_POR_PARTE = 3600;
+export const SEGUNDOS_POR_PARTE = 1800;
 
 function aSegundos(v: any): number {
   if (typeof v === "number" && isFinite(v)) return Math.max(0, Math.round(v));
@@ -247,8 +247,11 @@ Ordena las intervenciones cronológicamente y registra cada cambio relevante de 
     let res: Response | null = null;
     let model = candidatos[0];
     const errores: string[] = [];
+    const limiteTotal = Date.now() + 270000; // Vercel corta a los 300 s
     for (const m of candidatos) {
       model = m;
+      const restante = limiteTotal - Date.now();
+      if (restante < 20000) { errores.push(`${m}: sin tiempo restante`); break; }
       try {
         res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, {
           method: "POST",
@@ -268,10 +271,13 @@ Ordena las intervenciones cronológicamente y registra cada cambio relevante de 
               mediaResolution: "MEDIA_RESOLUTION_LOW"
             }
           }),
-          signal: AbortSignal.timeout(270000)
+          signal: AbortSignal.timeout(Math.min(110000, restante))
         });
       } catch (err: any) {
-        return { disponible: false, motivo: `No se pudo contactar a Gemini: ${err?.message || err}`, parte, desde, hasta };
+        // Tiempo agotado o error de red con este modelo: se prueba el siguiente.
+        errores.push(`${m}: ${err?.name === "TimeoutError" ? "sin respuesta a tiempo" : (err?.message || err)}`);
+        res = null;
+        continue;
       }
       if (res.ok) break;
       const txt = await res.text().catch(() => "");
