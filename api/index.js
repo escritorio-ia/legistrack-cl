@@ -189844,7 +189844,10 @@ async function buscarVideosSesion(comision, fecha, camara = "diputados") {
       let puntaje = 0;
       if (clave && t.includes(clave)) puntaje += 2;
       if (t.includes("comision")) puntaje += 1;
-      if (diaTxt && t.includes(diaTxt)) puntaje += 3;
+      if (dia) {
+        const re = new RegExp(`(^|\\D)0?${dia.getUTCDate()}\\s+(de\\s+)?${MESES2[dia.getUTCMonth()]}`);
+        if (re.test(t)) puntaje += 6;
+      }
       const seg = det[id]?.segundos ?? null;
       return {
         v: {

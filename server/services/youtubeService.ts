@@ -133,7 +133,11 @@ export async function buscarVideosSesion(comision: string, fecha?: string, camar
       let puntaje = 0;
       if (clave && t.includes(clave)) puntaje += 2;
       if (t.includes("comision")) puntaje += 1;
-      if (diaTxt && t.includes(diaTxt)) puntaje += 3;
+      // Los títulos dicen "28 de Octubre 2026" (con o sin "de"): se compara con tolerancia.
+      if (dia) {
+        const re = new RegExp(`(^|\\D)0?${dia.getUTCDate()}\\s+(de\\s+)?${MESES[dia.getUTCMonth()]}`);
+        if (re.test(t)) puntaje += 6;
+      }
       const seg = det[id]?.segundos ?? null;
       return {
         v: {
