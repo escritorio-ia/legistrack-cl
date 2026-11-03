@@ -560,6 +560,16 @@ export default function ProyectosView({
                   <option value="Publicado">Publicados / Ley</option>
                 </select>
               </div>
+              {estadoFilter !== "Todos" && (
+                <p className="basis-full text-[11px] text-slate-500 leading-snug -mt-0.5" id="filter-estado-descripcion">
+                  {{
+                    "En discusión": "Proyectos en tramitación: ya ingresaron y siguen su camino en el Congreso (comisión, Sala o cámara revisora).",
+                    "En sala": "Proyectos cuyo informe de comisión ya pasó a la Sala, donde se debate y vota en general o en particular.",
+                    "En estudio": "Proyectos que se están analizando en una comisión, antes de que emita su informe y pase a la Sala.",
+                    "Publicado": "Proyectos que terminaron su tramitación: aprobados, promulgados y publicados como ley.",
+                  }[estadoFilter] || ""}
+                </p>
+              )}
 
               {/* Cámara Select */}
               <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs">

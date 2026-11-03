@@ -117,7 +117,61 @@ export default function StaticDataAnalyticsView({ setView: _setView, setSelected
   const [showLatAm, setShowLatAm] = useState<boolean>(true);
   const [copiedText, setCopiedText] = useState(false);
 
-  const allIndicators = useMemo(() => Object.values(OWID_INDICATORS), []);
+  // Series reales (Banco Mundial) que reemplazan a las escritas a mano.
+  const [vivos, setVivos] = useState<Record<string, any>>({});
+  React.useEffect(() => {
+    fetch("/api/statistics/en-vivo")
+      .then(r => (r.ok ? r.json() : {}))
+      .then(d => { if (d && typeof d === "object") setVivos(d); })
+      .catch(() => {});
+  }, []);
+
+  // Dato vigente publicado por el INE (empleo): reemplaza a los puntos del año en curso que
+  // estaban escritos como "proyección".
+  const [ine, setIne] = useState<Record<string, any>>({});
+  React.useEffect(() => {
+    fetch("/api/statistics/ine-vigente")
+      .then(r => (r.ok ? r.json() : {}))
+      .then(d => { if (d && typeof d === "object") setIne(d); })
+      .catch(() => {});
+  }, []);
+  const INE_POR_INDICADOR: Record<string, string> = {
+    "ine-tasa-desempleo-ene": "desocupacion",
+    "ine-informalidad-laboral": "informalidad",
+    "informalidad-laboral-pct": "informalidad",
+  };
+  const vigenteIne = (id: string): { texto: string; periodo: string; fuenteUrl: string } | null => {
+    const clave = INE_POR_INDICADOR[id];
+    return clave && ine?.[clave] ? ine[clave] : null;
+  };
+
+  const indicadoresFusionados = useMemo<Record<string, OWIDIndicator>>(() => {
+    const out: Record<string, OWIDIndicator> = { ...OWID_INDICATORS };
+    const anioActual = new Date().getFullYear();
+    for (const id of Object.keys(INE_POR_INDICADOR)) {
+      const base = OWID_INDICATORS[id];
+      if (!base) continue;
+      out[id] = { ...base, serieHistorica: base.serieHistorica.filter(p => p.year < anioActual) };
+    }
+    for (const [id, v] of Object.entries(vivos)) {
+      const base = OWID_INDICATORS[id];
+      if (!base || !v?.serieHistorica?.length) continue;
+      const anotaciones = new Map(base.serieHistorica.filter(p => p.annotation).map(p => [p.year, p.annotation as string]));
+      out[id] = {
+        ...base,
+        serieHistorica: v.serieHistorica.map((p: any) => (anotaciones.has(p.year) ? { ...p, annotation: anotaciones.get(p.year) } : p)),
+        fuente: v.fuente,
+        urlFuente: v.urlFuente,
+        definicion: v.definicion,
+        frecuencia: v.frecuencia,
+        sintesisDiagnostica: v.sintesisDiagnostica,
+        datosRegionales: undefined,
+      };
+    }
+    return out;
+  }, [vivos]);
+
+  const allIndicators = useMemo(() => Object.values(indicadoresFusionados), [indicadoresFusionados]);
   const allTopics = useMemo(() => Object.values(OWID_TOPICS), []);
 
   // Filter indicators by search query and topic
@@ -154,7 +208,7 @@ export default function StaticDataAnalyticsView({ setView: _setView, setSelected
     });
   }, [allIndicators, selectedTopicFilter, selectedSourceFilter, searchQuery]);
 
-  const activeIndicator: OWIDIndicator = OWID_INDICATORS[activeIndicatorId] || OWID_INDICATORS["matriz-renovable-pct"];
+  const activeIndicator: OWIDIndicator = indicadoresFusionados[activeIndicatorId] || indicadoresFusionados["matriz-renovable-pct"];
   const activeTopic = OWID_TOPICS[activeIndicator.categoria] || OWID_TOPICS["energia-clima"];
   const activeTheme = TOPIC_COLORS[activeIndicator.categoria] || TOPIC_COLORS["energia-clima"];
 
@@ -538,7 +592,13 @@ export default function StaticDataAnalyticsView({ setView: _setView, setSelected
                   const theme = TOPIC_COLORS[ind.categoria] || TOPIC_COLORS["energia-clima"];
                   const latestPoint = ind.serieHistorica[ind.serieHistorica.length - 1];
                   const firstPoint = ind.serieHistorica[0];
-                  const deltaPct = firstPoint?.chile ? (((latestPoint.chile - firstPoint.chile) / firstPoint.chile) * 100).toFixed(1) : null;
+                  // Variación contra el dato inmediatamente anterior de la serie (no contra el primer año).
+                  const prevPoint = ind.serieHistorica.length > 1 ? ind.serieHistorica[ind.serieHistorica.length - 2] : null;
+                  const deltaPct = prevPoint && prevPoint.chile && typeof latestPoint?.chile === "number"
+                    ? (((latestPoint.chile - prevPoint.chile) / Math.abs(prevPoint.chile)) * 100).toFixed(1)
+                    : null;
+                  // El año en curso no tiene cifra oficial cerrada: se marca como estimado.
+                  const esAnioEnCurso = (latestPoint?.year ?? 0) >= new Date().getFullYear();
 
                   return (
                     <motion.div
@@ -556,9 +616,16 @@ export default function StaticDataAnalyticsView({ setView: _setView, setSelected
                             <Icon className="w-3 h-3" />
                             {topic.nombre}
                           </span>
-                          <span className="text-2xs font-mono text-slate-400 truncate max-w-[150px]" title={ind.fuente}>
-                            {ind.fuente.split("/")[0]}
-                          </span>
+                          {ind.urlFuente ? (
+                            <a href={ind.urlFuente} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+                              className="text-2xs font-mono text-blue-600 hover:underline truncate max-w-[150px]" title={`Ver fuente: ${ind.fuente}`}>
+                              {ind.fuente.split("/")[0]} ↗
+                            </a>
+                          ) : (
+                            <span className="text-2xs font-mono text-slate-400 truncate max-w-[150px]" title={ind.fuente}>
+                              {ind.fuente.split("/")[0]}
+                            </span>
+                          )}
                         </div>
 
                         {/* Title & Subtitle */}
@@ -578,17 +645,27 @@ export default function StaticDataAnalyticsView({ setView: _setView, setSelected
                         {/* KPI Display */}
                         <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 flex items-baseline justify-between">
                           <div>
-                            <span className="text-2xs text-slate-400 uppercase font-mono block">Último Dato ({latestPoint?.year})</span>
+                            <span className="text-2xs text-slate-400 uppercase font-mono block">
+                              Último dato en la serie ({latestPoint?.year}){esAnioEnCurso && <span className="text-amber-600 font-bold normal-case"> · estimado, año en curso</span>}
+                            </span>
                             <span className="text-2xl font-black text-slate-900">
                               {typeof latestPoint?.chile === "number" ? latestPoint.chile.toLocaleString("es-CL") : latestPoint?.chile}
                             </span>
                             <span className="text-2xs font-bold text-slate-500 ml-1.5">{ind.unidad}</span>
                           </div>
+                          {vigenteIne(ind.id) && (
+                            <a href={vigenteIne(ind.id)!.fuenteUrl} target="_blank" rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="block basis-full mt-2 text-[11px] font-bold text-emerald-700 hover:underline">
+                              Dato vigente INE: {vigenteIne(ind.id)!.texto} · {vigenteIne(ind.id)!.periodo} ↗
+                            </a>
+                          )}
                           {deltaPct && (
                             <span className={`text-2xs font-mono font-bold px-2 py-0.5 rounded-md ${
                               Number(deltaPct) >= 0 ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
                             }`}>
                               {Number(deltaPct) >= 0 ? `+${deltaPct}%` : `${deltaPct}%`}
+                              <span className="block text-[9px] font-sans font-semibold opacity-70">vs {prevPoint?.year}</span>
                             </span>
                           )}
                         </div>

@@ -4,18 +4,23 @@
  */
 
 import React, { useState } from "react";
-import { Download, Copy, Printer, Check, Globe, Filter, Scale, CheckCircle2 } from "lucide-react";
+import { Download, Copy, Printer, Check, Globe, Filter, Scale, CheckCircle2, FileText, Loader2 } from "lucide-react";
+import EnlaceVerificado from "./EnlaceVerificado";
 
 export interface MatrizColumna {
   key: string;
   nombre: string;
   bandera?: string;
   normativaReferencia?: string;
+  /** Enlace oficial a la norma (se verifica visitándolo antes de mostrarlo como válido). */
+  url?: string;
   isChile?: boolean;
 }
 
 export interface MatrizFilaDinamica {
   dimension: string;
+  /** Título descriptivo del punto (p. ej. "Sanciones por internación de plagas"). */
+  titulo?: string;
   icono?: string;
   valores: Record<string, string>;
   lecturaJuridica: string;
@@ -485,6 +490,7 @@ interface MatrizComparadaTableProps {
 export default function MatrizComparadaTable({ data, onSelectMatrix }: MatrizComparadaTableProps) {
   const [copied, setCopied] = useState(false);
   const [selectedTopicKey, setSelectedTopicKey] = useState<string>(data?.id || "ia-datos");
+  const [informes, setInformes] = useState<Record<number, { cargando?: boolean; texto?: string; error?: string }>>({});
 
   // Cuando se entrega `data` (matriz real generada dinámicamente, ej. desde
   // Comparador Lado a Lado), esa es SIEMPRE la que se muestra -- antes, si el
@@ -493,6 +499,35 @@ export default function MatrizComparadaTable({ data, onSelectMatrix }: MatrizCom
   // demostración fijas, sin ninguna forma de volver a la real salvo repetir la
   // búsqueda. El selector de ejemplos solo tiene sentido cuando no hay `data`.
   const activeData: MatrizComparadaData = data || TODAS_LAS_MATRICES[selectedTopicKey] || MATRIZ_IA_DATOS;
+
+
+  // Informe redactado de UN punto (fila) de la matriz, a partir solo de lo que dice cada norma.
+  const redactarInformePunto = async (idx: number) => {
+    const fila = activeData.filas[idx];
+    if (!fila) return;
+    setInformes(prev => ({ ...prev, [idx]: { cargando: true } }));
+    try {
+      const r = await fetch("/api/derecho-comparado/informe-punto", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: activeData.titulo,
+          dimension: fila.titulo || fila.dimension,
+          lecturaJuridica: fila.lecturaJuridica,
+          paises: activeData.columnas.map(c => ({
+            pais: c.nombre,
+            norma: c.normativaReferencia || "",
+            texto: fila.valores[c.key] || "",
+          })),
+        }),
+      });
+      const j: { texto?: string | null; error?: string } = await r.json();
+      if (!r.ok || !j.texto) throw new Error(j.error || "sin texto");
+      setInformes(prev => ({ ...prev, [idx]: { texto: j.texto! } }));
+    } catch {
+      setInformes(prev => ({ ...prev, [idx]: { error: "No se pudo redactar el informe de este punto. Reintenta en un minuto." } }));
+    }
+  };
 
   const handleCopyText = () => {
     const headerCols = activeData.columnas.map(c => c.nombre).join(" | ");
@@ -634,15 +669,6 @@ export default function MatrizComparadaTable({ data, onSelectMatrix }: MatrizCom
 
         <div className="flex items-center gap-2 ml-auto shrink-0">
           <button
-            onClick={handleCopyText}
-            className="bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs px-3.5 py-2 rounded-xl border border-slate-200 shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer"
-            title="Copiar texto estructurado de la matriz"
-          >
-            {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-slate-500" />}
-            <span>{copied ? "¡Copiado!" : "Copiar"}</span>
-          </button>
-          
-          <button
             onClick={handleDownloadCSV}
             className="bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs px-3.5 py-2 rounded-xl border border-slate-200 shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer"
             title="Exportar planilla CSV / Excel"
@@ -698,8 +724,10 @@ export default function MatrizComparadaTable({ data, onSelectMatrix }: MatrizCom
                         )}
                       </div>
                       {col.normativaReferencia && (
-                        <span className="text-[10px] text-slate-300 font-mono font-normal leading-tight opacity-90 line-clamp-1">
-                          {col.normativaReferencia}
+                        <span className="text-[10px] text-slate-300 font-mono font-normal leading-tight opacity-90 line-clamp-2">
+                          {col.url
+                            ? <EnlaceVerificado url={col.url} className="!text-sky-300">{col.normativaReferencia}</EnlaceVerificado>
+                            : col.normativaReferencia}
                         </span>
                       )}
                     </div>
@@ -723,8 +751,8 @@ export default function MatrizComparadaTable({ data, onSelectMatrix }: MatrizCom
               const isWarm = fila.isWarmRow;
               
               return (
+                <React.Fragment key={idx}>
                 <tr 
-                  key={idx}
                   className={
                     isWarm 
                       ? "bg-[#fff7ed] text-slate-900 border-t-2 border-amber-300" 
@@ -737,10 +765,24 @@ export default function MatrizComparadaTable({ data, onSelectMatrix }: MatrizCom
                       ? "border-amber-200 text-amber-950 bg-amber-100/50" 
                       : "border-slate-200 text-slate-900 bg-slate-50/70"
                   }`}>
-                    <div className="flex flex-col gap-1">
-                      <span className="font-extrabold text-[12px] text-slate-950">
-                        {fila.dimension}
-                      </span>
+                    <div className="flex flex-col gap-1.5">
+                      {fila.titulo ? (
+                        <>
+                          <span className="text-[9.5px] font-extrabold uppercase tracking-wider text-amber-800 font-mono">{fila.dimension}</span>
+                          <span className="font-extrabold text-[12.5px] text-slate-950 leading-snug">{fila.titulo}</span>
+                        </>
+                      ) : (
+                        <span className="font-extrabold text-[12px] text-slate-950">{fila.dimension}</span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => redactarInformePunto(idx)}
+                        disabled={informes[idx]?.cargando}
+                        className="mt-1 self-start text-[10px] font-bold text-blue-700 hover:text-white bg-blue-50 hover:bg-blue-700 border border-blue-200 rounded-lg px-2 py-1 flex items-center gap-1 cursor-pointer disabled:opacity-60"
+                      >
+                        {informes[idx]?.cargando ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />}
+                        {informes[idx]?.texto ? "Volver a redactar informe" : "Redactar informe de este punto"}
+                      </button>
                     </div>
                   </td>
 
@@ -779,6 +821,38 @@ export default function MatrizComparadaTable({ data, onSelectMatrix }: MatrizCom
                     </div>
                   </td>
                 </tr>
+                {(informes[idx]?.texto || informes[idx]?.error || informes[idx]?.cargando) && (
+                  <tr className="bg-white">
+                    <td colSpan={activeData.columnas.length + 2} className="p-5 border-t border-blue-200">
+                      <div className="max-w-4xl flex flex-col gap-2">
+                        <p className="text-[10px] font-extrabold uppercase tracking-wider text-blue-800 font-mono">
+                          Informe · {fila.titulo || fila.dimension}
+                        </p>
+                        {informes[idx]?.cargando && <p className="text-xs text-slate-500">Redactando el informe a partir de las normas de cada país…</p>}
+                        {informes[idx]?.error && <p className="text-xs text-amber-700">{informes[idx]?.error}</p>}
+                        {informes[idx]?.texto && (
+                          <div className="text-[12.5px] leading-relaxed text-slate-800 space-y-2">
+                            {String(informes[idx]!.texto).split(/\n\s*\n/).map((par, i) =>
+                              par.startsWith("###")
+                                ? <h4 key={i} className="font-extrabold text-slate-950 text-[13px] mt-1">{par.replace(/^###\s*/, "")}</h4>
+                                : <p key={i}>{par}</p>
+                            )}
+                            <p className="text-[10px] text-slate-500 pt-1">
+                              Redactado con IA solo a partir de las disposiciones de las normas comparadas. Fuentes:{" "}
+                              {activeData.columnas.filter(c => c.url).map((c, i, arr) => (
+                                <span key={c.key}>
+                                  <EnlaceVerificado url={c.url} className="font-semibold">{c.nombre}</EnlaceVerificado>
+                                  {i < arr.length - 1 ? " · " : ""}
+                                </span>
+                              ))}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                </React.Fragment>
               );
             })}
           </tbody>

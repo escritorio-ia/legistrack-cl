@@ -99,6 +99,17 @@ function oneLine(text?: string, maxLen = 110) {
 
 const COMISION_REGEX = /(Comisión\s+de\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñA-ZÁÉÍÓÚÑ\s\-\,y\(\)]+|Comisión\s+Mixta|Comisión\s+técnica|Comisión\s+especializada)/gi;
 
+const TAB_DESCRIPCIONES: Record<string, string> = {
+  "resumen": "Qué propone el proyecto: ficha ejecutiva, quórum exigido, urgencia, autores y resumen del contenido.",
+  "tramitacion": "Recorrido del proyecto por trámite constitucional: fechas, comisiones que lo han visto, votaciones en Sala y etapa actual.",
+  "comisiones": "Comisiones por las que ha pasado el proyecto, con su resumen y las sesiones donde se trató.",
+  "documentos": "Textos oficiales del expediente: mensaje o moción, informes, oficios y otros documentos publicados.",
+  "votaciones": "Resultados de las votaciones del proyecto: a favor, en contra y abstenciones.",
+  "comparado": "Compara el texto del proyecto entre etapas (qué cambió en cada informe o trámite).",
+  "indicaciones": "Modificaciones propuestas al texto durante la tramitación, y su estado.",
+  "informes-bcn": "Informes del expediente: informes de comisión e informes financieros de la DIPRES (cuánto costaría y cómo se financia).",
+};
+
 function extractComisiones(text: string): string[] {
   const matches = text.match(COMISION_REGEX) || [];
   return matches.map(m => m.trim().replace(/[\.\,\:\;\-\(]$/, ""));
@@ -1184,6 +1195,13 @@ export default function ProyectoDetailView({
               )}
             </button>
           </div>
+
+          {/* Descripción breve de la pestaña seleccionada */}
+          {TAB_DESCRIPCIONES[activeTab as string] && (
+            <p className="text-[11.5px] text-slate-500 leading-snug -mt-2" id="project-tab-description">
+              {TAB_DESCRIPCIONES[activeTab as string]}
+            </p>
+          )}
 
           {/* Tab Content Panels */}
           <div className="bg-white min-h-[220px]" id="project-tab-content-panel">

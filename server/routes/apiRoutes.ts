@@ -62,9 +62,13 @@ import {
 } from "../services/comparadoService";
 import { 
   getOWIDTopics, 
-  getOWIDIndicator, 
-  getAllOWIDIndicators 
+  getOWIDIndicator,
+  getAllOWIDIndicators
 } from "../services/publicDataService";
+import { getIndicadoresVivos } from "../services/bancoMundialService";
+import { getIneVigente } from "../services/ineVigenteService";
+import { ckanDataset, muestraCsv } from "../services/datosAbiertosService";
+import { validarEnlaces, cruzarBoletin, type EntradaCruce } from "../services/cruceBoletinService";
 import { 
   getFAOGroupsAndDomains, 
   queryFAOData 
@@ -1581,7 +1585,65 @@ apiRouter.get("/derecho-comparado", async (req: Request, res: Response) => {
   res.json(data);
 });
 
-apiRouter.post("/derecho-comparado/redactar", async (req: Request, res: Response) => {
+// Informe redactado de UN punto de la matriz comparada, a partir solo de lo que dice cada norma.
+apiRouter.post("/derecho-comparado/informe-punto", async (req: Request, res: Response) => {
+  const { query, dimension, lecturaJuridica, paises } = req.body as {
+    query?: string;
+    dimension?: string;
+    lecturaJuridica?: string;
+    paises?: Array<{ pais: string; norma?: string; texto?: string }>;
+  };
+  if (!query || !dimension || !Array.isArray(paises) || paises.length === 0) {
+    return res.status(400).json({ error: "Se requiere 'query', 'dimension' y 'paises'." });
+  }
+  const bloque = paises
+    .filter((p) => p.texto && !/^(—|No especificado|Aún no analizado|No disponible)/i.test(p.texto))
+    .map((p) => `[${p.pais}] ${p.norma || ""}\n${p.texto}`)
+    .join("\n\n");
+  if (!bloque) return res.json({ texto: null, error: "Aún no hay disposiciones analizadas para este punto. Presiona 'Comparar y Generar Todo' primero." });
+
+  const prompt = `Actúa como analista de Asesoría Técnica Parlamentaria. Redacta el informe del siguiente punto de una matriz de derecho comparado sobre "${query}".
+
+PUNTO: ${dimension}
+
+Lo que dispone cada norma (único material permitido):
+${bloque}
+${lecturaJuridica ? `\nLectura comparativa previa: ${lecturaJuridica}\n` : ""}
+Estructura obligatoria en Markdown, con subtítulos de nivel 3:
+### Qué regula este punto
+1 párrafo.
+### Cómo lo resuelve cada país
+1 párrafo por país, nombrándolo y citando el artículo o sección cuando conste.
+### Coincidencias y diferencias
+1 párrafo.
+### Consideraciones para Chile
+1 párrafo, formulado como consideraciones ("podría considerarse...") sin inventar hechos.
+
+Reglas: formal y objetivo; usa SOLO el material entregado; no inventes artículos, plazos, cifras ni órganos; si algo no consta, di "el material analizado no lo detalla" (nunca afirmes que una norma carece de algo). Entre 300 y 450 palabras. Responde solo con el informe.`;
+
+  const attempts: AIProviderAttempt[] = [];
+  const texto = await generarContenidoUniversalIA(prompt, 1800, attempts);
+  if (texto && texto.trim().length > 80) return res.json({ texto: texto.trim() });
+  res.json({ texto: null, error: "No se pudo redactar el informe.", aiDiagnostics: attempts });
+});
+
+// Visita cada enlace y devuelve su estado real (ok / roto / bloqueado por verificación humana).
+apiRouter.post("/derecho-comparado/validar-enlaces", async (req: Request, res: Response) => {
+  const { urls } = req.body as { urls?: string[] };
+  if (!Array.isArray(urls) || urls.length === 0) return res.json({ enlaces: [] });
+  res.json({ enlaces: await validarEnlaces(urls) });
+});
+
+// Cruce del boletín con su moción/mensaje original y las normas de otros países.
+apiRouter.post("/derecho-comparado/cruce-boletin", async (req: Request, res: Response) => {
+  const body = req.body as EntradaCruce;
+  if (!body?.boletin || !body?.titulo || !Array.isArray(body.fuentes)) {
+    return res.status(400).json({ error: "Se requiere boletin, titulo y fuentes." });
+  }
+  res.json(await cruzarBoletin(body));
+});
+
+apiRouter.post("/derecho-comparado/redactar",async (req: Request, res: Response) => {
   const { query, resultados } = req.body as { query?: string; resultados?: ResultadoComparado[] };
   if (!query || !Array.isArray(resultados) || resultados.length === 0) {
     return res.status(400).json({ error: "Se requiere 'query' y una lista de 'resultados' no vacía." });
@@ -2326,7 +2388,43 @@ apiRouter.get("/statistics/indicator/:id?", (req: Request, res: Response) => {
   }
 });
 
-apiRouter.get("/statistics/all", (_req: Request, res: Response) => {
+// Series reales (Banco Mundial) que reemplazan a las escritas a mano en el cliente.
+apiRouter.get("/statistics/en-vivo", async (_req: Request, res: Response) => {
+  try {
+    res.json(await getIndicadoresVivos());
+  } catch (error: any) {
+    console.error("Error en /statistics/en-vivo:", error);
+    res.json({});
+  }
+});
+
+// Diagnóstico de fuentes abiertas: recursos de un dataset de datos.gob.cl y muestra de un CSV.
+apiRouter.get("/statistics/fuentes/dataset/:slug", async (req: Request, res: Response) => {
+  try {
+    res.json(await ckanDataset(String(req.params.slug)));
+  } catch (e: any) {
+    res.status(502).json({ error: e?.message || "error" });
+  }
+});
+apiRouter.get("/statistics/fuentes/muestra", async (req: Request, res: Response) => {
+  try {
+    res.json(await muestraCsv(String(req.query.url || "")));
+  } catch (e: any) {
+    res.status(502).json({ error: e?.message || "error" });
+  }
+});
+
+// Dato vigente publicado por el INE (desocupación, informalidad, IPC mensual).
+apiRouter.get("/statistics/ine-vigente", async (_req: Request, res: Response) => {
+  try {
+    res.json(await getIneVigente());
+  } catch (error: any) {
+    console.error("Error en /statistics/ine-vigente:", error);
+    res.json({ desocupacion: null, informalidad: null, ipcMensual: null });
+  }
+});
+
+apiRouter.get("/statistics/all",(_req: Request, res: Response) => {
   try {
     const all = getAllOWIDIndicators();
     res.json(all);

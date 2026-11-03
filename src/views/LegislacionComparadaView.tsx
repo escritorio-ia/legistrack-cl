@@ -11,6 +11,8 @@ import {
   SlidersHorizontal, ChevronRight, ChevronDown, ChevronUp, Tag, Share2, HelpCircle, Eye, Info,
   FileSpreadsheet, Printer, FileDown, CheckCheck, Target, ShieldAlert, Wrench, AlertTriangle, AlertCircle
 } from "lucide-react";
+import ContenidoProtegido from "../components/ContenidoProtegido";
+import CruceBoletinPanel, { type CruceBoletinEstado, type FuenteCruceUI } from "../components/CruceBoletinPanel";
 import MatrizComparadaTable, { MatrizColumna, MatrizComparadaData, MatrizFilaDinamica, TODAS_LAS_MATRICES } from "../components/MatrizComparadaTable";
 import { normalizeSearchText } from "../utils/textUtils";
 import {
@@ -1161,6 +1163,22 @@ function ordenarChilePrimero<T extends { pais: string }>(items: T[]): T[] {
   });
 }
 
+// Título corto y descriptivo para un punto extraído del texto de una norma
+// (ej. "Art. 5: Los prestadores deberán informar..." → "Art. 5 · Los prestadores deberán informar").
+function tituloDePunto(punto: string | undefined, fallback: string): string {
+  if (!punto) return fallback;
+  let t = punto.replace(/\s+/g, " ").trim().replace(/^["“«]+/, "");
+  const art = t.match(/^((?:art[íi]culo|art\.?|secci[óo]n|§)\s*[\w.\-°º]+)\s*[:.\-–—]?\s*/i);
+  const prefijo = art ? art[1].replace(/\s+/g, " ") : "";
+  if (art) t = t.slice(art[0].length);
+  const corte = t.search(/[.;:]\s|[.;:]$/);
+  if (corte > 12) t = t.slice(0, corte);
+  const palabras = t.split(" ");
+  if (palabras.length > 9) t = palabras.slice(0, 9).join(" ") + "…";
+  t = t.charAt(0).toUpperCase() + t.slice(1);
+  return prefijo ? `${prefijo} · ${t}` : t;
+}
+
 // Antes esta función rellenaba "Mecanismos clave", "Fiscalización" y
 // "Lecciones para Chile" con frases genéricas fijas (idénticas sin importar
 // el país o la materia buscada) cuando no encontraba esas 3 dimensiones
@@ -1184,6 +1202,7 @@ function generarMatrizDinamica(
     nombre: r.pais,
     bandera: BANDERA_PAIS[r.pais] || "🌐",
     normativaReferencia: r.titulo,
+    url: r.url,
     isChile: r.pais === "Chile"
   }));
 
@@ -1231,7 +1250,15 @@ function generarMatrizDinamica(
         valores: valoresObjeto,
         lecturaJuridica: lecturas?.lecturaObjeto || "Presiona \"Comparar y Generar Todo\" para obtener la lectura jurídica comparativa de esta dimensión."
       },
-      ...valoresPunto.map((valores, idx) => ({
+      ...valoresPunto.map((valores, idx) => {
+        // Título del punto: se toma del texto real de la norma de Chile (si existe) o de la primera norma con ese punto.
+        const colChile = columnas.find(c => c.isChile)?.key;
+        const fuenteTitulo = [colChile, ...columnas.map(c => c.key)]
+          .filter((k): k is string => !!k)
+          .map(k => valores[k])
+          .find(v => v && !/^(No disponible|Aún no analizado)/i.test(v));
+        return ({
+        titulo: tituloDePunto(fuenteTitulo, "Punto pendiente de análisis"),
         dimension: `Disposición destacada ${idx + 1}`,
         icono: "📑",
         valores,
@@ -1239,7 +1266,8 @@ function generarMatrizDinamica(
           ? (lecturas?.lecturaDisposiciones || "Presiona \"Comparar y Generar Todo\" para obtener la lectura jurídica comparativa de las disposiciones reales.")
           : "Extraído del texto oficial de cada norma cuando el análisis por país ya fue generado; de lo contrario, se indica explícitamente.",
         isWarmRow: true
-      }))
+      });
+      })
     ];
   }
 
@@ -1323,6 +1351,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Live federated search state
+  const [cruceBoletin, setCruceBoletin] = useState<CruceBoletinEstado | null>(null);
   const [liveQuery, setLiveQuery] = useState<string>("");
   const [liveLoading, setLiveLoading] = useState(false);
   const [liveResultados, setLiveResultados] = useState<ResultadoComparado[]>([]);
@@ -1436,7 +1465,32 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
   // Execute live search
   const handleBuscarRegulacion = async (term: string, autoSwitchTab = true) => {
     if (!term.trim()) return;
-    const queryClean = term.trim();
+    let queryClean = term.trim();
+
+    // Si se nombra un Boletín (ej. "16777-07" o "Boletín 16.777-07"): se busca la ficha oficial
+    // del proyecto y se usa su materia para buscar las normas de otros países; después se cruza
+    // todo con la moción/mensaje original (ver más abajo).
+    let proyectoCruce: any = null;
+    const mBol = queryClean.match(/(\d{1,2}\.?\d{3}-\d{2})/);
+    const soloBoletin = !!mBol && queryClean.replace(mBol[0], "").replace(/bolet[ií]n|n[°º.]|n\.?o/gi, "").replace(/[\s:,.\-]/g, "") === "";
+    if (soloBoletin && mBol) {
+      setLiveLoading(true);
+      setLiveQuery(queryClean);
+      setCruceBoletin({ boletin: mBol[1], cargando: true, fuentes: [] });
+      try {
+        const rp = await fetch(`/api/proyecto/${encodeURIComponent(mBol[1])}`);
+        if (rp.ok) proyectoCruce = await rp.json();
+      } catch { /* se informa abajo */ }
+      if (proyectoCruce?.titulo) {
+        queryClean = String(proyectoCruce.titulo).replace(/^\s*(proyecto de ley|modifica|establece)\s*[,:]?\s*/i, "$1 ").slice(0, 160).trim();
+        setCruceBoletin({ boletin: mBol[1], cargando: true, titulo: proyectoCruce.titulo, iniciativa: proyectoCruce.iniciativa, autores: proyectoCruce.autores, fechaIngreso: proyectoCruce.fechaIngreso, fuentes: [] });
+      } else {
+        setCruceBoletin({ boletin: mBol[1], cargando: false, fuentes: [], error: `No se encontró la ficha oficial del boletín ${mBol[1]}. Se muestran resultados de búsqueda por el texto ingresado.` });
+      }
+    } else {
+      setCruceBoletin(null);
+    }
+
     setLiveQuery(queryClean);
     setLiveLoading(true);
     setSearchError(null);
@@ -1476,6 +1530,38 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
       // Genera automáticamente el Informe Técnico BCN del tema efectivamente
       // buscado (no un dossier precargado desconectado) para que la pestaña
       // esté lista al llegar, sin exigir un clic extra en "Generar Informe".
+      if (proyectoCruce?.titulo && mBol) {
+        // Fuentes citables: [1] ficha oficial, [2..] moción/mensaje y documentos del expediente, luego las normas.
+        const docs: any[] = Array.isArray(proyectoCruce.documentos) ? proyectoCruce.documentos : [];
+        const original = docs.find(d => d?.url && /mensaje|moci[oó]n|texto inicial|proyecto de ley/i.test(`${d.tipo || ""} ${d.titulo || ""}`));
+        const fuentes: FuenteCruceUI[] = [];
+        let n = 1;
+        if (proyectoCruce.linkCongreso) fuentes.push({ n: n++, rotulo: "Ficha oficial del boletín", titulo: `Boletín ${mBol[1]} — ficha de tramitación`, url: proyectoCruce.linkCongreso });
+        if (original) fuentes.push({ n: n++, rotulo: proyectoCruce.iniciativa === "Mensaje" ? "Mensaje original" : "Moción original", titulo: original.titulo || "Texto original del proyecto", url: original.url });
+        ordenarChilePrimero(resultados).slice(0, 12).forEach(r => {
+          fuentes.push({ n: n++, rotulo: r.fuente || "Norma", pais: r.pais, titulo: r.titulo, url: r.url });
+        });
+        setCruceBoletin(prev => ({ ...(prev as CruceBoletinEstado), boletin: mBol[1], cargando: true, fuentes }));
+        fetch("/api/derecho-comparado/cruce-boletin", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            boletin: mBol[1],
+            titulo: proyectoCruce.titulo,
+            iniciativa: proyectoCruce.iniciativa,
+            autores: proyectoCruce.autores,
+            resumen: proyectoCruce.resumen,
+            fichaTecnica: proyectoCruce.fichaTecnica,
+            fuentes: fuentes.map(f => ({ ...f, descripcion: resultados.find(r => r.titulo === f.titulo && r.pais === f.pais)?.descripcion })),
+          }),
+        })
+          .then(r => r.json())
+          .then(resultado => setCruceBoletin(prev => ({ ...(prev as CruceBoletinEstado), cargando: false, fuentes, resultado })))
+          .catch(() => setCruceBoletin(prev => ({ ...(prev as CruceBoletinEstado), cargando: false, fuentes, error: "No se pudo generar el cruce. Reintenta en un minuto." })));
+      } else if (soloBoletin) {
+        setCruceBoletin(prev => (prev ? { ...prev, cargando: false } : prev));
+      }
+
       if (resultados.length > 0) {
         const md = buildInformeMarkdown(queryClean, ordenarChilePrimero(resultados), buildParrafoAutomatico(queryClean, resultados));
         setInformeLiveMarkdown(md);
@@ -1485,6 +1571,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
         setInformeLiveQuery("");
       }
     } catch (err) {
+      setCruceBoletin(prev => (prev ? { ...prev, cargando: false, error: prev.error || "No fue posible consultar las normas de otros países para cruzar con el boletín." } : prev));
       setSearchError("No fue posible consultar algunas fuentes internacionales en tiempo real.");
       setLiveFuentesFallidas(["Reino Unido", "Brasil", "Suecia", "Nueva Zelanda"]);
     } finally {
@@ -1924,7 +2011,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
   };
 
   return (
-    <div className="max-w-[1440px] mx-auto w-full px-3 sm:px-6 lg:px-8 py-5 sm:py-8 flex flex-col gap-8 font-sans text-slate-800" id="legislacion-comparada-root">
+    <ContenidoProtegido className="max-w-[1440px] mx-auto w-full px-3 sm:px-6 lg:px-8 py-5 sm:py-8 flex flex-col gap-8 font-sans text-slate-800" id="legislacion-comparada-root">
       
       {/* Notification Banner */}
       {successMessage && (
@@ -2188,6 +2275,8 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
       {/* TAB 1: BÚSQUEDA EN VIVO INTERNACIONAL (19 FUENTES) */}
       {liveQuery && activeTab === "live" && (
         <div className="flex flex-col gap-6 animate-fade-in">
+
+          {cruceBoletin && <CruceBoletinPanel cruce={cruceBoletin} />}
 
           {/* Aviso honesto: cuando el motor de IA no pudo responder (saturado,
               rate-limited, o clave invalida), la busqueda cae a una base de
@@ -3351,6 +3440,6 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
         </div>
       )}
 
-    </div>
+    </ContenidoProtegido>
   );
 }

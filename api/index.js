@@ -192762,6 +192762,288 @@ function getAllOWIDIndicators() {
   return Object.values(OWID_INDICATORS);
 }
 
+// server/services/bancoMundialService.ts
+var CONFIG = [
+  {
+    id: "esperanza-vida-anos",
+    codigo: "SP.DYN.LE00.IN",
+    nombre: "esperanza de vida al nacer",
+    definicion: "A\xF1os que vivir\xEDa un reci\xE9n nacido si los patrones de mortalidad del a\xF1o se mantuvieran constantes (Banco Mundial, a partir de tablas de mortalidad oficiales).",
+    unidad: "a\xF1os",
+    decimales: 1
+  },
+  {
+    id: "gasto-salud-pct-pib",
+    codigo: "SH.XPD.GHED.GD.ZS",
+    nombre: "gasto p\xFAblico interno en salud",
+    definicion: "Gasto del gobierno general (fondos internos) en salud como porcentaje del PIB, seg\xFAn la base de gasto sanitario de la OMS publicada por el Banco Mundial. Puede diferir de la cifra de la partida presupuestaria del Ministerio de Salud (DIPRES).",
+    unidad: "% del PIB",
+    decimales: 2
+  },
+  {
+    id: "emisiones-co2-percapita",
+    codigo: "EN.GHG.CO2.PC.CE.AR5",
+    nombre: "emisiones de CO\u2082 per c\xE1pita (sin uso del suelo)",
+    definicion: "Emisiones territoriales de CO\u2082 sin cambio de uso del suelo (LULUCF), en toneladas de CO\u2082 equivalente por habitante (Banco Mundial / Climate Watch).",
+    unidad: "t CO\u2082e / habitante",
+    decimales: 1
+  }
+];
+var TTL_MS = 12 * 60 * 60 * 1e3;
+var cache2 = null;
+async function traer(codigo) {
+  const url = `https://api.worldbank.org/v2/country/CHL;OED;LCN/indicator/${codigo}?format=json&per_page=500&date=1990:${(/* @__PURE__ */ new Date()).getFullYear()}`;
+  const r = await fetch(url, { signal: AbortSignal.timeout(2e4) });
+  if (!r.ok) throw new Error(`Banco Mundial ${r.status}`);
+  const json = await r.json();
+  const filas = Array.isArray(json) ? json[1] || [] : [];
+  const porAnio = /* @__PURE__ */ new Map();
+  for (const f of filas) {
+    if (typeof f?.value !== "number") continue;
+    const year = Number(f.date);
+    if (!Number.isFinite(year)) continue;
+    const pais = f.countryiso3code;
+    const p = porAnio.get(year) || { year };
+    if (pais === "CHL") p.chile = f.value;
+    else if (pais === "OED") p.oecd_avg = f.value;
+    else if (pais === "LCN") p.latam_avg = f.value;
+    porAnio.set(year, p);
+  }
+  return Array.from(porAnio.values()).filter((p) => typeof p.chile === "number").sort((a, b) => a.year - b.year);
+}
+var redondear = (n, d) => Math.round(n * 10 ** d) / 10 ** d;
+async function getIndicadoresVivos() {
+  if (cache2 && Date.now() - cache2.en < TTL_MS) return cache2.datos;
+  const datos = {};
+  const hoy = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+  await Promise.all(
+    CONFIG.map(async (c) => {
+      try {
+        const serie = (await traer(c.codigo)).map((p) => ({
+          year: p.year,
+          chile: redondear(p.chile, c.decimales + 1),
+          ...typeof p.oecd_avg === "number" ? { oecd_avg: redondear(p.oecd_avg, c.decimales + 1) } : {},
+          ...typeof p.latam_avg === "number" ? { latam_avg: redondear(p.latam_avg, c.decimales + 1) } : {}
+        }));
+        if (serie.length < 3) return;
+        const ult = serie[serie.length - 1];
+        datos[c.id] = {
+          id: c.id,
+          serieHistorica: serie,
+          fuente: "Banco Mundial (World Development Indicators)",
+          urlFuente: `https://data.worldbank.org/indicator/${c.codigo}?locations=CL`,
+          definicion: c.definicion,
+          frecuencia: `Anual (serie ${serie[0].year} \u2013 ${ult.year}, \xFAltimo a\xF1o publicado)`,
+          sintesisDiagnostica: `\xDAltimo dato publicado para Chile: ${ult.chile.toLocaleString("es-CL", { maximumFractionDigits: c.decimales })} ${c.unidad} (${ult.year}).` + (typeof ult.oecd_avg === "number" ? ` Promedio OCDE ese a\xF1o: ${ult.oecd_avg.toLocaleString("es-CL", { maximumFractionDigits: c.decimales })}.` : "") + (typeof ult.latam_avg === "number" ? ` Am\xE9rica Latina y el Caribe: ${ult.latam_avg.toLocaleString("es-CL", { maximumFractionDigits: c.decimales })}.` : "") + ` Serie de ${c.nombre} descargada del Banco Mundial el ${hoy}; no incluye estimaciones propias.`,
+          consultadoEl: hoy
+        };
+      } catch (e) {
+        console.warn(`[bancoMundial] ${c.id}: ${e?.message}`);
+      }
+    })
+  );
+  if (Object.keys(datos).length > 0) cache2 = { en: Date.now(), datos };
+  return datos;
+}
+
+// server/services/ineVigenteService.ts
+var URL_EMPLEO = "https://www.ine.gob.cl/estadisticas-por-tema/mercado-laboral/ocupacion-y-desocupacion";
+var URL_IPC = "https://www.ine.gob.cl/estadisticas-por-tema/precios-e-inflacion/indice-de-precios-al-consumidor";
+var TTL_MS2 = 6 * 60 * 60 * 1e3;
+var cache3 = null;
+function aTexto(html) {
+  return html.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&ndash;|&#8211;/g, "\u2013").replace(/&aacute;/g, "\xE1").replace(/&eacute;/g, "\xE9").replace(/&iacute;/g, "\xED").replace(/&oacute;/g, "\xF3").replace(/&uacute;/g, "\xFA").replace(/&ntilde;/g, "\xF1").replace(/\s+/g, " ");
+}
+function extraer(texto, re, url, hoy) {
+  const m = texto.match(re);
+  if (!m) return null;
+  const valor = Number(m[1].replace(/\./g, "").replace(",", "."));
+  if (!Number.isFinite(valor)) return null;
+  return { valor, texto: `${m[1]}%`, periodo: m[2].trim(), fuenteUrl: url, consultadoEl: hoy };
+}
+async function bajar(url) {
+  const r = await fetch(url, {
+    headers: { "User-Agent": "Mozilla/5.0 (compatible; Legislacion++)", "Accept-Language": "es-CL,es;q=0.9" },
+    signal: AbortSignal.timeout(2e4)
+  });
+  if (!r.ok) throw new Error(`INE ${r.status}`);
+  return aTexto(await r.text());
+}
+async function getIneVigente() {
+  if (cache3 && Date.now() - cache3.en < TTL_MS2) return cache3.datos;
+  const hoy = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+  const datos = { desocupacion: null, informalidad: null, ipcMensual: null };
+  const PERIODO_TRIM = "([A-Za-z\xC1\xC9\xCD\xD3\xDA\xE1\xE9\xED\xF3\xFA\xF1]+\\s*[\u2013-]\\s*[A-Za-z\xC1\xC9\xCD\xD3\xDA\xE1\xE9\xED\xF3\xFA\xF1]+\\s+\\d{4})";
+  try {
+    const t = await bajar(URL_EMPLEO);
+    datos.desocupacion = extraer(t, new RegExp(`Tasa de desocupaci[o\xF3]n nacional\\s*(-?[\\d.,]+)\\s*%\\s*Trimestre m[o\xF3]vil\\s*${PERIODO_TRIM}`, "i"), URL_EMPLEO, hoy);
+    datos.informalidad = extraer(t, new RegExp(`Tasa de ocupaci[o\xF3]n informal nacional\\s*(-?[\\d.,]+)\\s*%\\s*Trimestre m[o\xF3]vil\\s*${PERIODO_TRIM}`, "i"), URL_EMPLEO, hoy);
+  } catch (e) {
+    console.warn("[ine] empleo:", e?.message);
+  }
+  try {
+    const t = await bajar(URL_IPC);
+    datos.ipcMensual = extraer(t, /[ÍI]ndice de Precios al Consumidor\s*-\s*IPC\s*(-?[\d.,]+)\s*%\s*Variaci[oó]n mensual\s*([A-Za-zÁÉÍÓÚáéíóúñ]+\s+\d{4})/i, URL_IPC, hoy);
+  } catch (e) {
+    console.warn("[ine] ipc:", e?.message);
+  }
+  if (datos.desocupacion || datos.informalidad || datos.ipcMensual) cache3 = { en: Date.now(), datos };
+  return datos;
+}
+
+// server/services/datosAbiertosService.ts
+var SLUG = /^[a-z0-9][a-z0-9_\-]{2,160}$/i;
+async function ckanDataset(slug) {
+  if (!SLUG.test(slug)) throw new Error("slug inv\xE1lido");
+  const r = await fetch(`https://datos.gob.cl/api/3/action/package_show?id=${encodeURIComponent(slug)}`, {
+    headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0 (compatible; Legislacion++)" },
+    signal: AbortSignal.timeout(2e4)
+  });
+  if (!r.ok) throw new Error(`datos.gob.cl ${r.status}`);
+  const j = await r.json();
+  const d = j?.result;
+  if (!d) throw new Error("dataset no encontrado");
+  return {
+    slug,
+    titulo: d.title,
+    organizacion: d.organization?.title || "",
+    actualizado: d.metadata_modified,
+    recursos: (d.resources || []).map((x) => ({
+      nombre: x.name,
+      formato: String(x.format || "").toLowerCase(),
+      url: x.url,
+      modificado: x.last_modified || x.metadata_modified,
+      tamano: typeof x.size === "number" ? x.size : void 0
+    }))
+  };
+}
+var HOSTS_OK = /^https:\/\/([a-z0-9.\-]+\.)?(datos\.gob\.cl|odepa\.gob\.cl|dipres\.gob\.cl|energiaabierta\.cl|cne\.cl)\//i;
+async function muestraCsv(url, lineas = 6) {
+  if (!HOSTS_OK.test(url)) throw new Error("host no permitido");
+  const r = await fetch(url, {
+    headers: { Range: "bytes=0-6000", "User-Agent": "Mozilla/5.0 (compatible; Legislacion++)" },
+    signal: AbortSignal.timeout(2e4)
+  });
+  if (!r.ok && r.status !== 206) throw new Error(`HTTP ${r.status}`);
+  const texto = (await r.text()).slice(0, 8e3);
+  return { url, lineas: texto.split(/\r?\n/).slice(0, lineas) };
+}
+
+// server/services/cruceBoletinService.ts
+var PRIVADO = /^(localhost|.*\.local|.*\.internal|0\.0\.0\.0|127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|\[?::1\]?$|\[?f[cd][0-9a-f]{2}:)/i;
+function urlPermitida(u) {
+  try {
+    const x = new URL(u);
+    if (x.protocol !== "https:" && x.protocol !== "http:") return null;
+    if (PRIVADO.test(x.hostname)) return null;
+    return x;
+  } catch {
+    return null;
+  }
+}
+var cacheEnlaces = /* @__PURE__ */ new Map();
+var TTL_ENLACE_MS = 60 * 60 * 1e3;
+async function visitar(url) {
+  const hoy = (/* @__PURE__ */ new Date()).toISOString();
+  const c = cacheEnlaces.get(url);
+  if (c && Date.now() - c.en < TTL_ENLACE_MS) return c.v;
+  const u = urlPermitida(url);
+  let v;
+  if (!u) {
+    v = { url, estado: "roto", verificadoEl: hoy };
+  } else {
+    try {
+      const r = await fetch(u.toString(), {
+        method: "GET",
+        redirect: "follow",
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; Legislacion++ verificador de enlaces)", Accept: "text/html,application/pdf,*/*" },
+        signal: AbortSignal.timeout(12e3)
+      });
+      try {
+        await r.body?.cancel();
+      } catch {
+      }
+      const s = r.status;
+      v = {
+        url,
+        codigo: s,
+        urlFinal: r.url && r.url !== url ? r.url : void 0,
+        estado: s >= 200 && s < 400 ? "ok" : s === 401 || s === 403 || s === 429 ? "bloqueado" : "roto",
+        verificadoEl: hoy
+      };
+    } catch {
+      v = { url, estado: "roto", verificadoEl: hoy };
+    }
+  }
+  cacheEnlaces.set(url, { en: Date.now(), v });
+  return v;
+}
+async function validarEnlaces(urls) {
+  const unicas = Array.from(new Set(urls.filter((u) => typeof u === "string" && u.trim()))).slice(0, 60);
+  const out = [];
+  let i = 0;
+  const worker = async () => {
+    while (i < unicas.length) {
+      const mi = i++;
+      out[mi] = await visitar(unicas[mi]);
+    }
+  };
+  await Promise.all(Array.from({ length: 6 }, worker));
+  return out;
+}
+async function cruzarBoletin(e) {
+  const fuentes = (e.fuentes || []).slice(0, 14);
+  const extranjeras = fuentes.filter((f) => f.pais && f.pais !== "Chile");
+  if (extranjeras.length === 0) {
+    return { disponible: false, motivo: "No hay normas de otros pa\xEDses con enlace para cruzar con este bolet\xEDn." };
+  }
+  const bloqueFuentes = fuentes.map((f) => `[${f.n}] ${f.rotulo}${f.pais ? ` (${f.pais})` : ""} \u2014 ${f.titulo}
+   Descripci\xF3n: ${f.descripcion || "(sin descripci\xF3n en la fuente)"}`).join("\n");
+  const ficha = e.fichaTecnica ? `Objeto: ${e.fichaTecnica.objeto || "\u2014"}
+Mecanismos: ${e.fichaTecnica.mecanismos || "\u2014"}
+Fiscalizaci\xF3n: ${e.fichaTecnica.fiscalizacion || "\u2014"}
+Sanciones: ${e.fichaTecnica.sanciones || "\u2014"}` : "(sin ficha t\xE9cnica)";
+  const prompt = `Eres analista de Asesor\xEDa T\xE9cnica Parlamentaria. Cruza el proyecto de ley chileno (Bolet\xEDn ${e.boletin}) con las normas de otros pa\xEDses listadas, usando EXCLUSIVAMENTE los datos de abajo.
+
+PROYECTO (${e.iniciativa || "iniciativa no informada"}${e.autores ? `, autores: ${e.autores}` : ""}):
+T\xEDtulo: ${e.titulo}
+Resumen oficial: ${e.resumen || "(sin resumen)"}
+${ficha}
+
+FUENTES (cita siempre con su n\xFAmero entre corchetes):
+${bloqueFuentes}
+
+Entrega SOLO un objeto JSON compacto, sin texto adicional:
+{
+ "sintesis": "3 a 4 oraciones: qu\xE9 regula el proyecto y c\xF3mo se compara en general con las dem\xE1s normas (cita [n])",
+ "original": {"funcion": "Funci\xF3n jur\xEDdica del proyecto (p. ej. tipifica un delito, crea una instituci\xF3n, regula un procedimiento, impone obligaciones, modifica un c\xF3digo) en 2 oraciones", "jurisdiccion": "\xC1mbito de aplicaci\xF3n y competencia: territorio, \xF3rgano o tribunal competente, nivel (nacional/regional) en 2 oraciones; si el material no lo indica, escribe exactamente 'No informado en las fuentes.'", "refs": [n]},
+ "comparador": [{"dimension": "2-4 palabras", "chile": "Qu\xE9 dispone el proyecto en esta dimensi\xF3n (1-2 oraciones, [n])", "paises": [{"n": numeroDeFuente, "pais": "Nombre", "texto": "Qu\xE9 dispone esa norma (1-2 oraciones)"}], "lectura": "1-2 oraciones: coincidencias y diferencias"}],
+ "porPais": [{"n": numeroDeFuente, "pais": "Nombre", "funcion": "Funci\xF3n jur\xEDdica de esa norma (1-2 oraciones)", "jurisdiccion": "Jurisdicci\xF3n y \xF3rgano competente (1-2 oraciones o 'No informado en las fuentes.')"}]
+}
+Reglas estrictas: entre 5 y 7 dimensiones en "comparador"; una entrada de "porPais" por cada fuente extranjera; no inventes art\xEDculos, plazos, cifras ni \xF3rganos que no aparezcan en los datos; si un pa\xEDs no permite llenar una dimensi\xF3n, om\xEDtelo de esa dimensi\xF3n; "n" debe ser el n\xFAmero exacto de la fuente.`;
+  const texto = await generarContenidoUniversalIA(prompt, 8e3);
+  if (!texto) return { disponible: false, motivo: "No se pudo generar el cruce con IA en este momento. Reintenta en un minuto." };
+  try {
+    const j = safeJsonParse(texto);
+    const nValidos = new Set(fuentes.map((f) => f.n));
+    const limpiaN = (n) => nValidos.has(Number(n)) ? Number(n) : null;
+    return {
+      disponible: true,
+      sintesis: String(j.sintesis || ""),
+      original: j.original ? { funcion: String(j.original.funcion || ""), jurisdiccion: String(j.original.jurisdiccion || ""), refs: (j.original.refs || []).map(limpiaN).filter((x) => x !== null) } : void 0,
+      comparador: (Array.isArray(j.comparador) ? j.comparador : []).map((d) => ({
+        dimension: String(d.dimension || ""),
+        chile: String(d.chile || ""),
+        lectura: String(d.lectura || ""),
+        paises: (Array.isArray(d.paises) ? d.paises : []).map((p) => ({ n: limpiaN(p.n), pais: String(p.pais || ""), texto: String(p.texto || "") })).filter((p) => p.n !== null)
+      })).filter((d) => d.dimension),
+      porPais: (Array.isArray(j.porPais) ? j.porPais : []).map((p) => ({ n: limpiaN(p.n), pais: String(p.pais || ""), funcion: String(p.funcion || ""), jurisdiccion: String(p.jurisdiccion || "") })).filter((p) => p.n !== null)
+    };
+  } catch {
+    return { disponible: false, motivo: "La IA devolvi\xF3 una respuesta incompleta. Reintenta." };
+  }
+}
+
 // server/services/faoService.ts
 var FAO_CONFIG = {
   baseUrl: "https://faostatservices.fao.org/api/v1/en",
@@ -194986,6 +195268,51 @@ apiRouter.get("/derecho-comparado", async (req, res) => {
   const data = await buscarDerechoComparado(q);
   res.json(data);
 });
+apiRouter.post("/derecho-comparado/informe-punto", async (req, res) => {
+  const { query, dimension, lecturaJuridica, paises } = req.body;
+  if (!query || !dimension || !Array.isArray(paises) || paises.length === 0) {
+    return res.status(400).json({ error: "Se requiere 'query', 'dimension' y 'paises'." });
+  }
+  const bloque = paises.filter((p) => p.texto && !/^(—|No especificado|Aún no analizado|No disponible)/i.test(p.texto)).map((p) => `[${p.pais}] ${p.norma || ""}
+${p.texto}`).join("\n\n");
+  if (!bloque) return res.json({ texto: null, error: "A\xFAn no hay disposiciones analizadas para este punto. Presiona 'Comparar y Generar Todo' primero." });
+  const prompt = `Act\xFAa como analista de Asesor\xEDa T\xE9cnica Parlamentaria. Redacta el informe del siguiente punto de una matriz de derecho comparado sobre "${query}".
+
+PUNTO: ${dimension}
+
+Lo que dispone cada norma (\xFAnico material permitido):
+${bloque}
+${lecturaJuridica ? `
+Lectura comparativa previa: ${lecturaJuridica}
+` : ""}
+Estructura obligatoria en Markdown, con subt\xEDtulos de nivel 3:
+### Qu\xE9 regula este punto
+1 p\xE1rrafo.
+### C\xF3mo lo resuelve cada pa\xEDs
+1 p\xE1rrafo por pa\xEDs, nombr\xE1ndolo y citando el art\xEDculo o secci\xF3n cuando conste.
+### Coincidencias y diferencias
+1 p\xE1rrafo.
+### Consideraciones para Chile
+1 p\xE1rrafo, formulado como consideraciones ("podr\xEDa considerarse...") sin inventar hechos.
+
+Reglas: formal y objetivo; usa SOLO el material entregado; no inventes art\xEDculos, plazos, cifras ni \xF3rganos; si algo no consta, di "el material analizado no lo detalla" (nunca afirmes que una norma carece de algo). Entre 300 y 450 palabras. Responde solo con el informe.`;
+  const attempts = [];
+  const texto = await generarContenidoUniversalIA(prompt, 1800, attempts);
+  if (texto && texto.trim().length > 80) return res.json({ texto: texto.trim() });
+  res.json({ texto: null, error: "No se pudo redactar el informe.", aiDiagnostics: attempts });
+});
+apiRouter.post("/derecho-comparado/validar-enlaces", async (req, res) => {
+  const { urls } = req.body;
+  if (!Array.isArray(urls) || urls.length === 0) return res.json({ enlaces: [] });
+  res.json({ enlaces: await validarEnlaces(urls) });
+});
+apiRouter.post("/derecho-comparado/cruce-boletin", async (req, res) => {
+  const body = req.body;
+  if (!body?.boletin || !body?.titulo || !Array.isArray(body.fuentes)) {
+    return res.status(400).json({ error: "Se requiere boletin, titulo y fuentes." });
+  }
+  res.json(await cruzarBoletin(body));
+});
 apiRouter.post("/derecho-comparado/redactar", async (req, res) => {
   const { query, resultados } = req.body;
   if (!query || !Array.isArray(resultados) || resultados.length === 0) {
@@ -195577,6 +195904,36 @@ apiRouter.get("/statistics/indicator/:id?", (req, res) => {
   } catch (error) {
     console.error("Error en /statistics/indicator:", error);
     res.status(500).json({ error: "Error al obtener indicador" });
+  }
+});
+apiRouter.get("/statistics/en-vivo", async (_req, res) => {
+  try {
+    res.json(await getIndicadoresVivos());
+  } catch (error) {
+    console.error("Error en /statistics/en-vivo:", error);
+    res.json({});
+  }
+});
+apiRouter.get("/statistics/fuentes/dataset/:slug", async (req, res) => {
+  try {
+    res.json(await ckanDataset(String(req.params.slug)));
+  } catch (e) {
+    res.status(502).json({ error: e?.message || "error" });
+  }
+});
+apiRouter.get("/statistics/fuentes/muestra", async (req, res) => {
+  try {
+    res.json(await muestraCsv(String(req.query.url || "")));
+  } catch (e) {
+    res.status(502).json({ error: e?.message || "error" });
+  }
+});
+apiRouter.get("/statistics/ine-vigente", async (_req, res) => {
+  try {
+    res.json(await getIneVigente());
+  } catch (error) {
+    console.error("Error en /statistics/ine-vigente:", error);
+    res.json({ desocupacion: null, informalidad: null, ipcMensual: null });
   }
 });
 apiRouter.get("/statistics/all", (_req, res) => {
