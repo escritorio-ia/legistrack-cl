@@ -67,6 +67,49 @@ export function analisisATexto(partes: ParteAnalisis[]): string {
   }).join("\n\n");
 }
 
+/**
+ * Devuelve el análisis (texto) del video de una sesión. Si ya está guardado en Firestore lo usa;
+ * si no, lo genera con Gemini por tramos de 30 min, lo guarda y lo devuelve. Si no se pudo analizar
+ * nada, devuelve "" (el informe se redactará solo con el acta oficial, sin inventar).
+ */
+export async function obtenerAnalisisVideo(
+  id: string,
+  meta: { titulo?: string; comision?: string; fecha?: string; materia?: string },
+  onProgreso?: (msg: string) => void
+): Promise<string> {
+  if (!id) return "";
+  try {
+    const guardado = await getAnalisisVideoFromFirestore(id);
+    if (Array.isArray(guardado?.partes) && guardado.partes.some((p: ParteAnalisis) => p.disponible) && guardado.completo) {
+      return analisisATexto(guardado.partes);
+    }
+  } catch { /* se analiza de nuevo */ }
+
+  const det: any = await fetch(`/api/videos/${id}/detalle`).then(r => r.json()).catch(() => null);
+  const total = det?.partes || 1;
+  const duracion = det?.segundos || null;
+  const acumuladas: ParteAnalisis[] = [];
+  for (let parte = 0; parte < total; parte++) {
+    onProgreso?.(total > 1 ? `Analizando el video con IA: parte ${parte + 1} de ${total}…` : "Analizando el video con IA…");
+    const qs = new URLSearchParams({
+      parte: String(parte),
+      ...(duracion ? { duracion: String(duracion) } : {}),
+      comision: meta.comision || "", fecha: meta.fecha || "", materia: meta.materia || ""
+    });
+    let r: ParteAnalisis;
+    try { r = await fetch(`/api/videos/${id}/analisis?${qs}`).then(x => x.json()); }
+    catch { r = { disponible: false, parte, desde: parte * 1800, hasta: null }; }
+    if (!r.disponible) break;
+    acumuladas.push(r);
+  }
+  if (acumuladas.length === 0) return "";
+  saveAnalisisVideoToFirestore(id, {
+    partes: acumuladas, completo: acumuladas.length >= total,
+    titulo: meta.titulo, comision: meta.comision, fecha: meta.fecha, duracion
+  }).catch(() => {});
+  return analisisATexto(acumuladas);
+}
+
 export default function YouTubeTranscriptModal({
   isOpen,
   onClose,

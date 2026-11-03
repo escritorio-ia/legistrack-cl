@@ -74,7 +74,7 @@ import {
   getSesionesCompletadasFromFirestore,
   saveSesionVinculadaAProyecto
 } from "../services/firebaseService";
-import YouTubeTranscriptModal, { analisisATexto } from "../components/YouTubeTranscriptModal";
+import YouTubeTranscriptModal, { analisisATexto, obtenerAnalisisVideo } from "../components/YouTubeTranscriptModal";
 import ParlamentariosMatrix from "../components/ParlamentariosMatrix";
 import NotasColaborativasDrawer from "../components/NotasColaborativasDrawer";
 
@@ -1524,10 +1524,19 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
       setSearchResults(videos);
       setSearchLoading(false);
 
-      if (videos.length > 0) {
-        const video = videos[0];
-        setSelectedVideo(video);
-        indexarSesionEnProyectos(ses, video, finalBoletinId);
+      {
+        const video = videos[0] || null;
+        if (video) {
+          setSelectedVideo(video);
+          indexarSesionEnProyectos(ses, video, finalBoletinId);
+        }
+
+        // Análisis del video oficial (Gemini): se usa el guardado o se genera ahora y se guarda.
+        if (video) showToast("Analizando el video oficial con IA; puede tardar varios minutos…");
+        const analisisDelVideo = video
+          ? await obtenerAnalisisVideo(video.id, { titulo: video.title, comision: comision?.nombre, fecha: ses.fecha, materia: ses.materia })
+          : "";
+        if (activeReportSessionIdRef.current !== ses.id) return;
 
         // 3. Automatically perform summary generation/report
         const genRes = await fetch("/api/comisiones/sesion/generar-informe", {
@@ -1540,9 +1549,9 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
             sesionMateria: ses.materia,
             sesionFecha: ses.fecha,
             boletinId: finalBoletinId,
-            videoId: video.id,
-            videoTitle: video.title,
-            analisisVideo: await textoAnalisisGuardado(video.id),
+            videoId: video?.id || "",
+            videoTitle: video?.title || "",
+            analisisVideo: analisisDelVideo,
             invitados: ses.invitados,
             tabla: ses.tabla,
             acuerdosTexto: ses.acuerdosTexto,
@@ -1571,8 +1580,8 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
           sesionId: ses.id,
           fecha: ses.fecha,
           comision: comision?.nombre,
-          videoUrl: video.url || `https://www.youtube.com/watch?v=${video.id}`,
-          videoTitle: video.title,
+          videoUrl: video ? (video.url || `https://www.youtube.com/watch?v=${video.id}`) : "",
+          videoTitle: video?.title || "",
           reportContent: pages,
           createdAt: new Date().toISOString()
         };
@@ -1586,8 +1595,8 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
           fecha: ses.fecha,
           comision: comision?.nombre || "Comisión",
           boletinId: finalBoletinId,
-          videoUrl: video.url || `https://www.youtube.com/watch?v=${video.id}`,
-          videoTitle: video.title,
+          videoUrl: video ? (video.url || `https://www.youtube.com/watch?v=${video.id}`) : "",
+          videoTitle: video?.title || "",
           reportContent: pages,
           createdAt: new Date().toISOString()
         }).catch(err => console.warn("Could not sync report to Firestore:", err));
@@ -1598,36 +1607,6 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
         existingReports.unshift(reportToStore);
         localStorage.setItem(storageKey, JSON.stringify(existingReports));
         setReportSavedToBoletin(true);
-      } else {
-        // Fallback default report if no video is available
-        const defaultPages = [
-          `# SÍNTESIS LEGISLATIVA Y ANTECEDENTES GENERALES\n**Comisión:** ${comision?.nombre || "Comisión Técnica"}\n**Fecha:** ${ses.fecha}\n**Boletín:** ${finalBoletinId}\n\n## I. OBJETO Y MATERIA DE LA CONVOCATORIA\nLa Comisión se abocó al análisis de la materia:\n> "${ses.materia}"\n\n## II. AUTORIDADES Y EXPOSITORES\n${ses.invitados || "No informado en la citación."}`,
-          `# FOCO DEL DEBATE PARLAMENTARIO Y AUDIENCIAS\n## III. PRINCIPALES EJES DE LA DISCUSIÓN\n* **Análisis de Indicaciones:** Revisión del articulado en tabla.\n* **Exposiciones Técnicas:** Fundamentación de las posturas ciudadanas e institucionales.\n* **Observaciones Parlamentarias:** Intervenciones de las y los integrantes de la Comisión.`,
-          `# RESOLUCIONES, ACUERDOS Y ESTADO DE TRAMITACIÓN\n## IV. ACUERDOS ADOPTADOS\n* Total de acuerdos: ${ses.acuerdosCount || 1}.\n* Continuación del estudio en la siguiente citación legislativa.\n\n## V. PRÓXIMOS PASOS\nDespacho a Sala o tramitación en segundo trámite constitucional.`
-        ];
-        const reportDoc = {
-          id: `rep_${Date.now()}`,
-          sesionId: ses.id,
-          fecha: ses.fecha,
-          comision: comision?.nombre,
-          reportContent: defaultPages,
-          createdAt: new Date().toISOString()
-        };
-        setGeneratedReport(reportDoc);
-        setEditableReportPages(defaultPages);
-        setIsEditingReport(false);
-        localStorage.setItem(sessionReportKey, JSON.stringify(reportDoc));
-
-        // Save fallback to Firestore as well
-        saveInformeToFirestore({
-          id: `rep_${ses.id}`,
-          sesionId: ses.id,
-          fecha: ses.fecha,
-          comision: comision?.nombre || "Comisión",
-          boletinId: finalBoletinId,
-          reportContent: defaultPages,
-          createdAt: new Date().toISOString()
-        }).catch(err => console.warn("Could not sync report to Firestore:", err));
       }
     } catch (err: any) {
       console.error("Automated flow error:", err);
@@ -1671,7 +1650,7 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
 
     setGeneratingReport(true);
     indexarSesionEnProyectos(selectedSesionForReport, selectedVideo, finalBoletinId);
-    textoAnalisisGuardado(selectedVideo.id).then(analisisVideo => fetch("/api/comisiones/sesion/generar-informe", {
+    obtenerAnalisisVideo(selectedVideo.id, { titulo: selectedVideo.title, comision: comision?.nombre, fecha: selectedSesionForReport.fecha, materia: selectedSesionForReport.materia }, showToast).then(analisisVideo => fetch("/api/comisiones/sesion/generar-informe", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
