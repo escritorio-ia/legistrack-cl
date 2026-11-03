@@ -85,6 +85,13 @@ import NotasColaborativasDrawer from "../components/NotasColaborativasDrawer";
 // meses (p. ej. "16jun2026" ordenaba despues de "04ago2026").
 
 /** Texto del análisis IA ya guardado del video (si existe), para enriquecer el informe. */
+// Un informe guardado se reutiliza si fue editado a mano, si incluye análisis del video,
+// o si se generó con un video asociado y ese análisis no estuvo disponible (no se reintenta en bucle).
+// Los generados sin video se reintentan: puede que ahora sí se encuentre.
+function informeVigente(r: any): boolean {
+  return !!r && (r.editado === true || r.conAnalisisVideo === true || (r.revisadoVideo === true && !!r.videoUrl));
+}
+
 async function textoAnalisisGuardado(videoId?: string): Promise<string> {
   if (!videoId) return "";
   try {
@@ -1443,7 +1450,7 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
       const storedSessionReport = localStorage.getItem(sessionReportKey);
       if (storedSessionReport) {
         const parsed = JSON.parse(storedSessionReport);
-        if (parsed && parsed.reportContent && parsed.reportContent.length > 0 && (parsed.revisadoVideo || parsed.editado)) {
+        if (parsed && parsed.reportContent && parsed.reportContent.length > 0 && informeVigente(parsed)) {
           setGeneratedReport(parsed);
           setEditableReportPages(parsed.reportContent);
           setGeneratingReport(false);
@@ -1466,7 +1473,7 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
         const parsedList = JSON.parse(storedBoletinReports);
         if (Array.isArray(parsedList) && parsedList.length > 0) {
           const matchSes = parsedList.find((r: any) => r.fecha === ses.fecha || r.sesionId === ses.id);
-          if (matchSes && matchSes.reportContent && matchSes.reportContent.length > 0 && (matchSes.revisadoVideo || matchSes.editado)) {
+          if (matchSes && matchSes.reportContent && matchSes.reportContent.length > 0 && informeVigente(matchSes)) {
             setGeneratedReport(matchSes);
             setEditableReportPages(matchSes.reportContent);
             setGeneratingReport(false);
@@ -1492,7 +1499,7 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
     try {
       const cloudReport = await getInformeFromFirestore(ses.id);
       if (activeReportSessionIdRef.current !== ses.id) return; // el usuario ya abrió otra sesión mientras esto cargaba
-      if (cloudReport && cloudReport.reportContent && cloudReport.reportContent.length > 0 && (cloudReport.revisadoVideo || cloudReport.editado)) {
+      if (cloudReport && cloudReport.reportContent && cloudReport.reportContent.length > 0 && informeVigente(cloudReport)) {
         setGeneratedReport(cloudReport);
         setEditableReportPages(cloudReport.reportContent);
         setIsEditingReport(false);

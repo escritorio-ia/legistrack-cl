@@ -118,12 +118,14 @@ export default function App() {
       } else if (rawHash.startsWith("proyecto/")) {
         const id = rawHash.replace("proyecto/", "");
         if (id) {
+          selProyRef.current = id;
           setSelectedProyectoId(id);
           setView("proyecto-detail");
         }
       } else if (rawHash.startsWith("comision/")) {
         const id = rawHash.replace("comision/", "");
         if (id) {
+          selComRef.current = id;
           setSelectedComisionId(id);
           setView("comision-detail");
         }
@@ -167,7 +169,16 @@ export default function App() {
     return () => window.removeEventListener("hashchange", handleHashChange);
   }, []);
 
+  // Refs sincronizadas: el patrón setSelectedX(id); setView("x-detail") llama dos veces a
+  // navigateView en el mismo tick y la segunda leía el id viejo del estado (abría otra comisión/proyecto).
+  const selComRef = useRef<string>("");
+  const selProyRef = useRef<string>("");
+
   const navigateView = (newView: string, optParam?: string) => {
+    if (newView === "comision-detail" && optParam) selComRef.current = optParam;
+    if (newView === "proyecto-detail" && optParam) selProyRef.current = optParam;
+    if (newView === "comision-detail" && !optParam && selComRef.current) optParam = selComRef.current;
+    if (newView === "proyecto-detail" && !optParam && selProyRef.current) optParam = selProyRef.current;
     setView(newView);
     if (newView === "escritorio") {
       window.location.hash = "#/escritorio";

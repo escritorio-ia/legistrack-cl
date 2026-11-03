@@ -184,15 +184,15 @@ function getTramiteStages(p: Proyecto) {
     const startDate = sortedEvents[0]?.fecha || prevEndDate;
     const endDate = sortedEvents[sortedEvents.length - 1]?.fecha || startDate;
 
-    const comisiones = new Set<string>();
-    sortedEvents.forEach(ev => {
-      extractComisiones(`${ev.titulo || ""} ${ev.descripcion || ""}`).forEach(c => comisiones.add(c));
-    });
+    // Nombres limpios y sin repetir (misma comisión mencionada en varios eventos o con
+    // texto de contexto: "…y, posteriormente, por la Comisión de…", "para discutir…").
+    const crudos: string[] = sortedEvents.map(ev => `${ev.titulo || ""} ${ev.descripcion || ""}`);
     // For the trámite matching the project's current commission, add it too if not
     // already captured from free-text (still real data — comisionActual/Históricas).
     if (key === order[order.length - 1] && p.comisionActual) {
-      comisiones.add(p.comisionActual.trim());
+      crudos.push(p.comisionActual.trim());
     }
+    const comisiones = unirComisiones(crudos);
 
     // The floor vote (Sala) tied to this trámite: any real votación that falls
     // within this trámite's date window and hasn't been claimed by an earlier stage.
@@ -1750,7 +1750,7 @@ export default function ProyectoDetailView({
                             {stage.comisiones && stage.comisiones.length > 0 && (
                               <div className="flex flex-wrap gap-1.5 mt-2">
                                 {stage.comisiones.map((c: string) => {
-                                  const isActiveComision = isCurrentStage && c === proyecto.comisionActual;
+                                  const isActiveComision = isCurrentStage && c === unirComisiones([proyecto.comisionActual])[0];
                                   return (
                                     <span
                                       key={c}
