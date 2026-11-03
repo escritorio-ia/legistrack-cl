@@ -188281,7 +188281,7 @@ async function testearProveedoresIAReal() {
 }
 
 // src/utils/comisionesNombre.ts
-var CORTES = /\s*(?:,\s*y\b|\s+y\s*,|,?\s+posteriormente\b|,?\s+finalmente\b|,?\s+luego\b|\s+para\s|\s+con\s+ocasi[oó]n|\s+en\s+(?:el|la|los|las|lo|su|sesi[oó]n)\b|\s+el\s+rechazo|\s+rechaz|\s+a\s+fin\b|\s+que\s|\s+por\s|[.:(]).*$/i;
+var CORTES = /\s*(?:,\s*y\b|\s+y\s*,|,?\s+posteriormente\b|,?\s+finalmente\b|,?\s+luego\b|\s+para\s|\s+con\s+ocasi[oó]n|\s+en\s+(?:el|la|los|las|lo|su|sesi[oó]n)\b|\s+el\s+rechazo|\s+y\s+a(?:\s|$)|\s+rechaz|\s+a\s+fin\b|\s+que\s|\s+por\s|[.:(]).*$/i;
 function limpiarNombreComision(raw) {
   let s = String(raw || "").replace(/\s+/g, " ").trim();
   s = s.replace(/^(?:a\s+|por\s+)?(?:la|las)\s+/i, "");
