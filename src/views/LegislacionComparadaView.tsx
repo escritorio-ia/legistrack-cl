@@ -261,6 +261,27 @@ export interface ResultadoComparado {
   descripcion?: string;
   tipo?: string;
   relevancia?: number;
+  /** oficial = devuelta por la API de la fuente; ia = propuesta por un modelo; respaldo = contenido fijo. */
+  origen?: "oficial" | "ia" | "respaldo";
+  idOficial?: string;
+  consultadoEl?: string;
+  verificacionEnlace?: "ok" | "bloqueado" | "no_verificable";
+}
+
+interface EstadoFuenteUI {
+  jurisdiccion: string;
+  fuente: string;
+  estado: "ok" | "sin_resultados" | "no_disponible";
+  motivo?: string;
+  consultadoEl: string;
+  consultaUsada?: string;
+}
+
+interface NormaDescartadaUI {
+  pais: string;
+  titulo: string;
+  url?: string;
+  motivo: string;
 }
 
 interface AIProviderAttempt {
@@ -1357,6 +1378,8 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
   const [liveResultados, setLiveResultados] = useState<ResultadoComparado[]>([]);
   const [liveFuentesConsultadas, setLiveFuentesConsultadas] = useState<string[]>([]);
   const [liveFuentesFallidas, setLiveFuentesFallidas] = useState<string[]>([]);
+  const [liveEstadoFuentes, setLiveEstadoFuentes] = useState<EstadoFuenteUI[]>([]);
+  const [liveDescartadas, setLiveDescartadas] = useState<NormaDescartadaUI[]>([]);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [redactingIdx, setRedactingIdx] = useState<number | null>(null);
 
@@ -1520,11 +1543,13 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
     try {
       const res = await fetch(`/api/derecho-comparado?q=${encodeURIComponent(queryClean)}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: { resultados: ResultadoComparado[]; fuentesConsultadas: string[]; fuentesFallidas: string[]; aiDiagnostics?: AIProviderAttempt[] } = await res.json();
+      const data: { resultados: ResultadoComparado[]; fuentesConsultadas: string[]; fuentesFallidas: string[]; aiDiagnostics?: AIProviderAttempt[]; estadoFuentes?: EstadoFuenteUI[]; descartadas?: NormaDescartadaUI[] } = await res.json();
       const resultados = data.resultados || [];
       setLiveResultados(resultados);
       setLiveFuentesConsultadas(data.fuentesConsultadas || []);
       setLiveFuentesFallidas(data.fuentesFallidas || []);
+      setLiveEstadoFuentes(data.estadoFuentes || []);
+      setLiveDescartadas(data.descartadas || []);
       setLiveAiDiagnostics(data.aiDiagnostics || []);
 
       // Genera automáticamente el Informe Técnico BCN del tema efectivamente
@@ -2283,7 +2308,40 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
               conocimiento de referencia generica en vez de fallar por completo
               -- pero eso NO es lo mismo que un resultado verificado por IA en
               vivo, y no debe presentarse como si lo fuera. */}
-          {!liveLoading && liveResultados.length > 0 && liveFuentesFallidas.length > 0 && (
+          {!liveLoading && liveEstadoFuentes.length > 0 && (
+            <div className="border border-slate-200 rounded-xl bg-white px-4 py-3 text-xs flex flex-col gap-2" id="estado-fuentes-oficiales">
+              <p className="font-extrabold text-slate-800 uppercase tracking-wider text-[11px] font-mono">Estado de las fuentes oficiales</p>
+              <ul className="flex flex-col gap-1">
+                {liveEstadoFuentes.map((e, i) => (
+                  <li key={i} className="flex flex-wrap items-baseline gap-x-2">
+                    <span className={e.estado === "ok" ? "text-emerald-700 font-bold" : e.estado === "sin_resultados" ? "text-slate-500 font-bold" : "text-red-700 font-bold"}>
+                      {e.estado === "ok" ? "✓ consultada" : e.estado === "sin_resultados" ? "○ sin resultados" : "✗ no disponible"}
+                    </span>
+                    <span className="font-semibold text-slate-800">{e.jurisdiccion}</span>
+                    <span className="text-slate-500">{e.fuente}</span>
+                    {e.motivo && e.estado !== "ok" && <span className="text-slate-500 italic">— {e.motivo}</span>}
+                  </li>
+                ))}
+              </ul>
+              <p className="text-slate-500">
+                Las demás jurisdicciones no se consultan en fuentes oficiales: sus normas son propuestas por IA y solo se muestran si el enlace fue visitado y responde.
+              </p>
+              {liveDescartadas.length > 0 && (
+                <details className="text-slate-600">
+                  <summary className="cursor-pointer font-semibold text-amber-800">
+                    {liveDescartadas.length} propuesta(s) de IA excluida(s) por enlace roto, ausente o de portada
+                  </summary>
+                  <ul className="mt-1 ml-4 list-disc space-y-0.5">
+                    {liveDescartadas.map((d, i) => (
+                      <li key={i}><span className="font-semibold">{d.pais}</span>: {d.titulo} — {d.motivo}</li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+            </div>
+          )}
+
+          {!liveLoading && liveResultados.length > 0 && liveFuentesFallidas.some(f => /motor de ia/i.test(f)) && (
             <div className="bg-amber-50 border border-amber-300 text-amber-900 rounded-xl px-4 py-3 flex items-start gap-2.5 text-xs">
               <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
               <div>
@@ -2561,6 +2619,14 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
                           <div className="flex flex-col">
                             <span className="text-xs font-extrabold text-slate-900 leading-none">{r.pais}</span>
                             <span className="text-[10px] text-slate-400 font-mono">{r.fuente}</span>
+                            {r.origen && (
+                              <span
+                                className={`self-start mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wide ${r.origen === "oficial" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-amber-50 text-amber-800 border border-amber-200"}`}
+                                title={r.origen === "oficial" ? `Obtenida de la API oficial${r.idOficial ? ` · ${r.idOficial}` : ""}${r.consultadoEl ? ` · consultada ${new Date(r.consultadoEl).toLocaleString("es-CL")}` : ""}` : r.verificacionEnlace && r.verificacionEnlace !== "ok" ? "Propuesta por IA; el sitio bloquea la comprobación automática del enlace" : "Propuesta por IA: el enlace respondió, pero el contenido no fue contrastado"}
+                              >
+                                {r.origen === "oficial" ? "Fuente oficial" : r.origen === "respaldo" ? "Respaldo · sin verificar" : r.verificacionEnlace && r.verificacionEnlace !== "ok" ? "IA · enlace no verificable" : "IA · enlace verificado"}
+                              </span>
+                            )}
                           </div>
                         </div>
 

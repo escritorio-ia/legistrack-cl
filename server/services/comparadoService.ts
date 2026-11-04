@@ -5,8 +5,11 @@
 
 import { generarContenidoUniversalIA, safeJsonParse, AIProviderAttempt } from "./aiService";
 import { cache } from "./cacheService";
+import { urlPermitida, validarEnlaces } from "./cruceBoletinService";
+import { buscarFuentesOficiales, fetchTextoOficial, PAISES_OFICIALES, type EstadoFuenteOficial, type Proveniencia } from "./fuentesOficialesService";
 
-export const LEYCHILE_API_KEY = process.env.LEYCHILE_API_KEY || "qW5yv690wb8WIEq1wN08HsHZur4MyrSSrhLgcXdstNZwtJ3Fihfu3baz4y3uYlCb";
+// La clave de LeyChile se lee SOLO desde la variable de entorno (nunca en el código).
+export const LEYCHILE_API_KEY = process.env.LEYCHILE_API_KEY || "";
 
 export interface ResultadoComparado {
   pais: string;
@@ -18,6 +21,30 @@ export interface ResultadoComparado {
   descripcion?: string;
   tipo?: string;
   relevancia?: number;
+  /** oficial = devuelta por la API de la fuente; ia = propuesta por un modelo, sin verificar; respaldo = contenido fijo del código. */
+  origen?: "oficial" | "ia" | "respaldo";
+  /** Identificador de la propia fuente (CELEX, BOE-A-…, ukpga/2018/12, idNorma). */
+  idOficial?: string;
+  consultadoEl?: string;
+  /** Solo normas no oficiales: resultado de visitar el enlace. ok = respondió; bloqueado/no_verificable = el sitio no permite comprobarlo. */
+  verificacionEnlace?: "ok" | "bloqueado" | "no_verificable";
+}
+
+export interface NormaDescartada {
+  pais: string;
+  titulo: string;
+  url?: string;
+  motivo: string;
+}
+
+/** La URL apunta a la portada de un portal (no a una norma concreta). */
+export function esInicioDePortal(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return !u.search && (u.pathname === "/" || u.pathname === "" || /^\/(index\.[a-z]+|[a-z]{2})\/?$/i.test(u.pathname));
+  } catch {
+    return true;
+  }
 }
 
 export const CODIGO_PAIS: Record<string, string> = {
@@ -270,7 +297,9 @@ export async function buscarChile(q: string): Promise<ResultadoComparado[]> {
           fecha,
           url: url ? decodeEntities(url) : undefined,
           descripcion: descripcionFinal,
-          tipo: inferirTipoNorma(tituloFinal)
+          tipo: inferirTipoNorma(tituloFinal),
+          origen: "oficial" as const,
+          idOficial: (block.match(/<IdNorma>(\d+)<\/IdNorma>/) || [])[1]
         };
       })
       .filter((r) => r.titulo && r.titulo !== "Norma sin título")
@@ -375,7 +404,9 @@ export async function buscarComparadoConIA(query: string, attempts?: AIProviderA
   // (30-40s). En vez de eso, se reparte la lista en lotes más chicos y se
   // consultan EN PARALELO -- el tiempo total queda acotado por el lote más
   // lento, no por la suma de los 27 países.
-  const jurisdicciones = Object.keys(CODIGO_PAIS).filter((p) => p !== "Chile");
+  // Chile (LeyChile) y las jurisdicciones con conector oficial (UE, España, Reino Unido) no se
+  // piden al modelo: sus normas salen solo de la fuente oficial.
+  const jurisdicciones = Object.keys(CODIGO_PAIS).filter((p) => p !== "Chile" && !PAISES_OFICIALES.has(p));
   // OJO: bajar mucho el tamaño del lote (más lotes en paralelo) no acelera
   // la busqueda de forma segura -- cada lote dispara su propia llamada a
   // Gemini/Groq, y con muchos lotes simultáneos se satura la cuota gratuita
@@ -394,8 +425,10 @@ export async function buscarComparadoConIA(query: string, attempts?: AIProviderA
     try {
       const parsed = safeJsonParse<ResultadoComparado[]>(aiResponse);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.map((item) => ({
+        return parsed.filter((item) => !PAISES_OFICIALES.has(item.pais)).map((item) => ({
           ...item,
+          origen: "ia" as const,
+          fuente: `${item.fuente || "Fuente no indicada"} — propuesta por IA, sin verificar`,
           tipo: item.tipo || inferirTipoNorma(item.titulo || ""),
           relevancia: item.relevancia || relevanciaPorCoincidencia(query, item)
         }));
@@ -434,7 +467,7 @@ export async function buscarComparadoConIA(query: string, attempts?: AIProviderA
   // Si todos los lotes fallaron (IA no disponible, sin API keys, etc.), usamos
   // el sintetizador de ontologia legal comparada como ultimo recurso.
   attempts?.push({ provider: "fallback-ontologico", configured: true });
-  return generarFallbackOntologicoComparado(query);
+  return generarFallbackOntologicoComparado(query).filter((r) => !PAISES_OFICIALES.has(r.pais));
 }
 
 /**
@@ -648,6 +681,10 @@ export async function buscarDerechoComparado(q: string): Promise<{
   fuentesConsultadas: string[];
   fuentesFallidas: string[];
   aiDiagnostics: AIProviderAttempt[];
+  /** Estado real de cada fuente oficial consultada (ok / sin_resultados / no_disponible). */
+  estadoFuentes?: EstadoFuenteOficial[];
+  /** Normas propuestas por IA que se excluyeron por enlace roto, ausente o de portada. */
+  descartadas?: NormaDescartada[];
 }> {
   const cacheKey = `derecho_comparado_ia_${normalizarTexto(q)}`;
   const cached = cache.get<{
@@ -659,63 +696,102 @@ export async function buscarDerechoComparado(q: string): Promise<{
   if (cached) return cached;
 
   const resultado = await (async () => {
-    const fuentesConsultadas: string[] = [
-      "Chile (LeyChile — Biblioteca del Congreso Nacional)",
-      "Unión Europea (EUR-Lex — Diario Oficial de la UE)",
-      "España (BOE — Boletín Oficial del Estado)",
-      "Estados Unidos (Congress.gov — U.S. Code)",
-      "Alemania (Bundesgesetzblatt)",
-      "Francia (Légifrance)",
-      "Reino Unido (Legislation.gov.uk)",
-      "Iberoamérica (Colombia, Argentina, México)",
-      "OCDE / Global (Asesoría Técnica Parlamentaria BCN)",
-      "Portales de datos abiertos UE/OCDE verificados (catálogo APIs4DGov — Joint Research Centre, Comisión Europea)"
-    ];
     const fuentesFallidas: string[] = [];
     const aiAttempts: AIProviderAttempt[] = [];
 
-    // Ejecutamos en paralelo:
-    // 1. Consulta oficial en LeyChile (Chile)
-    // 2. Motor de IA comparada internacional (Unión Europea, España, EE.UU., Alemania, Francia, etc.)
-    const [chileResult, iaResult] = await Promise.allSettled([
+    // En paralelo:
+    // 1. LeyChile (BCN) para Chile.
+    // 2. Fuentes OFICIALES de UE (Cellar), España (BOE) y Reino Unido (legislation.gov.uk).
+    // 3. Modelo de IA SOLO para el resto de las jurisdicciones (propuestas sin verificar).
+    const [chileResult, oficialesResult, iaResult] = await Promise.allSettled([
       buscarChile(q),
+      buscarFuentesOficiales(q),
       buscarComparadoConIA(q, aiAttempts)
     ]);
 
     const resultados: ResultadoComparado[] = [];
+    const estadoFuentes: EstadoFuenteOficial[] = [];
+    const ahora = new Date().toISOString();
 
-    // 1. Incorporar resultados de Chile
+    // 1. Chile: solo lo que devuelve LeyChile. Si falla o no hay resultados se informa; no se inventa una norma.
     if (chileResult.status === "fulfilled" && chileResult.value.length > 0) {
-      resultados.push(...chileResult.value);
+      resultados.push(...chileResult.value.map((r) => ({ ...r, consultadoEl: ahora })));
+      estadoFuentes.push({ jurisdiccion: "Chile", fuente: "LeyChile — Biblioteca del Congreso Nacional (API oficial)", estado: "ok", consultadoEl: ahora });
     } else {
-      // Si la búsqueda de texto en LeyChile fue muy estricta, generamos norma chilena de referencia
-      resultados.push({
-        pais: "Chile",
-        fuente: "LeyChile — Biblioteca del Congreso Nacional",
-        titulo: `Marco Jurídico Nacional y Proyectos en Trámite sobre ${q.charAt(0).toUpperCase() + q.slice(1)}`,
-        fecha: "2024",
-        url: `https://www.leychile.cl/Consulta/obtxml?opt=61&cadena=${encodeURIComponent(q)}`,
-        tipo: "Ley",
-        descripcion: `Normativa chilena aplicable y antecedentes legislativos en tramitación en la Cámara de Diputados y el Senado sobre ${q}, regulada bajo el ordenamiento jurídico nacional y el código sectorial respectivo. Su cumplimiento es supervisado por los ministerios sectoriales y superintendencias del Estado de Chile.`,
-        relevancia: 99
+      const fallo = chileResult.status === "rejected";
+      estadoFuentes.push({
+        jurisdiccion: "Chile",
+        fuente: "LeyChile — Biblioteca del Congreso Nacional (API oficial)",
+        estado: fallo ? "no_disponible" : "sin_resultados",
+        motivo: fallo ? "LeyChile no respondió." : "LeyChile no devolvió normas para esa consulta (o no respondió).",
+        consultadoEl: ahora
       });
+      fuentesFallidas.push("LeyChile (sin resultados o no disponible)");
     }
 
-    // 2. Incorporar resultados internacionales con IA. buscarComparadoConIA ya
-    // devuelve un arreglo no-vacío incluso cuando usa su propio respaldo
-    // ontológico (para no romper la UI), así que la única forma confiable de
-    // saber si fue un resultado REAL de IA es revisar aiAttempts en vez de
-    // solo comprobar que el arreglo no esté vacío.
+    // 2. Fuentes oficiales extranjeras
+    if (oficialesResult.status === "fulfilled") {
+      for (const n of oficialesResult.value.normas) {
+        resultados.push({
+          pais: n.pais,
+          fuente: n.fuente,
+          titulo: n.titulo,
+          fecha: n.fecha,
+          url: n.url,
+          descripcion: n.descripcion,
+          tipo: inferirTipoNorma(n.titulo),
+          origen: "oficial",
+          idOficial: n.idOficial,
+          consultadoEl: n.consultadoEl
+        });
+      }
+      estadoFuentes.push(...oficialesResult.value.estados);
+      for (const e of oficialesResult.value.estados) {
+        if (e.estado === "no_disponible") fuentesFallidas.push(`${e.jurisdiccion} (fuente oficial no disponible)`);
+      }
+    } else {
+      for (const j of ["Unión Europea", "España", "Reino Unido"]) {
+        estadoFuentes.push({ jurisdiccion: j, fuente: "fuente oficial", estado: "no_disponible", motivo: "Error interno al consultar las fuentes oficiales.", consultadoEl: ahora });
+      }
+      fuentesFallidas.push("Fuentes oficiales extranjeras (error interno)");
+    }
+
+    // 3. Resto de jurisdicciones: propuestas de IA, siempre etiquetadas. Nunca para UE/España/Reino Unido.
     const usoRespaldoOntologico = aiAttempts.some(a => a.provider === "fallback-ontologico");
+    const etiquetar = (r: ResultadoComparado): ResultadoComparado =>
+      r.origen ? r : { ...r, origen: "respaldo", fuente: `${r.fuente} — contenido fijo de respaldo, sin verificar` };
     if (iaResult.status === "fulfilled" && iaResult.value.length > 0) {
-      resultados.push(...iaResult.value);
+      resultados.push(...iaResult.value.filter((r) => !PAISES_OFICIALES.has(r.pais)).map(etiquetar));
       if (usoRespaldoOntologico) {
         fuentesFallidas.push("Motor de IA (usando base de conocimiento de respaldo)");
       }
     } else {
-      fuentesFallidas.push("Filtro AI temporal");
-      resultados.push(...generarFallbackOntologicoComparado(q));
+      fuentesFallidas.push("Motor de IA no disponible: sin propuestas para las demás jurisdicciones");
     }
+
+    const fuentesConsultadas: string[] = [
+      ...estadoFuentes.map((e) => `${e.jurisdiccion} — ${e.fuente}: ${e.estado === "ok" ? "consultada" : e.estado === "sin_resultados" ? "consultada, sin resultados" : "NO disponible"}`),
+      "Resto de jurisdicciones: sin consulta a fuentes oficiales; normas propuestas por modelos de IA (sin verificar)"
+    ];
+
+    // Verificación de enlaces de las normas NO oficiales: se visita cada URL. Se descartan las que no tienen
+    // enlace, apuntan a la portada de un portal o están rotas; las que el sitio bloquea a clientes automáticos
+    // (403/429/202) se conservan marcadas como "no verificables".
+    const descartadas: NormaDescartada[] = [];
+    const noOficiales = resultados.filter(r => r.origen !== "oficial");
+    const estadosEnlace = await validarEnlaces(noOficiales.map(r => r.url || "").filter(u => u && !esInicioDePortal(u)));
+    const porUrl = new Map(estadosEnlace.map(e => [e.url, e]));
+    const conservados = resultados.filter(r => {
+      if (r.origen === "oficial") return true;
+      if (!r.url) { descartadas.push({ pais: r.pais, titulo: r.titulo, motivo: "La propuesta no trae enlace a la norma." }); return false; }
+      if (esInicioDePortal(r.url)) { descartadas.push({ pais: r.pais, titulo: r.titulo, url: r.url, motivo: "El enlace apunta a la portada de un portal, no a la norma." }); return false; }
+      const e = porUrl.get(r.url);
+      if (!e || e.estado === "roto") { descartadas.push({ pais: r.pais, titulo: r.titulo, url: r.url, motivo: `El enlace no responde${e?.codigo ? ` (HTTP ${e.codigo})` : ""}.` }); return false; }
+      r.verificacionEnlace = e.estado === "bloqueado" || e.codigo === 202 ? (e.estado === "bloqueado" ? "bloqueado" : "no_verificable") : "ok";
+      return true;
+    });
+    resultados.length = 0;
+    resultados.push(...conservados);
 
     // Asignar y calibrar relevancia
     resultados.forEach(r => {
@@ -735,7 +811,9 @@ export async function buscarDerechoComparado(q: string): Promise<{
       resultados,
       fuentesConsultadas,
       fuentesFallidas,
-      aiDiagnostics: aiAttempts
+      aiDiagnostics: aiAttempts,
+      estadoFuentes,
+      descartadas
     };
   })();
 
@@ -760,7 +838,9 @@ export function extraerPuntosHeuristicos(query: string, resultado: ResultadoComp
   if (resultado.pais === "Chile") {
     puntos.push(`Normativa nacional aplicable en la República de Chile bajo la jurisdicción de ${resultado.fuente}.`);
   } else {
-    puntos.push(`Estándar normativo oficial de ${resultado.pais} emitido por ${resultado.fuente}.`);
+    puntos.push(resultado.origen === "oficial"
+      ? `Norma de ${resultado.pais} obtenida de ${resultado.fuente}.`
+      : `Norma propuesta para ${resultado.pais} (${resultado.fuente}); su texto no pudo recuperarse y no está verificada.`);
   }
 
   if (resultado.descripcion && resultado.descripcion.length > 20) {
@@ -897,8 +977,27 @@ function seleccionarFragmentosRelevantes(texto: string, query: string | undefine
 
 const IDIOMA_CELLAR: Record<string, string> = { ES: "spa", EN: "eng", FR: "fra", DE: "deu", PT: "por", IT: "ita" };
 
+/**
+ * Texto de una norma con su proveniencia. Primero intenta las fuentes oficiales con API (BOE,
+ * legislation.gov.uk, Cellar) y conserva la huella SHA-256 de la respuesta original; si la URL no es
+ * de esas fuentes, usa la descarga genérica (sin proveniencia).
+ */
+export async function fetchTextoFuenteConProveniencia(url: string, query?: string): Promise<{ texto: string | null; proveniencia?: Proveniencia }> {
+  const oficial = await fetchTextoOficial(url);
+  if (oficial) {
+    let texto = oficial.texto;
+    const inicio = texto.search(/(^|\n)\s*(Art[íi]culo|Article|Section)\s*(1|primero|único)\s*(\n|[.º°ª-])/i);
+    if (inicio > 0 && inicio < texto.length * 0.7) texto = texto.slice(Math.max(0, inicio - 300));
+    texto = texto.replace(/\s+/g, " ");
+    return { texto: texto.length > 200 ? seleccionarFragmentosRelevantes(texto, query, 12000) : null, proveniencia: oficial.proveniencia };
+  }
+  return { texto: await fetchTextoFuente(url, query) };
+}
+
 export async function fetchTextoFuente(url: string, query?: string): Promise<string | null> {
-  const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+  // Protección SSRF: la URL viene del cliente o de un modelo; no se descargan direcciones privadas.
+  if (!urlPermitida(url)) return null;
+  const UA ="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
   try {
     let html: string | null = null;
 

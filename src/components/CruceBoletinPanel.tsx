@@ -31,6 +31,7 @@ export interface CruceBoletinEstado {
     original?: { funcion: string; jurisdiccion: string; refs: number[] };
     comparador?: { dimension: string; chile: string; paises: { n: number; pais: string; texto: string }[]; lectura: string }[];
     porPais?: { n: number; pais: string; funcion: string; jurisdiccion: string }[];
+    fuentesDescartadas?: number[];
   };
 }
 
@@ -157,6 +158,13 @@ export default function CruceBoletinPanel({ cruce }: { cruce: CruceBoletinEstado
               </div>
             )}
           </>
+        )}
+
+        {resultado?.fuentesDescartadas && resultado.fuentesDescartadas.length > 0 && (
+          <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
+            Se excluyeron del análisis {resultado.fuentesDescartadas.length} fuente(s) cuyo enlace no pudo comprobarse al visitarlo
+            ({resultado.fuentesDescartadas.map(n => `[${n}]`).join(", ")}), para no basar el cruce en normas no verificadas.
+          </p>
         )}
 
         {/* Fuentes: todas con hipervínculo verificado */}

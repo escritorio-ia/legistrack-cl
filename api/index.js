@@ -190444,8 +190444,366 @@ N\xB0 del IF | a qu\xE9 corresponde, breve | efecto fiscal en una frase con su m
   return r;
 }
 
+// server/services/cruceBoletinService.ts
+var PRIVADO = /^(localhost|.*\.local|.*\.internal|0\.0\.0\.0|127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|\[?::1\]?$|\[?f[cd][0-9a-f]{2}:)/i;
+function urlPermitida(u) {
+  try {
+    const x = new URL(u);
+    if (x.protocol !== "https:" && x.protocol !== "http:") return null;
+    if (PRIVADO.test(x.hostname)) return null;
+    return x;
+  } catch {
+    return null;
+  }
+}
+var cacheEnlaces = /* @__PURE__ */ new Map();
+var TTL_ENLACE_MS = 60 * 60 * 1e3;
+async function visitar(url) {
+  const hoy = (/* @__PURE__ */ new Date()).toISOString();
+  const c = cacheEnlaces.get(url);
+  if (c && Date.now() - c.en < TTL_ENLACE_MS) return c.v;
+  const u = urlPermitida(url);
+  let v;
+  if (!u) {
+    v = { url, estado: "roto", verificadoEl: hoy };
+  } else {
+    try {
+      const r = await fetch(u.toString(), {
+        method: "GET",
+        redirect: "follow",
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; Legislacion++ verificador de enlaces)", Accept: "text/html,application/pdf,*/*" },
+        signal: AbortSignal.timeout(12e3)
+      });
+      try {
+        await r.body?.cancel();
+      } catch {
+      }
+      const s = r.status;
+      v = {
+        url,
+        codigo: s,
+        urlFinal: r.url && r.url !== url ? r.url : void 0,
+        estado: s >= 200 && s < 400 ? "ok" : s === 401 || s === 403 || s === 429 ? "bloqueado" : "roto",
+        verificadoEl: hoy
+      };
+    } catch {
+      v = { url, estado: "roto", verificadoEl: hoy };
+    }
+  }
+  cacheEnlaces.set(url, { en: Date.now(), v });
+  return v;
+}
+async function validarEnlaces(urls) {
+  const unicas = Array.from(new Set(urls.filter((u) => typeof u === "string" && u.trim()))).slice(0, 60);
+  const out = [];
+  let i = 0;
+  const worker = async () => {
+    while (i < unicas.length) {
+      const mi = i++;
+      out[mi] = await visitar(unicas[mi]);
+    }
+  };
+  await Promise.all(Array.from({ length: 6 }, worker));
+  return out;
+}
+async function cruzarBoletin(e) {
+  const candidatas = (e.fuentes || []).slice(0, 14);
+  const estados = await validarEnlaces(candidatas.map((f) => f.url || "").filter(Boolean));
+  const porUrl = new Map(estados.map((x) => [x.url, x.estado]));
+  const descartadas = [];
+  const fuentes = candidatas.filter((f) => {
+    if (!f.pais || f.pais === "Chile") return true;
+    const ok = !!f.url && porUrl.get(f.url) !== "roto";
+    if (!ok) descartadas.push(f.n);
+    return ok;
+  });
+  const extranjeras = fuentes.filter((f) => f.pais && f.pais !== "Chile");
+  if (extranjeras.length === 0) {
+    return { disponible: false, motivo: "Ninguna norma de otros pa\xEDses tiene un enlace verificable (todas las URL fallaron al visitarlas), por lo que no se genera el cruce para no basarlo en fuentes no comprobadas." };
+  }
+  const bloqueFuentes = fuentes.map((f) => `[${f.n}] ${f.rotulo}${f.pais ? ` (${f.pais})` : ""} \u2014 ${f.titulo}
+   Descripci\xF3n: ${f.descripcion || "(sin descripci\xF3n en la fuente)"}`).join("\n");
+  const ficha = e.fichaTecnica ? `Objeto: ${e.fichaTecnica.objeto || "\u2014"}
+Mecanismos: ${e.fichaTecnica.mecanismos || "\u2014"}
+Fiscalizaci\xF3n: ${e.fichaTecnica.fiscalizacion || "\u2014"}
+Sanciones: ${e.fichaTecnica.sanciones || "\u2014"}` : "(sin ficha t\xE9cnica)";
+  const prompt = `Eres analista de Asesor\xEDa T\xE9cnica Parlamentaria. Cruza el proyecto de ley chileno (Bolet\xEDn ${e.boletin}) con las normas de otros pa\xEDses listadas, usando EXCLUSIVAMENTE los datos de abajo.
+
+PROYECTO (${e.iniciativa || "iniciativa no informada"}${e.autores ? `, autores: ${e.autores}` : ""}):
+T\xEDtulo: ${e.titulo}
+Resumen oficial: ${e.resumen || "(sin resumen)"}
+${ficha}
+
+FUENTES (cita siempre con su n\xFAmero entre corchetes):
+${bloqueFuentes}
+
+Entrega SOLO un objeto JSON compacto, sin texto adicional:
+{
+ "sintesis": "3 a 4 oraciones: qu\xE9 regula el proyecto y c\xF3mo se compara en general con las dem\xE1s normas (cita [n])",
+ "original": {"funcion": "Funci\xF3n jur\xEDdica del proyecto (p. ej. tipifica un delito, crea una instituci\xF3n, regula un procedimiento, impone obligaciones, modifica un c\xF3digo) en 2 oraciones", "jurisdiccion": "\xC1mbito de aplicaci\xF3n y competencia: territorio, \xF3rgano o tribunal competente, nivel (nacional/regional) en 2 oraciones; si el material no lo indica, escribe exactamente 'No informado en las fuentes.'", "refs": [n]},
+ "comparador": [{"dimension": "2-4 palabras", "chile": "Qu\xE9 dispone el proyecto en esta dimensi\xF3n (1-2 oraciones, [n])", "paises": [{"n": numeroDeFuente, "pais": "Nombre", "texto": "Qu\xE9 dispone esa norma (1-2 oraciones)"}], "lectura": "1-2 oraciones: coincidencias y diferencias"}],
+ "porPais": [{"n": numeroDeFuente, "pais": "Nombre", "funcion": "Funci\xF3n jur\xEDdica de esa norma (1-2 oraciones)", "jurisdiccion": "Jurisdicci\xF3n y \xF3rgano competente (1-2 oraciones o 'No informado en las fuentes.')"}]
+}
+Reglas estrictas: afirma solo lo que la DESCRIPCI\xD3N de cada fuente dice expresamente (si la descripci\xF3n no indica que la norma tipifica un delito, fija una sanci\xF3n o asigna una competencia, NO lo afirmes; escribe "la descripci\xF3n disponible no lo precisa"); no extrapoles a partir del t\xEDtulo o del nombre de la norma ni de lo que conozcas sobre ella; para el proyecto chileno usa solo el t\xEDtulo, el resumen y la ficha entregados. Entre 5 y 7 dimensiones en "comparador"; una entrada de "porPais" por cada fuente extranjera; no inventes art\xEDculos, plazos, cifras ni \xF3rganos que no aparezcan en los datos; si un pa\xEDs no permite llenar una dimensi\xF3n, om\xEDtelo de esa dimensi\xF3n; "n" debe ser el n\xFAmero exacto de la fuente.`;
+  const texto = await generarContenidoUniversalIA(prompt, 8e3);
+  if (!texto) return { disponible: false, motivo: "No se pudo generar el cruce con IA en este momento. Reintenta en un minuto." };
+  try {
+    const j = safeJsonParse(texto);
+    const nValidos = new Set(fuentes.map((f) => f.n));
+    const limpiaN = (n) => nValidos.has(Number(n)) ? Number(n) : null;
+    return {
+      disponible: true,
+      sintesis: String(j.sintesis || ""),
+      original: j.original ? { funcion: String(j.original.funcion || ""), jurisdiccion: String(j.original.jurisdiccion || ""), refs: (j.original.refs || []).map(limpiaN).filter((x) => x !== null) } : void 0,
+      comparador: (Array.isArray(j.comparador) ? j.comparador : []).map((d) => ({
+        dimension: String(d.dimension || ""),
+        chile: String(d.chile || ""),
+        lectura: String(d.lectura || ""),
+        paises: (Array.isArray(d.paises) ? d.paises : []).map((p) => ({ n: limpiaN(p.n), pais: String(p.pais || ""), texto: String(p.texto || "") })).filter((p) => p.n !== null)
+      })).filter((d) => d.dimension),
+      fuentesDescartadas: descartadas,
+      porPais: (Array.isArray(j.porPais) ? j.porPais : []).map((p) => ({ n: limpiaN(p.n), pais: String(p.pais || ""), funcion: String(p.funcion || ""), jurisdiccion: String(p.jurisdiccion || "") })).filter((p) => p.n !== null)
+    };
+  } catch {
+    return { disponible: false, motivo: "La IA devolvi\xF3 una respuesta incompleta. Reintenta." };
+  }
+}
+
+// server/services/fuentesOficialesService.ts
+import { createHash } from "node:crypto";
+var PAISES_OFICIALES = /* @__PURE__ */ new Set(["Espa\xF1a", "Uni\xF3n Europea", "Reino Unido"]);
+var UA = "Mozilla/5.0 (compatible; LegisTrackCL/1.0; verificador de fuentes oficiales)";
+async function descargar(url, headers, ms) {
+  const res = await fetch(url, { headers: { "User-Agent": UA, ...headers }, redirect: "follow", signal: AbortSignal.timeout(ms) });
+  const buf = Buffer.from(await res.arrayBuffer());
+  return {
+    status: res.status,
+    contentType: res.headers.get("content-type") || "",
+    finalUrl: res.url && res.url !== url ? res.url : void 0,
+    buf,
+    sha256: createHash("sha256").update(buf).digest("hex")
+  };
+}
+var ENT = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
+function decodificar(s) {
+  return s.replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16))).replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n))).replace(/&([a-z]+);/gi, (m, n) => ENT[n.toLowerCase()] ?? m);
+}
+function xmlATexto(s) {
+  return decodificar(s.replace(/<\/(p|bloque|P1|P2|Title|Number)>/g, "\n").replace(/<[^>]+>/g, " ")).replace(/[ \t\f\v ]+/g, " ").replace(/\s*\n\s*/g, "\n").trim();
+}
+var STOP = /* @__PURE__ */ new Set(["de", "la", "el", "los", "las", "del", "para", "con", "por", "que", "una", "uno", "sobre", "en", "como", "sus", "este", "esta"]);
+function terminosDeConsulta(q) {
+  return Array.from(new Set((q.toLowerCase().match(/[\p{L}\d]+/gu) || []).filter((w) => w.length >= 4 && !STOP.has(w)))).slice(0, 5);
+}
+function fechaISO2(d) {
+  if (!d) return void 0;
+  const m = d.match(/^(\d{4})(\d{2})(\d{2})/);
+  return m ? `${m[1]}-${m[2]}-${m[3]}` : d;
+}
+var CELLAR_SPARQL = "https://publications.europa.eu/webapi/rdf/sparql";
+async function buscarUE(q) {
+  const ahora = (/* @__PURE__ */ new Date()).toISOString();
+  const base = { jurisdiccion: "Uni\xF3n Europea", fuente: "Oficina de Publicaciones de la UE \u2014 Cellar (SPARQL)", consultadoEl: ahora };
+  const ts = terminosDeConsulta(q);
+  if (ts.length === 0) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene t\xE9rminos \xFAtiles." } };
+  const consultar = async (cond) => {
+    const sparql = `PREFIX cdm: <http://publications.europa.eu/ontology/cdm#>
+SELECT DISTINCT ?celex ?title ?date WHERE {
+ ?e cdm:expression_title ?title .
+ ?title bif:contains "${cond}" .
+ ?e cdm:expression_uses_language <http://publications.europa.eu/resource/authority/language/SPA> .
+ ?e cdm:expression_belongs_to_work ?w .
+ ?w cdm:resource_legal_id_celex ?celex .
+ ?w cdm:work_date_document ?date .
+ FILTER(STRSTARTS(STR(?celex),"3"))
+} LIMIT 40`;
+    const url = `${CELLAR_SPARQL}?query=${encodeURIComponent(sparql)}&format=${encodeURIComponent("application/sparql-results+json")}`;
+    const r = await descargar(url, { Accept: "application/sparql-results+json" }, 25e3);
+    if (r.status !== 200 || !/json/i.test(r.contentType)) throw new Error(`HTTP ${r.status} (${r.contentType || "sin content-type"})`);
+    const j = JSON.parse(r.buf.toString("utf8"));
+    return j?.results?.bindings || [];
+  };
+  try {
+    const and = ts.map((t) => `'${t}'`).join(" AND ");
+    const usada = and;
+    const filas = await consultar(and);
+    const vistos = /* @__PURE__ */ new Set();
+    const normas = filas.map((f) => ({ celex: String(f.celex?.value || ""), titulo: String(f.title?.value || ""), fecha: String(f.date?.value || "") })).filter((f) => /^3\d{4}[LRD]\d{4}$/.test(f.celex) && f.titulo && !vistos.has(f.celex) && !!vistos.add(f.celex)).sort((a, b) => b.fecha.localeCompare(a.fecha)).slice(0, 4).map((f) => ({
+      pais: "Uni\xF3n Europea",
+      fuente: "EUR-Lex / Cellar \u2014 Oficina de Publicaciones de la UE (oficial)",
+      titulo: f.titulo,
+      fecha: f.fecha,
+      url: `https://eur-lex.europa.eu/legal-content/ES/TXT/?uri=CELEX:${f.celex}`,
+      descripcion: `Acto de la Uni\xF3n Europea con CELEX ${f.celex}, fecha del documento ${f.fecha}. Metadatos tomados de Cellar; el texto se recupera al analizar la norma.`,
+      idOficial: f.celex,
+      tipoOficial: { L: "Directiva", R: "Reglamento", D: "Decisi\xF3n" }[f.celex[5]] || void 0,
+      origen: "oficial",
+      consultadoEl: ahora
+    }));
+    return { normas, estado: { ...base, estado: normas.length ? "ok" : "sin_resultados", consultaUsada: usada, motivo: normas.length ? void 0 : "Cellar no devolvi\xF3 actos legislativos para esa consulta." } };
+  } catch (e) {
+    return { normas: [], estado: { ...base, estado: "no_disponible", motivo: `Cellar no respondi\xF3: ${e?.message || e}` } };
+  }
+}
+var BOE_API = "https://www.boe.es/datosabiertos/api/legislacion-consolidada";
+async function buscarEspana(q) {
+  const ahora = (/* @__PURE__ */ new Date()).toISOString();
+  const base = { jurisdiccion: "Espa\xF1a", fuente: "AEBOE \u2014 API de datos abiertos, legislaci\xF3n consolidada", consultadoEl: ahora };
+  const ts = terminosDeConsulta(q);
+  if (ts.length === 0) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene t\xE9rminos \xFAtiles." } };
+  const consultar = async (cond) => {
+    const query = JSON.stringify({ query: { query_string: { query: cond } }, sort: [{ fecha_publicacion: "desc" }] });
+    const r = await descargar(`${BOE_API}?limit=25&query=${encodeURIComponent(query)}`, { Accept: "application/json" }, 15e3);
+    if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
+    const j = JSON.parse(r.buf.toString("utf8"));
+    const data = j?.data;
+    return Array.isArray(data) ? data : [];
+  };
+  try {
+    const usada = `titulo:(${ts.join(" and ")})`;
+    const items = await consultar(usada);
+    const peso = (rango) => /^Ley/i.test(rango) ? 0 : /Real Decreto-ley|Real Decreto Legislativo/i.test(rango) ? 1 : 2;
+    const normas = items.filter((i) => i?.identificador && i?.titulo).sort((a, b) => peso(String(a.rango?.texto || "")) - peso(String(b.rango?.texto || ""))).slice(0, 4).map((i) => ({
+      pais: "Espa\xF1a",
+      fuente: "BOE \u2014 legislaci\xF3n consolidada, AEBOE (oficial; texto consolidado informativo)",
+      titulo: String(i.titulo),
+      fecha: fechaISO2(String(i.fecha_publicacion || "")),
+      url: String(i.url_html_consolidada || `https://www.boe.es/buscar/act.php?id=${i.identificador}`),
+      descripcion: `${i.rango?.texto || "Norma"} \xB7 ${i.departamento?.texto || "departamento no informado"} \xB7 \xE1mbito ${i.ambito?.texto || "no informado"} \xB7 estado de consolidaci\xF3n: ${i.estado_consolidacion?.texto || "no informado"}. Metadatos de la API del BOE.`,
+      idOficial: String(i.identificador),
+      tipoOficial: i.rango?.texto ? String(i.rango.texto) : void 0,
+      origen: "oficial",
+      consultadoEl: ahora
+    }));
+    return { normas, estado: { ...base, estado: normas.length ? "ok" : "sin_resultados", consultaUsada: usada, motivo: normas.length ? void 0 : "El BOE no devolvi\xF3 normas para esa consulta." } };
+  } catch (e) {
+    return { normas: [], estado: { ...base, estado: "no_disponible", motivo: `El BOE no respondi\xF3: ${e?.message || e}` } };
+  }
+}
+async function traducirAIngles(q) {
+  try {
+    const t = await generarContenidoUniversalIA(
+      `Traduce al ingl\xE9s jur\xEDdico brit\xE1nico esta materia legislativa para buscar en t\xEDtulos de leyes. Responde SOLO con 1 a 4 palabras, sin comillas ni explicaci\xF3n: ${q}`,
+      40
+    );
+    const limpio = (t || "").replace(/["'\n]/g, " ").replace(/\s+/g, " ").trim();
+    return limpio && limpio.length <= 60 ? limpio : q;
+  } catch {
+    return q;
+  }
+}
+async function buscarReinoUnido(q) {
+  const ahora = (/* @__PURE__ */ new Date()).toISOString();
+  const base = { jurisdiccion: "Reino Unido", fuente: "legislation.gov.uk (Atom feed de b\xFAsqueda)", consultadoEl: ahora };
+  try {
+    const ingles = await traducirAIngles(q);
+    const buscar = async (campo) => {
+      const url = `https://www.legislation.gov.uk/search/data.feed?type=primary&${campo}=${encodeURIComponent(ingles)}&results-count=10&sort=modified`;
+      const r = await descargar(url, { Accept: "application/atom+xml" }, 15e3);
+      if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
+      return r.buf.toString("utf8");
+    };
+    let usada = `title="${ingles}"`;
+    let xml = await buscar("title");
+    let entradas = xml.match(/<entry>[\s\S]*?<\/entry>/g) || [];
+    let porTexto = false;
+    if (entradas.length === 0) {
+      porTexto = true;
+      usada = `text="${ingles}"`;
+      xml = await buscar("text");
+      entradas = xml.match(/<entry>[\s\S]*?<\/entry>/g) || [];
+    }
+    const normas = entradas.map((e) => {
+      const id = e.match(/<id>https?:\/\/www\.legislation\.gov\.uk\/id\/([a-z]+)\/(\d{4})\/(\d+)<\/id>/);
+      const titulo = (e.match(/<title>([\s\S]*?)<\/title>/) || [])[1];
+      if (!id || !titulo) return null;
+      const publicado = (e.match(/<published>(\d{4}-\d{2}-\d{2})/) || [])[1];
+      const resumen = (e.match(/<summary>([\s\S]*?)<\/summary>/) || [])[1];
+      return {
+        pais: "Reino Unido",
+        fuente: "legislation.gov.uk \u2014 The National Archives (oficial)",
+        titulo: decodificar(titulo),
+        fecha: publicado,
+        url: `https://www.legislation.gov.uk/${id[1]}/${id[2]}/${id[3]}`,
+        descripcion: (porTexto ? "Coincidencia en el texto de la norma, no en su t\xEDtulo (legislation.gov.uk no ordena por relevancia). " : "") + (resumen ? decodificar(resumen).trim() : `Norma ${id[1]} ${id[2]}/${id[3]} publicada en legislation.gov.uk (la fuente no incluye resumen).`),
+        idOficial: `${id[1]}/${id[2]}/${id[3]}`,
+        tipoOficial: (e.match(/<ukm:DocumentMainType Value="([^"]+)"/) || [])[1],
+        origen: "oficial",
+        consultadoEl: ahora
+      };
+    }).filter((x) => !!x).slice(0, 4);
+    return {
+      normas,
+      estado: { ...base, estado: normas.length ? "ok" : "sin_resultados", consultaUsada: usada + (ingles !== q ? " (palabra de consulta traducida por IA)" : ""), motivo: normas.length ? void 0 : "legislation.gov.uk no devolvi\xF3 leyes para esa consulta." }
+    };
+  } catch (e) {
+    return { normas: [], estado: { ...base, estado: "no_disponible", motivo: `legislation.gov.uk no respondi\xF3: ${e?.message || e}` } };
+  }
+}
+async function buscarFuentesOficiales(q) {
+  const key = `fuentes_oficiales_${q.trim().toLowerCase()}`;
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const partes = await Promise.all([buscarUE(q), buscarEspana(q), buscarReinoUnido(q)]);
+  const out = { normas: partes.flatMap((p) => p.normas), estados: partes.map((p) => p.estado) };
+  if (out.estados.every((e) => e.estado !== "no_disponible")) cache.set(key, out, 6 * 60 * 60 * 1e3);
+  return out;
+}
+var IDIOMA_CELLAR = { ES: "spa", EN: "eng", FR: "fra", DE: "deu", PT: "por", IT: "ita" };
+async function fetchTextoOficial(url) {
+  const consultadoEl = (/* @__PURE__ */ new Date()).toISOString();
+  try {
+    const boe = url.match(/boe\.es\/(?:buscar\/act\.php\?id=|datosabiertos\/api\/legislacion-consolidada\/id\/)(BOE-[A-Z]-\d{4}-\d+)/i);
+    if (boe) {
+      const api = `${BOE_API}/id/${boe[1]}/texto`;
+      const r = await descargar(api, { Accept: "application/xml" }, 2e4);
+      if (r.status !== 200) return null;
+      const xml = r.buf.toString("utf8");
+      const bloques = xml.match(/<bloque\b[\s\S]*?<\/bloque>/g) || [];
+      const partes = bloques.map((b) => {
+        const versiones = b.match(/<version\b[\s\S]*?<\/version>/g) || [];
+        const ultima = versiones[versiones.length - 1] || "";
+        const tit = (b.match(/<bloque\b[^>]*\btitulo="([^"]*)"/) || [])[1];
+        return `${tit && !/^\[/.test(tit) ? decodificar(tit) + "\n" : ""}${xmlATexto(ultima)}`;
+      });
+      const texto = partes.join("\n").trim();
+      if (texto.length < 200) return null;
+      return { texto, proveniencia: { fuente: "AEBOE \u2014 legislaci\xF3n consolidada (API)", urlSolicitada: api, estadoHttp: r.status, contentType: r.contentType, bytes: r.buf.length, sha256: r.sha256, consultadoEl } };
+    }
+    const uk = url.match(/legislation\.gov\.uk\/(?:id\/)?([a-z]+)\/(\d{4})\/(\d+)/i);
+    if (uk) {
+      const api = `https://www.legislation.gov.uk/${uk[1]}/${uk[2]}/${uk[3]}/data.xml`;
+      const r = await descargar(api, { Accept: "application/xml" }, 3e4);
+      if (r.status !== 200) return null;
+      const texto = xmlATexto(r.buf.toString("utf8"));
+      if (texto.length < 200) return null;
+      return { texto, proveniencia: { fuente: "legislation.gov.uk \u2014 CLML", urlSolicitada: api, urlFinal: r.finalUrl, estadoHttp: r.status, contentType: r.contentType, bytes: r.buf.length, sha256: r.sha256, consultadoEl } };
+    }
+    const eur = url.match(/eur-lex\.europa\.eu\/legal-content\/([A-Za-z]{2})\/[^?]*\?uri=CELEX(?:%3A|:)(\w+)/i);
+    if (eur) {
+      const api = `https://publications.europa.eu/resource/celex/${eur[2]}`;
+      const r = await descargar(api, { Accept: "application/xhtml+xml, text/html", "Accept-Language": IDIOMA_CELLAR[eur[1].toUpperCase()] || "eng" }, 25e3);
+      if (r.status !== 200) return null;
+      const texto = xmlATexto(r.buf.toString("utf8").replace(/<(script|style)[\s\S]*?<\/\1>/gi, " "));
+      if (texto.length < 200) return null;
+      return { texto, proveniencia: { fuente: "Cellar \u2014 Oficina de Publicaciones de la UE", urlSolicitada: api, urlFinal: r.finalUrl, estadoHttp: r.status, contentType: r.contentType, bytes: r.buf.length, sha256: r.sha256, consultadoEl } };
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 // server/services/comparadoService.ts
-var LEYCHILE_API_KEY = process.env.LEYCHILE_API_KEY || "qW5yv690wb8WIEq1wN08HsHZur4MyrSSrhLgcXdstNZwtJ3Fihfu3baz4y3uYlCb";
+var LEYCHILE_API_KEY = process.env.LEYCHILE_API_KEY || "";
+function esInicioDePortal(url) {
+  try {
+    const u = new URL(url);
+    return !u.search && (u.pathname === "/" || u.pathname === "" || /^\/(index\.[a-z]+|[a-z]{2})\/?$/i.test(u.pathname));
+  } catch {
+    return true;
+  }
+}
 var CODIGO_PAIS = {
   "Chile": "CL",
   "Espa\xF1a": "ES",
@@ -190636,7 +190994,9 @@ async function buscarChile(q) {
         fecha,
         url: url2 ? decodeEntities(url2) : void 0,
         descripcion: descripcionFinal,
-        tipo: inferirTipoNorma(tituloFinal)
+        tipo: inferirTipoNorma(tituloFinal),
+        origen: "oficial",
+        idOficial: (block.match(/<IdNorma>(\d+)<\/IdNorma>/) || [])[1]
       };
     }).filter((r) => r.titulo && r.titulo !== "Norma sin t\xEDtulo").map((r) => ({ ...r, relevancia: relevanciaPorCoincidencia(q, r) })).sort((a, b) => (b.relevancia || 0) - (a.relevancia || 0)).filter((r, i, arr) => {
       const prefijo = normalizarTexto(r.titulo).slice(0, 40);
@@ -190708,7 +191068,7 @@ IMPORTANTE: clasifica el campo "tipo" usando EXCLUSIVAMENTE una de estas 5 categ
 - "Documento": informes, minutas, estudios t\xE9cnicos u otro texto de referencia sin fuerza normativa vinculante propia.`;
 }
 async function buscarComparadoConIA(query, attempts) {
-  const jurisdicciones = Object.keys(CODIGO_PAIS).filter((p) => p !== "Chile");
+  const jurisdicciones = Object.keys(CODIGO_PAIS).filter((p) => p !== "Chile" && !PAISES_OFICIALES.has(p));
   const TAMANO_LOTE = 7;
   const lotes = [];
   for (let i = 0; i < jurisdicciones.length; i += TAMANO_LOTE) {
@@ -190720,8 +191080,10 @@ async function buscarComparadoConIA(query, attempts) {
     try {
       const parsed = safeJsonParse(aiResponse);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.map((item) => ({
+        return parsed.filter((item) => !PAISES_OFICIALES.has(item.pais)).map((item) => ({
           ...item,
+          origen: "ia",
+          fuente: `${item.fuente || "Fuente no indicada"} \u2014 propuesta por IA, sin verificar`,
           tipo: item.tipo || inferirTipoNorma(item.titulo || ""),
           relevancia: item.relevancia || relevanciaPorCoincidencia(query, item)
         }));
@@ -190752,7 +191114,7 @@ IMPORTANTE: tu respuesta anterior no cumpli\xF3 el formato. Responde EXCLUSIVAME
   const resultados = resultadosPorLote.flat();
   if (resultados.length > 0) return resultados;
   attempts?.push({ provider: "fallback-ontologico", configured: true });
-  return generarFallbackOntologicoComparado(query);
+  return generarFallbackOntologicoComparado(query).filter((r) => !PAISES_OFICIALES.has(r.pais));
 }
 function generarFallbackOntologicoComparado(query) {
   const q = normalizarTexto(query);
@@ -190948,49 +191310,93 @@ async function buscarDerechoComparado(q) {
   const cached = cache.get(cacheKey);
   if (cached) return cached;
   const resultado = await (async () => {
-    const fuentesConsultadas = [
-      "Chile (LeyChile \u2014 Biblioteca del Congreso Nacional)",
-      "Uni\xF3n Europea (EUR-Lex \u2014 Diario Oficial de la UE)",
-      "Espa\xF1a (BOE \u2014 Bolet\xEDn Oficial del Estado)",
-      "Estados Unidos (Congress.gov \u2014 U.S. Code)",
-      "Alemania (Bundesgesetzblatt)",
-      "Francia (L\xE9gifrance)",
-      "Reino Unido (Legislation.gov.uk)",
-      "Iberoam\xE9rica (Colombia, Argentina, M\xE9xico)",
-      "OCDE / Global (Asesor\xEDa T\xE9cnica Parlamentaria BCN)",
-      "Portales de datos abiertos UE/OCDE verificados (cat\xE1logo APIs4DGov \u2014 Joint Research Centre, Comisi\xF3n Europea)"
-    ];
     const fuentesFallidas = [];
     const aiAttempts = [];
-    const [chileResult, iaResult] = await Promise.allSettled([
+    const [chileResult, oficialesResult, iaResult] = await Promise.allSettled([
       buscarChile(q),
+      buscarFuentesOficiales(q),
       buscarComparadoConIA(q, aiAttempts)
     ]);
     const resultados = [];
+    const estadoFuentes = [];
+    const ahora = (/* @__PURE__ */ new Date()).toISOString();
     if (chileResult.status === "fulfilled" && chileResult.value.length > 0) {
-      resultados.push(...chileResult.value);
+      resultados.push(...chileResult.value.map((r) => ({ ...r, consultadoEl: ahora })));
+      estadoFuentes.push({ jurisdiccion: "Chile", fuente: "LeyChile \u2014 Biblioteca del Congreso Nacional (API oficial)", estado: "ok", consultadoEl: ahora });
     } else {
-      resultados.push({
-        pais: "Chile",
-        fuente: "LeyChile \u2014 Biblioteca del Congreso Nacional",
-        titulo: `Marco Jur\xEDdico Nacional y Proyectos en Tr\xE1mite sobre ${q.charAt(0).toUpperCase() + q.slice(1)}`,
-        fecha: "2024",
-        url: `https://www.leychile.cl/Consulta/obtxml?opt=61&cadena=${encodeURIComponent(q)}`,
-        tipo: "Ley",
-        descripcion: `Normativa chilena aplicable y antecedentes legislativos en tramitaci\xF3n en la C\xE1mara de Diputados y el Senado sobre ${q}, regulada bajo el ordenamiento jur\xEDdico nacional y el c\xF3digo sectorial respectivo. Su cumplimiento es supervisado por los ministerios sectoriales y superintendencias del Estado de Chile.`,
-        relevancia: 99
+      const fallo = chileResult.status === "rejected";
+      estadoFuentes.push({
+        jurisdiccion: "Chile",
+        fuente: "LeyChile \u2014 Biblioteca del Congreso Nacional (API oficial)",
+        estado: fallo ? "no_disponible" : "sin_resultados",
+        motivo: fallo ? "LeyChile no respondi\xF3." : "LeyChile no devolvi\xF3 normas para esa consulta (o no respondi\xF3).",
+        consultadoEl: ahora
       });
+      fuentesFallidas.push("LeyChile (sin resultados o no disponible)");
+    }
+    if (oficialesResult.status === "fulfilled") {
+      for (const n of oficialesResult.value.normas) {
+        resultados.push({
+          pais: n.pais,
+          fuente: n.fuente,
+          titulo: n.titulo,
+          fecha: n.fecha,
+          url: n.url,
+          descripcion: n.descripcion,
+          tipo: inferirTipoNorma(n.titulo),
+          origen: "oficial",
+          idOficial: n.idOficial,
+          consultadoEl: n.consultadoEl
+        });
+      }
+      estadoFuentes.push(...oficialesResult.value.estados);
+      for (const e of oficialesResult.value.estados) {
+        if (e.estado === "no_disponible") fuentesFallidas.push(`${e.jurisdiccion} (fuente oficial no disponible)`);
+      }
+    } else {
+      for (const j of ["Uni\xF3n Europea", "Espa\xF1a", "Reino Unido"]) {
+        estadoFuentes.push({ jurisdiccion: j, fuente: "fuente oficial", estado: "no_disponible", motivo: "Error interno al consultar las fuentes oficiales.", consultadoEl: ahora });
+      }
+      fuentesFallidas.push("Fuentes oficiales extranjeras (error interno)");
     }
     const usoRespaldoOntologico = aiAttempts.some((a) => a.provider === "fallback-ontologico");
+    const etiquetar = (r) => r.origen ? r : { ...r, origen: "respaldo", fuente: `${r.fuente} \u2014 contenido fijo de respaldo, sin verificar` };
     if (iaResult.status === "fulfilled" && iaResult.value.length > 0) {
-      resultados.push(...iaResult.value);
+      resultados.push(...iaResult.value.filter((r) => !PAISES_OFICIALES.has(r.pais)).map(etiquetar));
       if (usoRespaldoOntologico) {
         fuentesFallidas.push("Motor de IA (usando base de conocimiento de respaldo)");
       }
     } else {
-      fuentesFallidas.push("Filtro AI temporal");
-      resultados.push(...generarFallbackOntologicoComparado(q));
+      fuentesFallidas.push("Motor de IA no disponible: sin propuestas para las dem\xE1s jurisdicciones");
     }
+    const fuentesConsultadas = [
+      ...estadoFuentes.map((e) => `${e.jurisdiccion} \u2014 ${e.fuente}: ${e.estado === "ok" ? "consultada" : e.estado === "sin_resultados" ? "consultada, sin resultados" : "NO disponible"}`),
+      "Resto de jurisdicciones: sin consulta a fuentes oficiales; normas propuestas por modelos de IA (sin verificar)"
+    ];
+    const descartadas = [];
+    const noOficiales = resultados.filter((r) => r.origen !== "oficial");
+    const estadosEnlace = await validarEnlaces(noOficiales.map((r) => r.url || "").filter((u) => u && !esInicioDePortal(u)));
+    const porUrl = new Map(estadosEnlace.map((e) => [e.url, e]));
+    const conservados = resultados.filter((r) => {
+      if (r.origen === "oficial") return true;
+      if (!r.url) {
+        descartadas.push({ pais: r.pais, titulo: r.titulo, motivo: "La propuesta no trae enlace a la norma." });
+        return false;
+      }
+      if (esInicioDePortal(r.url)) {
+        descartadas.push({ pais: r.pais, titulo: r.titulo, url: r.url, motivo: "El enlace apunta a la portada de un portal, no a la norma." });
+        return false;
+      }
+      const e = porUrl.get(r.url);
+      if (!e || e.estado === "roto") {
+        descartadas.push({ pais: r.pais, titulo: r.titulo, url: r.url, motivo: `El enlace no responde${e?.codigo ? ` (HTTP ${e.codigo})` : ""}.` });
+        return false;
+      }
+      r.verificacionEnlace = e.estado === "bloqueado" || e.codigo === 202 ? e.estado === "bloqueado" ? "bloqueado" : "no_verificable" : "ok";
+      return true;
+    });
+    resultados.length = 0;
+    resultados.push(...conservados);
     resultados.forEach((r) => {
       if (!r.relevancia) {
         r.relevancia = relevanciaPorCoincidencia(q, r);
@@ -191005,7 +191411,9 @@ async function buscarDerechoComparado(q) {
       resultados,
       fuentesConsultadas,
       fuentesFallidas,
-      aiDiagnostics: aiAttempts
+      aiDiagnostics: aiAttempts,
+      estadoFuentes,
+      descartadas
     };
   })();
   if (resultado.fuentesFallidas.length === 0) {
@@ -191018,7 +191426,7 @@ function extraerPuntosHeuristicos(query, resultado, texto) {
   if (resultado.pais === "Chile") {
     puntos.push(`Normativa nacional aplicable en la Rep\xFAblica de Chile bajo la jurisdicci\xF3n de ${resultado.fuente}.`);
   } else {
-    puntos.push(`Est\xE1ndar normativo oficial de ${resultado.pais} emitido por ${resultado.fuente}.`);
+    puntos.push(resultado.origen === "oficial" ? `Norma de ${resultado.pais} obtenida de ${resultado.fuente}.` : `Norma propuesta para ${resultado.pais} (${resultado.fuente}); su texto no pudo recuperarse y no est\xE1 verificada.`);
   }
   if (resultado.descripcion && resultado.descripcion.length > 20) {
     const lineas = resultado.descripcion.split("\n").map((l) => l.trim()).filter(Boolean);
@@ -191148,20 +191556,32 @@ function seleccionarFragmentosRelevantes(texto, query, max) {
   }
   return trozos.filter((t) => elegidos.has(t.i)).map((t) => t.txt).join("\n[...]\n").slice(0, max);
 }
-var IDIOMA_CELLAR = { ES: "spa", EN: "eng", FR: "fra", DE: "deu", PT: "por", IT: "ita" };
+var IDIOMA_CELLAR2 = { ES: "spa", EN: "eng", FR: "fra", DE: "deu", PT: "por", IT: "ita" };
+async function fetchTextoFuenteConProveniencia(url, query) {
+  const oficial = await fetchTextoOficial(url);
+  if (oficial) {
+    let texto = oficial.texto;
+    const inicio = texto.search(/(^|\n)\s*(Art[íi]culo|Article|Section)\s*(1|primero|único)\s*(\n|[.º°ª-])/i);
+    if (inicio > 0 && inicio < texto.length * 0.7) texto = texto.slice(Math.max(0, inicio - 300));
+    texto = texto.replace(/\s+/g, " ");
+    return { texto: texto.length > 200 ? seleccionarFragmentosRelevantes(texto, query, 12e3) : null, proveniencia: oficial.proveniencia };
+  }
+  return { texto: await fetchTextoFuente(url, query) };
+}
 async function fetchTextoFuente(url, query) {
-  const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+  if (!urlPermitida(url)) return null;
+  const UA2 = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
   try {
     let html = null;
     const eur = url.match(/eur-lex\.europa\.eu\/legal-content\/([A-Za-z]{2})\/[^?]*\?uri=CELEX(?:%3A|:)(\w+)/i);
     if (eur) {
       html = await descargarHtmlDecodificado(
         `https://publications.europa.eu/resource/celex/${eur[2]}`,
-        { "User-Agent": UA, Accept: "application/xhtml+xml, text/html", "Accept-Language": IDIOMA_CELLAR[eur[1].toUpperCase()] || "eng" },
+        { "User-Agent": UA2, Accept: "application/xhtml+xml, text/html", "Accept-Language": IDIOMA_CELLAR2[eur[1].toUpperCase()] || "eng" },
         2e4
       );
     } else {
-      html = await descargarHtmlDecodificado(url, { "User-Agent": UA, Accept: "text/html,application/xhtml+xml,*/*;q=0.8", "Accept-Language": "es,en;q=0.8" }, 12e3);
+      html = await descargarHtmlDecodificado(url, { "User-Agent": UA2, Accept: "text/html,application/xhtml+xml,*/*;q=0.8", "Accept-Language": "es,en;q=0.8" }, 12e3);
     }
     if (!html) return null;
     let texto = htmlATextoLegible(html);
@@ -192927,121 +193347,6 @@ async function muestraCsv(url, lineas = 6) {
   if (!r.ok && r.status !== 206) throw new Error(`HTTP ${r.status}`);
   const texto = (await r.text()).slice(0, 8e3);
   return { url, lineas: texto.split(/\r?\n/).slice(0, lineas) };
-}
-
-// server/services/cruceBoletinService.ts
-var PRIVADO = /^(localhost|.*\.local|.*\.internal|0\.0\.0\.0|127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|\[?::1\]?$|\[?f[cd][0-9a-f]{2}:)/i;
-function urlPermitida(u) {
-  try {
-    const x = new URL(u);
-    if (x.protocol !== "https:" && x.protocol !== "http:") return null;
-    if (PRIVADO.test(x.hostname)) return null;
-    return x;
-  } catch {
-    return null;
-  }
-}
-var cacheEnlaces = /* @__PURE__ */ new Map();
-var TTL_ENLACE_MS = 60 * 60 * 1e3;
-async function visitar(url) {
-  const hoy = (/* @__PURE__ */ new Date()).toISOString();
-  const c = cacheEnlaces.get(url);
-  if (c && Date.now() - c.en < TTL_ENLACE_MS) return c.v;
-  const u = urlPermitida(url);
-  let v;
-  if (!u) {
-    v = { url, estado: "roto", verificadoEl: hoy };
-  } else {
-    try {
-      const r = await fetch(u.toString(), {
-        method: "GET",
-        redirect: "follow",
-        headers: { "User-Agent": "Mozilla/5.0 (compatible; Legislacion++ verificador de enlaces)", Accept: "text/html,application/pdf,*/*" },
-        signal: AbortSignal.timeout(12e3)
-      });
-      try {
-        await r.body?.cancel();
-      } catch {
-      }
-      const s = r.status;
-      v = {
-        url,
-        codigo: s,
-        urlFinal: r.url && r.url !== url ? r.url : void 0,
-        estado: s >= 200 && s < 400 ? "ok" : s === 401 || s === 403 || s === 429 ? "bloqueado" : "roto",
-        verificadoEl: hoy
-      };
-    } catch {
-      v = { url, estado: "roto", verificadoEl: hoy };
-    }
-  }
-  cacheEnlaces.set(url, { en: Date.now(), v });
-  return v;
-}
-async function validarEnlaces(urls) {
-  const unicas = Array.from(new Set(urls.filter((u) => typeof u === "string" && u.trim()))).slice(0, 60);
-  const out = [];
-  let i = 0;
-  const worker = async () => {
-    while (i < unicas.length) {
-      const mi = i++;
-      out[mi] = await visitar(unicas[mi]);
-    }
-  };
-  await Promise.all(Array.from({ length: 6 }, worker));
-  return out;
-}
-async function cruzarBoletin(e) {
-  const fuentes = (e.fuentes || []).slice(0, 14);
-  const extranjeras = fuentes.filter((f) => f.pais && f.pais !== "Chile");
-  if (extranjeras.length === 0) {
-    return { disponible: false, motivo: "No hay normas de otros pa\xEDses con enlace para cruzar con este bolet\xEDn." };
-  }
-  const bloqueFuentes = fuentes.map((f) => `[${f.n}] ${f.rotulo}${f.pais ? ` (${f.pais})` : ""} \u2014 ${f.titulo}
-   Descripci\xF3n: ${f.descripcion || "(sin descripci\xF3n en la fuente)"}`).join("\n");
-  const ficha = e.fichaTecnica ? `Objeto: ${e.fichaTecnica.objeto || "\u2014"}
-Mecanismos: ${e.fichaTecnica.mecanismos || "\u2014"}
-Fiscalizaci\xF3n: ${e.fichaTecnica.fiscalizacion || "\u2014"}
-Sanciones: ${e.fichaTecnica.sanciones || "\u2014"}` : "(sin ficha t\xE9cnica)";
-  const prompt = `Eres analista de Asesor\xEDa T\xE9cnica Parlamentaria. Cruza el proyecto de ley chileno (Bolet\xEDn ${e.boletin}) con las normas de otros pa\xEDses listadas, usando EXCLUSIVAMENTE los datos de abajo.
-
-PROYECTO (${e.iniciativa || "iniciativa no informada"}${e.autores ? `, autores: ${e.autores}` : ""}):
-T\xEDtulo: ${e.titulo}
-Resumen oficial: ${e.resumen || "(sin resumen)"}
-${ficha}
-
-FUENTES (cita siempre con su n\xFAmero entre corchetes):
-${bloqueFuentes}
-
-Entrega SOLO un objeto JSON compacto, sin texto adicional:
-{
- "sintesis": "3 a 4 oraciones: qu\xE9 regula el proyecto y c\xF3mo se compara en general con las dem\xE1s normas (cita [n])",
- "original": {"funcion": "Funci\xF3n jur\xEDdica del proyecto (p. ej. tipifica un delito, crea una instituci\xF3n, regula un procedimiento, impone obligaciones, modifica un c\xF3digo) en 2 oraciones", "jurisdiccion": "\xC1mbito de aplicaci\xF3n y competencia: territorio, \xF3rgano o tribunal competente, nivel (nacional/regional) en 2 oraciones; si el material no lo indica, escribe exactamente 'No informado en las fuentes.'", "refs": [n]},
- "comparador": [{"dimension": "2-4 palabras", "chile": "Qu\xE9 dispone el proyecto en esta dimensi\xF3n (1-2 oraciones, [n])", "paises": [{"n": numeroDeFuente, "pais": "Nombre", "texto": "Qu\xE9 dispone esa norma (1-2 oraciones)"}], "lectura": "1-2 oraciones: coincidencias y diferencias"}],
- "porPais": [{"n": numeroDeFuente, "pais": "Nombre", "funcion": "Funci\xF3n jur\xEDdica de esa norma (1-2 oraciones)", "jurisdiccion": "Jurisdicci\xF3n y \xF3rgano competente (1-2 oraciones o 'No informado en las fuentes.')"}]
-}
-Reglas estrictas: entre 5 y 7 dimensiones en "comparador"; una entrada de "porPais" por cada fuente extranjera; no inventes art\xEDculos, plazos, cifras ni \xF3rganos que no aparezcan en los datos; si un pa\xEDs no permite llenar una dimensi\xF3n, om\xEDtelo de esa dimensi\xF3n; "n" debe ser el n\xFAmero exacto de la fuente.`;
-  const texto = await generarContenidoUniversalIA(prompt, 8e3);
-  if (!texto) return { disponible: false, motivo: "No se pudo generar el cruce con IA en este momento. Reintenta en un minuto." };
-  try {
-    const j = safeJsonParse(texto);
-    const nValidos = new Set(fuentes.map((f) => f.n));
-    const limpiaN = (n) => nValidos.has(Number(n)) ? Number(n) : null;
-    return {
-      disponible: true,
-      sintesis: String(j.sintesis || ""),
-      original: j.original ? { funcion: String(j.original.funcion || ""), jurisdiccion: String(j.original.jurisdiccion || ""), refs: (j.original.refs || []).map(limpiaN).filter((x) => x !== null) } : void 0,
-      comparador: (Array.isArray(j.comparador) ? j.comparador : []).map((d) => ({
-        dimension: String(d.dimension || ""),
-        chile: String(d.chile || ""),
-        lectura: String(d.lectura || ""),
-        paises: (Array.isArray(d.paises) ? d.paises : []).map((p) => ({ n: limpiaN(p.n), pais: String(p.pais || ""), texto: String(p.texto || "") })).filter((p) => p.n !== null)
-      })).filter((d) => d.dimension),
-      porPais: (Array.isArray(j.porPais) ? j.porPais : []).map((p) => ({ n: limpiaN(p.n), pais: String(p.pais || ""), funcion: String(p.funcion || ""), jurisdiccion: String(p.jurisdiccion || "") })).filter((p) => p.n !== null)
-    };
-  } catch {
-    return { disponible: false, motivo: "La IA devolvi\xF3 una respuesta incompleta. Reintenta." };
-  }
 }
 
 // server/services/faoService.ts
@@ -195442,7 +195747,9 @@ apiRouter.post("/derecho-comparado/analizar", async (req, res) => {
     return res.status(400).json({ error: "Se requiere 'query' y 'resultado'." });
   }
   const textoNormaCompleto = resultado.pais === "Chile" && resultado.url ? await fetchTextoNormaLeyChileCompleto(resultado.url) : null;
-  const textoFuente = textoNormaCompleto || (resultado.url ? await fetchTextoFuente(resultado.url, query) : null);
+  const lecturaGenerica = textoNormaCompleto || !resultado.url ? null : await fetchTextoFuenteConProveniencia(resultado.url, query);
+  const textoFuente = textoNormaCompleto || lecturaGenerica?.texto || null;
+  const proveniencia = lecturaGenerica?.proveniencia;
   const diagnosticoIA = [];
   if (textoFuente) {
     const prompt = `Eres un analista de Asesor\xEDa T\xE9cnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile, redactando la secci\xF3n de un pa\xEDs en un informe de legislaci\xF3n comparada. A continuaci\xF3n se entrega el TEXTO REAL extra\xEDdo de la fuente oficial "${resultado.titulo}" (${resultado.pais}), en relaci\xF3n a la materia "${query}".
@@ -195492,13 +195799,13 @@ No inventes disposiciones que no est\xE9n en el texto entregado bajo ninguna cir
       if (parsed && parsed.disponible && Array.isArray(parsed.puntos) && parsed.puntos.length > 0) {
         const puntos = parsed.puntos.map((l) => String(l).replace(/^[-•]\s*/, "").trim()).filter((l) => l.length > 0);
         if (puntos.length > 0) {
-          return res.json({ puntos, disponible: true });
+          return res.json({ puntos, disponible: true, proveniencia });
         }
       }
     }
   }
   const puntosHeuristicos = extraerPuntosHeuristicos(query, resultado, textoFuente);
-  res.json({ puntos: puntosHeuristicos, disponible: true, heuristico: true, aiDiagnostics: diagnosticoIA });
+  res.json({ puntos: puntosHeuristicos, disponible: true, heuristico: true, aiDiagnostics: diagnosticoIA, proveniencia });
 });
 apiRouter.post("/derecho-comparado/sintetizar-comparacion", async (req, res) => {
   const { query, items } = req.body;

@@ -54,6 +54,7 @@ import {
   ResultadoComparado, 
   extraerPuntosHeuristicos, 
   fetchTextoFuente,
+  fetchTextoFuenteConProveniencia,
   fetchTextoNormaLeyChileCompleto,
   buscarChile,
   buscarLeyChilePorNumero,
@@ -1800,7 +1801,10 @@ apiRouter.post("/derecho-comparado/analizar", async (req: Request, res: Response
   const textoNormaCompleto = resultado.pais === "Chile" && resultado.url
     ? await fetchTextoNormaLeyChileCompleto(resultado.url)
     : null;
-  const textoFuente = textoNormaCompleto || (resultado.url ? await fetchTextoFuente(resultado.url, query) : null);
+  const lecturaGenerica = textoNormaCompleto || !resultado.url ? null : await fetchTextoFuenteConProveniencia(resultado.url, query);
+  const textoFuente = textoNormaCompleto || lecturaGenerica?.texto || null;
+  // Huella SHA-256 y datos de la respuesta original cuando el texto vino de una API oficial.
+  const proveniencia = lecturaGenerica?.proveniencia;
 
   const diagnosticoIA: AIProviderAttempt[] = [];
   if (textoFuente) {
@@ -1860,14 +1864,14 @@ No inventes disposiciones que no estén en el texto entregado bajo ninguna circu
       if (parsed && parsed.disponible && Array.isArray(parsed.puntos) && parsed.puntos.length > 0) {
         const puntos = parsed.puntos.map((l) => String(l).replace(/^[-•]\s*/, "").trim()).filter((l) => l.length > 0);
         if (puntos.length > 0) {
-          return res.json({ puntos, disponible: true });
+          return res.json({ puntos, disponible: true, proveniencia });
         }
       }
     }
   }
 
   const puntosHeuristicos = extraerPuntosHeuristicos(query, resultado, textoFuente);
-  res.json({ puntos: puntosHeuristicos, disponible: true, heuristico: true, aiDiagnostics: diagnosticoIA });
+  res.json({ puntos: puntosHeuristicos, disponible: true, heuristico: true, aiDiagnostics: diagnosticoIA, proveniencia });
 });
 
 // Redacta un análisis comparativo REAL entre las normas que el usuario

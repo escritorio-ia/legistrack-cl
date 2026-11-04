@@ -18,7 +18,7 @@ export interface EstadoEnlace {
 
 const PRIVADO = /^(localhost|.*\.local|.*\.internal|0\.0\.0\.0|127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|\[?::1\]?$|\[?f[cd][0-9a-f]{2}:)/i;
 
-function urlPermitida(u: string): URL | null {
+export function urlPermitida(u: string): URL | null {
   try {
     const x = new URL(u);
     if (x.protocol !== "https:" && x.protocol !== "http:") return null;
@@ -108,13 +108,26 @@ export interface SalidaCruce {
   original?: { funcion: string; jurisdiccion: string; refs: number[] };
   comparador?: { dimension: string; chile: string; paises: { n: number; pais: string; texto: string }[]; lectura: string }[];
   porPais?: { n: number; pais: string; funcion: string; jurisdiccion: string }[];
+  /** Números de fuente excluidas del análisis por tener enlace roto o inexistente. */
+  fuentesDescartadas?: number[];
 }
 
 export async function cruzarBoletin(e: EntradaCruce): Promise<SalidaCruce> {
-  const fuentes = (e.fuentes || []).slice(0, 14);
+  // Solo se analizan fuentes con enlace verificado: las extranjeras sin URL o con enlace roto se
+  // descartan (su descripción pudo no corresponder a una norma real).
+  const candidatas = (e.fuentes || []).slice(0, 14);
+  const estados = await validarEnlaces(candidatas.map(f => f.url || "").filter(Boolean));
+  const porUrl = new Map(estados.map(x => [x.url, x.estado]));
+  const descartadas: number[] = [];
+  const fuentes = candidatas.filter(f => {
+    if (!f.pais || f.pais === "Chile") return true; // documentos chilenos oficiales: se conservan
+    const ok = !!f.url && porUrl.get(f.url) !== "roto";
+    if (!ok) descartadas.push(f.n);
+    return ok;
+  });
   const extranjeras = fuentes.filter(f => f.pais && f.pais !== "Chile");
   if (extranjeras.length === 0) {
-    return { disponible: false, motivo: "No hay normas de otros países con enlace para cruzar con este boletín." };
+    return { disponible: false, motivo: "Ninguna norma de otros países tiene un enlace verificable (todas las URL fallaron al visitarlas), por lo que no se genera el cruce para no basarlo en fuentes no comprobadas." };
   }
   const bloqueFuentes = fuentes
     .map(f => `[${f.n}] ${f.rotulo}${f.pais ? ` (${f.pais})` : ""} — ${f.titulo}\n   Descripción: ${f.descripcion || "(sin descripción en la fuente)"}`)
@@ -141,7 +154,7 @@ Entrega SOLO un objeto JSON compacto, sin texto adicional:
  "comparador": [{"dimension": "2-4 palabras", "chile": "Qué dispone el proyecto en esta dimensión (1-2 oraciones, [n])", "paises": [{"n": numeroDeFuente, "pais": "Nombre", "texto": "Qué dispone esa norma (1-2 oraciones)"}], "lectura": "1-2 oraciones: coincidencias y diferencias"}],
  "porPais": [{"n": numeroDeFuente, "pais": "Nombre", "funcion": "Función jurídica de esa norma (1-2 oraciones)", "jurisdiccion": "Jurisdicción y órgano competente (1-2 oraciones o 'No informado en las fuentes.')"}]
 }
-Reglas estrictas: entre 5 y 7 dimensiones en "comparador"; una entrada de "porPais" por cada fuente extranjera; no inventes artículos, plazos, cifras ni órganos que no aparezcan en los datos; si un país no permite llenar una dimensión, omítelo de esa dimensión; "n" debe ser el número exacto de la fuente.`;
+Reglas estrictas: afirma solo lo que la DESCRIPCIÓN de cada fuente dice expresamente (si la descripción no indica que la norma tipifica un delito, fija una sanción o asigna una competencia, NO lo afirmes; escribe "la descripción disponible no lo precisa"); no extrapoles a partir del título o del nombre de la norma ni de lo que conozcas sobre ella; para el proyecto chileno usa solo el título, el resumen y la ficha entregados. Entre 5 y 7 dimensiones en "comparador"; una entrada de "porPais" por cada fuente extranjera; no inventes artículos, plazos, cifras ni órganos que no aparezcan en los datos; si un país no permite llenar una dimensión, omítelo de esa dimensión; "n" debe ser el número exacto de la fuente.`;
 
   const texto = await generarContenidoUniversalIA(prompt, 8000);
   if (!texto) return { disponible: false, motivo: "No se pudo generar el cruce con IA en este momento. Reintenta en un minuto." };
@@ -163,6 +176,7 @@ Reglas estrictas: entre 5 y 7 dimensiones en "comparador"; una entrada de "porPa
           .map((p: any) => ({ n: limpiaN(p.n), pais: String(p.pais || ""), texto: String(p.texto || "") }))
           .filter((p: any) => p.n !== null),
       })).filter((d: any) => d.dimension),
+      fuentesDescartadas: descartadas,
       porPais: (Array.isArray(j.porPais) ? j.porPais : [])
         .map((p: any) => ({ n: limpiaN(p.n), pais: String(p.pais || ""), funcion: String(p.funcion || ""), jurisdiccion: String(p.jurisdiccion || "") }))
         .filter((p: any) => p.n !== null),
