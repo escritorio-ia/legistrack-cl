@@ -750,7 +750,7 @@ export async function buscarDerechoComparado(q: string): Promise<{
         if (e.estado === "no_disponible") fuentesFallidas.push(`${e.jurisdiccion} (fuente oficial no disponible)`);
       }
     } else {
-      for (const j of ["Unión Europea", "España", "Reino Unido"]) {
+      for (const j of ["Unión Europea", "España", "Reino Unido", "Australia", "Países Bajos", "Japón", "Suiza", "Luxemburgo", "Polonia", "Suecia", "Alemania", "Francia", "Estados Unidos"]) {
         estadoFuentes.push({ jurisdiccion: j, fuente: "fuente oficial", estado: "no_disponible", motivo: "Error interno al consultar las fuentes oficiales.", consultadoEl: ahora });
       }
       fuentesFallidas.push("Fuentes oficiales extranjeras (error interno)");
