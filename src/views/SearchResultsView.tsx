@@ -445,7 +445,7 @@ export default function SearchResultsView({
                                 {p.materia}
                               </span>
                             )}
-                            {p.urgencia && p.urgencia !== "Sin urgencia" && (
+                            {p.urgencia && p.urgencia !== "Sin urgencia" && p.urgencia !== "No informada" && (
                               <span className="text-[9px] bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 rounded font-extrabold tracking-wide uppercase">
                                 Urgencia {p.urgencia}
                               </span>

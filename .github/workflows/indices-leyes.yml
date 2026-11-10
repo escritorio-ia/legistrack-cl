@@ -1,0 +1,73 @@
+name: Indices de leyes (Noruega, Argentina, Croacia)
+
+# Descarga mensualmente bases oficiales que no tienen búsqueda por texto y guarda un índice
+# liviano en server/data/indices/. Si una fuente falla, su índice anterior se conserva y la
+# ejecución queda en rojo. Croacia es incremental: la primera carga puede requerir 2 ejecuciones.
+on:
+  schedule:
+    - cron: "17 6 3 * *"   # día 3 de cada mes, 06:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: indices-leyes
+  cancel-in-progress: false
+
+jobs:
+  descargas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Generar índices (Noruega, Argentina)
+        id: gen
+        continue-on-error: true
+        run: node scripts/indices/generar-indices.mjs noruega argentina
+      - name: Guardar cambios
+        run: |
+          if git diff --quiet -- server/data/indices; then echo "Sin cambios"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898699+github-actions[bot]@users.noreply.github.com"
+          git add server/data/indices
+          git commit -m "Actualiza índices oficiales de leyes (Noruega, Argentina)"
+          git pull --rebase && git push
+      - name: Informar error de alguna fuente
+        if: steps.gen.outcome == 'failure'
+        run: exit 1
+
+  croacia:
+    needs: descargas
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Generar índice de Croacia (incremental, máx. 300 min)
+        id: gen
+        continue-on-error: true
+        env:
+          CROACIA_MINUTOS: "300"
+        run: |
+          git pull --ff-only || true
+          node scripts/indices/generar-indices.mjs croacia
+      - name: Guardar cambios
+        run: |
+          if git diff --quiet -- server/data/indices; then echo "Sin cambios"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898699+github-actions[bot]@users.noreply.github.com"
+          git add server/data/indices
+          git commit -m "Actualiza índice oficial de leyes (Croacia)"
+          git pull --rebase && git push
+      - name: Informar error
+        if: steps.gen.outcome == 'failure'
+        run: exit 1

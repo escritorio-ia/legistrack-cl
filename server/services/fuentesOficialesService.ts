@@ -11,10 +11,16 @@
  * Congress.gov (EE. UU.) NO está integrado: exige clave y su documentación no muestra búsqueda por tema.
  */
 import { createHash } from "node:crypto";
+import indiceNoruega from "../data/indices/noruega.json";
+import indiceArgentina from "../data/indices/argentina.json";
+import indiceCroacia from "../data/indices/croacia.json";
+import { inflateRawSync } from "node:zlib";
 import { generarContenidoUniversalIA } from "./aiService";
 import { cache } from "./cacheService";
 
-export const PAISES_OFICIALES = new Set(["España", "Unión Europea", "Reino Unido", "Australia", "Países Bajos", "Japón", "Suiza", "Luxemburgo", "Polonia", "Suecia", "Alemania", "Francia", "Estados Unidos"]);
+export const PAISES_OFICIALES = new Set(["España", "Unión Europea", "Reino Unido", "Australia", "Países Bajos", "Japón", "Suiza", "Luxemburgo", "Polonia", "Suecia", "Alemania", "Francia", "Estados Unidos", "Italia", "Austria", "Finlandia", "Brasil", "Irlanda", "Corea del Sur", "Estonia", "Canadá", "Dinamarca", "Israel", "Taiwán", "Noruega", "Argentina", "Croacia"]);
+// Uruguay NO está en la lista: su fuente oficial (IMPO) solo responde con número y año de ley, así que para
+// búsquedas por tema se mantienen las propuestas de IA (etiquetadas y con enlace verificado).
 
 export type EstadoFuente = "ok" | "sin_resultados" | "no_disponible";
 
@@ -197,19 +203,76 @@ async function buscarEspana(q: string): Promise<{ normas: NormaOficial[]; estado
 }
 
 // ---------------------------------------------------------------------------
+// Traducción de la palabra de consulta (única intervención de IA; se informa en el estado).
+// UNA sola llamada al modelo traduce la consulta a todos los idiomas que usan los conectores; se comparte entre
+// ellos (las llamadas simultáneas se unen en una) y se guarda 24 h. Antes eran ~12 llamadas en paralelo por búsqueda.
+// ---------------------------------------------------------------------------
+const IDIOMAS_TRADUCCION = ["en", "nl", "ja", "fr", "pl", "sv", "de", "it", "fi", "pt", "ko", "et", "da", "he", "zh", "nb", "hr"] as const;
+type ClaveIdioma = (typeof IDIOMAS_TRADUCCION)[number];
+type Traducciones = Partial<Record<ClaveIdioma, string>>;
+const TTL_TRADUCCION_MS = 24 * 60 * 60 * 1000;
+const traduccionesEnVuelo = new Map<string, Promise<Traducciones>>();
+
+const claveTraduccion = (q: string) => `traduccion_consulta_${q.trim().toLowerCase()}`;
+const traduccionEnCache = (q: string) => cache.get<Traducciones>(claveTraduccion(q)) !== null;
+
+function claveIdioma(idioma: string): ClaveIdioma | null {
+  const i = idioma.toLowerCase();
+  const tabla: Array<[string, ClaveIdioma]> = [["ingl", "en"], ["neerl", "nl"], ["japon", "ja"], ["franc", "fr"], ["polaco", "pl"], ["sueco", "sv"], ["alem", "de"], ["italiano", "it"], ["finl", "fi"], ["portug", "pt"], ["corean", "ko"], ["estonio", "et"], ["danes", "da"], ["danés", "da"], ["hebreo", "he"], ["chino", "zh"], ["norueg", "nb"], ["croat", "hr"]];
+  return tabla.find(([pref]) => i.startsWith(pref))?.[1] ?? null;
+}
+
+async function pedirTraducciones(q: string): Promise<Traducciones> {
+  try {
+    const t = await generarContenidoUniversalIA(
+      `Traduce esta materia legislativa chilena a varios idiomas para buscar en TÍTULOS de leyes. Responde SOLO con un objeto JSON (sin markdown ni explicación) con exactamente estas claves: ` +
+        `"en" (inglés jurídico, 1 a 4 palabras), "nl" (neerlandés, 1 a 3 palabras), "ja" (japonés, 1 a 3 palabras), "fr" (francés, 1 a 3 palabras), ` +
+        `"pl" (polaco: usa la raíz de la palabra, p. ej. "ochron" para protección), "sv" (sueco: una sola palabra o raíz), "de" (alemán, 1 a 3 palabras), "it" (italiano, 1 a 3 palabras), ` +
+        `"fi" (finés: raíz de una sola palabra, p. ej. "tietosuoja"), "pt" (portugués de Brasil, 1 a 3 palabras), "ko" (coreano, 1 a 3 palabras), "et" (estonio: raíz de una sola palabra, p. ej. "isikuandme"), "da" (danés: raíz de una sola palabra, p. ej. "databeskyttelse"), "he" (hebreo: una sola palabra, p. ej. "פרטיות"), "zh" (chino tradicional de Taiwán, 2 a 6 caracteres, p. ej. "個人資料保護"), "nb" (noruego bokmål: raíz de una sola palabra, p. ej. "personopplysning"), "hr" (croata: raíz de una sola palabra, p. ej. "podatak"). Materia: ${q}`,
+      500
+    );
+    const bruto = (t || "").match(/\{[\s\S]*\}/)?.[0];
+    if (!bruto) return {};
+    const obj = JSON.parse(bruto) as Record<string, unknown>;
+    const out: Traducciones = {};
+    for (const k of IDIOMAS_TRADUCCION) {
+      const v = typeof obj[k] === "string" ? (obj[k] as string).replace(/["'\n]/g, " ").replace(/\s+/g, " ").trim() : "";
+      if (v && v.length <= 60) out[k] = v;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+async function traducciones(q: string): Promise<Traducciones> {
+  const clave = claveTraduccion(q);
+  const hit = cache.get<Traducciones>(clave);
+  if (hit) return hit;
+  let enVuelo = traduccionesEnVuelo.get(clave);
+  if (!enVuelo) {
+    enVuelo = pedirTraducciones(q).then((t) => {
+      // Solo se guarda si llegaron todos los idiomas: una respuesta incompleta se reintenta en la próxima búsqueda.
+      if (IDIOMAS_TRADUCCION.every((k) => t[k])) cache.set(clave, t, TTL_TRADUCCION_MS);
+      return t;
+    }).finally(() => traduccionesEnVuelo.delete(clave));
+    traduccionesEnVuelo.set(clave, enVuelo);
+  }
+  return enVuelo;
+}
+
+/** Palabra de consulta en el idioma pedido; si la IA no la entregó se devuelve la consulta original (como antes). */
+async function traducirConsulta(q: string, idioma: string): Promise<string> {
+  const k = claveIdioma(idioma);
+  if (!k) return q;
+  return (await traducciones(q))[k] ?? q;
+}
+
+// ---------------------------------------------------------------------------
 // Reino Unido (legislation.gov.uk)
 // ---------------------------------------------------------------------------
 async function traducirAIngles(q: string): Promise<string> {
-  try {
-    const t = await generarContenidoUniversalIA(
-      `Traduce al inglés jurídico británico esta materia legislativa para buscar en títulos de leyes. Responde SOLO con 1 a 4 palabras, sin comillas ni explicación: ${q}`,
-      40
-    );
-    const limpio = (t || "").replace(/["'\n]/g, " ").replace(/\s+/g, " ").trim();
-    return limpio && limpio.length <= 60 ? limpio : q;
-  } catch {
-    return q;
-  }
+  return traducirConsulta(q, "inglés");
 }
 
 async function buscarReinoUnido(q: string): Promise<{ normas: NormaOficial[]; estado: EstadoFuenteOficial }> {
@@ -219,7 +282,12 @@ async function buscarReinoUnido(q: string): Promise<{ normas: NormaOficial[]; es
     const ingles = await traducirAIngles(q);
     const buscar = async (campo: "title" | "text") => {
       const url = `https://www.legislation.gov.uk/search/data.feed?type=primary&${campo}=${encodeURIComponent(ingles)}&results-count=10&sort=modified`;
-      const r = await descargar(url, { Accept: "application/atom+xml" }, 15000);
+      // legislation.gov.uk responde 202 mientras prepara la búsqueda: se reintenta unos segundos.
+      let r = await descargar(url, { Accept: "application/atom+xml" }, 15000);
+      for (let i = 0; i < 3 && r.status === 202; i++) {
+        await new Promise((ok) => setTimeout(ok, 1500));
+        r = await descargar(url, { Accept: "application/atom+xml" }, 15000);
+      }
       if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
       return r.buf.toString("utf8");
     };
@@ -267,22 +335,6 @@ async function buscarReinoUnido(q: string): Promise<{ normas: NormaOficial[]; es
 }
 
 // ---------------------------------------------------------------------------
-// Traducción de la palabra de consulta (única intervención de IA; se informa en el estado)
-// ---------------------------------------------------------------------------
-async function traducirConsulta(q: string, idioma: string): Promise<string> {
-  try {
-    const t = await generarContenidoUniversalIA(
-      `Traduce al ${idioma} jurídico esta materia legislativa para buscar en títulos de leyes. Responde SOLO con 1 a 3 palabras en ${idioma}, sin comillas ni explicación: ${q}`,
-      40
-    );
-    const limpio = (t || "").replace(/["'\n]/g, " ").replace(/\s+/g, " ").trim();
-    return limpio && limpio.length <= 40 ? limpio : q;
-  } catch {
-    return q;
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Australia (Federal Register of Legislation, API OData)
 // ---------------------------------------------------------------------------
 async function buscarAustralia(q: string): Promise<{ normas: NormaOficial[]; estado: EstadoFuenteOficial }> {
@@ -293,12 +345,14 @@ async function buscarAustralia(q: string): Promise<{ normas: NormaOficial[]; est
     const palabras = ingles.split(" ").filter((w) => w.length >= 3).slice(0, 3);
     if (!palabras.length) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene términos útiles." } };
     const filtro = `${palabras.map((w) => `contains(tolower(name),'${w}')`).join(" and ")} and collection eq 'Act' and isInForce eq true`;
-    const url = `https://api.prod.legislation.gov.au/v1/titles?$filter=${encodeURIComponent(filtro)}&$orderby=${encodeURIComponent("makingDate desc")}&$top=4`;
+    const url = `https://api.prod.legislation.gov.au/v1/titles?$filter=${encodeURIComponent(filtro)}&$top=50`;
     const r = await descargar(url, { Accept: "application/json" }, 15000);
     if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
     const items = (JSON.parse(r.buf.toString("utf8"))?.value || []) as any[];
     const normas = items
       .filter((i) => i?.id && i?.name)
+      .sort((a, b) => String(b.makingDate || "").localeCompare(String(a.makingDate || "")))
+      .slice(0, 4)
       .map<NormaOficial>((i) => ({
         pais: "Australia",
         fuente: "Federal Register of Legislation — Gobierno de Australia (oficial)",
@@ -599,7 +653,7 @@ async function buscarFrancia(q: string): Promise<{ normas: NormaOficial[]; estad
   if (!id || !secret) return { normas: [], estado: { ...base, estado: "no_disponible", motivo: "Credenciales de PISTE no configuradas (LEGIFRANCE_CLIENT_ID / LEGIFRANCE_CLIENT_SECRET)." } };
   try {
     const fr = (await traducirConsulta(q, "francés")).replace(/["\n]/g, " ").replace(/\s+/g, " ").trim();
-    if (!fr || fr.length < 3) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene términos útiles." } };
+    if (!fr || fr.length < 3) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: `La consulta no tiene términos útiles (traducción obtenida: "${fr}").` } };
     // Las credenciales de sandbox no sirven en producción (y viceversa): LEGIFRANCE_ENV=sandbox usa los hosts de sandbox.
     const sandbox = (process.env.LEGIFRANCE_ENV || "").toLowerCase() === "sandbox";
     const hostOauth = sandbox ? "https://sandbox-oauth.piste.gouv.fr" : "https://oauth.piste.gouv.fr";
@@ -701,16 +755,737 @@ async function buscarEstadosUnidos(q: string): Promise<{ normas: NormaOficial[];
 }
 
 // ---------------------------------------------------------------------------
-// Búsqueda conjunta (con caché de 6 h solo si ninguna fuente falló)
+// Italia (Normattiva, API Open Data — búsqueda simple, sin clave)
 // ---------------------------------------------------------------------------
-export async function buscarFuentesOficiales(q: string): Promise<{ normas: NormaOficial[]; estados: EstadoFuenteOficial[] }> {
-  const key = `fuentes_oficiales_${q.trim().toLowerCase()}`;
-  const hit = cache.get<{ normas: NormaOficial[]; estados: EstadoFuenteOficial[] }>(key);
+async function buscarItalia(q: string): Promise<{ normas: NormaOficial[]; estado: EstadoFuenteOficial }> {
+  const ahora = new Date().toISOString();
+  const base = { jurisdiccion: "Italia", fuente: "Normattiva — Open Data (IPZS)", consultadoEl: ahora };
+  try {
+    const it = (await traducirConsulta(q, "italiano")).toLowerCase().replace(/["\\\n]/g, " ").replace(/\s+/g, " ").trim();
+    if (!it || it.length < 3) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene términos útiles." } };
+    const res = await fetch("https://api.normattiva.it/t/normattiva.api/bff-opendata/v1/api/v1/ricerca/semplice", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json", "User-Agent": UA },
+      body: JSON.stringify({ testoRicerca: it, orderType: "recente", paginazione: { paginaCorrente: 1, numeroElementiPerPagina: 40 } }),
+      signal: AbortSignal.timeout(25000),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const lista = ((await res.json())?.listaAtti || []) as any[];
+    const urn: Record<string, string> = { "LEGGE": "legge", "DECRETO LEGISLATIVO": "decreto.legislativo", "DECRETO-LEGGE": "decreto.legge" };
+    const normas = lista
+      .filter((a) => a?.titoloAtto && urn[String(a.denominazioneAtto)] && a.dataEmanazione && a.numeroProvvedimento && String(a.titoloAtto).toLowerCase().includes(it.split(" ")[0]))
+      .slice(0, 4)
+      .map<NormaOficial>((a) => {
+        const fecha = String(a.dataEmanazione).slice(0, 10);
+        return {
+          pais: "Italia",
+          fuente: "Normattiva — Istituto Poligrafico e Zecca dello Stato (oficial)",
+          titulo: String(a.titoloAtto).replace(/^\[\s*/, "").replace(/\s*\]$/, "").replace(/\s+/g, " ").trim(),
+          fecha,
+          url: `https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:${urn[String(a.denominazioneAtto)]}:${fecha};${a.numeroProvvedimento}`,
+          descripcion: `${a.descrizioneAtto || a.denominazioneAtto} · Gazzetta Ufficiale n.º ${a.numeroGU || "?"} del ${a.dataGU || "?"}. Metadatos de Normattiva; título en italiano. La API ordena por fecha y no por relevancia.`,
+          idOficial: String(a.codiceRedazionale || `${fecha};${a.numeroProvvedimento}`),
+          tipoOficial: String(a.denominazioneAtto),
+          origen: "oficial",
+          consultadoEl: ahora,
+        };
+      });
+    return { normas, estado: { ...base, estado: normas.length ? "ok" : "sin_resultados", consultaUsada: `testoRicerca="${it}", solo leyes y decretos con la palabra en el título (palabra de consulta traducida por IA)`, motivo: normas.length ? undefined : "Normattiva no devolvió leyes con esa palabra en el título." } };
+  } catch (e: any) {
+    return { normas: [], estado: { ...base, estado: "no_disponible", motivo: `Normattiva no respondió: ${e?.message || e}` } };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Búsqueda conjunta. Caché POR FUENTE (6 h): una fuente caída no se guarda y se reintenta en la próxima búsqueda,
+// sin repetir las que sí respondieron. Tampoco se guarda el resultado de un conector que usa la traducción cuando la
+// traducción falló (un "sin resultados" causado por eso no debe quedar fijo).
+// ---------------------------------------------------------------------------
+const TTL_FUENTE_MS = 6 * 60 * 60 * 1000;
+type ResultadoFuente = { normas: NormaOficial[]; estado: EstadoFuenteOficial };
+
+// ---------------------------------------------------------------------------
+// Austria (RIS — Rechtsinformationssystem des Bundes, API OGD v2.6)
+// ---------------------------------------------------------------------------
+export async function buscarAustria(q: string): Promise<ResultadoFuente> {
+  const ahora = new Date().toISOString();
+  const base = { jurisdiccion: "Austria", fuente: "RIS — Rechtsinformationssystem des Bundes (OGD)", consultadoEl: ahora };
+  try {
+    const de = (await traducirConsulta(q, "alemán")).trim();
+    if (!de) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene términos útiles." } };
+    const hoy = ahora.slice(0, 10);
+    const url = `https://data.bka.gv.at/ris/api/v2.6/Bundesrecht?Applikation=BrKons&Titel=${encodeURIComponent(de)}&FassungVom=${hoy}&DokumenteProSeite=Fifty`;
+    const r = await descargar(url, { Accept: "application/json" }, 20000);
+    if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
+    const res = JSON.parse(r.buf.toString("utf8"))?.OgdSearchResult;
+    if (res?.Error) throw new Error(String(res.Error?.Message || "error de la API"));
+    const refs = ([] as any[]).concat(res?.OgdDocumentResults?.OgdDocumentReference || []);
+    // La API devuelve un resultado por artículo (§): se agrupa por número de ley.
+    const vistas = new Set<string>();
+    const normas: NormaOficial[] = [];
+    for (const x of refs) {
+      const b = x?.Data?.Metadaten?.Bundesrecht;
+      const k = b?.BrKons?.Gesetzesnummer;
+      if (!b || !k || vistas.has(k)) continue;
+      vistas.add(k);
+      const titulo = String(b.Kurztitel || b.Titel || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+      if (!titulo) continue;
+      const typ = String(b.BrKons.Typ || "").trim();
+      normas.push({
+        pais: "Austria",
+        fuente: "RIS — Bundeskanzleramt (oficial)",
+        titulo,
+        fecha: b.BrKons.Inkrafttretensdatum || undefined,
+        url: `https://www.ris.bka.gv.at/GeltendeFassung.wxe?Abfrage=Bundesnormen&Gesetzesnummer=${encodeURIComponent(k)}`,
+        descripcion: `Norma federal austriaca vigente al ${hoy}${b.BrKons.StammnormBgblnummer ? ` · ${b.BrKons.StammnormPublikationsorgan || "BGBl."} ${b.BrKons.StammnormBgblnummer}` : ""}. Metadatos del RIS; texto en alemán.`,
+        idOficial: String(k),
+        tipoOficial: typ === "BG" ? "Bundesgesetz" : typ === "V" ? "Verordnung" : typ || undefined,
+        origen: "oficial",
+        consultadoEl: ahora,
+      });
+    }
+    normas.sort((a, b) => Number(b.tipoOficial === "Bundesgesetz") - Number(a.tipoOficial === "Bundesgesetz"));
+    const top = normas.slice(0, 4);
+    return { normas: top, estado: { ...base, estado: top.length ? "ok" : "sin_resultados", consultaUsada: `"${de}" en el título, versión vigente (palabra traducida por IA)`, motivo: top.length ? undefined : "El RIS no devolvió normas vigentes para esa consulta." } };
+  } catch (e: any) {
+    return { normas: [], estado: { ...base, estado: "no_disponible", motivo: `El RIS no respondió: ${e?.message || e}` } };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Finlandia (Finlex — avoin data API, Akoma Ntoso)
+// ---------------------------------------------------------------------------
+const FINLEX = "https://opendata.finlex.fi/finlex/avoindata/v1";
+export async function buscarFinlandia(q: string): Promise<ResultadoFuente> {
+  const ahora = new Date().toISOString();
+  const base = { jurisdiccion: "Finlandia", fuente: "Finlex — avoin data (Ministerio de Justicia)", consultadoEl: ahora };
+  try {
+    const fi = (await traducirConsulta(q, "finlandés")).toLowerCase().trim();
+    if (!fi || fi.length < 3) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene términos útiles." } };
+    const r = await descargar(`${FINLEX}/akn/fi/act/statute-consolidated/list?format=json&page=1&limit=6&langAndVersion=fin@&titleContains=${encodeURIComponent(fi)}`, { Accept: "application/json" }, 20000);
+    if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
+    const lista = (JSON.parse(r.buf.toString("utf8")) || []) as any[];
+    // La lista solo trae el identificador: el título y la fecha se leen del documento oficial (Akoma Ntoso).
+    const docs = await Promise.all(lista.slice(0, 4).map(async (it) => {
+      const uri = String(it?.akn_uri || "");
+      const m = uri.match(/statute-consolidated\/(\d{4})\/([\w-]+)\//);
+      if (!m || !uri.startsWith(FINLEX)) return null;
+      try {
+        const d = await descargar(uri, { Accept: "application/xml" }, 15000);
+        if (d.status !== 200) return null;
+        const xml = d.buf.toString("utf8");
+        const titulo = xmlATexto(xml.match(/<(?:akn:)?docTitle[^>]*>([\s\S]*?)<\/(?:akn:)?docTitle>/)?.[1] || "");
+        if (!titulo) return null;
+        const fecha = xml.match(/FRBRdate[^>]*date="([^"]+)"[^>]*name="dateIssued"/)?.[1];
+        const eli = xml.match(/FRBRalias[^>]*name="eli"[^>]*value="([^"]+)"/)?.[1];
+        return { anio: m[1], numero: m[2], titulo, fecha, eli, uri };
+      } catch { return null; }
+    }));
+    const normas = docs.filter(Boolean).map<NormaOficial>((d: any) => ({
+      pais: "Finlandia",
+      fuente: "Finlex — oikeusministeriö (oficial)",
+      titulo: d.titulo,
+      fecha: d.fecha || undefined,
+      url: d.eli ? d.eli.replace(/^http:/, "https:") : d.uri,
+      descripcion: `Norma finlandesa ${d.numero}/${d.anio}, texto consolidado (ajantasa). Metadatos de Finlex; texto en finés.`,
+      idOficial: `${d.anio}/${d.numero}`,
+      origen: "oficial",
+      consultadoEl: ahora,
+    }));
+    return { normas, estado: { ...base, estado: normas.length ? "ok" : "sin_resultados", consultaUsada: `"${fi}" en el título, textos consolidados (palabra traducida por IA)`, motivo: normas.length ? undefined : "Finlex no devolvió normas para esa consulta." } };
+  } catch (e: any) {
+    return { normas: [], estado: { ...base, estado: "no_disponible", motivo: `Finlex no respondió: ${e?.message || e}` } };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Brasil (Câmara dos Deputados — Dados Abertos v2). Son PROYECTOS de ley, no normas vigentes.
+// ---------------------------------------------------------------------------
+export async function buscarBrasil(q: string): Promise<ResultadoFuente> {
+  const ahora = new Date().toISOString();
+  const base = { jurisdiccion: "Brasil", fuente: "Câmara dos Deputados — Dados Abertos", consultadoEl: ahora };
+  try {
+    const pt = (await traducirConsulta(q, "portugués")).trim();
+    if (!pt) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene términos útiles." } };
+    const url = `https://dadosabertos.camara.leg.br/api/v2/proposicoes?keywords=${encodeURIComponent(pt)}&siglaTipo=PL&itens=4&ordem=DESC&ordenarPor=id`;
+    const r = await descargar(url, { Accept: "application/json" }, 20000);
+    if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
+    const dados = (JSON.parse(r.buf.toString("utf8"))?.dados || []) as any[];
+    const normas = dados.filter((d) => d?.id && d?.ementa).map<NormaOficial>((d) => ({
+      pais: "Brasil",
+      fuente: "Câmara dos Deputados (oficial)",
+      titulo: `PL ${d.numero}/${d.ano}`,
+      fecha: d.dataApresentacao ? String(d.dataApresentacao).slice(0, 10) : undefined,
+      url: `https://www.camara.leg.br/proposicoesWeb/fichadetramitacao?idProposicao=${d.id}`,
+      descripcion: `Proyecto de ley (no es norma vigente). Ementa: ${String(d.ementa).replace(/\s+/g, " ").trim()}`,
+      idOficial: String(d.id),
+      tipoOficial: "Projeto de Lei",
+      origen: "oficial",
+      consultadoEl: ahora,
+    }));
+    return { normas, estado: { ...base, estado: normas.length ? "ok" : "sin_resultados", consultaUsada: `proyectos de ley (PL) con "${pt}" (palabra traducida por IA)`, motivo: normas.length ? undefined : "La Cámara no devolvió proyectos para esa consulta." } };
+  } catch (e: any) {
+    return { normas: [], estado: { ...base, estado: "no_disponible", motivo: `La API de la Cámara no respondió: ${e?.message || e}` } };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Brasil — leyes federales (Senado Federal, Dados Abertos: legislacao/lista).
+// La API no filtra por texto: se descargan las leyes numeradas desde 1988, año por año
+// (la lista completa tarda ~30 s), se guardan 24 h y se filtra por la ementa.
+// ---------------------------------------------------------------------------
+type LeyBrasil = { id: string; nombre: string; ementa: string; fecha?: string; apelido: string };
+const TTL_LISTAS_MS = 24 * 60 * 60 * 1000;
+const ANIO_INICIO_BR = 1988;
+let brasilEnVuelo: Promise<LeyBrasil[]> | null = null;
+async function leyesBrasil(): Promise<LeyBrasil[]> {
+  const hit = cache.get<LeyBrasil[]>("brasil_leyes_federales");
   if (hit) return hit;
-  const partes = await Promise.all([buscarUE(q), buscarEspana(q), buscarReinoUnido(q), buscarAustralia(q), buscarPaisesBajos(q), buscarJapon(q), buscarSuiza(q), buscarLuxemburgo(q), buscarPolonia(q), buscarSuecia(q), buscarAlemania(q), buscarFrancia(q), buscarEstadosUnidos(q)]);
-  const out = { normas: partes.flatMap((p) => p.normas), estados: partes.map((p) => p.estado) };
-  if (out.estados.every((e) => e.estado !== "no_disponible")) cache.set(key, out, 6 * 60 * 60 * 1000);
+  if (!brasilEnVuelo) {
+    brasilEnVuelo = (async () => {
+      const anios: number[] = [];
+      for (let a = new Date().getUTCFullYear(); a >= ANIO_INICIO_BR; a--) anios.push(a);
+      const out: LeyBrasil[] = [];
+      let fallos = 0;
+      for (let i = 0; i < anios.length; i += 8) {
+        const lote = await Promise.all(anios.slice(i, i + 8).map(async (a) => {
+          try {
+            const r = await descargar(`https://legis.senado.leg.br/dadosabertos/legislacao/lista?tipo=LEI&ano=${a}`, { Accept: "application/json" }, 20000);
+            if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
+            return ([] as any[]).concat(JSON.parse(r.buf.toString("utf8"))?.ListaDocumento?.documentos?.documento || []);
+          } catch { fallos++; return []; }
+        }));
+        for (const d of lote.flat()) {
+          if (!d?.id || !d?.ementa) continue;
+          const f = String(d.dataassinatura || "").match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+          out.push({ id: String(d.id), nombre: String(d.normaNome || d.norma || "").trim(), ementa: String(d.ementa).replace(/\s+/g, " ").trim(), fecha: f ? `${f[3]}-${f[2]}-${f[1]}` : undefined, apelido: String(d.apelido || "") });
+        }
+      }
+      if (!out.length) throw new Error("ningún año respondió");
+      // Solo se guarda si respondieron todos los años: una lista incompleta no queda 24 h en caché.
+      if (fallos === 0) cache.set("brasil_leyes_federales", out, TTL_LISTAS_MS);
+      return out;
+    })().finally(() => { brasilEnVuelo = null; });
+  }
+  return brasilEnVuelo;
+}
+const sinTildes = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+export async function buscarBrasilLeyes(q: string): Promise<ResultadoFuente> {
+  const ahora = new Date().toISOString();
+  const base = { jurisdiccion: "Brasil", fuente: "Senado Federal — Dados Abertos (legislación federal)", consultadoEl: ahora };
+  try {
+    const pt = sinTildes(await traducirConsulta(q, "portugués"));
+    const terms = pt.split(/[^\p{L}\d]+/u).filter((t) => t.length >= 4);
+    if (!terms.length) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene términos útiles." } };
+    const leyes = await leyesBrasil();
+    const normas = leyes
+      .filter((l) => { const t = sinTildes(`${l.ementa} ${l.apelido}`); return terms.every((x) => t.includes(x)); })
+      .sort((a, b) => String(b.fecha || "").localeCompare(String(a.fecha || "")))
+      .slice(0, 4)
+      .map<NormaOficial>((l) => ({
+        pais: "Brasil",
+        fuente: "Senado Federal — legislação federal (oficial)",
+        titulo: l.nombre || `Lei ${l.id}`,
+        fecha: l.fecha,
+        url: `https://legis.senado.leg.br/norma/${l.id}`,
+        descripcion: `Ley federal brasileña. Ementa: ${l.ementa}`,
+        idOficial: l.id,
+        tipoOficial: "Lei",
+        origen: "oficial",
+        consultadoEl: ahora,
+      }));
+    return { normas, estado: { ...base, estado: normas.length ? "ok" : "sin_resultados", consultaUsada: `"${terms.join(" ")}" en la ementa de las leyes numeradas desde ${ANIO_INICIO_BR} (palabras traducidas por IA)`, motivo: normas.length ? undefined : "Ninguna ley federal coincide con esa consulta." } };
+  } catch (e: any) {
+    return { normas: [], estado: { ...base, estado: "no_disponible", motivo: `La API del Senado Federal no respondió: ${e?.message || e}` } };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Canadá (Justice Laws Website — índice oficial Legis.xml de leyes federales consolidadas)
+// ---------------------------------------------------------------------------
+type LeyCanada = { id: string; titulo: string; vigenteAl?: string; url: string };
+let canadaEnVuelo: Promise<LeyCanada[]> | null = null;
+async function leyesCanada(): Promise<LeyCanada[]> {
+  const hit = cache.get<LeyCanada[]>("canada_leyes_federales");
+  if (hit) return hit;
+  if (!canadaEnVuelo) {
+    canadaEnVuelo = (async () => {
+      const r = await descargar("https://laws-lois.justice.gc.ca/eng/XML/Legis.xml", { Accept: "application/xml" }, 30000);
+      if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
+      const xml = r.buf.toString("utf8");
+      const tag = (b: string, t: string) => decodificar((b.match(new RegExp(`<${t}>([\\s\\S]*?)</${t}>`)) || [])[1] || "").trim();
+      const out = (xml.match(/<Act>[\s\S]*?<\/Act>/g) || [])
+        .map((b) => ({ id: tag(b, "UniqueId"), titulo: tag(b, "Title"), vigenteAl: tag(b, "CurrentToDate") || undefined, url: tag(b, "LinkToHTMLToC").replace(/^http:/, "https:"), lang: tag(b, "Language") }))
+        .filter((a) => a.id && a.titulo && a.url && a.lang === "eng")
+        .map(({ lang, ...a }) => a);
+      if (out.length) cache.set("canada_leyes_federales", out, TTL_LISTAS_MS);
+      return out;
+    })().finally(() => { canadaEnVuelo = null; });
+  }
+  return canadaEnVuelo;
+}
+export async function buscarCanada(q: string): Promise<ResultadoFuente> {
+  const ahora = new Date().toISOString();
+  const base = { jurisdiccion: "Canadá", fuente: "Justice Laws Website (Department of Justice Canada)", consultadoEl: ahora };
+  try {
+    const terms = (await traducirAIngles(q)).toLowerCase().split(/[^\p{L}\d]+/u).filter((t) => t.length >= 4);
+    if (!terms.length) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene términos útiles." } };
+    const leyes = await leyesCanada();
+    const normas = leyes.filter((l) => terms.every((t) => l.titulo.toLowerCase().includes(t))).slice(0, 4).map<NormaOficial>((l) => ({
+      pais: "Canadá",
+      fuente: "Justice Laws Website (oficial)",
+      titulo: l.titulo,
+      url: l.url,
+      descripcion: `Ley federal canadiense ${l.id}, texto consolidado${l.vigenteAl ? ` actualizado al ${l.vigenteAl}` : ""}. Fecha de promulgación: no informada en el índice. Texto en inglés y francés.`,
+      idOficial: l.id,
+      tipoOficial: "Act",
+      origen: "oficial",
+      consultadoEl: ahora,
+    }));
+    return { normas, estado: { ...base, estado: normas.length ? "ok" : "sin_resultados", consultaUsada: `"${terms.join(" ")}" en el título de las ${leyes.length} leyes federales consolidadas (palabras traducidas por IA)`, motivo: normas.length ? undefined : "Ninguna ley federal consolidada coincide con esa consulta." } };
+  } catch (e: any) {
+    return { normas: [], estado: { ...base, estado: "no_disponible", motivo: `Justice Laws no respondió: ${e?.message || e}` } };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Dinamarca (Folketinget — Åbne Data, OData). Proyectos de ley ya convertidos en ley (con lovnummer).
+// ---------------------------------------------------------------------------
+export async function buscarDinamarca(q: string): Promise<ResultadoFuente> {
+  const ahora = new Date().toISOString();
+  const base = { jurisdiccion: "Dinamarca", fuente: "Folketinget — Åbne Data (ODA)", consultadoEl: ahora };
+  try {
+    const da = (await traducirConsulta(q, "danés")).toLowerCase().replace(/[^\p{L}\d]/gu, "").trim();
+    if (!da || da.length < 4) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene términos útiles." } };
+    const filtro = `substringof('${da}',titel) and typeid eq 3 and lovnummer ne null`;
+    const url = `https://oda.ft.dk/api/Sag?$format=json&$top=4&$orderby=id%20desc&$select=id,titel,titelkort,nummer,lovnummer,lovnummerdato,retsinformationsurl&$filter=${encodeURIComponent(filtro)}`;
+    const r = await descargar(url, { Accept: "application/json" }, 20000);
+    if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
+    const casos = (JSON.parse(r.buf.toString("utf8"))?.value || []) as any[];
+    const normas = casos.filter((c) => c?.id && c?.titel && c?.lovnummer).map<NormaOficial>((c) => {
+      const fecha = c.lovnummerdato ? String(c.lovnummerdato).slice(0, 10) : undefined;
+      const anio = fecha?.slice(0, 4);
+      return {
+        pais: "Dinamarca",
+        fuente: "Folketinget / Retsinformation (oficial)",
+        titulo: String(c.titelkort || c.titel).trim(),
+        fecha,
+        url: c.retsinformationsurl ? String(c.retsinformationsurl).replace(/^http:/, "https:") : anio ? `https://www.retsinformation.dk/eli/lta/${anio}/${c.lovnummer}` : `https://oda.ft.dk/api/Sag(${c.id})`,
+        descripcion: `Ley danesa N° ${c.lovnummer}${fecha ? ` de ${fecha}` : ""} (proyecto ${c.nummer || "s/n"}). Título del proyecto: ${String(c.titel).trim()} Texto en danés.`,
+        idOficial: `${anio || "s/a"}/${c.lovnummer}`,
+        tipoOficial: "Lov",
+        origen: "oficial",
+        consultadoEl: ahora,
+      };
+    });
+    return { normas, estado: { ...base, estado: normas.length ? "ok" : "sin_resultados", consultaUsada: `proyectos convertidos en ley con "${da}" en el título (palabra traducida por IA)`, motivo: normas.length ? undefined : "Folketinget no devolvió leyes para esa consulta." } };
+  } catch (e: any) {
+    return { normas: [], estado: { ...base, estado: "no_disponible", motivo: `La API del Folketinget no respondió: ${e?.message || e}` } };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Israel (Knesset — OData ParliamentInfo, tabla KNS_IsraelLaw: leyes del Estado de Israel)
+// ---------------------------------------------------------------------------
+export async function buscarIsrael(q: string): Promise<ResultadoFuente> {
+  const ahora = new Date().toISOString();
+  const base = { jurisdiccion: "Israel", fuente: "Knesset — Open Data (OData)", consultadoEl: ahora };
+  try {
+    const he = (await traducirConsulta(q, "hebreo")).replace(/['"]/g, "").trim();
+    if (!he || he.length < 2) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene términos útiles." } };
+    const filtro = `substringof('${he}',Name) and LawValidityDesc eq 'תקף'`;
+    const url = `https://knesset.gov.il/Odata/ParliamentInfo.svc/KNS_IsraelLaw()?$format=json&$top=4&$orderby=${encodeURIComponent("PublicationDate desc")}&$filter=${encodeURIComponent(filtro)}`;
+    const r = await descargar(url, { Accept: "application/json" }, 20000);
+    if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
+    const leyes = (JSON.parse(r.buf.toString("utf8"))?.value || []) as any[];
+    const normas = leyes.filter((l) => l?.IsraelLawID && l?.Name).map<NormaOficial>((l) => ({
+      pais: "Israel",
+      fuente: "Knesset (oficial)",
+      titulo: String(l.Name).trim(),
+      fecha: l.PublicationDate ? String(l.PublicationDate).slice(0, 10) : undefined,
+      url: `https://main.knesset.gov.il/apps/legislation/main/laws/${l.IsraelLawID}`,
+      descripcion: `Ley israelí vigente${l.IsBasicLaw ? " (Ley Básica)" : ""}${l.LatestPublicationDate ? ` · última publicación: ${String(l.LatestPublicationDate).slice(0, 10)}` : ""}. Metadatos del Knesset; texto en hebreo.`,
+      idOficial: String(l.IsraelLawID),
+      tipoOficial: l.IsBasicLaw ? "Ley Básica" : "Ley",
+      origen: "oficial",
+      consultadoEl: ahora,
+    }));
+    return { normas, estado: { ...base, estado: normas.length ? "ok" : "sin_resultados", consultaUsada: `leyes vigentes con "${he}" en el nombre (palabra traducida por IA)`, motivo: normas.length ? undefined : "El Knesset no devolvió leyes vigentes para esa consulta." } };
+  } catch (e: any) {
+    return { normas: [], estado: { ...base, estado: "no_disponible", motivo: `La API del Knesset no respondió: ${e?.message || e}` } };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Taiwán (Base Nacional de Leyes, Ministerio de Justicia — API de datos abiertos).
+// La API entrega todas las leyes en un ZIP (~6 MB): se descarga, se guarda 24 h y se filtra.
+// ---------------------------------------------------------------------------
+type LeyTaiwan = { nombre: string; nombreEn: string; url: string; nivel: string; modificada?: string; categoria: string };
+/** Extrae los archivos de un ZIP (métodos 0 y 8) recorriendo los encabezados locales. */
+export function leerZip(buf: Buffer): Map<string, Buffer> {
+  const out = new Map<string, Buffer>();
+  let p = 0;
+  while (p + 30 <= buf.length && buf.readUInt32LE(p) === 0x04034b50) {
+    const metodo = buf.readUInt16LE(p + 8), comp = buf.readUInt32LE(p + 18), nl = buf.readUInt16LE(p + 26), el = buf.readUInt16LE(p + 28);
+    const nombre = buf.subarray(p + 30, p + 30 + nl).toString("utf8");
+    const ini = p + 30 + nl + el;
+    const datos = buf.subarray(ini, ini + comp);
+    if (metodo === 0) out.set(nombre, Buffer.from(datos));
+    else if (metodo === 8) out.set(nombre, inflateRawSync(datos));
+    p = ini + comp;
+  }
   return out;
+}
+let taiwanEnVuelo: Promise<LeyTaiwan[]> | null = null;
+async function leyesTaiwan(): Promise<LeyTaiwan[]> {
+  const hit = cache.get<LeyTaiwan[]>("taiwan_leyes");
+  if (hit) return hit;
+  if (!taiwanEnVuelo) {
+    taiwanEnVuelo = (async () => {
+      const r = await descargar("https://law.moj.gov.tw/api/ch/law/json", { Accept: "application/zip" }, 45000);
+      if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
+      const zip = leerZip(r.buf);
+      const archivo = [...zip.entries()].find(([n]) => /\.json$/i.test(n))?.[1];
+      if (!archivo) throw new Error("el ZIP no trae el JSON de leyes");
+      const leyes = (JSON.parse(archivo.toString("utf8").replace(/^﻿/, ""))?.Laws || []) as any[];
+      const out = leyes
+        .filter((l) => l?.LawName && l?.LawURL && !String(l.LawAbandonNote || "").trim())
+        .map<LeyTaiwan>((l) => ({ nombre: String(l.LawName).trim(), nombreEn: String(l.EngLawName || "").trim(), url: String(l.LawURL), nivel: String(l.LawLevel || "").trim(), modificada: /^\d{8}$/.test(l.LawModifiedDate || "") ? `${l.LawModifiedDate.slice(0, 4)}-${l.LawModifiedDate.slice(4, 6)}-${l.LawModifiedDate.slice(6, 8)}` : undefined, categoria: String(l.LawCategory || "").trim() }));
+      if (out.length) cache.set("taiwan_leyes", out, TTL_LISTAS_MS);
+      return out;
+    })().finally(() => { taiwanEnVuelo = null; });
+  }
+  return taiwanEnVuelo;
+}
+export async function buscarTaiwan(q: string): Promise<ResultadoFuente> {
+  const ahora = new Date().toISOString();
+  const base = { jurisdiccion: "Taiwán", fuente: "Base Nacional de Leyes (Ministerio de Justicia)", consultadoEl: ahora };
+  try {
+    const [zh, en] = await Promise.all([traducirConsulta(q, "chino"), traducirAIngles(q)]);
+    const zhT = zh.replace(/\s+/g, "").trim();
+    const enT = en.toLowerCase().split(/[^\p{L}\d]+/u).filter((t) => t.length >= 4);
+    if (!zhT && !enT.length) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene términos útiles." } };
+    const leyes = await leyesTaiwan();
+    const coincide = (l: LeyTaiwan) => (zhT && zhT !== q && l.nombre.includes(zhT)) || (enT.length > 0 && enT.every((t) => l.nombreEn.toLowerCase().includes(t)));
+    const normas = leyes.filter(coincide)
+      .sort((a, b) => Number(b.nivel === "法律") - Number(a.nivel === "法律"))
+      .slice(0, 4)
+      .map<NormaOficial>((l) => ({
+        pais: "Taiwán",
+        fuente: "law.moj.gov.tw — Ministerio de Justicia (oficial)",
+        titulo: l.nombreEn ? `${l.nombre} (${l.nombreEn})` : l.nombre,
+        fecha: l.modificada,
+        url: l.url,
+        descripcion: `Norma vigente de Taiwán${l.nivel ? ` (${l.nivel})` : ""}${l.categoria ? ` · ${l.categoria}` : ""}. La fecha es la de su última modificación; el nombre en inglés es la traducción oficial cuando existe.`,
+        idOficial: (l.url.match(/pcode=([\w]+)/) || [])[1] || l.nombre,
+        tipoOficial: l.nivel || undefined,
+        origen: "oficial",
+        consultadoEl: ahora,
+      }));
+    return { normas, estado: { ...base, estado: normas.length ? "ok" : "sin_resultados", consultaUsada: `"${zhT}" en el nombre o "${enT.join(" ")}" en el nombre oficial en inglés, entre ${leyes.length} leyes vigentes (palabras traducidas por IA)`, motivo: normas.length ? undefined : "Ninguna ley vigente coincide con esa consulta." } };
+  } catch (e: any) {
+    return { normas: [], estado: { ...base, estado: "no_disponible", motivo: `La API de leyes de Taiwán no respondió: ${e?.message || e}` } };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Noruega y Argentina: índices oficiales generados cada mes por .github/workflows/indices-leyes.yml
+// (scripts/indices/generar-indices.mjs) desde la descarga masiva de cada fuente.
+// ---------------------------------------------------------------------------
+type Indice<T> = { fuente: string | null; url: string | null; generado: string | null; total: number; leyes: T[] };
+const sinIndice = (i: Indice<unknown>) => !i?.generado || !Array.isArray(i.leyes) || i.leyes.length === 0;
+const motivoSinIndice = "El índice oficial aún no se ha generado (ejecutar la tarea \"Indices de leyes\" en GitHub Actions).";
+
+type LeyNoruega = { id: string; titulo: string; corto?: string; fecha?: string; ministerio?: string; ultimaModificacion?: string; url: string };
+export async function buscarNoruega(q: string, indice: Indice<LeyNoruega> = indiceNoruega as Indice<LeyNoruega>): Promise<ResultadoFuente> {
+  const ahora = new Date().toISOString();
+  const base = { jurisdiccion: "Noruega", fuente: "Lovdata — leyes vigentes (índice mensual de datos públicos)", consultadoEl: ahora };
+  if (sinIndice(indice)) return { normas: [], estado: { ...base, estado: "no_disponible", motivo: motivoSinIndice } };
+  try {
+    const nb = (await traducirConsulta(q, "noruego")).toLowerCase().replace(/[^\p{L}\d]/gu, "").trim();
+    if (!nb || nb.length < 4) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene términos útiles." } };
+    const normas = indice.leyes.filter((l) => `${l.titulo} ${l.corto || ""}`.toLowerCase().includes(nb)).slice(0, 4).map<NormaOficial>((l) => ({
+      pais: "Noruega",
+      fuente: "Lovdata (oficial)",
+      titulo: l.titulo,
+      fecha: l.fecha,
+      url: l.url,
+      descripcion: `Ley noruega vigente ${l.id}${l.corto ? ` (${l.corto})` : ""}${l.ministerio ? ` · ministerio: ${l.ministerio}` : ""}${l.ultimaModificacion ? ` · última modificación en vigor: ${l.ultimaModificacion}` : ""}. Índice del ${String(indice.generado).slice(0, 10)}; texto en noruego.`,
+      idOficial: l.id,
+      tipoOficial: "Lov",
+      origen: "oficial",
+      consultadoEl: ahora,
+    }));
+    return { normas, estado: { ...base, estado: normas.length ? "ok" : "sin_resultados", consultaUsada: `"${nb}" en el título, entre ${indice.total} leyes vigentes (índice del ${String(indice.generado).slice(0, 10)}; palabra traducida por IA)`, motivo: normas.length ? undefined : "Ninguna ley vigente coincide con esa consulta." } };
+  } catch (e: any) {
+    return { normas: [], estado: { ...base, estado: "no_disponible", motivo: `No se pudo consultar el índice de Lovdata: ${e?.message || e}` } };
+  }
+}
+
+type LeyArgentina = { id: string; numero: string; fecha?: string; titulo: string; resumen?: string; url: string };
+export async function buscarArgentina(q: string, indice: Indice<LeyArgentina> = indiceArgentina as Indice<LeyArgentina>): Promise<ResultadoFuente> {
+  const ahora = new Date().toISOString();
+  const base = { jurisdiccion: "Argentina", fuente: "InfoLEG — normativa nacional (índice mensual de datos abiertos)", consultadoEl: ahora };
+  if (sinIndice(indice)) return { normas: [], estado: { ...base, estado: "no_disponible", motivo: motivoSinIndice } };
+  const terms = terminosDeConsulta(q).map(sinTildes).filter((t) => t.length >= 4);
+  if (!terms.length) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene términos útiles." } };
+  const normas = indice.leyes.filter((l) => { const t = sinTildes(`${l.titulo} ${l.resumen || ""}`); return terms.every((x) => t.includes(x)); }).slice(0, 4).map<NormaOficial>((l) => ({
+    pais: "Argentina",
+    fuente: "InfoLEG — Ministerio de Justicia (oficial)",
+    titulo: `Ley ${l.numero}${l.titulo ? ` — ${l.titulo}` : ""}`,
+    fecha: l.fecha,
+    url: l.url,
+    descripcion: `${l.resumen ? `Resumen InfoLEG: ${l.resumen}` : "Resumen: no informado en la base."} Índice del ${String(indice.generado).slice(0, 10)}.`,
+    idOficial: l.id,
+    tipoOficial: "Ley",
+    origen: "oficial",
+    consultadoEl: ahora,
+  }));
+  return { normas, estado: { ...base, estado: normas.length ? "ok" : "sin_resultados", consultaUsada: `"${terms.join(" ")}" en título y resumen, entre ${indice.total} leyes (índice del ${String(indice.generado).slice(0, 10)}; sin traducción)`, motivo: normas.length ? undefined : "Ninguna ley nacional coincide con esa consulta." } };
+}
+
+type LeyCroacia = { id: string; titulo: string; tipo: string; fecha?: string; publicada?: string; url: string };
+export async function buscarCroacia(q: string, indice: Indice<LeyCroacia> & { completo?: boolean; aniosDisponibles?: number[] } = indiceCroacia as any): Promise<ResultadoFuente> {
+  const ahora = new Date().toISOString();
+  const base = { jurisdiccion: "Croacia", fuente: "Narodne novine — leyes (índice mensual de la API ELI)", consultadoEl: ahora };
+  if (sinIndice(indice)) return { normas: [], estado: { ...base, estado: "no_disponible", motivo: motivoSinIndice } };
+  try {
+    const hr = (await traducirConsulta(q, "croata")).toLowerCase().replace(/[^\p{L}\d]/gu, "").trim();
+    if (!hr || hr.length < 4) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene términos útiles." } };
+    const normas = indice.leyes.filter((l) => l.titulo.toLowerCase().includes(hr)).slice(0, 4).map<NormaOficial>((l) => ({
+      pais: "Croacia",
+      fuente: "Narodne novine — Diario Oficial (oficial)",
+      titulo: l.titulo,
+      fecha: l.fecha,
+      url: l.url,
+      descripcion: `${l.tipo === "ZAKON" ? "Ley" : "Ley constitucional"} croata publicada en Narodne novine ${l.id.replace(/^(\d+)\/(\d+)\/(\d+)$/, "$2/$1 (acto $3)")}${l.publicada ? ` el ${l.publicada}` : ""}. Puede ser una ley modificatoria. Texto en croata.`,
+      idOficial: l.id,
+      tipoOficial: l.tipo,
+      origen: "oficial",
+      consultadoEl: ahora,
+    }));
+    const cobertura = indice.aniosDisponibles?.length === 2 ? `publicaciones ${indice.aniosDisponibles[0]}–${indice.aniosDisponibles[1]}` : "publicaciones con metadatos ELI";
+    return { normas, estado: { ...base, estado: normas.length ? "ok" : "sin_resultados", consultaUsada: `"${hr}" en el título, entre ${indice.total} leyes (${cobertura}${indice.completo === false ? ", índice aún en carga" : ""}; índice del ${String(indice.generado).slice(0, 10)}; palabra traducida por IA)`, motivo: normas.length ? undefined : "Ninguna ley del índice coincide con esa consulta." } };
+  } catch (e: any) {
+    return { normas: [], estado: { ...base, estado: "no_disponible", motivo: `No se pudo consultar el índice de Narodne novine: ${e?.message || e}` } };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Uruguay (IMPO — Base de leyes). IMPO no tiene buscador público: solo se consulta
+// una ley cuando la consulta indica su número y año (p. ej. "ley 18.331 de 2008").
+// ---------------------------------------------------------------------------
+export function leyUruguayEnConsulta(q: string): { numero: string; anio: string } | null {
+  const m = q.match(/\bley\s*(?:n[°ºo.]*\s*)?(\d{1,2}\.?\d{3})\s*(?:de(?:l)?\s*(?:\d{1,2}\/\d{1,2}\/)?|\/|-|,)\s*(\d{4}|0\d{2}|9\d{2})\b/i);
+  if (!m) return null;
+  const anio = m[2].length === 4 ? m[2] : m[2].startsWith("0") ? `2${m[2]}` : `1${m[2]}`;
+  return { numero: m[1].replace(".", ""), anio };
+}
+export async function buscarUruguay(q: string): Promise<ResultadoFuente> {
+  const ahora = new Date().toISOString();
+  const base = { jurisdiccion: "Uruguay", fuente: "IMPO — Base de leyes", consultadoEl: ahora };
+  const ley = leyUruguayEnConsulta(q);
+  if (!ley) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "IMPO no tiene buscador por tema; solo se consulta indicando número y año (p. ej. \"ley 18.331 de 2008\")." } };
+  try {
+    const pagina = `https://www.impo.com.uy/bases/leyes/${ley.numero}-${ley.anio}`;
+    const r = await descargar(`${pagina}?json=true`, { Accept: "application/json" }, 20000);
+    if (r.status === 404) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: `IMPO no tiene la ley ${ley.numero} de ${ley.anio}.` } };
+    if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
+    const charset = (r.contentType.match(/charset=([\w-]+)/i) || [])[1] || "utf-8";
+    const cuerpo = new TextDecoder(charset.toLowerCase()).decode(r.buf);
+    let j: any;
+    try { j = JSON.parse(cuerpo); } catch { return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: `IMPO no tiene la ley ${ley.numero} de ${ley.anio}.` } }; }
+    if (!j?.nroNorma || !j?.nombreNorma) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: `IMPO no tiene la ley ${ley.numero} de ${ley.anio}.` } };
+    const f = String(j.fechaPromulgacion || "").match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    const normas: NormaOficial[] = [{
+      pais: "Uruguay",
+      fuente: "IMPO — Centro de Información Oficial (oficial)",
+      titulo: `Ley N° ${j.nroNorma} — ${String(j.nombreNorma).trim()}`,
+      fecha: f ? `${f[3]}-${f[2]}-${f[1]}` : undefined,
+      url: pagina,
+      descripcion: `Ley uruguaya promulgada el ${j.fechaPromulgacion || "fecha no informada"}, publicada el ${j.fechaPublicacion || "fecha no informada"}.${String(j.leyenda || "").trim() ? ` ${String(j.leyenda).trim()}.` : ""}`,
+      idOficial: `${j.nroNorma}-${j.anioNorma || ley.anio}`,
+      tipoOficial: String(j.tipoNorma || "Ley"),
+      origen: "oficial",
+      consultadoEl: ahora,
+    }];
+    return { normas, estado: { ...base, estado: "ok", consultaUsada: `ley ${ley.numero} de ${ley.anio} (número y año tomados de la consulta)` } };
+  } catch (e: any) {
+    return { normas: [], estado: { ...base, estado: "no_disponible", motivo: `IMPO no respondió: ${e?.message || e}` } };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Irlanda (Houses of the Oireachtas — Open Data API). La API no filtra por texto:
+// se descargan las 1.000 leyes promulgadas más recientes (cache 24 h) y se filtra por título.
+// ---------------------------------------------------------------------------
+type LeyIrlanda = { titulo: string; actNo: string; actYear: string; fecha?: string; url: string };
+const TTL_IRLANDA_MS = 24 * 60 * 60 * 1000;
+let irlandaEnVuelo: Promise<LeyIrlanda[]> | null = null;
+async function leyesIrlanda(): Promise<LeyIrlanda[]> {
+  const hit = cache.get<LeyIrlanda[]>("irlanda_leyes_promulgadas");
+  if (hit) return hit;
+  if (!irlandaEnVuelo) {
+    irlandaEnVuelo = (async () => {
+      const r = await descargar("https://api.oireachtas.ie/v1/legislation?bill_status=Enacted&limit=1000&lang=en", { Accept: "application/json" }, 45000);
+      if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
+      const res = (JSON.parse(r.buf.toString("utf8"))?.results || []) as any[];
+      const out = res.map((x) => x?.bill?.act).filter((a) => a?.shortTitleEn && a?.actNo && a?.actYear).map<LeyIrlanda>((a) => ({
+        titulo: String(a.shortTitleEn).trim(), actNo: String(a.actNo), actYear: String(a.actYear), fecha: a.dateSigned || undefined,
+        url: String(a.statutebookURI || a.uri || "").replace(/^http:/, "https:"),
+      })).filter((a) => a.url);
+      if (out.length) cache.set("irlanda_leyes_promulgadas", out, TTL_IRLANDA_MS);
+      return out;
+    })().finally(() => { irlandaEnVuelo = null; });
+  }
+  return irlandaEnVuelo;
+}
+export async function buscarIrlanda(q: string): Promise<ResultadoFuente> {
+  const ahora = new Date().toISOString();
+  const base = { jurisdiccion: "Irlanda", fuente: "Houses of the Oireachtas — Open Data", consultadoEl: ahora };
+  try {
+    const en = (await traducirAIngles(q)).toLowerCase();
+    const terms = en.split(/[^\p{L}\d]+/u).filter((t) => t.length >= 4);
+    if (!terms.length) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene términos útiles." } };
+    const leyes = await leyesIrlanda();
+    const normas = leyes.filter((l) => terms.every((t) => l.titulo.toLowerCase().includes(t))).slice(0, 4).map<NormaOficial>((l) => ({
+      pais: "Irlanda",
+      fuente: "Oireachtas / Irish Statute Book (oficial)",
+      titulo: l.titulo,
+      fecha: l.fecha,
+      url: l.url,
+      descripcion: `Ley irlandesa N° ${l.actNo} de ${l.actYear}. Metadatos del Oireachtas; texto en inglés.`,
+      idOficial: `${l.actYear}/${l.actNo}`,
+      tipoOficial: "Act",
+      origen: "oficial",
+      consultadoEl: ahora,
+    }));
+    return { normas, estado: { ...base, estado: normas.length ? "ok" : "sin_resultados", consultaUsada: `"${terms.join(" ")}" en el título, entre las ${leyes.length} leyes promulgadas más recientes (palabras traducidas por IA)`, motivo: normas.length ? undefined : "Ninguna de las leyes recientes del Oireachtas coincide con esa consulta." } };
+  } catch (e: any) {
+    return { normas: [], estado: { ...base, estado: "no_disponible", motivo: `La API del Oireachtas no respondió: ${e?.message || e}` } };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Corea del Sur (law.go.kr — 국가법령정보 공동활용 Open API). Requiere el código OC
+// gratuito en la variable de entorno KOREA_LAW_OC; sin ella la fuente queda "no disponible".
+// ---------------------------------------------------------------------------
+export async function buscarCorea(q: string): Promise<ResultadoFuente> {
+  const ahora = new Date().toISOString();
+  const base = { jurisdiccion: "Corea del Sur", fuente: "law.go.kr — Centro Nacional de Información Legal", consultadoEl: ahora };
+  const oc = (process.env.KOREA_LAW_OC || "").trim();
+  if (!oc) return { normas: [], estado: { ...base, estado: "no_disponible", motivo: "Falta configurar KOREA_LAW_OC (código gratuito de law.go.kr) en el servidor." } };
+  try {
+    const ko = (await traducirConsulta(q, "coreano")).trim();
+    if (!ko) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene términos útiles." } };
+    const r = await descargar(`https://www.law.go.kr/DRF/lawSearch.do?OC=${encodeURIComponent(oc)}&target=law&type=JSON&display=4&query=${encodeURIComponent(ko)}`, { Accept: "application/json" }, 20000);
+    if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
+    const j = JSON.parse(r.buf.toString("utf8"));
+    if (j?.result && !j?.LawSearch) throw new Error(String(j.msg || j.result));
+    const leyes = ([] as any[]).concat(j?.LawSearch?.law || []);
+    const fmt = (d?: string) => (d && /^\d{8}$/.test(d) ? `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}` : undefined);
+    const normas = leyes.filter((l) => l?.["법령명한글"]).slice(0, 4).map<NormaOficial>((l) => {
+      const nombre = String(l["법령명한글"]).trim();
+      return {
+        pais: "Corea del Sur",
+        fuente: "law.go.kr — Ministerio de Legislación (oficial)",
+        titulo: nombre,
+        fecha: fmt(l["공포일자"]),
+        // Enlace público por nombre: el enlace de la API lleva el código OC y no se expone.
+        url: `https://www.law.go.kr/법령/${encodeURIComponent(nombre)}`,
+        descripcion: `Norma coreana${l["법령구분명"] ? ` (${l["법령구분명"]})` : ""}${l["소관부처명"] ? ` · ministerio: ${l["소관부처명"]}` : ""}${fmt(l["시행일자"]) ? ` · vigente desde ${fmt(l["시행일자"])}` : ""}. Texto en coreano.`,
+        idOficial: String(l["법령ID"] || l["법령일련번호"] || nombre),
+        tipoOficial: l["법령구분명"] || undefined,
+        origen: "oficial",
+        consultadoEl: ahora,
+      };
+    });
+    return { normas, estado: { ...base, estado: normas.length ? "ok" : "sin_resultados", consultaUsada: `"${ko}" (palabra traducida por IA)`, motivo: normas.length ? undefined : "law.go.kr no devolvió normas para esa consulta." } };
+  } catch (e: any) {
+    return { normas: [], estado: { ...base, estado: "no_disponible", motivo: `law.go.kr no respondió: ${e?.message || e}` } };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Estonia (Riigi Teataja — API de búsqueda de actos jurídicos)
+// ---------------------------------------------------------------------------
+export async function buscarEstonia(q: string): Promise<ResultadoFuente> {
+  const ahora = new Date().toISOString();
+  const base = { jurisdiccion: "Estonia", fuente: "Riigi Teataja (Diario Oficial de Estonia)", consultadoEl: ahora };
+  try {
+    const et = (await traducirConsulta(q, "estonio")).toLowerCase().trim();
+    if (!et || et.length < 3) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene términos útiles." } };
+    const r = await descargar(`https://www.riigiteataja.ee/api/oigusakt_otsing/1/otsi?leht=1&limiit=40&dokument=seadus&pealkiri=${encodeURIComponent(et)}`, { Accept: "application/json" }, 20000);
+    if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
+    const j = JSON.parse(r.buf.toString("utf8"));
+    if (j?.staatus && j.staatus !== "OK") throw new Error(String(j.staatus));
+    // Solo versiones vigentes (sin fecha de término) y una por ley.
+    const vistos = new Set<string>();
+    const normas = ((j?.aktid || []) as any[])
+      .filter((a) => a?.globaalID && a?.pealkiri && !a?.kehtivus?.lopp && !a?.mitteJoustunud)
+      .filter((a) => { const k = String(a.pealkiri).toLowerCase(); if (vistos.has(k)) return false; vistos.add(k); return true; })
+      .slice(0, 4)
+      .map<NormaOficial>((a) => ({
+        pais: "Estonia",
+        fuente: "Riigi Teataja (oficial)",
+        titulo: String(a.pealkiri),
+        fecha: a.kehtivus?.algus || undefined,
+        url: `https://www.riigiteataja.ee/akt/${a.globaalID}`,
+        descripcion: `Ley estonia vigente desde ${a.kehtivus?.algus || "fecha no informada"}${a.valjaandja ? ` · emisor: ${a.valjaandja}` : ""}. Texto en estonio.`,
+        idOficial: String(a.globaalID),
+        tipoOficial: a.liik || "seadus",
+        origen: "oficial",
+        consultadoEl: ahora,
+      }));
+    return { normas, estado: { ...base, estado: normas.length ? "ok" : "sin_resultados", consultaUsada: `leyes (seadus) vigentes con "${et}" en el título (palabra traducida por IA)`, motivo: normas.length ? undefined : "Riigi Teataja no devolvió leyes vigentes para esa consulta." } };
+  } catch (e: any) {
+    return { normas: [], estado: { ...base, estado: "no_disponible", motivo: `Riigi Teataja no respondió: ${e?.message || e}` } };
+  }
+}
+
+
+async function conCache(clave: string, q: string, usaTraduccion: boolean, buscar: (q: string) => Promise<ResultadoFuente>): Promise<ResultadoFuente> {
+  const key = `fuente_oficial_${clave}_${q.trim().toLowerCase()}`;
+  const hit = cache.get<ResultadoFuente>(key);
+  if (hit) return structuredClone(hit);
+  const r = await buscar(q);
+  if (r.estado.estado !== "no_disponible" && (!usaTraduccion || traduccionEnCache(q))) cache.set(key, structuredClone(r), TTL_FUENTE_MS);
+  return r;
+}
+
+export async function buscarFuentesOficiales(q: string): Promise<{ normas: NormaOficial[]; estados: EstadoFuenteOficial[] }> {
+  const partes = await Promise.all([
+    conCache("ue", q, false, buscarUE),
+    conCache("es", q, false, buscarEspana),
+    conCache("uk", q, true, buscarReinoUnido),
+    conCache("au", q, true, buscarAustralia),
+    conCache("nl", q, true, buscarPaisesBajos),
+    conCache("jp", q, true, buscarJapon),
+    conCache("ch", q, true, buscarSuiza),
+    conCache("lu", q, true, buscarLuxemburgo),
+    conCache("pl", q, true, buscarPolonia),
+    conCache("se", q, true, buscarSuecia),
+    conCache("de", q, true, buscarAlemania),
+    conCache("fr", q, true, buscarFrancia),
+    conCache("us", q, true, buscarEstadosUnidos),
+    conCache("it", q, true, buscarItalia),
+    conCache("at", q, true, buscarAustria),
+    conCache("fi", q, true, buscarFinlandia),
+    conCache("br", q, true, buscarBrasil),
+    conCache("ie", q, true, buscarIrlanda),
+    conCache("kr", q, true, buscarCorea),
+    conCache("ee", q, true, buscarEstonia),
+    conCache("brl", q, true, buscarBrasilLeyes),
+    conCache("ca", q, true, buscarCanada),
+    conCache("dk", q, true, buscarDinamarca),
+    conCache("il", q, true, buscarIsrael),
+    conCache("tw", q, true, buscarTaiwan),
+    conCache("no", q, true, (x) => buscarNoruega(x)),
+    conCache("ar", q, false, (x) => buscarArgentina(x)),
+    conCache("uy", q, false, buscarUruguay),
+    conCache("hr", q, true, (x) => buscarCroacia(x)),
+  ]);
+  return { normas: partes.flatMap((p) => p.normas), estados: partes.map((p) => p.estado) };
 }
 
 // ---------------------------------------------------------------------------

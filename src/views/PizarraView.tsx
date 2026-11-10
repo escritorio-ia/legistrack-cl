@@ -202,6 +202,14 @@ export default function PizarraView() {
           </p>
         </div>
       )}
+      {data && !data.fuente.demo && (data.fuente as { tipo?: string }).tipo === "vacio" && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 flex gap-3 items-start">
+          <Info className="w-4 h-4 text-blue-700 shrink-0 mt-0.5" />
+          <p className="text-[11px] text-blue-900 leading-relaxed">
+            <b>Aún no hay investigaciones cargadas.</b> La agenda legislativa de la semana es real; las investigaciones y sus conexiones aparecerán cuando importes un CSV con los pedidos (botón "Importar CSV").
+          </p>
+        </div>
+      )}
       {error && <div className="bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl px-4 py-3 font-semibold">{error}</div>}
       {loading && !data && <div className="text-center text-sm text-slate-400 font-semibold py-16">Cargando la Pizarra…</div>}
 
@@ -414,7 +422,7 @@ function ImportarModal({ headers, onCerrar, onListo, onPlantilla, demo }: {
         <div className="flex flex-wrap justify-between gap-2">
           <div className="flex gap-2">
             <button onClick={onPlantilla} className="text-xs font-bold border border-slate-200 hover:bg-slate-50 rounded-lg px-3 py-2 flex items-center gap-1.5 cursor-pointer"><Download className="w-3.5 h-3.5" /> Plantilla CSV</button>
-            {!demo && <button onClick={restablecer} className="text-xs font-bold text-slate-500 hover:text-rose-700 px-2 py-2 cursor-pointer">Volver a datos de demostración</button>}
+            {!demo && <button onClick={restablecer} className="text-xs font-bold text-slate-500 hover:text-rose-700 px-2 py-2 cursor-pointer">Borrar los datos importados</button>}
           </div>
           <button onClick={enviar} disabled={enviando || csv.trim().length < 10} className="text-xs font-bold bg-blue-700 hover:bg-blue-800 disabled:bg-slate-300 text-white rounded-lg px-4 py-2 cursor-pointer">
             {enviando ? "Importando…" : "Importar"}

@@ -1,0 +1,28 @@
+{
+  "@odata.context": "sintetico",
+  "value": [
+    {
+      "id": "C2099A00001",
+      "name": "Example Data Protection Act 1999 (ficticio)",
+      "makingDate": "1999-03-01T00:00:00",
+      "seriesType": "Act",
+      "number": 1,
+      "year": 1999,
+      "status": "InForce",
+      "collection": "Act"
+    },
+    {
+      "id": "C2099A00002",
+      "name": "Example Data Protection Amendment Act 2020 (ficticio)",
+      "makingDate": "2020-05-10T00:00:00",
+      "seriesType": "Act",
+      "number": 2,
+      "year": 2020,
+      "status": "InForce",
+      "collection": "Act"
+    },
+    {
+      "name": "Registro sin id: se descarta (ficticio)"
+    }
+  ]
+}

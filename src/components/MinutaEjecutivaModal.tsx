@@ -53,7 +53,7 @@ I. IDENTIFICACIÓN DEL PROYECTO
 • Cámara de Origen: ${proyecto.camaraOrigen}
 • Tipo de Iniciativa: ${proyecto.iniciativa}
 • Fecha de Ingreso: ${proyecto.fechaIngreso} | Días en Tramitación: ${proyecto.diasTramitacion ?? "N/A"}
-• Urgencia Vigente: ${proyecto.urgencia || "Sin urgencia"}
+• Urgencia Vigente: ${proyecto.urgencia || "No informada"}
 • Patrocinante / Autores: ${proyecto.origenDetalle?.patrocinadorPrincipal || proyecto.autores || "No informado"}
 
 II. RÉGIMEN CONSTITUCIONAL Y QUÓRUM REQUERIDO
@@ -183,7 +183,7 @@ Documento formal de trabajo legislativo.
               </div>
               <div className="p-2.5 bg-white rounded-xl border border-slate-200">
                 <span className="text-slate-500 block text-[10px] uppercase font-bold">Urgencia Vigente</span>
-                <span className="font-bold text-slate-800 text-rose-700">{proyecto.urgencia || "Sin urgencia"}</span>
+                <span className="font-bold text-slate-800 text-rose-700">{proyecto.urgencia || "No informada"}</span>
               </div>
             </div>
           </div>

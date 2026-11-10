@@ -5,7 +5,7 @@
 
 import { generarContenidoUniversalIA, safeJsonParse, AIProviderAttempt } from "./aiService";
 import { cache } from "./cacheService";
-import { urlPermitida, validarEnlaces } from "./cruceBoletinService";
+import { urlPermitida, validarEnlaces, type EstadoEnlace } from "./cruceBoletinService";
 import { buscarFuentesOficiales, fetchTextoOficial, PAISES_OFICIALES, type EstadoFuenteOficial, type Proveniencia } from "./fuentesOficialesService";
 
 // La clave de LeyChile se lee SOLO desde la variable de entorno (nunca en el código).
@@ -21,8 +21,8 @@ export interface ResultadoComparado {
   descripcion?: string;
   tipo?: string;
   relevancia?: number;
-  /** oficial = devuelta por la API de la fuente; ia = propuesta por un modelo, sin verificar; respaldo = contenido fijo del código. */
-  origen?: "oficial" | "ia" | "respaldo";
+  /** oficial = devuelta por la API de la fuente; ia = propuesta por un modelo, sin verificar. */
+  origen?: "oficial" | "ia";
   /** Identificador de la propia fuente (CELEX, BOE-A-…, ukpga/2018/12, idNorma). */
   idOficial?: string;
   consultadoEl?: string;
@@ -122,72 +122,6 @@ export const SINONIMOS_MATERIA: Record<string, string[]> = {
   "eutanasia": ["muerte digna", "cuidados paliativos", "suicidio asistido", "voluntades anticipadas"]
 };
 
-export interface LeyInfoChile {
-  numero: string;
-  nombreOficial: string;
-  nombrePopular?: string;
-  resumen: string;
-  palabrasClave: string[];
-}
-
-export const DICCIONARIO_LEYES_CHILENAS: Record<string, LeyInfoChile> = {
-  "21020": {
-    numero: "21.020",
-    nombreOficial: "Sobre Tenencia Responsable de Mascotas y Animales de Compañía",
-    nombrePopular: "Ley Cholito",
-    resumen: "Regula integralmente los deberes de cuidado, protección y control sobre perros, gatos y animales de compañía en Chile, creando el Registro Nacional de Mascotas con microchip subcutáneo obligatorio. Su cumplimiento es supervisado por las Municipalidades, las Seremis de Salud y Carabineros.",
-    palabrasClave: ["perro", "perros", "gato", "gatos", "mascota", "mascotas", "animal", "animales", "cholito", "tenencia responsable"]
-  },
-  "21643": {
-    numero: "21.643",
-    nombreOficial: "Modifica el Código del Trabajo en materia de Prevención, Investigación y Sanción del Acoso Laboral, Sexual y Violencia en el Trabajo",
-    nombrePopular: "Ley Karin",
-    resumen: "Establece un marco preventivo y sancionatorio integral frente al acoso laboral, sexual y la violencia en el trabajo, exigiendo protocolos preventivos obligatorios y medidas cautelares inmediatas de resguardo. Es fiscalizada por la Dirección del Trabajo.",
-    palabrasClave: ["karin", "acoso laboral", "acoso sexual", "violencia laboral", "mobbing", "trabajo"]
-  },
-  "21561": {
-    numero: "21.561",
-    nombreOficial: "Modifica el Código del Trabajo con el objeto de Reducir la Jornada Laboral a 40 Horas Semanales",
-    nombrePopular: "Ley de 40 Horas",
-    resumen: "Reduce gradualmente la jornada laboral semanal de 45 a 40 horas, contemplando bandas horarias diferidas y la jornada 4x3 como mecanismos de adaptación. Es fiscalizada por la Dirección del Trabajo.",
-    palabrasClave: ["40 horas", "jornada laboral", "horario de trabajo", "codigo del trabajo"]
-  },
-  "21663": {
-    numero: "21.663",
-    nombreOficial: "Ley Marco de Ciberseguridad e Infraestructura Crítica de la Información",
-    nombrePopular: "Ley de Ciberseguridad",
-    resumen: "Establece las bases institucionales para la ciberdefensa y ciberseguridad nacional, creando la Agencia Nacional de Ciberseguridad (ANCI) y el CSIRT Nacional. Contempla multas disuasorias de hasta 40.000 UTM ante incumplimientos.",
-    palabrasClave: ["ciberseguridad", "seguridad informatica", "infraestructura critica", "anci"]
-  },
-  "21383": {
-    numero: "21.383",
-    nombreOficial: "Modifica la Carta Fundamental para consagrar la protección de los Neuroderechos y la Integridad Mental",
-    nombrePopular: "Ley de Neuroderechos",
-    resumen: "Pionera reforma constitucional a nivel mundial que protege los datos cerebrales y la privacidad mental frente al avance de la neurotecnología, elevando a rango constitucional el consentimiento informado para el uso de interfaces cerebro-computador. Su tutela se ejerce mediante recurso de protección ante las Cortes de Apelaciones.",
-    palabrasClave: ["neuroderechos", "neurotecnologia", "privacidad mental", "cerebro", "datos neuronales"]
-  },
-  "21220": {
-    numero: "21.220",
-    nombreOficial: "Modifica el Código del Trabajo en materia de Trabajo a Distancia y Teletrabajo",
-    nombrePopular: "Ley de Teletrabajo",
-    resumen: "Regula el trabajo a distancia y consagra el derecho a la desconexión digital obligatoria de al menos 12 horas continuas, imponiendo al empleador el deber de proporcionar equipos, herramientas y costos de operación. Es fiscalizada por la Dirección del Trabajo, con multas por vulneración del descanso.",
-    palabrasClave: ["teletrabajo", "trabajo a distancia", "desconexion digital", "remoto"]
-  }
-};
-
-export function sintetizarResumenNorma(titulo: string, pais: string, tipo?: string): string {
-  const clean = titulo
-    .replace(/^LEY NUM\.\s*\d+\.?\d*\s*[:\-]?\s*/i, "")
-    .replace(/^DECRETO\s*\d+\s*[:\-]?\s*/i, "")
-    .replace(/^RESOLUCI[OÓ]N\s*\d+\s*[:\-]?\s*/i, "")
-    .trim();
-  
-  const materia = clean.replace(/^(establece normas sobre|modifica|crea|aprueba|fija|regula|sobre)\s*/i, "").trim() || clean;
-  const tipoNorma = tipo || "Normativa oficial";
-
-  return `Se trata de ${tipoNorma.toLowerCase()} de ${pais} que regula el marco jurídico relativo a ${materia.toLowerCase()}, disponiendo directrices operativas y deberes de cumplimiento para los sujetos obligados. Su fiscalización corresponde a los órganos competentes de ${pais}, y constituye un referente útil para el debate y la técnica legislativa en las comisiones del Congreso Nacional.`;
-}
-
 /**
  * Taxonomía estándar de tipos de norma usada en toda la sección de Derecho
  * Comparado: Ley | Reglamento | Jurisprudencia | Administrativo | Documento.
@@ -209,6 +143,22 @@ export function inferirTipoNorma(titulo: string): TipoNorma {
   if (/ordenanza|ordinance|bylaw|by-law|satzung|decreto|resoluci[oó]n|resolution|orden administrativa|directiva|directive|circular|instructivo/.test(t)) return "Administrativo";
   // Documento: informes, minutas, estudios y cualquier otro texto que no sea norma con fuerza vinculante propia
   return "Documento";
+}
+
+/**
+ * Tipo de una norma devuelta por una fuente OFICIAL. Usa el rango que informa la propia fuente; si no lo
+ * informa, se intenta por el título y, si tampoco se puede, queda "Norma" (no "Documento": viene de una base
+ * de legislación, pero su rango no está informado).
+ */
+const TIPO_OFICIAL_LEY = /^(act|lag|lei|ley|lov|lag|loi|legge|ustawa|zakon|ustavni_zakon|seadus|bundesgesetz|ley básica|法律|법률)$/i;
+const TIPO_OFICIAL_REGLAMENTO = /^(verordnung|命令|대통령령|총리령|부령|määrus|reglamento|regulation)$/i;
+export function tipoNormaOficial(titulo: string, tipoOficial?: string): string {
+  const t = (tipoOficial || "").trim();
+  if (/projeto de lei|proyecto/i.test(t)) return "Proyecto de ley";
+  if (TIPO_OFICIAL_LEY.test(t)) return "Ley";
+  if (TIPO_OFICIAL_REGLAMENTO.test(t)) return "Reglamento";
+  const porTitulo = inferirTipoNorma(titulo);
+  return porTitulo === "Documento" ? "Norma" : porTitulo;
 }
 
 export function relevanciaPorCoincidencia(q: string, r: ResultadoComparado): number {
@@ -273,22 +223,17 @@ export async function buscarChile(q: string): Promise<ResultadoComparado[]> {
         const compuesto = (block.match(/<Compuesto>([\s\S]*?)<\/Compuesto>/) || [, ""])[1];
         const numero = (block.match(/<Numero>([\s\S]*?)<\/Numero>/) || [, ""])[1].trim();
 
-        const numDigits = numero.replace(/\D/g, "");
-        const infoCatalogo = numDigits ? DICCIONARIO_LEYES_CHILENAS[numDigits] : undefined;
-
+        // Solo datos que entrega LeyChile (título, número, fecha, tipo). No se reemplaza el título ni se redacta un
+        // resumen: el listado de LeyChile no trae resumen, así que se informa como no disponible.
         let tituloFinal = rawTitulo ? decodeEntities(rawTitulo) : "Norma sin título";
-        let descripcionFinal: string | undefined = undefined;
-
-        if (infoCatalogo) {
-          tituloFinal = `Ley ${infoCatalogo.numero}: ${infoCatalogo.nombreOficial}${infoCatalogo.nombrePopular ? ` ("${infoCatalogo.nombrePopular}")` : ""}`;
-          descripcionFinal = infoCatalogo.resumen;
-        } else {
-          if (compuesto && compuesto.toLowerCase().startsWith("ley-") && !tituloFinal.toLowerCase().startsWith("ley")) {
-            const numFormat = compuesto.replace(/^ley-/i, "").replace(/(\d+)(\d{3})$/, "$1.$2");
-            tituloFinal = `Ley ${numFormat}: ${tituloFinal}`;
-          }
-          descripcionFinal = sintetizarResumenNorma(tituloFinal, "Chile", tipoDesc || "Documento");
+        if (compuesto && compuesto.toLowerCase().startsWith("ley-") && !tituloFinal.toLowerCase().startsWith("ley")) {
+          const numFormat = compuesto.replace(/^ley-/i, "").replace(/(\d+)(\d{3})$/, "$1.$2");
+          tituloFinal = `Ley ${numFormat}: ${tituloFinal}`;
         }
+        const descripcionFinal = [
+          [tipoDesc ? decodeEntities(tipoDesc).trim() : "", numero ? `N° ${numero}` : ""].filter(Boolean).join(" "),
+          fecha ? `publicada el ${fecha}` : "",
+        ].filter(Boolean).join(" · ") + `${tipoDesc || numero || fecha ? ". " : ""}Resumen: no informado por LeyChile en este listado.`;
 
         return {
           pais: "Chile",
@@ -394,6 +339,37 @@ IMPORTANTE: clasifica el campo "tipo" usando EXCLUSIVAMENTE una de estas 5 categ
 - "Documento": informes, minutas, estudios técnicos u otro texto de referencia sin fuerza normativa vinculante propia.`;
 }
 
+const TTL_COMPARADO_MS = 6 * 60 * 60 * 1000;
+
+/** Chile (LeyChile): se guarda solo si hubo resultados (buscarChile devuelve [] tanto si no hay normas como si falla). */
+async function buscarChileConCache(q: string): Promise<ResultadoComparado[]> {
+  const key = `comparado_chile_${normalizarTexto(q)}`;
+  const hit = cache.get<ResultadoComparado[]>(key);
+  if (hit) return structuredClone(hit);
+  const r = await buscarChile(q);
+  if (r.length > 0) cache.set(key, structuredClone(r), TTL_COMPARADO_MS);
+  return r;
+}
+
+/** Estado de cada enlace por URL: vigente 6 h; los rotos solo 10 min (pueden ser caídas pasajeras). */
+async function validarEnlacesConCache(urls: string[]): Promise<EstadoEnlace[]> {
+  const out: EstadoEnlace[] = [];
+  const faltan: string[] = [];
+  for (const u of Array.from(new Set(urls))) {
+    const hit = cache.get<EstadoEnlace>(`comparado_enlace_${u}`);
+    if (hit) out.push(hit);
+    else faltan.push(u);
+  }
+  if (faltan.length > 0) {
+    for (const e of await validarEnlaces(faltan)) {
+      if (!e) continue;
+      out.push(e);
+      cache.set(`comparado_enlace_${e.url}`, e, e.estado === "roto" ? 10 * 60 * 1000 : TTL_COMPARADO_MS);
+    }
+  }
+  return out;
+}
+
 export async function buscarComparadoConIA(query: string, attempts?: AIProviderAttempt[]): Promise<ResultadoComparado[]> {
   // Lista explícita de las 28 jurisdicciones que la UI anuncia como "27
   // Países" (todo CODIGO_PAIS salvo Chile, que se consulta aparte vía
@@ -441,7 +417,18 @@ export async function buscarComparadoConIA(query: string, attempts?: AIProviderA
     }
   };
 
+  // Caché por lote: solo se guardan respuestas reales del modelo; un lote que falló se
+  // reintenta en la próxima búsqueda sin repetir los que sí respondieron.
   const resolverLote = async (lote: string[]): Promise<ResultadoComparado[]> => {
+    const claveLote = `comparado_ia_${normalizarTexto(query)}_${lote.join("|")}`;
+    const enCache = cache.get<ResultadoComparado[]>(claveLote);
+    if (enCache) return structuredClone(enCache);
+    const resuelto = await resolverLoteSinCache(lote);
+    if (resuelto.length > 0) cache.set(claveLote, structuredClone(resuelto), TTL_COMPARADO_MS);
+    return resuelto;
+  };
+
+  const resolverLoteSinCache = async (lote: string[]): Promise<ResultadoComparado[]> => {
     const prompt = construirPromptLoteComparado(query, lote);
     try {
       const primerIntento = await intentarUnaVez(prompt, 2200);
@@ -460,216 +447,9 @@ export async function buscarComparadoConIA(query: string, attempts?: AIProviderA
   };
 
   const resultadosPorLote = await Promise.all(lotes.map(resolverLote));
-  const resultados = resultadosPorLote.flat();
-
-  if (resultados.length > 0) return resultados;
-
-  // Si todos los lotes fallaron (IA no disponible, sin API keys, etc.), usamos
-  // el sintetizador de ontologia legal comparada como ultimo recurso.
-  attempts?.push({ provider: "fallback-ontologico", configured: true });
-  return generarFallbackOntologicoComparado(query).filter((r) => !PAISES_OFICIALES.has(r.pais));
-}
-
-/**
- * Base de conocimiento ontológico comparado para contingencias o velocidad extrema
- */
-function generarFallbackOntologicoComparado(query: string): ResultadoComparado[] {
-  const q = normalizarTexto(query);
-
-  // 1. Hidrógeno Verde / Transición Energética
-  if (q.includes("hidrogeno") || q.includes("gases renovables") || q.includes("electrolisis")) {
-    return [
-      {
-        pais: "Unión Europea",
-        fuente: "EUR-Lex — Diario Oficial de la Unión Europea",
-        titulo: "Directiva (UE) 2024/1788 relativa a normas comunes para los mercados del gas natural y del hidrógeno",
-        fecha: "2024",
-        url: "https://eur-lex.europa.eu/eli/dir/2024/1788/oj",
-        tipo: "Administrativo",
-        descripcion: "🎯 Objeto & Ámbito: Establece el marco regulatorio del mercado interior de hidrógeno renovable y gases descarbonizados en toda la UE.\n⚙️ Mecanismos Clave: Certificación de hidrógeno verde (RFNBO), acceso de terceros a gasoductos y tarifas no discriminatorias.\n⚖️ Fiscalización & Sanciones: Supervisado por la Agencia de Cooperación de los Reguladores de la Energía (ACER).\n💡 Lección para Chile: Fundamental para regular el transporte por ductos y plantas desaladoras en Antofagasta y Magallanes.",
-        relevancia: 98
-      },
-      {
-        pais: "España",
-        fuente: "BOE — Boletín Oficial del Estado",
-        titulo: "Hoja de Ruta del Hidrógeno: Una apuesta por el hidrógeno renovable (Acuerdo Consejo de Ministros)",
-        fecha: "2022",
-        url: "https://www.boe.es/buscar/act.php?id=BOE-A-2020-12821",
-        tipo: "Reglamento",
-        descripcion: "🎯 Objeto & Ámbito: Plan nacional con 60 medidas regulatorias para la producción y exportación de hidrógeno verde hacia Europa.\n⚙️ Mecanismos Clave: Sistema de garantías de origen del gas renovable y ventanilla única de permisos ambientales.\n⚖️ Fiscalización & Sanciones: Gestionado por la Comisión Nacional de los Mercados y la Competencia (CNMC).\n💡 Lección para Chile: Inspiración para agilizar la tramitación de permisos sectoriales e incentivos tributarios a electrolizadores.",
-        relevancia: 96
-      },
-      {
-        pais: "Estados Unidos",
-        fuente: "Congress.gov — U.S. Code",
-        titulo: "Inflation Reduction Act (Public Law 117-169) — Clean Hydrogen Production Credit (§ 45V)",
-        fecha: "2022",
-        url: "https://www.congress.gov/bill/117th-congress/house-bill/5376/text",
-        tipo: "Ley",
-        descripcion: "🎯 Objeto & Ámbito: Subsidio fiscal de hasta US$ 3,00 por kilogramo de hidrógeno producido con emisiones de carbono cercanas a cero.\n⚙️ Mecanismos Clave: Auditoría rigurosa de emisiones de ciclo de vida (Well-to-Gate) con estándar de adición horaria.\n⚖️ Fiscalización & Sanciones: Administrado por el Internal Revenue Service (IRS) y el Department of Energy (DOE).\n💡 Lección para Chile: Muestra cómo estructurar créditos fiscales de producción competitivos frente a la ley estadounidense.",
-        relevancia: 95
-      },
-      {
-        pais: "Alemania",
-        fuente: "Bundesgesetzblatt — Ley Federal Alemana",
-        titulo: "Wasserstoff-Beschleunigungsgesetz (Ley de Aceleración del Hidrógeno)",
-        fecha: "2024",
-        url: "https://www.bmwk.de/Redaktion/DE/Gesetze/Energie/wasserstoffbeschleunigungsgesetz.html",
-        tipo: "Ley",
-        descripcion: "🎯 Objeto & Ámbito: Declara la producción y transporte de hidrógeno como de interés público superior para acelerar permisos.\n⚙️ Mecanismos Clave: Plazos perentorios para evaluaciones de impacto ambiental y digitalización integral del trámite.\n⚖️ Fiscalización & Sanciones: Supervisado por la Agencia Federal de Redes (Bundesnetzagentur).\n💡 Lección para Chile: Mecanismo para desatorar la permisología ambiental de megaproyectos en la Región de Magallanes.",
-        relevancia: 94
-      },
-      {
-        pais: "Colombia",
-        fuente: "Diario Oficial de Colombia — Congreso de la República",
-        titulo: "Ley 2099 de 2021 (Ley de Transición Energética y Promoción del Hidrógeno Verde y Azul)",
-        fecha: "2021",
-        url: "https://www.suin-juriscol.gov.co/viewDocument.asp?ruta=Leyes/30043864",
-        tipo: "Ley",
-        descripcion: "🎯 Objeto & Ámbito: Moderniza el régimen de energías renovables e introduce incentivos arancelarios y tributarios directos al hidrógeno.\n⚙️ Mecanismos Clave: Exención de IVA en la adquisición de equipos, deducción del 50% en impuesto a la renta y depreciación acelerada.\n⚖️ Fiscalización & Sanciones: Ministerio de Minas y Energía y CREG.\n💡 Lección para Chile: Marco normativo latinoamericano más cercano en estructura tributaria a la legislación chilena.",
-        relevancia: 93
-      }
-    ];
-  }
-
-  // 2. Neuroderechos y Privacidad Cerebral
-  if (q.includes("neuro") || q.includes("cerebr") || q.includes("neurotecnologia")) {
-    return [
-      {
-        pais: "España",
-        fuente: "Ministerio de Asuntos Económicos y Transformación Digital",
-        titulo: "Carta de Derechos Digitales (Capítulo XXV: Derechos ante las neurotecnologías)",
-        fecha: "2021",
-        url: "https://www.lamoncloa.gob.es/presidente/actividades/Documents/2021/140721-Carta_Derechos_Digitales.pdf",
-        tipo: "Reglamento",
-        descripcion: "🎯 Objeto & Ámbito: Consagra la identidad individual, confidencialidad de la actividad cerebral y autodeterminación cognitiva.\n⚙️ Mecanismos Clave: Prohibición de interfaces neuronales con fines de manipulación conductual no consentida.\n⚖️ Fiscalización & Sanciones: Agencia Española de Protección de Datos (AEPD).\n💡 Lección para Chile: Complemento directo al artículo 19 N° 1 de la Constitución chilena en materia de integridad psíquica.",
-        relevancia: 97
-      },
-      {
-        pais: "Estados Unidos",
-        fuente: "Colorado General Assembly — Public Acts",
-        titulo: "Colorado House Bill 24-1058 (Protecting Privacy of Biological and Neural Data)",
-        fecha: "2024",
-        url: "https://leg.colorado.gov/bills/hb24-1058",
-        tipo: "Ley",
-        descripcion: "🎯 Objeto & Ámbito: Primera ley estatal de EE.UU. que expande la definición de datos personales sensibles a los 'datos neuronales'.\n⚙️ Mecanismos Clave: Regula los dispositivos comerciales de consumo (EEG en vinchas o cascos) que recopilan ondas cerebrales.\n⚖️ Fiscalización & Sanciones: Acciones civiles de la Fiscalía General de Colorado.\n💡 Lección para Chile: Fija estándares prácticos para dispositivos de consumo masivo más allá del ámbito médico.",
-        relevancia: 95
-      },
-      {
-        pais: "Francia",
-        fuente: "Légifrance — Code de la santé publique",
-        titulo: "Loi n° 2021-1017 relative à la bioéthique (Article L. 1151-1: Imagerie cérébrale et neurosciences)",
-        fecha: "2021",
-        url: "https://www.legifrance.gouv.fr/jorf/id/JORFTEXT000043884384",
-        tipo: "Ley",
-        descripcion: "🎯 Objeto & Ámbito: Restringe el uso de técnicas de neuroimagen y registro de actividad cerebral exclusivamente a fines médicos y científicos.\n⚙️ Mecanismos Clave: Prohibición absoluta de utilizar datos neuronales con fines comerciales o de neuromarketing.\n⚖️ Fiscalización & Sanciones: Agence de la biomédecine y Comité Consultatif National d'Éthique (CCNE).\n💡 Lección para Chile: Establece salvaguardas drásticas frente a la comercialización de la intimidad psíquica.",
-        relevancia: 93
-      }
-    ];
-  }
-
-  // 3. Teletrabajo y Desconexión Digital
-  if (q.includes("teletrabajo") || q.includes("remoto") || q.includes("desconexion") || q.includes("distancia")) {
-    return [
-      {
-        pais: "España",
-        fuente: "BOE — Boletín Oficial del Estado",
-        titulo: "Ley 10/2021 de trabajo a distancia y garantía de la desconexión digital",
-        fecha: "2021",
-        url: "https://www.boe.es/buscar/act.php?id=BOE-A-2021-11472",
-        tipo: "Ley",
-        descripcion: "🎯 Objeto & Ámbito: Regulación integral del trabajo a distancia cuando se realice en al menos un 30% de la jornada durante 3 meses.\n⚙️ Mecanismos Clave: Voluntariedad, reversibilidad, compensación obligatoria de gastos y política de desconexión digital.\n⚖️ Fiscalización & Sanciones: Inspección de Trabajo y Seguridad Social (ITSS).\n💡 Lección para Chile: Establece parámetros precisos para el reembolso de servicios básicos (luz e internet).",
-        relevancia: 97
-      },
-      {
-        pais: "Francia",
-        fuente: "Légifrance — Code du travail",
-        titulo: "Loi n° 2016-1088 relative au travail (Droit à la déconnexion — Article L2242-17)",
-        fecha: "2016",
-        url: "https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000033010376",
-        tipo: "Ley",
-        descripcion: "🎯 Objeto & Ámbito: Norma pionera que consagró la obligación de negociar acuerdos de desconexión fuera del horario de oficina.\n⚙️ Mecanismos Clave: Apagado automático de servidores de correo electrónico corporativo durante fines de semana y noches.\n⚖️ Fiscalización & Sanciones: Inspection du travail y tribunales de Prud'hommes.\n💡 Lección para Chile: Relevancia de consagrar sanciones específicas para empleadores que envíen mensajes en horas de descanso.",
-        relevancia: 95
-      },
-      {
-        pais: "Colombia",
-        fuente: "Diario Oficial de Colombia",
-        titulo: "Ley 2191 de 2022 (Regulación del derecho a la desconexión laboral)",
-        fecha: "2022",
-        url: "https://www.suin-juriscol.gov.co/viewDocument.asp?ruta=Leyes/30043884",
-        tipo: "Ley",
-        descripcion: "🎯 Objeto & Ámbito: Garantiza que los trabajadores no reciban órdenes, requerimientos o llamadas una vez finalizada su jornada.\n⚙️ Mecanismos Clave: Define como conducta constitutiva de acoso laboral la insistencia del empleador en horarios de descanso.\n⚖️ Fiscalización & Sanciones: Ministerio del Trabajo con multas y apertura de procesos disciplinarios.\n💡 Lección para Chile: Conexión jurídica directa entre la vulneración de la desconexión y el acoso laboral.",
-        relevancia: 94
-      }
-    ];
-  }
-
-  // 4. Síntesis Universal Inteligente para cualquier otro concepto nuevo
-  const conceptoLimpio = query.trim();
-  const conceptoMayus = conceptoLimpio.charAt(0).toUpperCase() + conceptoLimpio.slice(1);
-
-  return [
-    {
-      pais: "Unión Europea",
-      fuente: "EUR-Lex — Diario Oficial de la Unión Europea",
-      titulo: `Directiva y Marco Regulatorio Armonizado sobre ${conceptoMayus}`,
-      fecha: "2024",
-      url: "https://eur-lex.europa.eu/homepage.html",
-      tipo: "Administrativo",
-      descripcion: `Directiva comunitaria que armoniza los estándares mínimos, las licencias de operación y los principios de precaución en torno a ${conceptoLimpio}. Establece la obligación de una evaluación de riesgos previa, registros públicos unificados y protocolos de transparencia, cuya fiscalización corresponde al Comité Europeo de Supervisión y a las autoridades nacionales competentes, facultadas para aplicar sanciones administrativas disuasorias.`,
-      relevancia: 96
-    },
-    {
-      pais: "España",
-      fuente: "BOE — Boletín Oficial del Estado",
-      titulo: `Ley Orgánica de Regulación y Supervisión de ${conceptoMayus}`,
-      fecha: "2023",
-      url: "https://www.boe.es/buscar/legislacion.php",
-      tipo: "Ley",
-      descripcion: `Ley de ámbito estatal que regula las condiciones de ejercicio, los deberes de información y el régimen sancionador aplicables a ${conceptoLimpio}. Crea comisiones técnicas sectoriales y un régimen de autorizaciones previas, quedando su fiscalización a cargo de los órganos reguladores estatales, con potestad sancionadora graduada según la gravedad de la infracción.`,
-      relevancia: 95
-    },
-    {
-      pais: "Estados Unidos",
-      fuente: "Congress.gov — U.S. Code",
-      titulo: `${conceptoMayus} Regulatory Oversight and Standards Act`,
-      fecha: "2023",
-      url: "https://www.congress.gov",
-      tipo: "Ley",
-      descripcion: `Estatuto federal que fija directrices técnicas, directivas de cumplimiento voluntario y mandatos de no discriminación en materia de ${conceptoLimpio}. Los estándares son emitidos por agencias especializadas y sujetos a auditorías periódicas de cumplimiento, mientras que la fiscalización queda entregada a las agencias regulatorias federales competentes.`,
-      relevancia: 93
-    },
-    {
-      pais: "Alemania",
-      fuente: "Bundesgesetzblatt — Legislación Federal Alemana",
-      titulo: `Gesetz zur Regulierung und Beaufsichtigung von ${conceptoMayus}`,
-      fecha: "2024",
-      url: "https://www.gesetze-im-internet.de",
-      tipo: "Ley",
-      descripcion: `Ley federal con altos estándares de rigor técnico, trazabilidad de procesos y seguridad jurídica respecto de ${conceptoLimpio}. Impone deberes de reporte preventivo y peritajes externos independientes, quedando su fiscalización a cargo de la autoridad federal competente (Bundesoberbehörde), facultada para aplicar clausuras cautelares y multas acumulativas.`,
-      relevancia: 92
-    },
-    {
-      pais: "Colombia",
-      fuente: "Diario Oficial de Colombia — Congreso de la República",
-      titulo: `Ley Marco por medio de la cual se establecen directrices para ${conceptoMayus}`,
-      fecha: "2023",
-      url: "https://www.suin-juriscol.gov.co",
-      tipo: "Ley",
-      descripcion: `Legislación latinoamericana que adapta las mejores prácticas internacionales sobre ${conceptoLimpio} a realidades institucionales regionales, mediante planes graduales de implementación y mesas de diálogo multisectorial. Su fiscalización corresponde a las superintendencias sectoriales respectivas.`,
-      relevancia: 91
-    },
-    {
-      pais: "Reino Unido",
-      fuente: "Legislation.gov.uk — UK Public General Acts",
-      titulo: `${conceptoMayus} (Governance and Compliance) Regulations`,
-      fecha: "2024",
-      url: "https://www.legislation.gov.uk",
-      tipo: "Reglamento",
-      descripcion: `Marco normativo británico enfocado en una regulación flexible basada en principios y resultados (outcomes-based regulation) para ${conceptoLimpio}. Contempla espacios de prueba regulatoria (sandboxes) y códigos de conducta vinculantes, con supervisión a cargo de autoridades regulatorias sectoriales independientes.`,
-      relevancia: 90
-    }
-  ];
+  // Si todos los lotes fallaron (IA no disponible, sin claves, etc.) no hay propuestas: nunca se completa con
+  // contenido fijo del código. El llamador informa "Motor de IA no disponible".
+  return resultadosPorLote.flat();
 }
 
 /**
@@ -686,15 +466,8 @@ export async function buscarDerechoComparado(q: string): Promise<{
   /** Normas propuestas por IA que se excluyeron por enlace roto, ausente o de portada. */
   descartadas?: NormaDescartada[];
 }> {
-  const cacheKey = `derecho_comparado_ia_${normalizarTexto(q)}`;
-  const cached = cache.get<{
-    resultados: ResultadoComparado[];
-    fuentesConsultadas: string[];
-    fuentesFallidas: string[];
-    aiDiagnostics: AIProviderAttempt[];
-  }>(cacheKey);
-  if (cached) return cached;
-
+  // Sin caché del resultado completo: cada parte se guarda por separado (fuentes oficiales por fuente, Chile, lotes
+  // de IA y enlaces) para que una parte caída se reintente sin volver a consultar las que sí respondieron.
   const resultado = await (async () => {
     const fuentesFallidas: string[] = [];
     const aiAttempts: AIProviderAttempt[] = [];
@@ -704,7 +477,7 @@ export async function buscarDerechoComparado(q: string): Promise<{
     // 2. Fuentes OFICIALES de UE (Cellar), España (BOE) y Reino Unido (legislation.gov.uk).
     // 3. Modelo de IA SOLO para el resto de las jurisdicciones (propuestas sin verificar).
     const [chileResult, oficialesResult, iaResult] = await Promise.allSettled([
-      buscarChile(q),
+      buscarChileConCache(q),
       buscarFuentesOficiales(q),
       buscarComparadoConIA(q, aiAttempts)
     ]);
@@ -739,7 +512,7 @@ export async function buscarDerechoComparado(q: string): Promise<{
           fecha: n.fecha,
           url: n.url,
           descripcion: n.descripcion,
-          tipo: inferirTipoNorma(n.titulo),
+          tipo: tipoNormaOficial(n.titulo, n.tipoOficial),
           origen: "oficial",
           idOficial: n.idOficial,
           consultadoEl: n.consultadoEl
@@ -750,21 +523,15 @@ export async function buscarDerechoComparado(q: string): Promise<{
         if (e.estado === "no_disponible") fuentesFallidas.push(`${e.jurisdiccion} (fuente oficial no disponible)`);
       }
     } else {
-      for (const j of ["Unión Europea", "España", "Reino Unido", "Australia", "Países Bajos", "Japón", "Suiza", "Luxemburgo", "Polonia", "Suecia", "Alemania", "Francia", "Estados Unidos"]) {
+      for (const j of PAISES_OFICIALES) {
         estadoFuentes.push({ jurisdiccion: j, fuente: "fuente oficial", estado: "no_disponible", motivo: "Error interno al consultar las fuentes oficiales.", consultadoEl: ahora });
       }
       fuentesFallidas.push("Fuentes oficiales extranjeras (error interno)");
     }
 
     // 3. Resto de jurisdicciones: propuestas de IA, siempre etiquetadas. Nunca para UE/España/Reino Unido.
-    const usoRespaldoOntologico = aiAttempts.some(a => a.provider === "fallback-ontologico");
-    const etiquetar = (r: ResultadoComparado): ResultadoComparado =>
-      r.origen ? r : { ...r, origen: "respaldo", fuente: `${r.fuente} — contenido fijo de respaldo, sin verificar` };
     if (iaResult.status === "fulfilled" && iaResult.value.length > 0) {
-      resultados.push(...iaResult.value.filter((r) => !PAISES_OFICIALES.has(r.pais)).map(etiquetar));
-      if (usoRespaldoOntologico) {
-        fuentesFallidas.push("Motor de IA (usando base de conocimiento de respaldo)");
-      }
+      resultados.push(...iaResult.value.filter((r) => !PAISES_OFICIALES.has(r.pais)));
     } else {
       fuentesFallidas.push("Motor de IA no disponible: sin propuestas para las demás jurisdicciones");
     }
@@ -779,7 +546,7 @@ export async function buscarDerechoComparado(q: string): Promise<{
     // (403/429/202) se conservan marcadas como "no verificables".
     const descartadas: NormaDescartada[] = [];
     const noOficiales = resultados.filter(r => r.origen !== "oficial");
-    const estadosEnlace = await validarEnlaces(noOficiales.map(r => r.url || "").filter(u => u && !esInicioDePortal(u)));
+    const estadosEnlace = await validarEnlacesConCache(noOficiales.map(r => r.url || "").filter(u => u && !esInicioDePortal(u)));
     const porUrl = new Map(estadosEnlace.map(e => [e.url, e]));
     const conservados = resultados.filter(r => {
       if (r.origen === "oficial") return true;
@@ -800,10 +567,13 @@ export async function buscarDerechoComparado(q: string): Promise<{
       }
     });
 
-    // Ordenar: Chile SIEMPRE primero, luego por relevancia descendente
+    // Ordenar: Chile SIEMPRE primero, luego las normas de fuente oficial y al final las propuestas de IA.
+    // (La "relevancia" es una heurística sobre texto en español: no sirve para comparar títulos en otros idiomas.)
     resultados.sort((a, b) => {
       if (a.pais === "Chile" && b.pais !== "Chile") return -1;
       if (b.pais === "Chile" && a.pais !== "Chile") return 1;
+      const oa = a.origen === "oficial" ? 1 : 0, ob = b.origen === "oficial" ? 1 : 0;
+      if (oa !== ob) return ob - oa;
       return (b.relevancia || 0) - (a.relevancia || 0);
     });
 
@@ -817,18 +587,6 @@ export async function buscarDerechoComparado(q: string): Promise<{
     };
   })();
 
-  // Solo se cachean resultados con IA real (fuentesFallidas vacío): un
-  // resultado de respaldo genérico no debe quedar "pegado" mucho tiempo para
-  // cualquiera que pregunte lo mismo mientras tanto -- el siguiente intento
-  // merece la chance de tener éxito con la IA. El tiempo de cache se subió de
-  // 15 minutos a 6 horas: la normativa real no cambia de un minuto a otro, y
-  // antes la misma búsqueda ("tenencia de mascotas" dos veces en la misma
-  // tarde) volvía a tirar los dados con la IA cada vez que expiraba el
-  // cache, trayendo un conjunto de países distinto cada vez -- la fuente
-  // real de la inconsistencia percibida, más que una variación aceptable.
-  if (resultado.fuentesFallidas.length === 0) {
-    cache.set(cacheKey, resultado, 6 * 60 * 60 * 1000);
-  }
   return resultado;
 }
 

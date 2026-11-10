@@ -150,7 +150,7 @@ export function generateDynamicProyecto(id: string): Proyecto {
     autores: "No disponible",
     iniciativa: "Moción",
     patrocinantes: 0,
-    urgencia: "Sin urgencia",
+    urgencia: "No informada",
     camaraOrigen: "Diputados",
     comisionActual: "Sin información",
     comisionesHistoricas: [],

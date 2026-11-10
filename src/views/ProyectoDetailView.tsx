@@ -49,6 +49,7 @@ import {
 import { Proyecto, ActivityItem, VotacionItem } from "../types";
 import { resolveProyecto } from "../utils/proyectosResolver";
 import { fetchLiveSenateProject } from "../utils/senadoClientApi";
+import { parseFechaFlexible, diasEntre, detectTramite, etapaActual, ultimoMovimiento } from "../utils/tramitacion";
 import SimuladorQuorum from "../components/SimuladorQuorum";
 import { formatFechaCL, parseFechaSesion } from "../utils/dateUtils";
 import MinutaEjecutivaModal from "../components/MinutaEjecutivaModal";
@@ -76,18 +77,16 @@ function temaParaComparado(titulo: string, materia?: string): string {
   return materia && !/sin clasificar/i.test(materia) ? materia : t.slice(0, 160);
 }
 
-function diffDays(fromStr?: string, toStr?: string): number | undefined {
-  if (!fromStr || !toStr) return undefined;
-  const from = new Date(fromStr);
-  const to = new Date(toStr);
-  if (isNaN(from.getTime()) || isNaN(to.getTime())) return undefined;
-  return Math.max(0, Math.round((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)));
-}
+// Las fechas de la ficha llegan como dd/mm/aaaa: se leen con parseFechaFlexible (new Date las interpretaría mal).
+const diffDays = diasEntre;
+
+/** Marca de tiempo de una fecha de la ficha; las que no son fecha válida van al final conservando su orden. */
+const tiempoFecha = (f?: string) => parseFechaFlexible(f)?.getTime() ?? Number.MAX_SAFE_INTEGER;
 
 function formatFechaSafe(fecha?: string) {
   if (!fecha) return "Fecha no informada";
-  const d = new Date(fecha);
-  if (isNaN(d.getTime())) return fecha;
+  const d = parseFechaFlexible(fecha);
+  if (!d) return fecha;
   return d.toLocaleDateString("es-CL", { day: "2-digit", month: "long", year: "numeric" });
 }
 
@@ -115,18 +114,6 @@ function extractComisiones(text: string): string[] {
   return matches.map(m => m.trim().replace(/[\.\,\:\;\-\(]$/, ""));
 }
 
-const TRAMITE_PATTERNS: { key: string; label: string; re: RegExp }[] = [
-  { key: "primer", label: "Primer Trámite Constitucional", re: /primer\s+tr[aá]mite/i },
-  { key: "segundo", label: "Segundo Trámite Constitucional", re: /segundo\s+tr[aá]mite/i },
-  { key: "tercer", label: "Tercer Trámite Constitucional", re: /tercer\s+tr[aá]mite/i },
-  { key: "mixta", label: "Comisión Mixta", re: /comisi[oó]n\s+mixta/i },
-  { key: "finalizacion", label: "Trámite de Finalización", re: /tribunal\s+constitucional|trámite\s+finalización|control\s+de\s+constitucionalidad/i }
-];
-
-function detectTramite(text: string) {
-  return TRAMITE_PATTERNS.find(t => t.re.test(text)) || null;
-}
-
 // Groups the project's REAL timeline events and REAL votaciones by trámite
 // constitucional (Primer / Segundo / Tercer trámite, Comisión Mixta, etc.),
 // exactly like the official Senate visor: each stage shows which real
@@ -145,12 +132,8 @@ function getTramiteStages(p: Proyecto) {
     descripcion: oneLine(`${p.iniciativa || "Moción"} ante la ${p.camaraOrigen || "Cámara de Origen"}.`)
   });
 
-  const timeline = [...(p.timeline || [])].sort(
-    (a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()
-  );
-  const votaciones = [...(p.votaciones || [])].sort(
-    (a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()
-  );
+  const timeline = [...(p.timeline || [])].sort((a, b) => tiempoFecha(a.fecha) - tiempoFecha(b.fecha));
+  const votaciones = [...(p.votaciones || [])].sort((a, b) => tiempoFecha(a.fecha) - tiempoFecha(b.fecha));
 
   // Bucket every timeline event under the trámite it belongs to (from its real
   // ETAPDESCRIPCION-derived título). Events before the first identifiable trámite
@@ -175,7 +158,7 @@ function getTramiteStages(p: Proyecto) {
     buckets.get(currentKey)!.events.push(ev);
   });
 
-  const camaraRevisora = p.camaraOrigen === "Senado" ? "Cámara de Diputadas y Diputados" : "Senado";
+  const camaraRevisora = p.camaraOrigen === "Senado" ? "Cámara de Diputadas y Diputados" : p.camaraOrigen === "Diputados" ? "Senado" : "Cámara revisora";
   const CAMARA_POR_TRAMITE: Record<string, string> = {
     primer: p.camaraOrigen || "Cámara de Origen",
     segundo: camaraRevisora,
@@ -189,9 +172,7 @@ function getTramiteStages(p: Proyecto) {
 
   order.forEach(key => {
     const bucket = buckets.get(key)!;
-    const sortedEvents = [...bucket.events].sort(
-      (a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()
-    );
+    const sortedEvents = [...bucket.events].sort((a, b) => tiempoFecha(a.fecha) - tiempoFecha(b.fecha));
     const startDate = sortedEvents[0]?.fecha || prevEndDate;
     const endDate = sortedEvents[sortedEvents.length - 1]?.fecha || startDate;
 
@@ -207,9 +188,13 @@ function getTramiteStages(p: Proyecto) {
 
     // The floor vote (Sala) tied to this trámite: any real votación that falls
     // within this trámite's date window and hasn't been claimed by an earlier stage.
-    const votoSala = votaciones.find(
-      v => !usedVotIds.has(v.id) && v.fecha >= startDate && v.fecha <= endDate
-    );
+    // Se compara por fecha real (no como texto); una votación sin fecha válida no se asigna a ningún trámite.
+    const tIni = parseFechaFlexible(startDate)?.getTime();
+    const tFin = parseFechaFlexible(endDate)?.getTime();
+    const votoSala = votaciones.find(v => {
+      const tv = parseFechaFlexible(v.fecha)?.getTime();
+      return !usedVotIds.has(v.id) && tv !== undefined && tIni !== undefined && tFin !== undefined && tv >= tIni && tv <= tFin;
+    });
     if (votoSala) usedVotIds.add(votoSala.id);
 
     const dias = diffDays(prevEndDate, endDate);
@@ -926,7 +911,7 @@ export default function ProyectoDetailView({
               setView("legislacion-comparada");
             }}
             className="flex items-center gap-1.5 font-bold text-xs px-3.5 py-2 rounded-xl border border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100 shadow-2xs transition-all cursor-pointer"
-            title="Ver regulación homóloga en 27 países"
+            title="Ver regulación homóloga en otros países"
           >
             <Globe className="w-3.5 h-3.5 text-blue-600" />
             <span>Derecho Comparado</span>
@@ -1219,12 +1204,9 @@ export default function ProyectoDetailView({
                       <div>
                         <h3 className="text-base font-extrabold tracking-tight text-white flex items-center gap-2">
                           <span>Pipeline Interactivo de Tramitación</span>
-                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">
-                            EN TIEMPO REAL
-                          </span>
                         </h3>
                         <p className="text-xs text-slate-300 font-medium">
-                          Etapa actual: <strong className="text-white">{proyecto.etapa || "1er Trámite Constitucional"}</strong> • Cámara de Origen: <strong className="text-white">{proyecto.camaraOrigen}</strong>
+                          Etapa actual: <strong className="text-white">{proyecto.etapa || "No informada"}</strong> • Cámara de Origen: <strong className="text-white">{proyecto.camaraOrigen}</strong>
                         </p>
                       </div>
                     </div>
@@ -1240,24 +1222,32 @@ export default function ProyectoDetailView({
 
                   {/* Visual 5-Step Pipeline Progress Bar */}
                   {(() => {
-                    // Se determina UNA etapa actual y todas las anteriores quedan cumplidas
-                    // (antes cada paso se evaluaba por separado y, p. ej., en Comisión Mixta
-                    // el 2do trámite aparecía sin cumplir).
-                    const etapaLow = `${proyecto.etapa || ""} ${proyecto.subetapa || ""} ${proyecto.estado || ""}`.toLowerCase();
-                    const esLey = /publicad|promulgad|\bley n|diario oficial|tramitaci[oó]n terminada/.test(etapaLow);
-                    const actual = esLey ? 5
-                      : /mixta|tribunal constitucional|veto|observaciones del presidente|control de constitucionalidad/.test(etapaLow) ? 4
-                      : /segundo|tercer|2[º°o]?\s*tr[aá]mite|3[º°o]?\s*tr[aá]mite/.test(etapaLow) ? 3
-                      : 2;
-                    const enTercer = /tercer|3[º°o]?\s*tr[aá]mite/.test(etapaLow) && actual === 3;
-                    const segundaCamara = proyecto.camaraOrigen === "Senado" ? "Cámara Dip." : "Senado";
+                    // Una sola etapa actual, tomada de la ficha o, si esta no la informa, del último hito (ver
+                    // utils/tramitacion). Si no hay dato no se marca ninguna etapa: no se adivina.
+                    const et = etapaActual(proyecto);
+                    const esLey = et.actual === 5;
+                    const segundaCamara = proyecto.camaraOrigen === "Senado" ? "Cámara Dip." : proyecto.camaraOrigen === "Diputados" ? "Senado" : "Cámara revisora";
+                    const enTercer = et.enTercer;
                     const stagesList = [
                       { num: 1, label: "Ingreso", sub: proyecto.camaraOrigen || "Origen" },
                       { num: 2, label: "1er Trámite", sub: "Comisión y Sala" },
-                      { num: 3, label: enTercer ? "3er Trámite" : "2do Trámite", sub: enTercer ? `Vuelve a ${proyecto.camaraOrigen === "Senado" ? "Senado" : "Cámara Dip."}` : segundaCamara },
+                      { num: 3, label: enTercer ? "3er Trámite" : "2do Trámite", sub: enTercer ? `Vuelve a ${proyecto.camaraOrigen === "Senado" ? "Senado" : proyecto.camaraOrigen === "Diputados" ? "Cámara Dip." : "la cámara de origen"}` : segundaCamara },
                       { num: 4, label: "Comisión Mixta / TC", sub: "Discrepancias" },
                       { num: 5, label: "Promulgación y Ley", sub: "Diario Oficial" }
-                    ].map(st => ({ ...st, done: esLey || st.num < actual, current: !esLey && st.num === actual }));
+                    ].map(st => ({
+                      ...st,
+                      done: st.num === 1 ? !!proyecto.fechaIngreso || et.actual !== null
+                        : et.actual === null ? false
+                        : esLey || (et.terminada ? st.num <= et.actual : st.num < et.actual),
+                      current: et.actual !== null && !et.terminada && st.num === et.actual
+                    }));
+                    const avisoPipeline = et.actual === null
+                      ? "La ficha oficial no informa la etapa de tramitación de este proyecto."
+                      : et.terminada && !esLey
+                        ? `La ficha indica que la tramitación terminó (${proyecto.estado || proyecto.etapa || "estado no informado"}); se muestra hasta la última etapa informada.`
+                        : et.fuente === "hitos"
+                          ? "La ficha no informa la etapa; se muestra la del último hito que nombra un trámite."
+                          : "";
 
                     return (
                       <div className="py-2">
@@ -1296,17 +1286,28 @@ export default function ProyectoDetailView({
                             </div>
                           ))}
                         </div>
+                        {avisoPipeline && <p className="text-[11px] text-amber-200/90 mt-3">{avisoPipeline}</p>}
                       </div>
                     );
                   })()}
 
-                  {/* Bottleneck / Velocity Alert Bar */}
+                  {/* Último movimiento real de la ficha (sin estimaciones) */}
                   <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
                     <div className="flex items-center gap-2 text-slate-300">
-                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
-                      <span>
-                        <strong>Ritmo Legislativo Estimado:</strong> Tramitación activa en {proyecto.comisionActual || "Comisión Técnica competente"}.
-                      </span>
+                      <span className="w-2.5 h-2.5 rounded-full bg-slate-500 shrink-0"></span>
+                      {(() => {
+                        const um = ultimoMovimiento(proyecto.timeline);
+                        const comision = proyecto.comisionActual && !/^no informad/i.test(proyecto.comisionActual.trim()) ? proyecto.comisionActual : null;
+                        return (
+                          <span>
+                            <strong>Último movimiento:</strong>{" "}
+                            {um
+                              ? `${formatFechaSafe(um.fechaTexto)} — ${um.titulo || um.descripcion || "sin descripción"} (hace ${um.dias} día${um.dias === 1 ? "" : "s"})`
+                              : "la ficha oficial no informa hitos con fecha."}
+                            {comision ? ` · Comisión: ${comision}` : ""}
+                          </span>
+                        );
+                      })()}
                     </div>
                     <div className="flex items-center gap-2">
                       <button 
@@ -1552,7 +1553,7 @@ export default function ProyectoDetailView({
                       <Globe className="w-4 h-4" />
                       <span>Legislación Comparada Internacional</span>
                     </div>
-                    <h4 className="text-base font-black text-white">¿Cómo regulan esta materia otros 27 países?</h4>
+                    <h4 className="text-base font-black text-white">¿Cómo regulan esta materia otros países?</h4>
                     <p className="text-xs text-slate-300 max-w-xl leading-relaxed">
                       Explora la matriz comparada homologada al Informe BCN con normativas de la Unión Europea, OCDE y América Latina sobre <strong>{proyecto.materia || proyecto.titulo}</strong>.
                     </p>
@@ -2246,12 +2247,16 @@ export default function ProyectoDetailView({
                           <span className={`text-[10px] font-extrabold px-3 py-1 rounded-full border uppercase tracking-wider ${
                             vot.resultado.toLowerCase().includes("aprobado") || vot.resultado.toLowerCase().includes("afavor")
                               ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                              : /no informado/i.test(vot.resultado) ? "bg-slate-100 text-slate-600 border-slate-300"
                               : "bg-rose-100 text-rose-800 border-rose-300"
                           }`}>
                             {vot.resultado}
                           </span>
                         </div>
 
+                        {vot.conteoInformado === false ? (
+                          <p className="text-xs text-slate-500 italic">El conteo de votos no está informado en la ficha oficial.</p>
+                        ) : (<>
                         {/* Vote tally layout */}
                         <div className="grid grid-cols-3 gap-3 text-center">
                           <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200/60 shadow-3xs">
@@ -2276,6 +2281,7 @@ export default function ProyectoDetailView({
                             <div style={{ width: `${pctAbs}%` }} className="bg-slate-400 h-full transition-all duration-500" title={`Abstenciones: ${vot.abstencios} (${pctAbs}%)`} />
                           </div>
                         </div>
+                        </>)}
                       </div>
                     );
                   })

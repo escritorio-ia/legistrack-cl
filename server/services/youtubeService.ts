@@ -195,6 +195,85 @@ function aSegundos(v: any): number {
   return p.reduce((acc, n) => acc * 60 + n, 0);
 }
 
+/**
+ * Consulta a Gemini con el enlace del video y un tramo (startOffset/endOffset). Prueba varios modelos: si uno no tiene
+ * cuota (429) o no existe (404), pasa al siguiente. Devuelve el texto de la respuesta o el motivo del fallo.
+ */
+async function consultarGeminiVideo(p: {
+  apiKey: string;
+  videoId: string;
+  desde: number;
+  hasta: number | null;
+  prompt: string;
+  maxOutputTokens: number;
+}): Promise<{ ok: true; texto: string; model: string } | { ok: false; motivo: string }> {
+  const { apiKey, videoId, desde, hasta, prompt, maxOutputTokens } = p;
+  const videoMetadata: any = { startOffset: `${desde}s` };
+  if (hasta != null) videoMetadata.endOffset = `${hasta}s`;
+
+  const candidatos = Array.from(new Set([
+    process.env.GEMINI_VIDEO_MODEL, process.env.GEMINI_MODEL,
+    "gemini-3.6-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite"
+  ].filter(Boolean) as string[]));
+  let res: Response | null = null;
+  let model = candidatos[0];
+  const errores: string[] = [];
+  const limiteTotal = Date.now() + 270000; // Vercel corta a los 300 s
+  for (const m of candidatos) {
+    model = m;
+    const restante = limiteTotal - Date.now();
+    if (restante < 20000) { errores.push(`${m}: sin tiempo restante`); break; }
+    try {
+      res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, {
+        method: "POST",
+        // La clave va en el encabezado: funciona con claves "AIza…" y con las nuevas "AQ.…".
+        headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { fileData: { fileUri: `https://www.youtube.com/watch?v=${videoId}` }, videoMetadata },
+              { text: prompt }
+            ]
+          }],
+          generationConfig: {
+            temperature: 0.2,
+            maxOutputTokens,
+            responseMimeType: "application/json",
+            mediaResolution: "MEDIA_RESOLUTION_LOW"
+          }
+        }),
+        signal: AbortSignal.timeout(Math.min(110000, restante))
+      });
+    } catch (err: any) {
+      // Tiempo agotado o error de red con este modelo: se prueba el siguiente.
+      errores.push(`${m}: ${err?.name === "TimeoutError" ? "sin respuesta a tiempo" : (err?.message || err)}`);
+      res = null;
+      continue;
+    }
+    if (res.ok) break;
+    const txt = await res.text().catch(() => "");
+    let detalle = "";
+    try {
+      const j = JSON.parse(txt);
+      const viol = (j?.error?.details || []).flatMap((d: any) => d?.violations || []);
+      detalle = viol.map((v: any) => v.quotaId || v.quotaMetric).filter(Boolean).join(", ") || String(j?.error?.message || "").slice(0, 160);
+    } catch { detalle = txt.slice(0, 160); }
+    errores.push(`${m}: HTTP ${res.status}${detalle ? ` (${detalle})` : ""}`);
+    if (![429, 404, 500, 502, 503, 504].includes(res.status)) break;
+    res = null;
+  }
+  if (!res || !res.ok) {
+    const sinCuota = errores.some(e => e.includes("HTTP 429"));
+    return {
+      ok: false,
+      motivo: `${sinCuota ? "La clave de Gemini no tiene cuota disponible (límite gratuito agotado o sin facturación activa). " : ""}Detalle: ${errores.join(" | ")}`
+    };
+  }
+  const data: any = await res.json();
+  const texto = (data?.candidates?.[0]?.content?.parts || []).map((x: any) => x.text || "").join("");
+  return { ok: true, texto, model };
+}
+
 export async function analizarParteVideo(params: {
   videoId: string;
   parte: number;
@@ -241,71 +320,9 @@ Responde ÚNICAMENTE con JSON válido:
 }
 Ordena las intervenciones cronológicamente y registra cada cambio relevante de orador.`;
 
-    const videoMetadata: any = { startOffset: `${desde}s` };
-    if (hasta != null) videoMetadata.endOffset = `${hasta}s`;
-
-    // Se prueban varios modelos: si uno no tiene cuota (429) o no existe (404), se pasa al siguiente.
-    const candidatos = Array.from(new Set([
-      process.env.GEMINI_VIDEO_MODEL, process.env.GEMINI_MODEL,
-      "gemini-3.6-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite"
-    ].filter(Boolean) as string[]));
-    let res: Response | null = null;
-    let model = candidatos[0];
-    const errores: string[] = [];
-    const limiteTotal = Date.now() + 270000; // Vercel corta a los 300 s
-    for (const m of candidatos) {
-      model = m;
-      const restante = limiteTotal - Date.now();
-      if (restante < 20000) { errores.push(`${m}: sin tiempo restante`); break; }
-      try {
-        res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, {
-          method: "POST",
-          // La clave va en el encabezado: funciona con claves "AIza…" y con las nuevas "AQ.…".
-          headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-          body: JSON.stringify({
-            contents: [{
-              parts: [
-                { fileData: { fileUri: `https://www.youtube.com/watch?v=${videoId}` }, videoMetadata },
-                { text: prompt }
-              ]
-            }],
-            generationConfig: {
-              temperature: 0.2,
-              maxOutputTokens: 16000,
-              responseMimeType: "application/json",
-              mediaResolution: "MEDIA_RESOLUTION_LOW"
-            }
-          }),
-          signal: AbortSignal.timeout(Math.min(110000, restante))
-        });
-      } catch (err: any) {
-        // Tiempo agotado o error de red con este modelo: se prueba el siguiente.
-        errores.push(`${m}: ${err?.name === "TimeoutError" ? "sin respuesta a tiempo" : (err?.message || err)}`);
-        res = null;
-        continue;
-      }
-      if (res.ok) break;
-      const txt = await res.text().catch(() => "");
-      let detalle = "";
-      try {
-        const j = JSON.parse(txt);
-        const viol = (j?.error?.details || []).flatMap((d: any) => d?.violations || []);
-        detalle = viol.map((v: any) => v.quotaId || v.quotaMetric).filter(Boolean).join(", ") || String(j?.error?.message || "").slice(0, 160);
-      } catch { detalle = txt.slice(0, 160); }
-      errores.push(`${m}: HTTP ${res.status}${detalle ? ` (${detalle})` : ""}`);
-      if (![429, 404, 500, 502, 503, 504].includes(res.status)) break;
-      res = null;
-    }
-    if (!res || !res.ok) {
-      const sinCuota = errores.some(e => e.includes("HTTP 429"));
-      return {
-        disponible: false,
-        motivo: `${sinCuota ? "La clave de Gemini no tiene cuota disponible (límite gratuito agotado o sin facturación activa). " : ""}Detalle: ${errores.join(" | ")}`,
-        parte, desde, hasta
-      };
-    }
-    const data: any = await res.json();
-    const texto = (data?.candidates?.[0]?.content?.parts || []).map((p: any) => p.text || "").join("");
+    const g = await consultarGeminiVideo({ apiKey, videoId, desde, hasta, prompt, maxOutputTokens: 16000 });
+    if (g.ok === false) return { disponible: false, motivo: g.motivo, parte, desde, hasta };
+    const { texto, model } = g;
     const json: any = texto ? (() => { try { return safeJsonParse<any>(texto); } catch { return null; } })() : null;
     if (!json) {
       return { disponible: false, motivo: "Gemini no devolvió un análisis legible para este tramo.", parte, desde, hasta };
@@ -335,5 +352,90 @@ Ordena las intervenciones cronológicamente y registra cada cambio relevante de 
     };
   })();
   if (resultado.disponible) cache.set(claveCache, resultado, 7 * 24 * 60 * 60 * 1000);
+  return resultado;
+}
+
+// ---------------------------------------------------------------------------
+// Transcripción del video con Gemini (texto de lo dicho, por tramos cortos)
+// ---------------------------------------------------------------------------
+
+/** Tramos de 10 minutos: el texto casi completo de 30 minutos no cabe en el límite de tiempo de la función. */
+export const SEGUNDOS_POR_PARTE_TRANSCRIPCION = 600;
+
+export interface SegmentoTranscripcion {
+  segundos: number;
+  orador: string;
+  texto: string;
+}
+
+export interface TranscripcionParteVideo {
+  disponible: boolean;
+  motivo?: string;
+  parte: number;
+  desde: number;
+  hasta: number | null;
+  segmentos?: SegmentoTranscripcion[];
+  modelo?: string;
+  /** Siempre presente cuando hay resultado: es una transcripción automática, no el texto oficial. */
+  aviso?: string;
+}
+
+export const AVISO_TRANSCRIPCION = "Transcripción automática generada con IA a partir del video: no es el texto oficial y puede contener errores. Contrástela con el video antes de citarla.";
+
+export async function transcribirParteVideo(params: {
+  videoId: string;
+  parte: number;
+  duracion?: number | null;
+  comision?: string;
+  fecha?: string;
+  materia?: string;
+}): Promise<TranscripcionParteVideo> {
+  const { videoId, parte } = params;
+  const apiKey = process.env.GEMINI_VIDEO_API_KEY || process.env.GEMINI_API_KEY;
+  const desde = parte * SEGUNDOS_POR_PARTE_TRANSCRIPCION;
+  const hasta = params.duracion ? Math.min(params.duracion, desde + SEGUNDOS_POR_PARTE_TRANSCRIPCION) : (params.duracion === null ? null : desde + SEGUNDOS_POR_PARTE_TRANSCRIPCION);
+  if (!/^[\w-]{11}$/.test(videoId)) return { disponible: false, motivo: "Identificador de video no válido.", parte, desde, hasta };
+  if (params.duracion != null && desde >= params.duracion) return { disponible: false, motivo: "El tramo pedido está fuera de la duración del video.", parte, desde, hasta };
+  if (!apiKey || apiKey === "MY_GEMINI_API_KEY") return { disponible: false, motivo: "Falta configurar GEMINI_API_KEY.", parte, desde, hasta };
+
+  const claveCache = `yt_transcripcion_${videoId}_${parte}_${hasta ?? "fin"}`;
+  const previo = cache.get<TranscripcionParteVideo>(claveCache);
+  if (previo) return previo;
+
+  const contexto = [
+    params.comision ? `Comisión: ${params.comision}` : "",
+    params.fecha ? `Fecha de la sesión: ${params.fecha}` : "",
+    params.materia ? `Materia citada: ${params.materia}` : ""
+  ].filter(Boolean).join("\n");
+
+  const prompt = `Este video es la transmisión oficial de una sesión de comisión del Congreso de Chile.
+${contexto}
+
+Transcribe en español lo que se dice en el tramo indicado del video, lo más fielmente posible y sin resumir. No inventes palabras, nombres, cargos ni cifras: si algo no se entiende escribe "[inaudible]"; si no se identifica a quien habla, usa "No identificado". Si en el tramo no se habla (silencio, pausa, solo imagen), devuelve una lista vacía.
+
+Responde ÚNICAMENTE con JSON válido:
+{"segmentos":[{"minuto":"H:MM:SS desde el inicio del video","orador":"nombre tal como se presenta o 'No identificado'","texto":"lo que dice, tal como lo dice"}]}
+Un segmento por cambio de orador, o cada 60 segundos como máximo si habla la misma persona. Ordénalos cronológicamente.`;
+
+  const g = await consultarGeminiVideo({ apiKey, videoId, desde, hasta, prompt, maxOutputTokens: 12000 });
+  if (g.ok === false) return { disponible: false, motivo: g.motivo, parte, desde, hasta };
+  const json: any = g.texto ? (() => { try { return safeJsonParse<any>(g.texto); } catch { return null; } })() : null;
+  if (!json) return { disponible: false, motivo: "Gemini no devolvió una transcripción legible para este tramo.", parte, desde, hasta };
+
+  let segmentos: SegmentoTranscripcion[] = (Array.isArray(json.segmentos) ? json.segmentos : [])
+    .map((x: any) => ({
+      segundos: aSegundos(x?.minuto ?? x?.segundos),
+      orador: String(x?.orador || "No identificado").trim() || "No identificado",
+      texto: String(x?.texto || "").trim()
+    }))
+    .filter((x: SegmentoTranscripcion) => x.texto);
+  // Si el modelo entregó minutos relativos al tramo (todos antes de su inicio), se pasan a minutos del video completo.
+  if (desde > 0 && segmentos.length > 0 && segmentos.every(x => x.segundos < desde)) {
+    segmentos = segmentos.map(x => ({ ...x, segundos: x.segundos + desde }));
+  }
+  segmentos.sort((a, b) => a.segundos - b.segundos);
+
+  const resultado: TranscripcionParteVideo = { disponible: true, parte, desde, hasta, segmentos, modelo: g.model, aviso: AVISO_TRANSCRIPCION };
+  cache.set(claveCache, resultado, 7 * 24 * 60 * 60 * 1000);
   return resultado;
 }

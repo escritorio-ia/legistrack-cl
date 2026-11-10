@@ -1,3 +1,4 @@
+import { construirResumenSesion } from "../services/resumenSesionService";
 import { Router, Request, Response, text as expressText } from "express";
 import { Proyecto, Comision, Alerta, SalaVivo } from "../../src/types";
 import { 
@@ -47,7 +48,7 @@ import {
   DIPUTADOS_COMISIONES_REALES
 } from "../services/camaraService";
 import { sesionesCamaraDeComision, videosSenadoPorFecha } from "../services/sesionesCamaraService";
-import { buscarVideosSesion, detallesVideos, analizarParteVideo, youtubeApiConfigurada, YouTubeNoConfigurado, SEGUNDOS_POR_PARTE } from "../services/youtubeService";
+import { buscarVideosSesion, detallesVideos, analizarParteVideo, transcribirParteVideo, youtubeApiConfigurada, YouTubeNoConfigurado, SEGUNDOS_POR_PARTE, SEGUNDOS_POR_PARTE_TRANSCRIPCION } from "../services/youtubeService";
 import { fetchIndiceInformesFinancieros, informesFinancierosDeBoletin, resumirInformeFinanciero, claveBoletinIF, resumenConsolidadoInformesFinancieros } from "../services/dipresService";
 import { 
   buscarDerechoComparado, 
@@ -865,6 +866,10 @@ apiRouter.get("/senado/comision/:id/sesiones", async (req: Request, res: Respons
   res.json(await sesionesSenadoDeComision(String(req.params.id)));
 });
 
+apiRouter.get("/senado/sesion/:comision/:sesion/resumen", async (req: Request, res: Response) => {
+  res.json(construirResumenSesion(await detalleSesionSenado(String(req.params.comision), String(req.params.sesion))));
+});
+
 apiRouter.get("/senado/sesion/:comision/:sesion", async (req: Request, res: Response) => {
   res.json(await detalleSesionSenado(String(req.params.comision), String(req.params.sesion)));
 });
@@ -1578,12 +1583,16 @@ apiRouter.get("/global-search", async (req: Request, res: Response) => {
 // 6. DERECHO COMPARADO
 // ============================================================================
 apiRouter.get("/derecho-comparado", async (req: Request, res: Response) => {
-  const q = req.query.q ? String(req.query.q).trim() : "";
-  if (!q) {
+  // Se acota el largo: la consulta viaja a decenas de fuentes externas y al modelo de traducción.
+  const q = req.query.q ? String(req.query.q).replace(/\s+/g, " ").trim().slice(0, 200) : "";
+  if (q.length < 2) {
     return res.json({ resultados: [], fuentesConsultadas: [], fuentesFallidas: [] });
   }
-  const data = await buscarDerechoComparado(q);
-  res.json(data);
+  try {
+    res.json(await buscarDerechoComparado(q));
+  } catch (err: any) {
+    res.status(502).json({ resultados: [], fuentesConsultadas: [], fuentesFallidas: [], error: `No se pudo completar la búsqueda: ${err?.message || err}` });
+  }
 });
 
 // Informe redactado de UN punto de la matriz comparada, a partir solo de lo que dice cada norma.
@@ -2102,7 +2111,8 @@ apiRouter.get("/videos/:id/detalle", async (req: Request, res: Response) => {
     const det = (await detallesVideos([id]))[id];
     if (!det) return res.json({ id, segundos: null, partes: null, motivo: "YouTube no encontró el video." });
     const partes = det.segundos ? Math.max(1, Math.ceil(det.segundos / SEGUNDOS_POR_PARTE)) : null;
-    res.json({ id, ...det, partes, segundosPorParte: SEGUNDOS_POR_PARTE });
+    const partesTranscripcion = det.segundos ? Math.max(1, Math.ceil(det.segundos / SEGUNDOS_POR_PARTE_TRANSCRIPCION)) : null;
+    res.json({ id, ...det, partes, segundosPorParte: SEGUNDOS_POR_PARTE, partesTranscripcion, segundosPorParteTranscripcion: SEGUNDOS_POR_PARTE_TRANSCRIPCION });
   } catch (err: any) {
     res.json({ id, segundos: null, partes: null, motivo: err?.message || String(err) });
   }
@@ -2110,12 +2120,15 @@ apiRouter.get("/videos/:id/detalle", async (req: Request, res: Response) => {
 
 // Análisis con IA (Gemini) de una parte del video: expositores con su minuto,
 // resumen, acuerdos y votaciones. Transcripción automática, no oficial.
+// Con modo=transcripcion entrega, en cambio, el texto de lo dicho por tramos de 10 minutos
+// (segmentos con minuto, orador y texto); en ese modo "parte" cuenta tramos de 10 minutos.
 apiRouter.get("/videos/:id/analisis", async (req: Request, res: Response) => {
   const id = String(req.params.id || "");
   const parte = Math.max(0, parseInt(String(req.query.parte || "0"), 10) || 0);
   const duracionRaw = req.query.duracion ? parseInt(String(req.query.duracion), 10) : NaN;
+  const modoTranscripcion = req.query.modo === "transcripcion";
   try {
-    const r = await analizarParteVideo({
+    const r = await (modoTranscripcion ? transcribirParteVideo : analizarParteVideo)({
       videoId: id,
       parte,
       duracion: isFinite(duracionRaw) && duracionRaw > 0 ? duracionRaw : null,

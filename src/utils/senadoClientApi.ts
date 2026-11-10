@@ -57,19 +57,19 @@ export function parseSenateXmlToProyecto(xml: string, originalQuery: string): Pr
     const fechaIngreso = fechaIngresoRaw ? parseFechaChilena(fechaIngresoRaw) : "";
     const rawIniciativa = extractTag(descBlock, "iniciativa") || "Moción";
     const iniciativa: "Moción" | "Mensaje" = rawIniciativa.toLowerCase().includes("mensaje") ? "Mensaje" : "Moción";
-    const rawCamara = extractTag(descBlock, "camara_origen") || "Diputados";
-    const camaraOrigen: "Diputados" | "Senado" = rawCamara.toLowerCase().includes("senado") ? "Senado" : "Diputados";
+    const rawCamara = extractTag(descBlock, "camara_origen");
+    const camaraOrigen = (!rawCamara.trim() ? "No informado" : rawCamara.toLowerCase().includes("senado") ? "Senado" : "Diputados") as "Diputados" | "Senado" | "No informado";
     const urgenciaRaw = extractTag(descBlock, "urgencia_actual");
     
-    let urgencia: "Discusión Inmediata" | "Suma" | "Simple" | "Sin urgencia" = "Sin urgencia";
+    let urgencia: Proyecto["urgencia"] = /<urgencia_actual[\s>/]/i.test(descBlock) ? "Sin urgencia" : "No informada";
     const uLower = urgenciaRaw.toLowerCase();
     if (uLower.includes("inmediata")) urgencia = "Discusión Inmediata";
     else if (uLower.includes("suma")) urgencia = "Suma";
     else if (uLower.includes("simple")) urgencia = "Simple";
 
-    const etapa = extractTag(descBlock, "etapa") || "En discusión";
+    const etapa = extractTag(descBlock, "etapa") || "No informada";
     const subetapa = extractTag(descBlock, "subetapa") || "";
-    const estado = extractTag(descBlock, "estado") || "En tramitación";
+    const estado = extractTag(descBlock, "estado") || "No informado";
     const digits = cleanDigits(boletin);
     const linkMocion = extractTag(descBlock, "link_mensaje_mocion") || `https://tramitacion.senado.cl/wspublico/tramitacion.php?boletin=${digits}`;
 
@@ -80,8 +80,8 @@ export function parseSenateXmlToProyecto(xml: string, originalQuery: string): Pr
 
     const { formatted, suffix } = formatBulletinNumber(boletin);
     const mapping = MATERIA_COMISION_MAP[suffix] || {
-      comision: "Comisión Legislativa Oficial",
-      materia: "Normativa General y Legislación Nacional"
+      comision: "No informada",
+      materia: "Sin clasificar"
     };
 
     let comisionActual = mapping.comision;
@@ -144,11 +144,12 @@ export function parseSenateXmlToProyecto(xml: string, originalQuery: string): Pr
     const votacionesBlock = extractTag(xml, "votaciones");
     if (votacionesBlock) {
       extractAll(votacionesBlock, "votacion").forEach((v, idx) => {
-        const fecha = extractTag(v, "FECHA") || fechaIngreso;
-        const materiaVot = extractTag(v, "MATERIA") || "Votación de articulado";
+        const fecha = extractTag(v, "FECHA");
+        const materiaVot = extractTag(v, "MATERIA") || "Materia no informada";
         const si = parseInt(extractTag(v, "SI")) || 0;
         const no = parseInt(extractTag(v, "NO")) || 0;
         const abst = parseInt(extractTag(v, "ABSTENCION")) || 0;
+        const conteoInformado = ["SI", "NO", "ABSTENCION"].some(t => extractTag(v, t).trim() !== "");
         const resultado = extractTag(v, "ETAPADESCRIPCION") || extractTag(v, "RESULTADO") || "Resultado no informado";
         votaciones.push({
           id: `v-${digits}-${idx}`,
@@ -157,12 +158,19 @@ export function parseSenateXmlToProyecto(xml: string, originalQuery: string): Pr
           si,
           no,
           abstencios: abst,
+          conteoInformado,
           resultado
         });
       });
     }
 
-    const resumen = `Proyecto de ley oficial radicado el ${fechaIngreso} por vía de ${iniciativa} en ${camaraOrigen}. Materia: ${mapping.materia}. Actualmente en etapa de "${etapa}" (${estado}). Radicado en ${comisionActual}. Autores: ${autores}.`;
+    const resumen = [
+      `Proyecto de ley ingresado${fechaIngreso ? ` el ${fechaIngreso}` : ""} por vía de ${iniciativa}${camaraOrigen !== "No informado" ? ` en ${camaraOrigen}` : ""}.`,
+      mapping.materia !== "Sin clasificar" ? `Materia: ${mapping.materia}.` : "",
+      `Etapa: ${etapa}; estado: ${estado}.`,
+      comisionActual !== "No informada" ? `Comisión: ${comisionActual}.` : "",
+      `Autores: ${autores}.`
+    ].filter(Boolean).join(" ");
 
     return {
       id: formatted,

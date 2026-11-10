@@ -466,10 +466,16 @@ const LIMITE_TOTAL_IA_MS = 160000;
 // se devuelve null (el llamador ya maneja "IA no disponible") en vez de dejar
 // la petición abierta hasta que expire la función o el navegador.
 export async function generarContenidoUniversalIA(prompt: string, maxTokens = 2000, attempts?: AIProviderAttempt[]): Promise<string | null> {
-  return Promise.race([
-    generarContenidoUniversalIAInterno(prompt, maxTokens, attempts),
-    new Promise<null>((resolve) => setTimeout(() => resolve(null), LIMITE_TOTAL_IA_MS))
-  ]);
+  // El temporizador se cancela al terminar: si no, queda vivo hasta LIMITE_TOTAL_IA_MS y retrasa el cierre del proceso.
+  let temporizador: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      generarContenidoUniversalIAInterno(prompt, maxTokens, attempts),
+      new Promise<null>((resolve) => { temporizador = setTimeout(() => resolve(null), LIMITE_TOTAL_IA_MS); })
+    ]);
+  } finally {
+    clearTimeout(temporizador);
+  }
 }
 
 async function generarContenidoUniversalIAInterno(prompt: string, maxTokens: number, attempts?: AIProviderAttempt[]): Promise<string | null> {

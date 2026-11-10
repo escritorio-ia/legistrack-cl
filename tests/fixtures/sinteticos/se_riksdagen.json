@@ -1,0 +1,26 @@
+{
+  "dokumentlista": {
+    "@traffar": "3",
+    "dokument": [
+      {
+        "dok_id": "sfs-2099-1",
+        "titel": "Lag (2099:1) med bestämmelser om dataskydd (ficticio)",
+        "datum": "2018-04-19",
+        "beteckning": "2099:1",
+        "organ": "Justitiedepartementet"
+      },
+      {
+        "dok_id": "sfs-2099-2",
+        "titel": "Förordning (2099:2) om dataskydd: no es lag, se descarta (ficticio)",
+        "datum": "2018-05-01",
+        "beteckning": "2099:2"
+      },
+      {
+        "dok_id": "sfs-2099-3",
+        "titel": "Lag (2099:3) om annat ämne: se descarta (ficticio)",
+        "datum": "2019-01-01",
+        "beteckning": "2099:3"
+      }
+    ]
+  }
+}

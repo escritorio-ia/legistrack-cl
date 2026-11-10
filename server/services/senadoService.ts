@@ -429,19 +429,22 @@ export async function fetchProyectoFromSenado(boletinId: string): Promise<Proyec
       const iniciativaRaw = extractTag(descBlock, "iniciativa") || "Moción";
       const iniciativa: "Moción" | "Mensaje" = (iniciativaRaw.toLowerCase().includes("mensaje")) ? "Mensaje" : "Moción";
 
-      const camaraOrigenRaw = extractTag(descBlock, "camara_origen") || "Senado";
-      const camaraOrigen: "Diputados" | "Senado" = (camaraOrigenRaw.toLowerCase().includes("diputados") || camaraOrigenRaw.toLowerCase().includes("camara")) ? "Diputados" : "Senado";
+      // Si la ficha no informa la cámara de origen no se supone ninguna.
+      const camaraOrigenRaw = extractTag(descBlock, "camara_origen");
+      const camaraOrigen = (!camaraOrigenRaw.trim() ? "No informado"
+        : (camaraOrigenRaw.toLowerCase().includes("diputados") || camaraOrigenRaw.toLowerCase().includes("camara")) ? "Diputados" : "Senado") as "Diputados" | "Senado";
 
-      const urgenciaRaw = extractTag(descBlock, "urgencia_actual") || "Sin urgencia";
-      let urgencia: "Simple" | "Suma" | "Discusión Inmediata" | "Sin urgencia" = "Sin urgencia";
+      // Si la ficha no trae el campo de urgencia, queda "No informada"; si lo trae vacío o sin urgencia, "Sin urgencia".
+      const urgenciaRaw = extractTag(descBlock, "urgencia_actual");
+      let urgencia: Proyecto["urgencia"] = /<urgencia_actual[\s>/]/i.test(descBlock) ? "Sin urgencia" : "No informada";
       const uLower = urgenciaRaw.toLowerCase();
       if (uLower.includes("inmediata")) urgencia = "Discusión Inmediata";
       else if (uLower.includes("suma")) urgencia = "Suma";
       else if (uLower.includes("simple")) urgencia = "Simple";
 
-      const etapa = extractTag(descBlock, "etapa") || "En discusión";
+      const etapa = extractTag(descBlock, "etapa") || "No informada";
       const subetapa = extractTag(descBlock, "subetapa") || "";
-      const estado = extractTag(descBlock, "estado") || "En discusión";
+      const estado = extractTag(descBlock, "estado") || "No informado";
       const linkMocion = urlOficialSenado(extractTagUrl(descBlock, "link_mensaje_mocion")) || `https://tramitacion.senado.cl/wspublico/tramitacion.php?boletin=${digits}`;
 
       const autoresBlock = extractTag(xml, "autores");
@@ -540,7 +543,7 @@ export async function fetchProyectoFromSenado(boletinId: string): Promise<Proyec
       const MESES_ES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
       const fIso = /^(\d{4})-(\d{2})-(\d{2})/.exec(fechaIngreso);
       const fechaTxt = fIso ? `${parseInt(fIso[3], 10)} de ${MESES_ES[parseInt(fIso[2], 10) - 1]} de ${fIso[1]}` : fechaIngreso;
-      const camaraTxt = camaraOrigen === "Diputados" ? "la Cámara de Diputadas y Diputados" : "el Senado";
+      const camaraTxt = camaraOrigen === "Diputados" ? "la Cámara de Diputadas y Diputados" : camaraOrigen === "Senado" ? "el Senado" : "una cámara no informada en la ficha";
       // "Apellido Apellido, Nombre" → "Nombre Apellido Apellido"
       const autoresTxt = autoresList.map(a => { const m = a.match(/^([^,]+),\s*(.+)$/); return m ? `${m[2]} ${m[1]}` : a; }).join(", ");
       const resumen = [
@@ -556,11 +559,12 @@ export async function fetchProyectoFromSenado(boletinId: string): Promise<Proyec
       if (votacionesBlock) {
         const vots = extractAll(votacionesBlock, "votacion");
         vots.forEach((v, idx) => {
-          const fecha = extractTag(v, "FECHA") || fechaIngreso;
-          const materiaVot = extractTag(v, "MATERIA") || "Votación de articulado";
+          const fecha = extractTag(v, "FECHA"); // sin fecha en la ficha: no se reemplaza por la de ingreso
+          const materiaVot = extractTag(v, "MATERIA") || "Materia no informada";
           const si = parseInt(extractTag(v, "SI")) || 0;
           const no = parseInt(extractTag(v, "NO")) || 0;
           const abst = parseInt(extractTag(v, "ABSTENCION")) || 0;
+          const conteoInformado = ["SI", "NO", "ABSTENCION"].some(t => extractTag(v, t).trim() !== "");
           const resultado = extractTag(v, "ETAPADESCRIPCION") || "Resultado no informado";
           votaciones.push({
             id: `v-${digits}-${idx}`,
@@ -569,6 +573,7 @@ export async function fetchProyectoFromSenado(boletinId: string): Promise<Proyec
             si,
             no,
             abstencios: abst,
+            conteoInformado,
             resultado
           });
         });
@@ -723,7 +728,7 @@ export function listadoToProyecto(item: ProyectoListado): Proyecto {
     camaraOrigen: "No informado", // el listado general no informa la cámara de origen
     etapa: item.estado,
     materia,
-    urgencia: "Sin urgencia",
+    urgencia: "No informada", // el listado no informa la urgencia
     patrocinantes: 0,
     iniciativa: "Moción",
     comisionActual: mapeo ? mapeo.comision : "No informada",
@@ -886,7 +891,7 @@ export async function fetchSenadoComisionProyectosLive(
               materia: comisionNombre,
               iniciativa: "Moción", // el listado no distingue mensaje/moción; ver ficha oficial
               patrocinantes: 0,
-              urgencia: "Sin urgencia",
+              urgencia: "No informada", // el listado no informa la urgencia
               camaraOrigen: "No informado",
               comisionActual: comisionNombre,
               linkCongreso: `https://tramitacion.senado.cl/appsenado/index.php?mo=tramitacion&ac=boletin_x_fecha&comiid=${senadoId}&titulo=${encodeURIComponent("Senado: Com. " + comisionNombre)}`,

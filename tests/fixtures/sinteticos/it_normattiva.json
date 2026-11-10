@@ -1,0 +1,26 @@
+{
+  "listaAtti": [
+    {
+      "titoloAtto": "[ Disposizioni per la protezione dei dati (ficticio) ]",
+      "denominazioneAtto": "DECRETO LEGISLATIVO",
+      "descrizioneAtto": "Decreto legislativo",
+      "dataEmanazione": "2018-08-10T00:00:00Z",
+      "numeroProvvedimento": "999",
+      "numeroGU": "205",
+      "dataGU": "2018-09-04",
+      "codiceRedazionale": "18G99999"
+    },
+    {
+      "titoloAtto": "Protezione dei dati: decreto ministeriale, se descarta (ficticio)",
+      "denominazioneAtto": "DECRETO MINISTERIALE",
+      "dataEmanazione": "2019-01-01",
+      "numeroProvvedimento": "1"
+    },
+    {
+      "titoloAtto": "Legge su altro tema: se descarta (ficticio)",
+      "denominazioneAtto": "LEGGE",
+      "dataEmanazione": "2020-01-01",
+      "numeroProvvedimento": "2"
+    }
+  ]
+}

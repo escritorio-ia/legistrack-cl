@@ -1,0 +1,21 @@
+{
+  "totalResultNumber": 2,
+  "results": [
+    {
+      "titles": [
+        {
+          "id": "LEGITEXT999999999001",
+          "cid": "JORFTEXT999999999001",
+          "title": "Loi n° 99-1 relative à la protection des données (ficticio)"
+        }
+      ],
+      "nature": "LOI",
+      "etat": "VIGUEUR",
+      "date": "1978-01-07T00:00:00.000+0000"
+    },
+    {
+      "nature": "LOI",
+      "etat": "VIGUEUR"
+    }
+  ]
+}

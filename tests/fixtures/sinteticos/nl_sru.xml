@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SINTÉTICO: ver README.md de esta carpeta. -->
+<searchRetrieveResponse>
+<numberOfRecords>4</numberOfRecords>
+<records>
+  <record><recordData><gzd><originalData><meta>
+    <dcterms:identifier>BWBR0099001</dcterms:identifier><dcterms:title>Voorbeeldwet gegevensbescherming &amp; toezicht (ficticio)</dcterms:title><dcterms:type>wet</dcterms:type>
+    <overheid:authority>Ministerie van Voorbeeld (ficticio)</overheid:authority>
+    <overheidbwb:geldigheidsperiode_startdatum>2018-05-25</overheidbwb:geldigheidsperiode_startdatum><overheidbwb:geldigheidsperiode_einddatum>9999-12-31</overheidbwb:geldigheidsperiode_einddatum>
+  </meta></originalData></gzd></recordData></record>
+  <record><recordData><gzd><originalData><meta>
+    <dcterms:identifier>BWBR0099001</dcterms:identifier><dcterms:title>Voorbeeldwet gegevensbescherming &amp; toezicht (ficticio)</dcterms:title><dcterms:type>wet</dcterms:type>
+    <overheid:authority>Ministerie van Voorbeeld (ficticio)</overheid:authority>
+    <overheidbwb:geldigheidsperiode_startdatum>2018-05-25</overheidbwb:geldigheidsperiode_startdatum><overheidbwb:geldigheidsperiode_einddatum>9999-12-31</overheidbwb:geldigheidsperiode_einddatum>
+  </meta></originalData></gzd></recordData></record>
+  <record><recordData><gzd><originalData><meta>
+    <dcterms:identifier>BWBR0099002</dcterms:identifier><dcterms:title>Vervallen wet gegevensbescherming: se descarta (ficticio)</dcterms:title><dcterms:type>wet</dcterms:type>
+    <overheid:authority>Ministerie van Voorbeeld (ficticio)</overheid:authority>
+    <overheidbwb:geldigheidsperiode_startdatum>2001-09-01</overheidbwb:geldigheidsperiode_startdatum><overheidbwb:geldigheidsperiode_einddatum>2018-05-25</overheidbwb:geldigheidsperiode_einddatum>
+  </meta></originalData></gzd></recordData></record>
+  <record><recordData><gzd><originalData><meta>
+    <dcterms:identifier>BWBR0099003</dcterms:identifier><dcterms:title>Uitvoeringswet gegevensbescherming (ficticio)</dcterms:title><dcterms:type>wet</dcterms:type>
+    <overheid:authority>Ministerie van Voorbeeld (ficticio)</overheid:authority>
+    <overheidbwb:geldigheidsperiode_startdatum>2019-01-01</overheidbwb:geldigheidsperiode_startdatum>
+  </meta></originalData></gzd></recordData></record>
+</records>
+</searchRetrieveResponse>

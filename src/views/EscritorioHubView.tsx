@@ -64,7 +64,7 @@ export default function EscritorioHubView({
           </h1>
 
           <p className="text-xs sm:text-sm lg:text-base text-slate-300 leading-relaxed max-w-2xl">
-            Bienvenido a <strong>Escritorio++</strong>. Monitorea trámites parlamentarios de Chile en tiempo real, compara marcos jurídicos de 27 países u obtén minutas estadísticas sectoriales asistidas por IA.
+            Bienvenido a <strong>Escritorio++</strong>. Monitorea trámites parlamentarios de Chile en tiempo real, compara marcos jurídicos de otros países u obtén minutas estadísticas sectoriales asistidas por IA.
           </p>
         </div>
 

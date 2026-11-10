@@ -1,0 +1,56 @@
+{
+  "member": [
+    {
+      "item": {
+        "name": "Beispiel-Datenschutzgesetz (ficticio)",
+        "abbreviation": "BspDSG",
+        "legislationIdentifier": "eli/bund/bgbl-1/2099/s1/2024-01-01/1/deu",
+        "legislationLegalForce": "InForce",
+        "exampleOfWork": {
+          "legislationIdentifier": "eli/bund/bgbl-1/2099/s1",
+          "legislationDate": "2017-06-30",
+          "isPartOf": {
+            "name": "Bundesgesetzblatt Teil I"
+          }
+        },
+        "encoding": [
+          {
+            "encodingFormat": "text/html",
+            "contentUrl": "/v1/legislation/eli/bund/bgbl-1/2099/s1/2024-01-01/1/deu/regelungstext-1.html"
+          }
+        ]
+      }
+    },
+    {
+      "item": {
+        "name": "Beispiel-Datenschutzgesetz (ficticio)",
+        "legislationIdentifier": "eli/bund/bgbl-1/2099/s1/2020-01-01/1/deu",
+        "legislationLegalForce": "InForce",
+        "exampleOfWork": {
+          "legislationIdentifier": "eli/bund/bgbl-1/2099/s1"
+        }
+      }
+    },
+    {
+      "item": {
+        "name": "Altes Datenschutzgesetz: no vigente (ficticio)",
+        "legislationIdentifier": "eli/bund/bgbl-1/2099/s2/1990-01-01/1/deu",
+        "legislationLegalForce": "NotInForce"
+      }
+    },
+    {
+      "item": {
+        "name": "Datenschutzabkommen BGBl II: se descarta (ficticio)",
+        "legislationIdentifier": "eli/bund/bgbl-2/2099/s3/2000-01-01/1/deu",
+        "legislationLegalForce": "InForce"
+      }
+    },
+    {
+      "item": {
+        "name": "Gesetz über Beispiele: sin la palabra en el título (ficticio)",
+        "legislationIdentifier": "eli/bund/bgbl-1/2099/s4/2000-01-01/1/deu",
+        "legislationLegalForce": "InForce"
+      }
+    }
+  ]
+}

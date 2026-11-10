@@ -40,7 +40,16 @@ class CacheService {
     return { data: entry.data as T, isStale };
   }
 
+  /** Tope de entradas: las búsquedas libres generan claves nuevas, así que sin tope la memoria crecería sin límite. */
+  private static readonly MAX_ENTRADAS = 2000;
+
   public set<T>(key: string, data: T, ttlMs = 5 * 60 * 1000): void {
+    if (!this.cache.has(key) && this.cache.size >= CacheService.MAX_ENTRADAS) {
+      const ahora = Date.now();
+      for (const [k, e] of this.cache) if (ahora - e.cachedAt > e.ttlMs) this.cache.delete(k);
+      // Si no había vencidas, se descarta la más antigua (el Map conserva el orden de inserción).
+      if (this.cache.size >= CacheService.MAX_ENTRADAS) this.cache.delete(this.cache.keys().next().value as string);
+    }
     this.cache.set(key, {
       data,
       cachedAt: Date.now(),

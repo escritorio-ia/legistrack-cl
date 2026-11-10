@@ -1,6 +1,62 @@
 // server/vercelHandler.ts
 import express from "express";
 
+// server/services/resumenSesionService.ts
+var vacio = (s) => {
+  const t = String(s ?? "").replace(/\s+/g, " ").trim();
+  return !t || /^(null|undefined|n\/?a|-+)$/i.test(t) ? null : t;
+};
+var lista = (s) => String(s ?? "").split(/[;\n]+/).map((x) => x.replace(/\s+/g, " ").trim()).filter((x) => x && !/^(null|undefined)$/i.test(x));
+var unicos = (xs) => {
+  const vistos = /* @__PURE__ */ new Set();
+  return xs.filter((x) => {
+    const k = x.toLowerCase();
+    if (vistos.has(k)) return false;
+    vistos.add(k);
+    return true;
+  });
+};
+var minutos = (h) => {
+  const m = /^(\d{1,2}):(\d{2})/.exec(String(h ?? "").trim());
+  return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : null;
+};
+function construirResumenSesion(det) {
+  const fuente = "Registro oficial de la sesi\xF3n en senado.cl";
+  if (!det?.disponible) {
+    return { disponible: false, motivo: det?.motivo || "Detalle de la sesi\xF3n no disponible.", url: det?.url, asistentes: [], invitados: [], boletines: [], puntos: [], presentaciones: [], fuente };
+  }
+  const puntos = (det.puntos || []).map((p) => {
+    const acu = vacio(p.acuerdos);
+    return {
+      numero: vacio(p.numero) || "",
+      boletin: vacio(p.boletin),
+      tema: vacio(p.tema) || "Tema no informado",
+      aspectos: vacio(p.aspectos),
+      acuerdos: acu && !/^pendiente\.?$/i.test(acu) ? acu : null,
+      invitados: unicos(lista(p.invitados)),
+      asistentes: unicos(lista(p.asistentes))
+    };
+  });
+  const ini = minutos(det.inicio), fin = minutos(det.termino);
+  const duracionMin = ini !== null && fin !== null && fin >= ini ? fin - ini : null;
+  const asistentes = unicos(puntos.flatMap((p) => p.asistentes));
+  const invitados = unicos(puntos.flatMap((p) => p.invitados));
+  const boletines = unicos(puntos.map((p) => p.boletin || "").filter(Boolean));
+  const conAcuerdos = puntos.filter((p) => p.acuerdos).length;
+  return {
+    disponible: true,
+    url: det.url,
+    fuente,
+    encabezado: { comision: vacio(det.comision), fecha: vacio(det.fecha), inicio: vacio(det.inicio), termino: vacio(det.termino), duracionMin, lugar: vacio(det.lugar) },
+    asistentes,
+    invitados,
+    boletines,
+    puntos,
+    presentaciones: (det.presentaciones || []).filter((x) => x.url),
+    estadisticas: { puntos: puntos.length, conAcuerdos, sinAcuerdos: puntos.length - conAcuerdos, boletines: boletines.length, invitados: invitados.length, asistentes: asistentes.length }
+  };
+}
+
 // server/routes/apiRoutes.ts
 import { Router, text as expressText } from "express";
 
@@ -4351,689 +4407,6 @@ var DIPUTADOS_COMISIONES_DETALLE = [
     "integrantes": []
   }
 ];
-var CAMARA_CITACIONES_SEMANALES_POR_DIA = [
-  {
-    "fecha": "LUNES, 7 DE SEPTIEMBRE DE 2026",
-    "totalCitaciones": 11,
-    "citaciones": [
-      {
-        "id": "cit-semana-1",
-        "fecha": "LUNES, 7 DE SEPTIEMBRE DE 2026",
-        "comisionNombre": "Trabajo y Seguridad Social",
-        "citacionNumero": "Citaci\xF3n Oficial N\xB0 1",
-        "hora": "10:00 a 12:00",
-        "lugar": "Sala Multiuso 1er Piso primer nivel (Presencial)",
-        "tipo": "Sesi\xF3n de Comisi\xF3n",
-        "materia": "Continuar el estudio del proyecto de ley, originado en mensaje de S.E. el Presidente de la Rep\xFAblica, que \u201CPerfecciona los mecanismos de adaptabilidad de la jornada de trabajo y establece un r\xE9gimen especial para el sector turismo y actividades conexas\u201D, correspondiente al bolet\xEDn N\xB0 18.478-13, con urgencia calificada de \u201Csuma\u201D. Para estos efectos, se ha invitado al se\xF1or Gustavo Rosenda Salazar, Subsecretario del Trabajo; a la se\xF1ora Mar\xEDa Paz Lagos Valdivieso, Subsecreraria deTurismo; al se\xF1or Jos\xE9 Pakomio Torres, Presidente de la C\xE1mara Nacional de Comercio (CNC); al se\xF1or Mat\xEDas Rodr\xEDguez Burr, abogado laboralista y Presidente del Departamento de Derecho del Trabajo y Seguridad Social de la Universidad de Valpara\xEDso; al se\xF1or David Bravo Urrutia, economista, acad\xE9mico, investigador y Director del Centro UC de Encuestas y Estudios Longitudinales; a la se\xF1ora Susana Jim\xE9nez, Presidenta de la Confederaci\xF3n de la Producci\xF3n y del Comercio (CPC); a la se\xF1ora Patricia Silva Mel\xE9ndez, abogada coordinadora del Programa Laboral del Instituto Igualdad y ex Directora del Trabajo, al se\xF1or Manuel Mu\xF1oz Lorca, abogado coordinador de la Asociaci\xF3n de Empresas de Seguridad Privada y de Transporte de Valores (ASEVA), y a la se\xF1ora Mar\xEDa Teresa Vial, Presidenta de la C\xE1mara de Comercio de Santiago A.G.",
-        "invitados": "No informado en la citaci\xF3n.",
-        "tabla": [
-          "Continuar el estudio del proyecto de ley, originado en mensaje de S.E. el Presidente de la Rep\xFAblica, que \u201CPerfecciona los mecanismos de ada..."
-        ],
-        "boletinesRelacionados": [
-          "18.478-13"
-        ],
-        "acuerdosCount": 0,
-        "completada": false
-      },
-      {
-        "id": "cit-semana-2",
-        "fecha": "LUNES, 7 DE SEPTIEMBRE DE 2026",
-        "comisionNombre": "CEI 9 Relativa a determinados actos del Gobierno en materia de seguridad p\xFAblica y prevenci\xF3n del delito durante la gesti\xF3n de la ex Ministra de Seguridad P\xFAblica",
-        "citacionNumero": "Citaci\xF3n Oficial N\xB0 2",
-        "hora": "10:30 a 12:30",
-        "lugar": "Sala de Lectura primer nivel (Presencial)",
-        "tipo": "Comisi\xF3n Especial Investigadora",
-        "materia": "Con el objeto de abocarse al mandato de la Comisi\xF3n. Para tales efectos, se recibir\xE1 a la exministra de Seguridad P\xFAblica, do\xF1a Trinidad Steinert Herrera; a la ex Subdirectora de Inteligencia, Crimen Organizado y Seguridad Migratoria de esa instituci\xF3n, Prefecta General (R) do\xF1a Consuelo Pe\xF1a San Miguel; a la ex Subsecretaria de Prevenci\xF3n del Delito, do\xF1a Ana Victoria Quintana Olgu\xEDn; al Coordinador de asesores del gabinete presidencial, don Alejandro Irarr\xE1zaval Alfonso, y al abogado penalista don Juan Pablo Ma\xF1alich Raffo.",
-        "invitados": "No informado en la citaci\xF3n.",
-        "tabla": [
-          "Con el objeto de abocarse al mandato de la Comisi\xF3n. Para tales efectos, se recibir\xE1 a la exministra de Seguridad P\xFAblica, do\xF1a Trinidad Ste..."
-        ],
-        "boletinesRelacionados": [],
-        "acuerdosCount": 0,
-        "completada": false
-      },
-      {
-        "id": "cit-semana-3",
-        "fecha": "LUNES, 7 DE SEPTIEMBRE DE 2026",
-        "comisionNombre": "CEI 8 Concesi\xF3n de autopistas y determinaci\xF3n de peaje y tag",
-        "citacionNumero": "Citaci\xF3n Oficial N\xB0 3",
-        "hora": "13:30 a 15:00",
-        "lugar": "Sala Pedro Pablo \xC1lvarez-Salamanca tercer nivel (Presencial)",
-        "tipo": "Comisi\xF3n Especial Investigadora",
-        "materia": "Con el objeto de continuar su cometido y dar cumplimiento a lo encomendado en el mandato. Se ha invitado a: - Ex Ministro de Hacienda, se\xF1or Nicol\xE1s Grau Veloso. - Ex Directora de Presupuestos, se\xF1ora Javiera Mart\xEDnez Fari\xF1a. Se ha citado a: - Presidente Panel T\xE9cnico de Concesiones, se\xF1or Ra\xFAl Erazo Torricelli.",
-        "invitados": "No informado en la citaci\xF3n.",
-        "tabla": [
-          "Con el objeto de continuar su cometido y dar cumplimiento a lo encomendado en el mandato. Se ha invitado a: - Ex Ministro de Hacienda, se\xF1or..."
-        ],
-        "boletinesRelacionados": [],
-        "acuerdosCount": 0,
-        "completada": false
-      },
-      {
-        "id": "cit-semana-4",
-        "fecha": "LUNES, 7 DE SEPTIEMBRE DE 2026",
-        "comisionNombre": "Seguridad Ciudadana",
-        "citacionNumero": "Citaci\xF3n Oficial N\xB0 4",
-        "hora": "14:50 a 16:50",
-        "lugar": "Sala de Conferencias In\xE9s Enr\xEDquez segundo nivel (Presencial)",
-        "tipo": "Sesi\xF3n de Comisi\xF3n",
-        "materia": "De 14:50 a 15:50 horas: Continuar la votaci\xF3n en particular del proyecto de ley, originado en mensaje de S. E., el Presidente de la Rep\xFAblica que, \u201Ccrea el registro de actos vand\xE1licos e incivilidades\u201D. Bolet\xEDn N\xB018.341-25, con urgencia calificada de \u201Csuma\u201D. En primer tr\xE1mite constitucional y primero reglamentario. Para tales efectos se invit\xF3 al biministro del Interior y de la Secretar\xEDa General de Gobierno, se\xF1or Claudio Alvarado Andrade.",
-        "invitados": "No informado en la citaci\xF3n.",
-        "tabla": [
-          "De 14:50 a 15:50 horas: Continuar la votaci\xF3n en particular del proyecto de ley, originado en mensaje de S. E., el Presidente de la Rep\xFAblic..."
-        ],
-        "boletinesRelacionados": [
-          "18.341-25"
-        ],
-        "acuerdosCount": 0,
-        "completada": false
-      },
-      {
-        "id": "cit-semana-5",
-        "fecha": "LUNES, 7 DE SEPTIEMBRE DE 2026",
-        "comisionNombre": "la Familia",
-        "citacionNumero": "Citaci\xF3n Oficial N\xB0 5",
-        "hora": "14:50 a 16:50",
-        "lugar": "Sala Octavio Jara Wolff tercer nivel (Presencial)",
-        "tipo": "Sesi\xF3n de Comisi\xF3n",
-        "materia": 'continuar la discusi\xF3n y votaci\xF3n particular del proyecto de ley, iniciado en mensaje de S. E. el Presidente de la Rep\xFAblica, que fortalece el ejercicio de la responsabilidad parental, bolet\xEDn N\xB018378-18, en primer tr\xE1mite constitucional y reglamentario, con urgencia calificada de "suma". NOTA: Se recuerda que el plazo para la formulaci\xF3n de INDICACIONES del proyecto de ley sobre RESPONSABILIDAD PARENTAL, bolet\xEDn N\xB0 18378-18 ES EL JUEVES 3 de SEPTIEMBRE DE 2026, a las 12:00 horas (mediod\xEDa). Se encuentra invitado el Ministro de Justicia y Derechos Humanos, se\xF1or Fernando Rabat, junto al Subsecretario, se\xF1or Luis Alejandro Silva para participar de la tramitaci\xF3n de dicha iniciativa legal, bolet\xEDn N\xB018378-18.',
-        "invitados": "No informado en la citaci\xF3n.",
-        "tabla": [
-          "continuar la discusi\xF3n y votaci\xF3n particular del proyecto de ley, iniciado en mensaje de S. E. el Presidente de la Rep\xFAblica, que fortalece ..."
-        ],
-        "boletinesRelacionados": [
-          "18378-18"
-        ],
-        "acuerdosCount": 0,
-        "completada": false
-      },
-      {
-        "id": "cit-semana-6",
-        "fecha": "LUNES, 7 DE SEPTIEMBRE DE 2026",
-        "comisionNombre": "Zonas Extremas y Ant\xE1rtica Chilena",
-        "citacionNumero": "Citaci\xF3n Oficial N\xB0 6",
-        "hora": "14:50 a 16:50",
-        "lugar": "Sala Manuel Bustos Huerta tercer nivel (Presencial)",
-        "tipo": "Sesi\xF3n de Comisi\xF3n",
-        "materia": "Recibir en audiencia al se\xF1or Roberto Levin Jim\xE9nez, Director Ejecutivo de la Fundaci\xF3n Acrux, a fin de que exponga la experiencia de dicha instituci\xF3n en la realizaci\xF3n de operativos m\xE9dicos en zonas extremas y territorios aislados, y d\xE9 a conocer propuestas y alternativas destinadas a contribuir a la reducci\xF3n de las listas de espera y a mejorar el acceso a prestaciones de salud en dichos territorios, atendidos los antecedentes planteados por los alcaldes y alcaldesas durante el ciclo de audiencias desarrollado por la Comisi\xF3n.",
-        "invitados": "No informado en la citaci\xF3n.",
-        "tabla": [
-          "Recibir en audiencia al se\xF1or Roberto Levin Jim\xE9nez, Director Ejecutivo de la Fundaci\xF3n Acrux, a fin de que exponga la experiencia de dicha ..."
-        ],
-        "boletinesRelacionados": [],
-        "acuerdosCount": 0,
-        "completada": false
-      },
-      {
-        "id": "cit-semana-7",
-        "fecha": "LUNES, 7 DE SEPTIEMBRE DE 2026",
-        "comisionNombre": "Recursos H\xEDdricos y Desertificaci\xF3n",
-        "citacionNumero": "Citaci\xF3n Oficial N\xB0 7",
-        "hora": "14:50 a 16:50",
-        "lugar": "Sala N\xB0 410 cuarto nivel (Presencial)",
-        "tipo": "Sesi\xF3n de Comisi\xF3n",
-        "materia": "Iniciar la discusi\xF3n particular del proyecto de ley que modifica el C\xF3digo de Aguas para garantizar la participaci\xF3n de comit\xE9s y cooperativas de agua potable rural, prestadoras de servicios sanitarios rurales, en los directorios de las comunidades de agua, correspondiente a los boletines n\xFAmeros 17.324-33 y 17.325-33, refundidos, en primer tr\xE1mite constitucional y segundo reglamentario.",
-        "invitados": "No informado en la citaci\xF3n.",
-        "tabla": [
-          "Iniciar la discusi\xF3n particular del proyecto de ley que modifica el C\xF3digo de Aguas para garantizar la participaci\xF3n de comit\xE9s y cooperativ..."
-        ],
-        "boletinesRelacionados": [
-          "17.324-33",
-          "17.325-33"
-        ],
-        "acuerdosCount": 0,
-        "completada": false
-      },
-      {
-        "id": "cit-semana-8",
-        "fecha": "LUNES, 7 DE SEPTIEMBRE DE 2026",
-        "comisionNombre": "Cultura, Artes y Comunicaciones",
-        "citacionNumero": "Citaci\xF3n Oficial N\xB0 8",
-        "hora": "14:50 a 16:50",
-        "lugar": "Sala Ram\xF3n P\xE9rez Opazo tercer nivel (Presencial)",
-        "tipo": "Sesi\xF3n de Comisi\xF3n",
-        "materia": "Recibir en audiencia a la se\xF1ora Amara Rivera, en representaci\xF3n de la Corporaci\xF3n Hijas e Hijos de Gabriela Mistral, con el objeto de que exponga acerca del destino de los derechos de autor de la obra de la poetisa y de la propuesta de destinarlos \xEDntegramente a programas art\xEDsticos, educacionales y culturales dirigidos a los ni\xF1os de Montegrande. Asimismo, para que se refiera a la posibilidad de impulsar una iniciativa legal que extienda la vigencia de dichos derechos cuando la voluntad expresa del autor o autora se funde en una finalidad social y de bien p\xFAblico. Se ha invitado a la se\xF1ora Amara Rivera, en representaci\xF3n de la referida Corporaci\xF3n.",
-        "invitados": "No informado en la citaci\xF3n.",
-        "tabla": [
-          "Recibir en audiencia a la se\xF1ora Amara Rivera, en representaci\xF3n de la Corporaci\xF3n Hijas e Hijos de Gabriela Mistral, con el objeto de que e..."
-        ],
-        "boletinesRelacionados": [],
-        "acuerdosCount": 0,
-        "completada": false
-      },
-      {
-        "id": "cit-semana-9",
-        "fecha": "LUNES, 7 DE SEPTIEMBRE DE 2026",
-        "comisionNombre": "Desarrollo Social, Superaci\xF3n de la Pobreza y Planificaci\xF3n",
-        "citacionNumero": "Citaci\xF3n Oficial N\xB0 9",
-        "hora": "14:50 a 16:50",
-        "lugar": "Sala Juan Lobos Krause tercer nivel (Presencial)",
-        "tipo": "Sesi\xF3n de Comisi\xF3n",
-        "materia": "analizar, junto a las autoridades competentes, las conclusiones y propuestas contenidas en el Informe de la Mesa por la Ni\xF1ez, elaborado por la Comisi\xF3n de Familia, e identificar las materias vinculadas al \xE1mbito de su competencia, as\xED como eventuales iniciativas legislativas que puedan impulsarse a partir de dicho trabajo. Para tales efectos se encuentran invitados: - Subsecretario de la Ni\xF1ez, se\xF1or Marcelo S\xE1nchez Ahumada. - Director del Servicio Nacional de Protecci\xF3n Especializada a la Ni\xF1ez y Adolescencia (S), se\xF1or Gherman Welsch Chahu\xE1n.",
-        "invitados": "No informado en la citaci\xF3n.",
-        "tabla": [
-          "analizar, junto a las autoridades competentes, las conclusiones y propuestas contenidas en el Informe de la Mesa por la Ni\xF1ez, elaborado por..."
-        ],
-        "boletinesRelacionados": [],
-        "acuerdosCount": 0,
-        "completada": false
-      },
-      {
-        "id": "cit-semana-10",
-        "fecha": "LUNES, 7 DE SEPTIEMBRE DE 2026",
-        "comisionNombre": "Control del Sistema de Inteligencia del Estado",
-        "citacionNumero": "Citaci\xF3n Oficial N\xB0 10",
-        "hora": "15:30 a 16:50",
-        "lugar": "Sala Pedro Pablo \xC1lvarez-Salamanca tercer nivel (Presencial)",
-        "tipo": "Sesi\xF3n de Comisi\xF3n",
-        "materia": "Tratar materias propias de la competencia de la Comisi\xF3n. Invitados: Director de la Agencia Nacional de Inteligencia, se\xF1or Ronald Mc Intyre Astorga. Fiscal Nacional del Ministerio P\xFAblico, se\xF1or \xC1ngel Valencia V\xE1squez.",
-        "invitados": "No informado en la citaci\xF3n.",
-        "tabla": [
-          "Tratar materias propias de la competencia de la Comisi\xF3n. Invitados: Director de la Agencia Nacional de Inteligencia, se\xF1or Ronald Mc Intyre..."
-        ],
-        "boletinesRelacionados": [],
-        "acuerdosCount": 0,
-        "completada": false
-      },
-      {
-        "id": "cit-semana-11",
-        "fecha": "LUNES, 7 DE SEPTIEMBRE DE 2026",
-        "comisionNombre": "Futuro, Ciencias, Tecnolog\xEDa, Conocimiento e Innovaci\xF3n",
-        "citacionNumero": "Citaci\xF3n Oficial N\xB0 11",
-        "hora": "16:15 a 19:00",
-        "lugar": "Sala Arturo Longton Guerrero tercer nivel (Presencial)",
-        "tipo": "Sesi\xF3n de Comisi\xF3n",
-        "materia": "Sesi\xF3n especial* citada con objeto de continuar con la votaci\xF3n en particular del proyecto de ley, en primer tr\xE1mite constitucional, con urgencia calificada de \u201Csuma\u201D, originado en las siguientes mociones refundidas: 1) El que establece un marco integral de protecci\xF3n de ni\xF1as, ni\xF1os y adolescentes en el uso de redes sociales (bolet\xEDn N\xB0 18224-18), de los diputados y diputadas Lorena Fries (A), Jaime Araya, Mat\xEDas Fern\xE1ndez, Ana Mar\xEDa Gazmuri, Andrea Mac\xEDas, Luis Malla, Cristian Mella, Jos\xE9 Montalva, Zandra Parisi y Gonzalo Winter. 2) El que protege a los menores de edad frente a la adicci\xF3n a las nuevas tecnolog\xEDas y proh\xEDbe el acceso a redes sociales y otras plataformas (bolet\xEDn N\xB0 18246-18), de las diputadas y diputados Diego Schalper (A), H\xE9ctor Barr\xEDa, Patricio Briones, Andr\xE9s Celis, Tom\xE1s Kast, Ra\xFAl Leiva, Paula Olmos, Ximena Ossand\xF3n, Macarena Santelices y H\xE9ctor Ulloa. 3) El que establece un estatuto de responsabilidad algor\xEDtmica y protecci\xF3n digital de ni\xF1os, ni\xF1as y adolescentes (bolet\xEDn N\xB0 18318-19), de las diputadas y diputados Daniel Manouchehri (A), Patricio Briones, Andr\xE9s Celis, Carolina Cucumides, Crist\xF3bal Mart\xEDnez, Jos\xE9 Montalva, Daniela Serrano, Consuelo Veloso, Gonzalo Winter y Gael Yeomans. 4) El que modifica la ley N\xB0 21.663, marco de ciberseguridad, para incorporar los principios de protecci\xF3n a la infancia y adolescencia, restricci\xF3n etaria e informaci\xF3n preventiva en entornos digitales (bolet\xEDn N\xB0 18415-18), de los diputados y diputadas Sara Concha (A), Patricio Briones, Andr\xE9s Celis, Tom\xE1s Kast, Jos\xE9 Montalva, Francesca Mu\xF1oz y Tamara Ram\xEDrez. En raz\xF3n de lo anterior, la Comisi\xF3n ha invitado a la ministra de Desarrollo Social y Familia, se\xF1ora Mar\xEDa Jes\xFAs Wulf Le May, y/o al subsecretario de la Ni\xF1ez, se\xF1or Marcelo S\xE1nchez Ahumada. * Esta sesi\xF3n reemplaza a la ordinaria, toda vez que la Comisi\xF3n tiene una actividad oficial en Santiago con la ministra de Ciencia, Tecnolog\xEDa, Conocimiento e Innovaci\xF3n. \u2022 Ministra de Desarrollo Social y Familia, y/o \u2022 Subsecretario de la Ni\xF1ez.",
-        "invitados": "No informado en la citaci\xF3n.",
-        "tabla": [
-          "Sesi\xF3n especial* citada con objeto de continuar con la votaci\xF3n en particular del proyecto de ley, en primer tr\xE1mite constitucional, con urg..."
-        ],
-        "boletinesRelacionados": [
-          "18224-18",
-          "18246-18",
-          "18318-19",
-          "18415-18"
-        ],
-        "acuerdosCount": 0,
-        "completada": false
-      }
-    ]
-  },
-  {
-    "fecha": "MARTES, 8 DE SEPTIEMBRE DE 2026",
-    "totalCitaciones": 15,
-    "citaciones": [
-      {
-        "id": "cit-semana-12",
-        "fecha": "MARTES, 8 DE SEPTIEMBRE DE 2026",
-        "comisionNombre": "CEI 2 Sobre discrepancias en las cifras de producci\xF3n de Codelco durante el a\xF1o 2025",
-        "citacionNumero": "Citaci\xF3n Oficial N\xB0 12",
-        "hora": "08:30 a 09:50",
-        "lugar": "Sala Ram\xF3n P\xE9rez Opazo tercer nivel (Presencial)",
-        "tipo": "Comisi\xF3n Especial Investigadora",
-        "materia": "recibir en audiencia, en el marco de su mandato, al Economista y Director Acad\xE9mico del Diplomado en Finanzas, FEN, de la Universidad de Chile, se\xF1or Jorge Berr\xEDos Vogel.",
-        "invitados": "No informado en la citaci\xF3n.",
-        "tabla": [
-          "recibir en audiencia, en el marco de su mandato, al Economista y Director Acad\xE9mico del Diplomado en Finanzas, FEN, de la Universidad de Chi..."
-        ],
-        "boletinesRelacionados": [],
-        "acuerdosCount": 0,
-        "completada": false
-      },
-      {
-        "id": "cit-semana-13",
-        "fecha": "MARTES, 8 DE SEPTIEMBRE DE 2026",
-        "comisionNombre": "Futuro, Ciencias, Tecnolog\xEDa, Conocimiento e Innovaci\xF3n",
-        "citacionNumero": "Citaci\xF3n Oficial N\xB0 13",
-        "hora": "10:30 a 13:00",
-        "lugar": "Sala Arturo Longton Guerrero tercer nivel (Presencial)",
-        "tipo": "Sesi\xF3n de Comisi\xF3n",
-        "materia": "Sesi\xF3n especial citada con objeto de continuar con la votaci\xF3n en particular del proyecto de ley, en primer tr\xE1mite constitucional, con urgencia calificada de \u201Csuma\u201D, originado en las siguientes mociones refundidas: 1) El que establece un marco integral de protecci\xF3n de ni\xF1as, ni\xF1os y adolescentes en el uso de redes sociales (bolet\xEDn N\xB0 18224-18), de los diputados y diputadas Lorena Fries (A), Jaime Araya, Mat\xEDas Fern\xE1ndez, Ana Mar\xEDa Gazmuri, Andrea Mac\xEDas, Luis Malla, Cristian Mella, Jos\xE9 Montalva, Zandra Parisi y Gonzalo Winter. 2) El que protege a los menores de edad frente a la adicci\xF3n a las nuevas tecnolog\xEDas y proh\xEDbe el acceso a redes sociales y otras plataformas (bolet\xEDn N\xB0 18246-18), de las diputadas y diputados Diego Schalper (A), H\xE9ctor Barr\xEDa, Patricio Briones, Andr\xE9s Celis, Tom\xE1s Kast, Ra\xFAl Leiva, Paula Olmos, Ximena Ossand\xF3n, Macarena Santelices y H\xE9ctor Ulloa. 3) El que establece un estatuto de responsabilidad algor\xEDtmica y protecci\xF3n digital de ni\xF1os, ni\xF1as y adolescentes (bolet\xEDn N\xB0 18318-19), de las diputadas y diputados Daniel Manouchehri (A), Patricio Briones, Andr\xE9s Celis, Carolina Cucumides, Crist\xF3bal Mart\xEDnez, Jos\xE9 Montalva, Daniela Serrano, Consuelo Veloso, Gonzalo Winter y Gael Yeomans. 4) El que modifica la ley N\xB0 21.663, marco de ciberseguridad, para incorporar los principios de protecci\xF3n a la infancia y adolescencia, restricci\xF3n etaria e informaci\xF3n preventiva en entornos digitales (bolet\xEDn N\xB0 18415-18), de los diputados y diputadas Sara Concha (A), Patricio Briones, Andr\xE9s Celis, Tom\xE1s Kast, Jos\xE9 Montalva, Francesca Mu\xF1oz y Tamara Ram\xEDrez. En raz\xF3n de lo anterior, la Comisi\xF3n ha invitado a la ministra de Desarrollo Social y Familia, se\xF1ora Mar\xEDa Jes\xFAs Wulf Le May, y/o al subsecretario de la Ni\xF1ez, se\xF1or Marcelo S\xE1nchez Ahumada. \u2022 Ministra de Desarrollo Social y Familia, y/o \u2022 Subsecretario de la Ni\xF1ez.",
-        "invitados": "No informado en la citaci\xF3n.",
-        "tabla": [
-          "Sesi\xF3n especial citada con objeto de continuar con la votaci\xF3n en particular del proyecto de ley, en primer tr\xE1mite constitucional, con urge..."
-        ],
-        "boletinesRelacionados": [
-          "18224-18",
-          "18246-18",
-          "18318-19",
-          "18415-18"
-        ],
-        "acuerdosCount": 0,
-        "completada": false
-      },
-      {
-        "id": "cit-semana-14",
-        "fecha": "MARTES, 8 DE SEPTIEMBRE DE 2026",
-        "comisionNombre": "\xC9tica y Transparencia",
-        "citacionNumero": "Citaci\xF3n Oficial N\xB0 14",
-        "hora": "11:00 a 12:30",
-        "lugar": "Sala Pedro Pablo \xC1lvarez-Salamanca tercer nivel (Presencial)",
-        "tipo": "Sesi\xF3n de Comisi\xF3n",
-        "materia": "Con el objeto de tratar materias propias de su competencia.",
-        "invitados": "No informado en la citaci\xF3n.",
-        "tabla": [
-          "Con el objeto de tratar materias propias de su competencia...."
-        ],
-        "boletinesRelacionados": [],
-        "acuerdosCount": 0,
-        "completada": false
-      },
-      {
-        "id": "cit-semana-15",
-        "fecha": "MARTES, 8 DE SEPTIEMBRE DE 2026",
-        "comisionNombre": "Constituci\xF3n, Legislaci\xF3n, Justicia y Reglamento",
-        "citacionNumero": "Citaci\xF3n Oficial N\xB0 15",
-        "hora": "15:00 a 17:00",
-        "lugar": "Sala Francisco Bulnes Sanfuentes tercer nivel (Presencial)",
-        "tipo": "Sesi\xF3n de Comisi\xF3n",
-        "materia": "Continuar la tramitaci\xF3n en particular del proyecto de ley, en primer tr\xE1mite constitucional e iniciado en mensaje, que \u201CAmpl\xEDa las hip\xF3tesis de tr\xE1fico de migrantes y modifica los textos legales que indica\u201D. Bolet\xEDn N\xB0 18.315-07 refundido con proyecto de ley N\xB0 16.948-07. Discusi\xF3n inmediata. Se ha invitado al se\xF1or Ministro de Justicia y Derechos Humanos, y a los expertos en derecho penal se\xF1ora Diva Serra (U. de Concepci\xF3n); se\xF1ora Tania Gajardo (U. Cat\xF3lica de Chile); se\xF1or Juan Pablo Castillo (U. A. Hurtado); Antonio Bascu\xF1\xE1n (U. Adolfo Ib\xE1\xF1ez), sin perjuicio de los invitados que propongan los (as) integrantes de la Comisi\xF3n.",
-        "invitados": "No informado en la citaci\xF3n.",
-        "tabla": [
-          "Continuar la tramitaci\xF3n en particular del proyecto de ley, en primer tr\xE1mite constitucional e iniciado en mensaje, que \u201CAmpl\xEDa las hip\xF3tesi..."
-        ],
-        "boletinesRelacionados": [
-          "18.315-07",
-          "16.948-07"
-        ],
-        "acuerdosCount": 0,
-        "completada": false
-      },
-      {
-        "id": "cit-semana-16",
-        "fecha": "MARTES, 8 DE SEPTIEMBRE DE 2026",
-        "comisionNombre": "Deportes y Recreaci\xF3n",
-        "citacionNumero": "Citaci\xF3n Oficial N\xB0 16",
-        "hora": "15:00 a 17:00",
-        "lugar": "Sala Octavio Jara Wolff tercer nivel (Presencial)",
-        "tipo": "Sesi\xF3n de Comisi\xF3n",
-        "materia": "Analizar casos de maltrato y discriminaci\xF3n que han sido puestos en conocimiento de la Defensor\xEDa del Deportista, por presuntas vulneraciones de derechos de deportistas, que no habr\xEDan obtenido una respuesta adecuada por parte de las instituciones correspondientes. Para tales efectos, se encuentran invitados el Director de la Defensor\xEDa del Deportista, se\xF1or Eduardo Ar\xE9valo Mateluna, y el Subsecretario de la Ni\xF1ez, don Marcelo S\xE1nchez Ahumada.",
-        "invitados": "No informado en la citaci\xF3n.",
-        "tabla": [
-          "Analizar casos de maltrato y discriminaci\xF3n que han sido puestos en conocimiento de la Defensor\xEDa del Deportista, por presuntas vulneracione..."
-        ],
-        "boletinesRelacionados": [],
-        "acuerdosCount": 0,
-        "completada": false
-      },
-      {
-        "id": "cit-semana-17",
-        "fecha": "MARTES, 8 DE SEPTIEMBRE DE 2026",
-        "comisionNombre": "Agricultura, Silvicultura y Desarrollo Rural",
-        "citacionNumero": "Citaci\xF3n Oficial N\xB0 17",
-        "hora": "15:00 a 17:00",
-        "lugar": "Sala Pedro Pablo \xC1lvarez-Salamanca tercer nivel (Presencial)",
-        "tipo": "Sesi\xF3n de Comisi\xF3n",
-        "materia": "De 15:00 a 16:00 horas: Continuar con la discusi\xF3n del proyecto de ley que \u201CModifica la Ley General de Urbanismo y Construcciones, y otros cuerpos legales, para regular el desarrollo de zonas residenciales en el medio rural\u201D, Bolet\xEDn N\xB017.006-01. Para este efecto se encuentran invitados: - El Ministro de Agricultura, don Jaime Campos. - El Ministro de Vivienda y Urbanismo, don Iv\xE1n Poduje.",
-        "invitados": "No informado en la citaci\xF3n.",
-        "tabla": [
-          "De 15:00 a 16:00 horas: Continuar con la discusi\xF3n del proyecto de ley que \u201CModifica la Ley General de Urbanismo y Construcciones, y otros c..."
-        ],
-        "boletinesRelacionados": [
-          "17.006-01"
-        ],
-        "acuerdosCount": 0,
-        "completada": false
-      },
-      {
-        "id": "cit-semana-18",
-        "fecha": "MARTES, 8 DE SEPTIEMBRE DE 2026",
-        "comisionNombre": "Gobierno Interior, Nacionalidad, Ciudadan\xEDa y Regionalizaci\xF3n",
-        "citacionNumero": "Citaci\xF3n Oficial N\xB0 18",
-        "hora": "15:00 a 17:00",
-        "lugar": "Sala Arturo Longton Guerrero tercer nivel (Presencial)",
-        "tipo": "Sesi\xF3n de Comisi\xF3n",
-        "materia": "Proyecto de ley, de origen en moci\xF3n, en primer tr\xE1mite constitucional y reglamentario, que declara feriado nacional el 17 de septiembre de 2026 (Bolet\xEDn N\xB0 18.600-06). Respecto de este proyecto de ley, ha sido invitado el Biministro de Econom\xEDa y Energ\xEDa, se\xF1or Daniel M\xE1s Vald\xE9s.",
-        "invitados": "No informado en la citaci\xF3n.",
-        "tabla": [
-          "Proyecto de ley, de origen en moci\xF3n, en primer tr\xE1mite constitucional y reglamentario, que declara feriado nacional el 17 de septiembre de ..."
-        ],
-        "boletinesRelacionados": [
-          "18.600-06"
-        ],
-        "acuerdosCount": 0,
-        "completada": false
-      },
-      {
-        "id": "cit-semana-19",
-        "fecha": "MARTES, 8 DE SEPTIEMBRE DE 2026",
-        "comisionNombre": "Educaci\xF3n",
-        "citacionNumero": "Citaci\xF3n Oficial N\xB0 19",
-        "hora": "15:00 a 17:00",
-        "lugar": "Sala de Conferencias In\xE9s Enr\xEDquez segundo nivel (Presencial)",
-        "tipo": "Sesi\xF3n de Comisi\xF3n",
-        "materia": "Sesi\xF3n ordinaria citada con objeto de ocuparse de los siguientes asuntos:",
-        "invitados": "No informado en la citaci\xF3n.",
-        "tabla": [
-          "Sesi\xF3n ordinaria citada con objeto de ocuparse de los siguientes asuntos:..."
-        ],
-        "boletinesRelacionados": [],
-        "acuerdosCount": 0,
-        "completada": false
-      },
-      {
-        "id": "cit-semana-20",
-        "fecha": "MARTES, 8 DE SEPTIEMBRE DE 2026",
-        "comisionNombre": "Relaciones Exteriores, Asuntos Interparlamentarios e Integraci\xF3n Latinoamericana",
-        "citacionNumero": "Citaci\xF3n Oficial N\xB0 20",
-        "hora": "15:00 a 17:00",
-        "lugar": "Sala Manuel Bustos Huerta tercer nivel (Presencial)",
-        "tipo": "Sesi\xF3n de Comisi\xF3n",
-        "materia": "Recibir en audiencia al se\xF1or Gino Casassa Rogazinski, Director del Instituto Ant\xE1rtico Chileno (INACH), a fin de abordar los efectos del calentamiento global y sus causas en el territorio ant\xE1rtico nacional. - Director del Instituto Ant\xE1rtico Chileno (INACH), se\xF1or Gino Casassa Rogazinski.",
-        "invitados": "No informado en la citaci\xF3n.",
-        "tabla": [
-          "Recibir en audiencia al se\xF1or Gino Casassa Rogazinski, Director del Instituto Ant\xE1rtico Chileno (INACH), a fin de abordar los efectos del ca..."
-        ],
-        "boletinesRelacionados": [],
-        "acuerdosCount": 0,
-        "completada": false
-      },
-      {
-        "id": "cit-semana-21",
-        "fecha": "MARTES, 8 DE SEPTIEMBRE DE 2026",
-        "comisionNombre": "Personas Mayores y Discapacidad",
-        "citacionNumero": "Citaci\xF3n Oficial N\xB0 21",
-        "hora": "17:30 a 19:30",
-        "lugar": "Sala Octavio Jara Wolff tercer nivel (Presencial)",
-        "tipo": "Sesi\xF3n de Comisi\xF3n",
-        "materia": 'Continuar el estudio, en general, de la iniciativa que "Modifica la ley N\xB018.961, org\xE1nica constitucional de Carabineros de Chile, en cuanto a los procedimientos de evaluaci\xF3n m\xE9dica que fundamentan retiros de personal". Bolet\xEDn N\xB0 18448-25. Para este objeto se ha invitado a General Director de Carabineros, Marcelo Araya Zapata; al director de Disalcar; al Jefe de la Direcci\xF3n de Salud de Carabineros, y al Director de Dipreca.',
-        "invitados": "No informado en la citaci\xF3n.",
-        "tabla": [
-          'Continuar el estudio, en general, de la iniciativa que "Modifica la ley N\xB018.961, org\xE1nica constitucional de Carabineros de Chile, en cuanto...'
-        ],
-        "boletinesRelacionados": [
-          "18448-25"
-        ],
-        "acuerdosCount": 0,
-        "completada": false
-      },
-      {
-        "id": "cit-semana-22",
-        "fecha": "MARTES, 8 DE SEPTIEMBRE DE 2026",
-        "comisionNombre": "Salud",
-        "citacionNumero": "Citaci\xF3n Oficial N\xB0 22",
-        "hora": "17:30 a 19:30",
-        "lugar": "Sala Juan Lobos Krause tercer nivel (Presencial)",
-        "tipo": "Sesi\xF3n de Comisi\xF3n",
-        "materia": "Recibir a los representantes de los trabajadores de la atenci\xF3n primaria de salud, a fin de que expongan sobre la situaci\xF3n presupuestaria de la atenci\xF3n primaria, el financiamiento per c\xE1pita y los efectos de los recortes en el funcionamiento de los servicios de salud, entre otras materias.",
-        "invitados": "No informado en la citaci\xF3n.",
-        "tabla": [
-          "Recibir a los representantes de los trabajadores de la atenci\xF3n primaria de salud, a fin de que expongan sobre la situaci\xF3n presupuestaria d..."
-        ],
-        "boletinesRelacionados": [],
-        "acuerdosCount": 0,
-        "completada": false
-      },
-      {
-        "id": "cit-semana-23",
-        "fecha": "MARTES, 8 DE SEPTIEMBRE DE 2026",
-        "comisionNombre": "Econom\xEDa, Fomento; Micro, Peque\xF1a y Mediana Empresa; Protecci\xF3n de los Consumidores y Turismo",
-        "citacionNumero": "Citaci\xF3n Oficial N\xB0 23",
-        "hora": "17:30 a 19:30",
-        "lugar": "Sala Ram\xF3n P\xE9rez Opazo tercer nivel (Presencial)",
-        "tipo": "Sesi\xF3n de Comisi\xF3n",
-        "materia": "continuar la discusi\xF3n y votaci\xF3n particular del proyecto de ley, originado en mensaje de S. E. el Presidente de la Rep\xFAblica, que modifica la ley N\xB0 19.799, sobre documentos electr\xF3nicos, firma electr\xF3nica y servicios de certificaci\xF3n de dicha firma, y otros cuerpos legales relacionados, bolet\xEDn N\xB0 18286-03, con urgencia calificada de \u201Csimple\u201D, en primer tr\xE1mite constitucional y primero reglamentario. NOTA: Se recuerda que el plazo para la formulaci\xF3n de INDICACIONES a este l proyecto de ley es el VIERNES 4 DE SEPTIEMBRE DE 2026, a las 12:00 hrs (mediod\xEDa).. Se encuentra invitado a participar de la tramitaci\xF3n de esta iniciativa el Ministro de Econom\xEDa, Fomento y Turismo, se\xF1or Daniel Mas; el Subsecretario de Econom\xEDa, se\xF1or Karlfranz Koehler y un representante experto en la materia de dicho Ministerio.",
-        "invitados": "No informado en la citaci\xF3n.",
-        "tabla": [
-          "continuar la discusi\xF3n y votaci\xF3n particular del proyecto de ley, originado en mensaje de S. E. el Presidente de la Rep\xFAblica, que modifica ..."
-        ],
-        "boletinesRelacionados": [
-          "18286-03"
-        ],
-        "acuerdosCount": 0,
-        "completada": false
-      },
-      {
-        "id": "cit-semana-24",
-        "fecha": "MARTES, 8 DE SEPTIEMBRE DE 2026",
-        "comisionNombre": "Trabajo y Seguridad Social",
-        "citacionNumero": "Citaci\xF3n Oficial N\xB0 24",
-        "hora": "17:30 a 19:30",
-        "lugar": "Sala Manuel Bustos Huerta tercer nivel (Presencial)",
-        "tipo": "Sesi\xF3n de Comisi\xF3n",
-        "materia": "Continuar el estudio y votar en general el proyecto de ley, originado en mensaje de S.E. el Presidente de la Rep\xFAblica, que \u201CPerfecciona los mecanismos de adaptabilidad de la jornada de trabajo y establece un r\xE9gimen especial para el sector turismo y actividades conexas\u201D, correspondiente al bolet\xEDn N\xB0 18.478-13, con urgencia calificada de \u201Csuma\u201D. Para estos efectos, se escuchar\xE1n, en primer lugar, las intervenciones pendientes de las diputadas se\xF1oras Ximena Ossand\xF3n y Gael Yeomans. Asimismo, se ha invitado al se\xF1or Gustavo Rosende Salazar, Subsecretario del Trabajo; a la se\xF1ora Mar\xEDa Paz Lagos Valdivieso, Subsecretaria de Turismo, al se\xF1or Claudio S\xE1nchez Pino, Presidente de la Central de Trabajadores de Chile (CTCH); a la se\xF1ora Bettina Horst von Thadden, Directora Ejecutiva de Libertad y Desarrollo (LyD); al se\xF1or Diego Ignacio Valerio Avalosa, Presidente de la Federaci\xF3n de Sindicatos de Casinos de Juego y Hoteles de Chile (FENASICAJH), y al se\xF1or Juan Manuel Mira Velasco, Presidente de Chilealimentos.",
-        "invitados": "No informado en la citaci\xF3n.",
-        "tabla": [
-          "Continuar el estudio y votar en general el proyecto de ley, originado en mensaje de S.E. el Presidente de la Rep\xFAblica, que \u201CPerfecciona los..."
-        ],
-        "boletinesRelacionados": [
-          "18.478-13"
-        ],
-        "acuerdosCount": 0,
-        "completada": false
-      },
-      {
-        "id": "cit-semana-25",
-        "fecha": "MARTES, 8 DE SEPTIEMBRE DE 2026",
-        "comisionNombre": "Defensa Nacional",
-        "citacionNumero": "Citaci\xF3n Oficial N\xB0 25",
-        "hora": "17:30 a 19:30",
-        "lugar": "Sala N\xB0 408 cuarto nivel (Presencial)",
-        "tipo": "Sesi\xF3n de Comisi\xF3n",
-        "materia": "Continuar la discusi\xF3n general del proyecto de ley que aumenta la pena aplicable al delito de ingreso no autorizado a recintos militares y policiales, y fortalece la protecci\xF3n de la seguridad p\xFAblica, correspondiente a los boletines refundidos N\xB018.361-02 y 18.381-02.",
-        "invitados": "No informado en la citaci\xF3n.",
-        "tabla": [
-          "Continuar la discusi\xF3n general del proyecto de ley que aumenta la pena aplicable al delito de ingreso no autorizado a recintos militares y p..."
-        ],
-        "boletinesRelacionados": [
-          "18.361-02",
-          "18.381-02"
-        ],
-        "acuerdosCount": 0,
-        "completada": false
-      },
-      {
-        "id": "cit-semana-26",
-        "fecha": "MARTES, 8 DE SEPTIEMBRE DE 2026",
-        "comisionNombre": "Obras P\xFAblicas, Transportes y Telecomunicaciones",
-        "citacionNumero": "Citaci\xF3n Oficial N\xB0 26",
-        "hora": "17:30 a 19:30",
-        "lugar": "Sala de Conferencias In\xE9s Enr\xEDquez segundo nivel (Presencial)",
-        "tipo": "Sesi\xF3n de Comisi\xF3n",
-        "materia": 'Mensaje de S. E. el Presidente de la Rep\xFAblica, en primer tr\xE1mite constitucional y con urgencia calificada de suma, por el cual da inicio a la tramitaci\xF3n del proyecto que "modifica la Ley Org\xE1nica de la Empresa de los Ferrocarriles del Estado, con el objeto de establecer una exenci\xF3n de derechos y tributos municipales por la ejecuci\xF3n de obras ferroviarias y declarar dichas obras como infraestructura ejecutada por el Estado". BOLET\xCDN N\xB018.436-15. Se encuentra invitado el Biministro de Obras P\xFAblicas, Transportes y Telecomunicaciones, se\xF1or Louis De Grange Concha.',
-        "invitados": "No informado en la citaci\xF3n.",
-        "tabla": [
-          "Mensaje de S. E. el Presidente de la Rep\xFAblica, en primer tr\xE1mite constitucional y con urgencia calificada de suma, por el cual da inicio a ..."
-        ],
-        "boletinesRelacionados": [
-          "18.436-15"
-        ],
-        "acuerdosCount": 0,
-        "completada": false
-      }
-    ]
-  },
-  {
-    "fecha": "MI\xC9RCOLES, 9 DE SEPTIEMBRE DE 2026",
-    "totalCitaciones": 10,
-    "citaciones": [
-      {
-        "id": "cit-semana-27",
-        "fecha": "MI\xC9RCOLES, 9 DE SEPTIEMBRE DE 2026",
-        "comisionNombre": "CEI 3 Control migratorio de NNA extranjeros en el marco de procedimientos de reunificaci\xF3n familiar",
-        "citacionNumero": "Citaci\xF3n Oficial N\xB0 27",
-        "hora": "08:30 a 09:45",
-        "lugar": "Sala Ram\xF3n P\xE9rez Opazo tercer nivel (Presencial)",
-        "tipo": "Comisi\xF3n Especial Investigadora",
-        "materia": "Recibir, en el marco del mandato de la comisi\xF3n, al director nacional del Servicio Nacional de Migraciones, se\xF1or Frank Sauerbaum, para que de respuesta a las consultas formuladas por los miembros de la comisi\xF3n durante la sesi\xF3n pasada, y al Defensor de la Ni\xF1ez, se\xF1or Anuar Quesille. El director nacional del Servicio Nacional de Migraciones, se\xF1or Frank Sauerbaum. El Defensor de la Ni\xF1ez, se\xF1or Anuar Quesille.",
-        "invitados": "No informado en la citaci\xF3n.",
-        "tabla": [
-          "Recibir, en el marco del mandato de la comisi\xF3n, al director nacional del Servicio Nacional de Migraciones, se\xF1or Frank Sauerbaum, para que ..."
-        ],
-        "boletinesRelacionados": [],
-        "acuerdosCount": 0,
-        "completada": false
-      },
-      {
-        "id": "cit-semana-28",
-        "fecha": "MI\xC9RCOLES, 9 DE SEPTIEMBRE DE 2026",
-        "comisionNombre": "Futuro, Ciencias, Tecnolog\xEDa, Conocimiento e Innovaci\xF3n",
-        "citacionNumero": "Citaci\xF3n Oficial N\xB0 28",
-        "hora": "10:30 a 13:00",
-        "lugar": "Sala Arturo Longton Guerrero tercer nivel (Presencial)",
-        "tipo": "Sesi\xF3n de Comisi\xF3n",
-        "materia": "Sesi\xF3n especial citada con objeto de continuar con la votaci\xF3n en particular del proyecto de ley, en primer tr\xE1mite constitucional, con urgencia calificada de \u201Csuma\u201D, originado en las siguientes mociones refundidas: 1) El que establece un marco integral de protecci\xF3n de ni\xF1as, ni\xF1os y adolescentes en el uso de redes sociales (bolet\xEDn N\xB0 18224-18), de los diputados y diputadas Lorena Fries (A), Jaime Araya, Mat\xEDas Fern\xE1ndez, Ana Mar\xEDa Gazmuri, Andrea Mac\xEDas, Luis Malla, Cristian Mella, Jos\xE9 Montalva, Zandra Parisi y Gonzalo Winter. 2) El que protege a los menores de edad frente a la adicci\xF3n a las nuevas tecnolog\xEDas y proh\xEDbe el acceso a redes sociales y otras plataformas (bolet\xEDn N\xB0 18246-18), de las diputadas y diputados Diego Schalper (A), H\xE9ctor Barr\xEDa, Patricio Briones, Andr\xE9s Celis, Tom\xE1s Kast, Ra\xFAl Leiva, Paula Olmos, Ximena Ossand\xF3n, Macarena Santelices y H\xE9ctor Ulloa. 3) El que establece un estatuto de responsabilidad algor\xEDtmica y protecci\xF3n digital de ni\xF1os, ni\xF1as y adolescentes (bolet\xEDn N\xB0 18318-19), de las diputadas y diputados Daniel Manouchehri (A), Patricio Briones, Andr\xE9s Celis, Carolina Cucumides, Crist\xF3bal Mart\xEDnez, Jos\xE9 Montalva, Daniela Serrano, Consuelo Veloso, Gonzalo Winter y Gael Yeomans. 4) El que modifica la ley N\xB0 21.663, marco de ciberseguridad, para incorporar los principios de protecci\xF3n a la infancia y adolescencia, restricci\xF3n etaria e informaci\xF3n preventiva en entornos digitales (bolet\xEDn N\xB0 18415-18), de los diputados y diputadas Sara Concha (A), Patricio Briones, Andr\xE9s Celis, Tom\xE1s Kast, Jos\xE9 Montalva, Francesca Mu\xF1oz y Tamara Ram\xEDrez. En raz\xF3n de lo anterior, la Comisi\xF3n ha invitado a la ministra de Desarrollo Social y Familia, se\xF1ora Mar\xEDa Jes\xFAs Wulf Le May, y/o al subsecretario de la Ni\xF1ez, se\xF1or Marcelo S\xE1nchez Ahumada. \u2022 Ministra de Desarrollo Social y Familia, y/o \u2022 Subsecretario de la Ni\xF1ez.",
-        "invitados": "No informado en la citaci\xF3n.",
-        "tabla": [
-          "Sesi\xF3n especial citada con objeto de continuar con la votaci\xF3n en particular del proyecto de ley, en primer tr\xE1mite constitucional, con urge..."
-        ],
-        "boletinesRelacionados": [
-          "18224-18",
-          "18246-18",
-          "18318-19",
-          "18415-18"
-        ],
-        "acuerdosCount": 0,
-        "completada": false
-      },
-      {
-        "id": "cit-semana-29",
-        "fecha": "MI\xC9RCOLES, 9 DE SEPTIEMBRE DE 2026",
-        "comisionNombre": "Revisora de Cuentas",
-        "citacionNumero": "Citaci\xF3n Oficial N\xB0 29",
-        "hora": "10:30 a 11:30",
-        "lugar": "Sala Pedro Pablo \xC1lvarez-Salamanca tercer nivel (Presencial)",
-        "tipo": "Sesi\xF3n de Comisi\xF3n",
-        "materia": "Conocer los informes de auditor\xEDa externa elaborados por la empresa Xlibrium, as\xED como aquellos del Comit\xE9 de Auditor\xEDa Parlamentaria. Invitados: Pablo Oneto, Subsecretario Administrativo Patricio Leiva, Jefe de Finanzas Priscila Jara, Abogado Coordinadora del Comit\xE9 de Auditor\xEDa Parlamentaria.",
-        "invitados": "No informado en la citaci\xF3n.",
-        "tabla": [
-          "Conocer los informes de auditor\xEDa externa elaborados por la empresa Xlibrium, as\xED como aquellos del Comit\xE9 de Auditor\xEDa Parlamentaria. Invit..."
-        ],
-        "boletinesRelacionados": [],
-        "acuerdosCount": 0,
-        "completada": false
-      },
-      {
-        "id": "cit-semana-30",
-        "fecha": "MI\xC9RCOLES, 9 DE SEPTIEMBRE DE 2026",
-        "comisionNombre": "Vivienda, Desarrollo Urbano y Bienes Nacionales",
-        "citacionNumero": "Citaci\xF3n Oficial N\xB0 30",
-        "hora": "15:00 a 17:00",
-        "lugar": "Sala N\xB0 410 cuarto nivel (Presencial)",
-        "tipo": "Sesi\xF3n de Comisi\xF3n",
-        "materia": "Recibir a la Contralora General de la Rep\xFAblica, se\xF1ora Dorothy P\xE9rez Guti\xE9rrez; al Ministro de Vivienda y Urbanismo, se\xF1or Iv\xE1n Poduje Capdeville y al Presidente de la Asociaci\xF3n Chilena de Municipalidades (ACHM), se\xF1or Gustavo Alessandri Bascu\xF1\xE1n, o a quienes designen en su representaci\xF3n, para que se refieran a las modificaciones introducidas a la Ordenanza General de Urbanismo y Construcciones por el decreto supremo N\xB0 68, de 2026, del Ministerio de Vivienda y Urbanismo, particularmente a sus efectos sobre los planes reguladores comunales y metropolitanos y la calidad de vida de las personas. Se ha invitado a la Contralora General de la Rep\xFAblica, se\xF1ora Dorothy P\xE9rez Guti\xE9rrez; al Ministro de Vivienda y Urbanismo, se\xF1or Iv\xE1n Poduje Capdeville y al Presidente de la Asociaci\xF3n Chilena de Municipalidades (ACHM), se\xF1or Gustavo Alessandri Bascu\xF1\xE1n, o a quienes designen en su representaci\xF3n.",
-        "invitados": "No informado en la citaci\xF3n.",
-        "tabla": [
-          "Recibir a la Contralora General de la Rep\xFAblica, se\xF1ora Dorothy P\xE9rez Guti\xE9rrez; al Ministro de Vivienda y Urbanismo, se\xF1or Iv\xE1n Poduje Capd..."
-        ],
-        "boletinesRelacionados": [],
-        "acuerdosCount": 0,
-        "completada": false
-      },
-      {
-        "id": "cit-semana-31",
-        "fecha": "MI\xC9RCOLES, 9 DE SEPTIEMBRE DE 2026",
-        "comisionNombre": "Pesca, Acuicultura e Intereses Mar\xEDtimos",
-        "citacionNumero": "Citaci\xF3n Oficial N\xB0 31",
-        "hora": "15:00 a 17:00",
-        "lugar": "Sala de Conferencias In\xE9s Enr\xEDquez segundo nivel (Presencial)",
-        "tipo": "Sesi\xF3n de Comisi\xF3n",
-        "materia": "Continuar la votaci\xF3n en particular del proyecto de ley originado en Moci\xF3n, en primer tr\xE1mite constitucional, copatrocinada por los diputados se\xF1ores Alejandro Bernales, Roberto Celed\xF3n, Mauro Gonz\xE1lez, Jorge Guzm\xE1n (A), Tom\xE1s Kast, Diego Schalper, Carolina Tello y Guillermo Vald\xE9s, sobre \u201CFortalecimiento de la Seguridad Mar\xEDtima\u201D, BOLET\xCDN 18.198-15. Se encuentran invitados el Subsecretario de Justicia, se\xF1or Luis Silva Irarr\xE1zabal; el Capit\xE1n de Nav\xEDo Litoral (CN LT) de la Direcci\xF3n General del Territorio Mar\xEDtimo y de Marina Mercante y Jefe del Servicio de Inspecciones Mar\xEDtimas, se\xF1or Roberto Alfaro P\xE9rez; el Teniente 1, se\xF1or Gast\xF3n Salinas Vald\xE9s, Asesor jur\xEDdico de la Direcci\xF3n de Seguridad y Operaciones Mar\xEDtimas de la Armada de Chile, y la asesora jur\xEDdica del Ministerio de Defensa, se\xF1ora Maricarmen Garrido I.",
-        "invitados": "No informado en la citaci\xF3n.",
-        "tabla": [
-          "Continuar la votaci\xF3n en particular del proyecto de ley originado en Moci\xF3n, en primer tr\xE1mite constitucional, copatrocinada por los diputad..."
-        ],
-        "boletinesRelacionados": [
-          "18.198-15"
-        ],
-        "acuerdosCount": 0,
-        "completada": false
-      },
-      {
-        "id": "cit-semana-32",
-        "fecha": "MI\xC9RCOLES, 9 DE SEPTIEMBRE DE 2026",
-        "comisionNombre": "Mujeres y Equidad de G\xE9nero",
-        "citacionNumero": "Citaci\xF3n Oficial N\xB0 32",
-        "hora": "15:00 a 17:00",
-        "lugar": "Sala Manuel Bustos Huerta tercer nivel (Presencial)",
-        "tipo": "Sesi\xF3n de Comisi\xF3n",
-        "materia": "Iniciar la discusi\xF3n y votaci\xF3n en particular de los siguientes proyectos de ley, refundidos: 1) Moci\xF3n de las diputadas Sara Concha Smith, Valentina Becerra Pe\xF1a, Francesca Mu\xF1oz Gonz\xE1lez, Paulina Mu\xF1oz Minte, Ximena Naranjo Pinto, Javiera Rodr\xEDguez Pascual, Marisela Santib\xE1\xF1ez Novoa, Eileen Urqueta Rojas y Consuelo Veloso \xC1vila, y del diputado Eduardo Dur\xE1n Salinas, que fortalece la protecci\xF3n de las v\xEDctimas de violencia intrafamiliar y previene su revictimizaci\xF3n, correspondiente al bolet\xEDn N\xB018236-18, en primer tr\xE1mite constitucional y reglamentario, con urgencia calificada de \u201Csuma\u201D. 2) Moci\xF3n de las diputadas Valentina Becerra Pe\xF1a, Paz Charpentier Rajcevich, Catalina Del Real Mihovilovic, Stephanie J\xE9ldrez Ortiz, Claudia Mora Vega, Zandra Parisi Fern\xE1ndez, Claudia Reyes Larenas y Marisela Santib\xE1\xF1ez Novoa, y de los diputados Felipe Cama\xF1o C\xE1rdenas y Eduardo Dur\xE1n Salinas, que modifica cuerpos legales que indica en materia de notificaciones de medidas cautelares dictadas en procesos de violencia intrafamiliar, correspondiente al bolet\xEDn N\xB018414-18, en primer tr\xE1mite constitucional y reglamentario.",
-        "invitados": "No informado en la citaci\xF3n.",
-        "tabla": [
-          "Iniciar la discusi\xF3n y votaci\xF3n en particular de los siguientes proyectos de ley, refundidos: 1) Moci\xF3n de las diputadas Sara Concha Smith, ..."
-        ],
-        "boletinesRelacionados": [
-          "18236-18",
-          "18414-18"
-        ],
-        "acuerdosCount": 0,
-        "completada": false
-      },
-      {
-        "id": "cit-semana-33",
-        "fecha": "MI\xC9RCOLES, 9 DE SEPTIEMBRE DE 2026",
-        "comisionNombre": "Medio Ambiente y Recursos Naturales",
-        "citacionNumero": "Citaci\xF3n Oficial N\xB0 33",
-        "hora": "15:00 a 17:00",
-        "lugar": "Sala Juan Lobos Krause tercer nivel (Presencial)",
-        "tipo": "Sesi\xF3n de Comisi\xF3n",
-        "materia": "Continuar la discusi\xF3n y votaci\xF3n particular, en segundo tr\xE1mite constitucional, del proyecto de ley que modifica diversos cuerpos legales, con el objeto de fortalecer la institucionalidad ambiental y mejorar su eficiencia, correspondiente al Bolet\xEDn N\xB0 16.552-12 (S). Urgencia simple.",
-        "invitados": "No informado en la citaci\xF3n.",
-        "tabla": [
-          "Continuar la discusi\xF3n y votaci\xF3n particular, en segundo tr\xE1mite constitucional, del proyecto de ley que modifica diversos cuerpos legales, ..."
-        ],
-        "boletinesRelacionados": [
-          "16.552-12"
-        ],
-        "acuerdosCount": 0,
-        "completada": false
-      },
-      {
-        "id": "cit-semana-34",
-        "fecha": "MI\xC9RCOLES, 9 DE SEPTIEMBRE DE 2026",
-        "comisionNombre": "Derechos Humanos y Pueblos Originarios",
-        "citacionNumero": "Citaci\xF3n Oficial N\xB0 34",
-        "hora": "15:00 a 17:00",
-        "lugar": "Sala Ram\xF3n P\xE9rez Opazo tercer nivel (Presencial)",
-        "tipo": "Sesi\xF3n de Comisi\xF3n",
-        "materia": "Recibir al subsecretario de Derechos Humanos, Pablo Mira Hurtado; y al subsecretario de la Ni\xF1ez, Marcelo S\xE1nchez Ahumada, para que informen acerca del funcionamiento y estado de avance de la Comisi\xF3n de Verdad y Ni\xF1ez, especialmente sobre las labores desarrolladas, las metas y plazos establecidos, las dificultades que ha enfrentado y sus proyecciones futuras. Asimismo, para que efect\xFAen una exposici\xF3n acabada que comprenda el pasado, presente y futuro de dicha Comisi\xF3n.",
-        "invitados": "No informado en la citaci\xF3n.",
-        "tabla": [
-          "Recibir al subsecretario de Derechos Humanos, Pablo Mira Hurtado; y al subsecretario de la Ni\xF1ez, Marcelo S\xE1nchez Ahumada, para que informen..."
-        ],
-        "boletinesRelacionados": [],
-        "acuerdosCount": 0,
-        "completada": false
-      },
-      {
-        "id": "cit-semana-35",
-        "fecha": "MI\xC9RCOLES, 9 DE SEPTIEMBRE DE 2026",
-        "comisionNombre": "Constituci\xF3n, Legislaci\xF3n, Justicia y Reglamento",
-        "citacionNumero": "Citaci\xF3n Oficial N\xB0 35",
-        "hora": "15:00 a 17:00",
-        "lugar": "Sala Francisco Bulnes Sanfuentes tercer nivel (Presencial)",
-        "tipo": "Sesi\xF3n de Comisi\xF3n",
-        "materia": "Continuar con la tramitaci\xF3n en particular del proyecto de ley, iniciado en moci\xF3n, que \u201CModifica el C\xF3digo Penal para sancionar toda forma de instrumentalizaci\xF3n de ni\xF1os, ni\xF1as y adolescentes para cometer delitos''. Bolet\xEDn N\xB0 18.282-07. Se acord\xF3 refundirlo con el bolet\xEDn N\xB018.590. Urgencia suma. Se ha invitado al se\xF1or Ministro de Justicia y Derechos Humanos; a los acad\xE9micos se\xF1ora Mar\xEDa Elena Santib\xE1\xF1ez (U. Cat\xF3lica de Chile); Alejandra Castillo Ara (U. Diego Portales); Francisco Maldonado Fuentes (U. de Talca); Alejandro Leiva L\xF3pez (U. Andr\xE9s Bello); Gonzalo Berr\xEDos D\xEDaz (U. de Chile).",
-        "invitados": "No informado en la citaci\xF3n.",
-        "tabla": [
-          "Continuar con la tramitaci\xF3n en particular del proyecto de ley, iniciado en moci\xF3n, que \u201CModifica el C\xF3digo Penal para sancionar toda forma ..."
-        ],
-        "boletinesRelacionados": [
-          "18.282-07"
-        ],
-        "acuerdosCount": 0,
-        "completada": false
-      },
-      {
-        "id": "cit-semana-36",
-        "fecha": "MI\xC9RCOLES, 9 DE SEPTIEMBRE DE 2026",
-        "comisionNombre": "Miner\xEDa y Energ\xEDa",
-        "citacionNumero": "Citaci\xF3n Oficial N\xB0 36",
-        "hora": "15:00 a 17:00",
-        "lugar": "Sala Octavio Jara Wolff tercer nivel (Presencial)",
-        "tipo": "Sesi\xF3n de Comisi\xF3n",
-        "materia": "Analizar la aprobaci\xF3n por parte de la Comisi\xF3n de Evaluaci\xF3n Ambiental (CEA) del proyecto minero de tierras raras impulsado en la comuna de Penco por la empresa minera Aclara y el Grupo CAP, y sus eventuales implicancias para la comuna y la regi\xF3n. - Biministro de Econom\xEDa, Fomento y Turismo y Miner\xEDa, se\xF1or Daniel Mas Vald\xE9s. - Subsecretario de Miner\xEDa, se\xF1or \xC1lvaro Gonz\xE1lez Gorro\xF1o. - Alcalde de Penco, se\xF1or Rodrigo Vera Riquelme. - Secretario Regional Ministerial de Miner\xEDa de la Regi\xF3n del Biob\xEDo, se\xF1or Daniel Escobar Palma. - Vicedecana de la Facultad de Ingenier\xEDa de la Universidad Cat\xF3lica de la Sant\xEDsima Concepci\xF3n, se\xF1ora Matilde Basso Ar\xE1nguiz.",
-        "invitados": "No informado en la citaci\xF3n.",
-        "tabla": [
-          "Analizar la aprobaci\xF3n por parte de la Comisi\xF3n de Evaluaci\xF3n Ambiental (CEA) del proyecto minero de tierras raras impulsado en la comuna de..."
-        ],
-        "boletinesRelacionados": [],
-        "acuerdosCount": 0,
-        "completada": false
-      }
-    ]
-  }
-];
 var CAMARA_CITACIONES_POR_COMISION = {
   "trabajo-y-prevision": [
     {
@@ -5737,704 +5110,6 @@ var CAMARA_CITACIONES_POR_COMISION = {
     }
   ]
 };
-var CAMARA_CITACIONES_FULL_WEEK = [
-  {
-    "id": "cit-semana-1",
-    "fecha": "LUNES, 7 DE SEPTIEMBRE DE 2026",
-    "comisionNombre": "Trabajo y Seguridad Social",
-    "citacionNumero": "Citaci\xF3n Oficial N\xB0 1",
-    "hora": "10:00 a 12:00",
-    "lugar": "Sala Multiuso 1er Piso primer nivel (Presencial)",
-    "tipo": "Sesi\xF3n de Comisi\xF3n",
-    "materia": "Continuar el estudio del proyecto de ley, originado en mensaje de S.E. el Presidente de la Rep\xFAblica, que \u201CPerfecciona los mecanismos de adaptabilidad de la jornada de trabajo y establece un r\xE9gimen especial para el sector turismo y actividades conexas\u201D, correspondiente al bolet\xEDn N\xB0 18.478-13, con urgencia calificada de \u201Csuma\u201D. Para estos efectos, se ha invitado al se\xF1or Gustavo Rosenda Salazar, Subsecretario del Trabajo; a la se\xF1ora Mar\xEDa Paz Lagos Valdivieso, Subsecreraria deTurismo; al se\xF1or Jos\xE9 Pakomio Torres, Presidente de la C\xE1mara Nacional de Comercio (CNC); al se\xF1or Mat\xEDas Rodr\xEDguez Burr, abogado laboralista y Presidente del Departamento de Derecho del Trabajo y Seguridad Social de la Universidad de Valpara\xEDso; al se\xF1or David Bravo Urrutia, economista, acad\xE9mico, investigador y Director del Centro UC de Encuestas y Estudios Longitudinales; a la se\xF1ora Susana Jim\xE9nez, Presidenta de la Confederaci\xF3n de la Producci\xF3n y del Comercio (CPC); a la se\xF1ora Patricia Silva Mel\xE9ndez, abogada coordinadora del Programa Laboral del Instituto Igualdad y ex Directora del Trabajo, al se\xF1or Manuel Mu\xF1oz Lorca, abogado coordinador de la Asociaci\xF3n de Empresas de Seguridad Privada y de Transporte de Valores (ASEVA), y a la se\xF1ora Mar\xEDa Teresa Vial, Presidenta de la C\xE1mara de Comercio de Santiago A.G.",
-    "invitados": "No informado en la citaci\xF3n.",
-    "tabla": [
-      "Continuar el estudio del proyecto de ley, originado en mensaje de S.E. el Presidente de la Rep\xFAblica, que \u201CPerfecciona los mecanismos de ada..."
-    ],
-    "boletinesRelacionados": [
-      "18.478-13"
-    ],
-    "acuerdosCount": 0,
-    "completada": false,
-    "comisionSlug": "trabajo-y-prevision"
-  },
-  {
-    "id": "cit-semana-2",
-    "fecha": "LUNES, 7 DE SEPTIEMBRE DE 2026",
-    "comisionNombre": "CEI 9 Relativa a determinados actos del Gobierno en materia de seguridad p\xFAblica y prevenci\xF3n del delito durante la gesti\xF3n de la ex Ministra de Seguridad P\xFAblica",
-    "citacionNumero": "Citaci\xF3n Oficial N\xB0 2",
-    "hora": "10:30 a 12:30",
-    "lugar": "Sala de Lectura primer nivel (Presencial)",
-    "tipo": "Comisi\xF3n Especial Investigadora",
-    "materia": "Con el objeto de abocarse al mandato de la Comisi\xF3n. Para tales efectos, se recibir\xE1 a la exministra de Seguridad P\xFAblica, do\xF1a Trinidad Steinert Herrera; a la ex Subdirectora de Inteligencia, Crimen Organizado y Seguridad Migratoria de esa instituci\xF3n, Prefecta General (R) do\xF1a Consuelo Pe\xF1a San Miguel; a la ex Subsecretaria de Prevenci\xF3n del Delito, do\xF1a Ana Victoria Quintana Olgu\xEDn; al Coordinador de asesores del gabinete presidencial, don Alejandro Irarr\xE1zaval Alfonso, y al abogado penalista don Juan Pablo Ma\xF1alich Raffo.",
-    "invitados": "No informado en la citaci\xF3n.",
-    "tabla": [
-      "Con el objeto de abocarse al mandato de la Comisi\xF3n. Para tales efectos, se recibir\xE1 a la exministra de Seguridad P\xFAblica, do\xF1a Trinidad Ste..."
-    ],
-    "boletinesRelacionados": [],
-    "acuerdosCount": 0,
-    "completada": false
-  },
-  {
-    "id": "cit-semana-3",
-    "fecha": "LUNES, 7 DE SEPTIEMBRE DE 2026",
-    "comisionNombre": "CEI 8 Concesi\xF3n de autopistas y determinaci\xF3n de peaje y tag",
-    "citacionNumero": "Citaci\xF3n Oficial N\xB0 3",
-    "hora": "13:30 a 15:00",
-    "lugar": "Sala Pedro Pablo \xC1lvarez-Salamanca tercer nivel (Presencial)",
-    "tipo": "Comisi\xF3n Especial Investigadora",
-    "materia": "Con el objeto de continuar su cometido y dar cumplimiento a lo encomendado en el mandato. Se ha invitado a: - Ex Ministro de Hacienda, se\xF1or Nicol\xE1s Grau Veloso. - Ex Directora de Presupuestos, se\xF1ora Javiera Mart\xEDnez Fari\xF1a. Se ha citado a: - Presidente Panel T\xE9cnico de Concesiones, se\xF1or Ra\xFAl Erazo Torricelli.",
-    "invitados": "No informado en la citaci\xF3n.",
-    "tabla": [
-      "Con el objeto de continuar su cometido y dar cumplimiento a lo encomendado en el mandato. Se ha invitado a: - Ex Ministro de Hacienda, se\xF1or..."
-    ],
-    "boletinesRelacionados": [],
-    "acuerdosCount": 0,
-    "completada": false
-  },
-  {
-    "id": "cit-semana-4",
-    "fecha": "LUNES, 7 DE SEPTIEMBRE DE 2026",
-    "comisionNombre": "Seguridad Ciudadana",
-    "citacionNumero": "Citaci\xF3n Oficial N\xB0 4",
-    "hora": "14:50 a 16:50",
-    "lugar": "Sala de Conferencias In\xE9s Enr\xEDquez segundo nivel (Presencial)",
-    "tipo": "Sesi\xF3n de Comisi\xF3n",
-    "materia": "De 14:50 a 15:50 horas: Continuar la votaci\xF3n en particular del proyecto de ley, originado en mensaje de S. E., el Presidente de la Rep\xFAblica que, \u201Ccrea el registro de actos vand\xE1licos e incivilidades\u201D. Bolet\xEDn N\xB018.341-25, con urgencia calificada de \u201Csuma\u201D. En primer tr\xE1mite constitucional y primero reglamentario. Para tales efectos se invit\xF3 al biministro del Interior y de la Secretar\xEDa General de Gobierno, se\xF1or Claudio Alvarado Andrade.",
-    "invitados": "No informado en la citaci\xF3n.",
-    "tabla": [
-      "De 14:50 a 15:50 horas: Continuar la votaci\xF3n en particular del proyecto de ley, originado en mensaje de S. E., el Presidente de la Rep\xFAblic..."
-    ],
-    "boletinesRelacionados": [
-      "18.341-25"
-    ],
-    "acuerdosCount": 0,
-    "completada": false,
-    "comisionSlug": "seguridad"
-  },
-  {
-    "id": "cit-semana-5",
-    "fecha": "LUNES, 7 DE SEPTIEMBRE DE 2026",
-    "comisionNombre": "la Familia",
-    "citacionNumero": "Citaci\xF3n Oficial N\xB0 5",
-    "hora": "14:50 a 16:50",
-    "lugar": "Sala Octavio Jara Wolff tercer nivel (Presencial)",
-    "tipo": "Sesi\xF3n de Comisi\xF3n",
-    "materia": 'continuar la discusi\xF3n y votaci\xF3n particular del proyecto de ley, iniciado en mensaje de S. E. el Presidente de la Rep\xFAblica, que fortalece el ejercicio de la responsabilidad parental, bolet\xEDn N\xB018378-18, en primer tr\xE1mite constitucional y reglamentario, con urgencia calificada de "suma". NOTA: Se recuerda que el plazo para la formulaci\xF3n de INDICACIONES del proyecto de ley sobre RESPONSABILIDAD PARENTAL, bolet\xEDn N\xB0 18378-18 ES EL JUEVES 3 de SEPTIEMBRE DE 2026, a las 12:00 horas (mediod\xEDa). Se encuentra invitado el Ministro de Justicia y Derechos Humanos, se\xF1or Fernando Rabat, junto al Subsecretario, se\xF1or Luis Alejandro Silva para participar de la tramitaci\xF3n de dicha iniciativa legal, bolet\xEDn N\xB018378-18.',
-    "invitados": "No informado en la citaci\xF3n.",
-    "tabla": [
-      "continuar la discusi\xF3n y votaci\xF3n particular del proyecto de ley, iniciado en mensaje de S. E. el Presidente de la Rep\xFAblica, que fortalece ..."
-    ],
-    "boletinesRelacionados": [
-      "18378-18"
-    ],
-    "acuerdosCount": 0,
-    "completada": false,
-    "comisionSlug": "familias"
-  },
-  {
-    "id": "cit-semana-6",
-    "fecha": "LUNES, 7 DE SEPTIEMBRE DE 2026",
-    "comisionNombre": "Zonas Extremas y Ant\xE1rtica Chilena",
-    "citacionNumero": "Citaci\xF3n Oficial N\xB0 6",
-    "hora": "14:50 a 16:50",
-    "lugar": "Sala Manuel Bustos Huerta tercer nivel (Presencial)",
-    "tipo": "Sesi\xF3n de Comisi\xF3n",
-    "materia": "Recibir en audiencia al se\xF1or Roberto Levin Jim\xE9nez, Director Ejecutivo de la Fundaci\xF3n Acrux, a fin de que exponga la experiencia de dicha instituci\xF3n en la realizaci\xF3n de operativos m\xE9dicos en zonas extremas y territorios aislados, y d\xE9 a conocer propuestas y alternativas destinadas a contribuir a la reducci\xF3n de las listas de espera y a mejorar el acceso a prestaciones de salud en dichos territorios, atendidos los antecedentes planteados por los alcaldes y alcaldesas durante el ciclo de audiencias desarrollado por la Comisi\xF3n.",
-    "invitados": "No informado en la citaci\xF3n.",
-    "tabla": [
-      "Recibir en audiencia al se\xF1or Roberto Levin Jim\xE9nez, Director Ejecutivo de la Fundaci\xF3n Acrux, a fin de que exponga la experiencia de dicha ..."
-    ],
-    "boletinesRelacionados": [],
-    "acuerdosCount": 0,
-    "completada": false,
-    "comisionSlug": "zonas-extremas"
-  },
-  {
-    "id": "cit-semana-7",
-    "fecha": "LUNES, 7 DE SEPTIEMBRE DE 2026",
-    "comisionNombre": "Recursos H\xEDdricos y Desertificaci\xF3n",
-    "citacionNumero": "Citaci\xF3n Oficial N\xB0 7",
-    "hora": "14:50 a 16:50",
-    "lugar": "Sala N\xB0 410 cuarto nivel (Presencial)",
-    "tipo": "Sesi\xF3n de Comisi\xF3n",
-    "materia": "Iniciar la discusi\xF3n particular del proyecto de ley que modifica el C\xF3digo de Aguas para garantizar la participaci\xF3n de comit\xE9s y cooperativas de agua potable rural, prestadoras de servicios sanitarios rurales, en los directorios de las comunidades de agua, correspondiente a los boletines n\xFAmeros 17.324-33 y 17.325-33, refundidos, en primer tr\xE1mite constitucional y segundo reglamentario.",
-    "invitados": "No informado en la citaci\xF3n.",
-    "tabla": [
-      "Iniciar la discusi\xF3n particular del proyecto de ley que modifica el C\xF3digo de Aguas para garantizar la participaci\xF3n de comit\xE9s y cooperativ..."
-    ],
-    "boletinesRelacionados": [
-      "17.324-33",
-      "17.325-33"
-    ],
-    "acuerdosCount": 0,
-    "completada": false,
-    "comisionSlug": "recursos-hidricos"
-  },
-  {
-    "id": "cit-semana-8",
-    "fecha": "LUNES, 7 DE SEPTIEMBRE DE 2026",
-    "comisionNombre": "Cultura, Artes y Comunicaciones",
-    "citacionNumero": "Citaci\xF3n Oficial N\xB0 8",
-    "hora": "14:50 a 16:50",
-    "lugar": "Sala Ram\xF3n P\xE9rez Opazo tercer nivel (Presencial)",
-    "tipo": "Sesi\xF3n de Comisi\xF3n",
-    "materia": "Recibir en audiencia a la se\xF1ora Amara Rivera, en representaci\xF3n de la Corporaci\xF3n Hijas e Hijos de Gabriela Mistral, con el objeto de que exponga acerca del destino de los derechos de autor de la obra de la poetisa y de la propuesta de destinarlos \xEDntegramente a programas art\xEDsticos, educacionales y culturales dirigidos a los ni\xF1os de Montegrande. Asimismo, para que se refiera a la posibilidad de impulsar una iniciativa legal que extienda la vigencia de dichos derechos cuando la voluntad expresa del autor o autora se funde en una finalidad social y de bien p\xFAblico. Se ha invitado a la se\xF1ora Amara Rivera, en representaci\xF3n de la referida Corporaci\xF3n.",
-    "invitados": "No informado en la citaci\xF3n.",
-    "tabla": [
-      "Recibir en audiencia a la se\xF1ora Amara Rivera, en representaci\xF3n de la Corporaci\xF3n Hijas e Hijos de Gabriela Mistral, con el objeto de que e..."
-    ],
-    "boletinesRelacionados": [],
-    "acuerdosCount": 0,
-    "completada": false,
-    "comisionSlug": "cultura"
-  },
-  {
-    "id": "cit-semana-9",
-    "fecha": "LUNES, 7 DE SEPTIEMBRE DE 2026",
-    "comisionNombre": "Desarrollo Social, Superaci\xF3n de la Pobreza y Planificaci\xF3n",
-    "citacionNumero": "Citaci\xF3n Oficial N\xB0 9",
-    "hora": "14:50 a 16:50",
-    "lugar": "Sala Juan Lobos Krause tercer nivel (Presencial)",
-    "tipo": "Sesi\xF3n de Comisi\xF3n",
-    "materia": "analizar, junto a las autoridades competentes, las conclusiones y propuestas contenidas en el Informe de la Mesa por la Ni\xF1ez, elaborado por la Comisi\xF3n de Familia, e identificar las materias vinculadas al \xE1mbito de su competencia, as\xED como eventuales iniciativas legislativas que puedan impulsarse a partir de dicho trabajo. Para tales efectos se encuentran invitados: - Subsecretario de la Ni\xF1ez, se\xF1or Marcelo S\xE1nchez Ahumada. - Director del Servicio Nacional de Protecci\xF3n Especializada a la Ni\xF1ez y Adolescencia (S), se\xF1or Gherman Welsch Chahu\xE1n.",
-    "invitados": "No informado en la citaci\xF3n.",
-    "tabla": [
-      "analizar, junto a las autoridades competentes, las conclusiones y propuestas contenidas en el Informe de la Mesa por la Ni\xF1ez, elaborado por..."
-    ],
-    "boletinesRelacionados": [],
-    "acuerdosCount": 0,
-    "completada": false,
-    "comisionSlug": "desarrollo-social"
-  },
-  {
-    "id": "cit-semana-10",
-    "fecha": "LUNES, 7 DE SEPTIEMBRE DE 2026",
-    "comisionNombre": "Control del Sistema de Inteligencia del Estado",
-    "citacionNumero": "Citaci\xF3n Oficial N\xB0 10",
-    "hora": "15:30 a 16:50",
-    "lugar": "Sala Pedro Pablo \xC1lvarez-Salamanca tercer nivel (Presencial)",
-    "tipo": "Sesi\xF3n de Comisi\xF3n",
-    "materia": "Tratar materias propias de la competencia de la Comisi\xF3n. Invitados: Director de la Agencia Nacional de Inteligencia, se\xF1or Ronald Mc Intyre Astorga. Fiscal Nacional del Ministerio P\xFAblico, se\xF1or \xC1ngel Valencia V\xE1squez.",
-    "invitados": "No informado en la citaci\xF3n.",
-    "tabla": [
-      "Tratar materias propias de la competencia de la Comisi\xF3n. Invitados: Director de la Agencia Nacional de Inteligencia, se\xF1or Ronald Mc Intyre..."
-    ],
-    "boletinesRelacionados": [],
-    "acuerdosCount": 0,
-    "completada": false,
-    "comisionSlug": "inteligencia-estado"
-  },
-  {
-    "id": "cit-semana-11",
-    "fecha": "LUNES, 7 DE SEPTIEMBRE DE 2026",
-    "comisionNombre": "Futuro, Ciencias, Tecnolog\xEDa, Conocimiento e Innovaci\xF3n",
-    "citacionNumero": "Citaci\xF3n Oficial N\xB0 11",
-    "hora": "16:15 a 19:00",
-    "lugar": "Sala Arturo Longton Guerrero tercer nivel (Presencial)",
-    "tipo": "Sesi\xF3n de Comisi\xF3n",
-    "materia": "Sesi\xF3n especial* citada con objeto de continuar con la votaci\xF3n en particular del proyecto de ley, en primer tr\xE1mite constitucional, con urgencia calificada de \u201Csuma\u201D, originado en las siguientes mociones refundidas: 1) El que establece un marco integral de protecci\xF3n de ni\xF1as, ni\xF1os y adolescentes en el uso de redes sociales (bolet\xEDn N\xB0 18224-18), de los diputados y diputadas Lorena Fries (A), Jaime Araya, Mat\xEDas Fern\xE1ndez, Ana Mar\xEDa Gazmuri, Andrea Mac\xEDas, Luis Malla, Cristian Mella, Jos\xE9 Montalva, Zandra Parisi y Gonzalo Winter. 2) El que protege a los menores de edad frente a la adicci\xF3n a las nuevas tecnolog\xEDas y proh\xEDbe el acceso a redes sociales y otras plataformas (bolet\xEDn N\xB0 18246-18), de las diputadas y diputados Diego Schalper (A), H\xE9ctor Barr\xEDa, Patricio Briones, Andr\xE9s Celis, Tom\xE1s Kast, Ra\xFAl Leiva, Paula Olmos, Ximena Ossand\xF3n, Macarena Santelices y H\xE9ctor Ulloa. 3) El que establece un estatuto de responsabilidad algor\xEDtmica y protecci\xF3n digital de ni\xF1os, ni\xF1as y adolescentes (bolet\xEDn N\xB0 18318-19), de las diputadas y diputados Daniel Manouchehri (A), Patricio Briones, Andr\xE9s Celis, Carolina Cucumides, Crist\xF3bal Mart\xEDnez, Jos\xE9 Montalva, Daniela Serrano, Consuelo Veloso, Gonzalo Winter y Gael Yeomans. 4) El que modifica la ley N\xB0 21.663, marco de ciberseguridad, para incorporar los principios de protecci\xF3n a la infancia y adolescencia, restricci\xF3n etaria e informaci\xF3n preventiva en entornos digitales (bolet\xEDn N\xB0 18415-18), de los diputados y diputadas Sara Concha (A), Patricio Briones, Andr\xE9s Celis, Tom\xE1s Kast, Jos\xE9 Montalva, Francesca Mu\xF1oz y Tamara Ram\xEDrez. En raz\xF3n de lo anterior, la Comisi\xF3n ha invitado a la ministra de Desarrollo Social y Familia, se\xF1ora Mar\xEDa Jes\xFAs Wulf Le May, y/o al subsecretario de la Ni\xF1ez, se\xF1or Marcelo S\xE1nchez Ahumada. * Esta sesi\xF3n reemplaza a la ordinaria, toda vez que la Comisi\xF3n tiene una actividad oficial en Santiago con la ministra de Ciencia, Tecnolog\xEDa, Conocimiento e Innovaci\xF3n. \u2022 Ministra de Desarrollo Social y Familia, y/o \u2022 Subsecretario de la Ni\xF1ez.",
-    "invitados": "No informado en la citaci\xF3n.",
-    "tabla": [
-      "Sesi\xF3n especial* citada con objeto de continuar con la votaci\xF3n en particular del proyecto de ley, en primer tr\xE1mite constitucional, con urg..."
-    ],
-    "boletinesRelacionados": [
-      "18224-18",
-      "18246-18",
-      "18318-19",
-      "18415-18"
-    ],
-    "acuerdosCount": 0,
-    "completada": false,
-    "comisionSlug": "ciencias"
-  },
-  {
-    "id": "cit-semana-12",
-    "fecha": "MARTES, 8 DE SEPTIEMBRE DE 2026",
-    "comisionNombre": "CEI 2 Sobre discrepancias en las cifras de producci\xF3n de Codelco durante el a\xF1o 2025",
-    "citacionNumero": "Citaci\xF3n Oficial N\xB0 12",
-    "hora": "08:30 a 09:50",
-    "lugar": "Sala Ram\xF3n P\xE9rez Opazo tercer nivel (Presencial)",
-    "tipo": "Comisi\xF3n Especial Investigadora",
-    "materia": "recibir en audiencia, en el marco de su mandato, al Economista y Director Acad\xE9mico del Diplomado en Finanzas, FEN, de la Universidad de Chile, se\xF1or Jorge Berr\xEDos Vogel.",
-    "invitados": "No informado en la citaci\xF3n.",
-    "tabla": [
-      "recibir en audiencia, en el marco de su mandato, al Economista y Director Acad\xE9mico del Diplomado en Finanzas, FEN, de la Universidad de Chi..."
-    ],
-    "boletinesRelacionados": [],
-    "acuerdosCount": 0,
-    "completada": false
-  },
-  {
-    "id": "cit-semana-13",
-    "fecha": "MARTES, 8 DE SEPTIEMBRE DE 2026",
-    "comisionNombre": "Futuro, Ciencias, Tecnolog\xEDa, Conocimiento e Innovaci\xF3n",
-    "citacionNumero": "Citaci\xF3n Oficial N\xB0 13",
-    "hora": "10:30 a 13:00",
-    "lugar": "Sala Arturo Longton Guerrero tercer nivel (Presencial)",
-    "tipo": "Sesi\xF3n de Comisi\xF3n",
-    "materia": "Sesi\xF3n especial citada con objeto de continuar con la votaci\xF3n en particular del proyecto de ley, en primer tr\xE1mite constitucional, con urgencia calificada de \u201Csuma\u201D, originado en las siguientes mociones refundidas: 1) El que establece un marco integral de protecci\xF3n de ni\xF1as, ni\xF1os y adolescentes en el uso de redes sociales (bolet\xEDn N\xB0 18224-18), de los diputados y diputadas Lorena Fries (A), Jaime Araya, Mat\xEDas Fern\xE1ndez, Ana Mar\xEDa Gazmuri, Andrea Mac\xEDas, Luis Malla, Cristian Mella, Jos\xE9 Montalva, Zandra Parisi y Gonzalo Winter. 2) El que protege a los menores de edad frente a la adicci\xF3n a las nuevas tecnolog\xEDas y proh\xEDbe el acceso a redes sociales y otras plataformas (bolet\xEDn N\xB0 18246-18), de las diputadas y diputados Diego Schalper (A), H\xE9ctor Barr\xEDa, Patricio Briones, Andr\xE9s Celis, Tom\xE1s Kast, Ra\xFAl Leiva, Paula Olmos, Ximena Ossand\xF3n, Macarena Santelices y H\xE9ctor Ulloa. 3) El que establece un estatuto de responsabilidad algor\xEDtmica y protecci\xF3n digital de ni\xF1os, ni\xF1as y adolescentes (bolet\xEDn N\xB0 18318-19), de las diputadas y diputados Daniel Manouchehri (A), Patricio Briones, Andr\xE9s Celis, Carolina Cucumides, Crist\xF3bal Mart\xEDnez, Jos\xE9 Montalva, Daniela Serrano, Consuelo Veloso, Gonzalo Winter y Gael Yeomans. 4) El que modifica la ley N\xB0 21.663, marco de ciberseguridad, para incorporar los principios de protecci\xF3n a la infancia y adolescencia, restricci\xF3n etaria e informaci\xF3n preventiva en entornos digitales (bolet\xEDn N\xB0 18415-18), de los diputados y diputadas Sara Concha (A), Patricio Briones, Andr\xE9s Celis, Tom\xE1s Kast, Jos\xE9 Montalva, Francesca Mu\xF1oz y Tamara Ram\xEDrez. En raz\xF3n de lo anterior, la Comisi\xF3n ha invitado a la ministra de Desarrollo Social y Familia, se\xF1ora Mar\xEDa Jes\xFAs Wulf Le May, y/o al subsecretario de la Ni\xF1ez, se\xF1or Marcelo S\xE1nchez Ahumada. \u2022 Ministra de Desarrollo Social y Familia, y/o \u2022 Subsecretario de la Ni\xF1ez.",
-    "invitados": "No informado en la citaci\xF3n.",
-    "tabla": [
-      "Sesi\xF3n especial citada con objeto de continuar con la votaci\xF3n en particular del proyecto de ley, en primer tr\xE1mite constitucional, con urge..."
-    ],
-    "boletinesRelacionados": [
-      "18224-18",
-      "18246-18",
-      "18318-19",
-      "18415-18"
-    ],
-    "acuerdosCount": 0,
-    "completada": false,
-    "comisionSlug": "ciencias"
-  },
-  {
-    "id": "cit-semana-14",
-    "fecha": "MARTES, 8 DE SEPTIEMBRE DE 2026",
-    "comisionNombre": "\xC9tica y Transparencia",
-    "citacionNumero": "Citaci\xF3n Oficial N\xB0 14",
-    "hora": "11:00 a 12:30",
-    "lugar": "Sala Pedro Pablo \xC1lvarez-Salamanca tercer nivel (Presencial)",
-    "tipo": "Sesi\xF3n de Comisi\xF3n",
-    "materia": "Con el objeto de tratar materias propias de su competencia.",
-    "invitados": "No informado en la citaci\xF3n.",
-    "tabla": [
-      "Con el objeto de tratar materias propias de su competencia...."
-    ],
-    "boletinesRelacionados": [],
-    "acuerdosCount": 0,
-    "completada": false,
-    "comisionSlug": "etica"
-  },
-  {
-    "id": "cit-semana-15",
-    "fecha": "MARTES, 8 DE SEPTIEMBRE DE 2026",
-    "comisionNombre": "Constituci\xF3n, Legislaci\xF3n, Justicia y Reglamento",
-    "citacionNumero": "Citaci\xF3n Oficial N\xB0 15",
-    "hora": "15:00 a 17:00",
-    "lugar": "Sala Francisco Bulnes Sanfuentes tercer nivel (Presencial)",
-    "tipo": "Sesi\xF3n de Comisi\xF3n",
-    "materia": "Continuar la tramitaci\xF3n en particular del proyecto de ley, en primer tr\xE1mite constitucional e iniciado en mensaje, que \u201CAmpl\xEDa las hip\xF3tesis de tr\xE1fico de migrantes y modifica los textos legales que indica\u201D. Bolet\xEDn N\xB0 18.315-07 refundido con proyecto de ley N\xB0 16.948-07. Discusi\xF3n inmediata. Se ha invitado al se\xF1or Ministro de Justicia y Derechos Humanos, y a los expertos en derecho penal se\xF1ora Diva Serra (U. de Concepci\xF3n); se\xF1ora Tania Gajardo (U. Cat\xF3lica de Chile); se\xF1or Juan Pablo Castillo (U. A. Hurtado); Antonio Bascu\xF1\xE1n (U. Adolfo Ib\xE1\xF1ez), sin perjuicio de los invitados que propongan los (as) integrantes de la Comisi\xF3n.",
-    "invitados": "No informado en la citaci\xF3n.",
-    "tabla": [
-      "Continuar la tramitaci\xF3n en particular del proyecto de ley, en primer tr\xE1mite constitucional e iniciado en mensaje, que \u201CAmpl\xEDa las hip\xF3tesi..."
-    ],
-    "boletinesRelacionados": [
-      "18.315-07",
-      "16.948-07"
-    ],
-    "acuerdosCount": 0,
-    "completada": false,
-    "comisionSlug": "constitucion"
-  },
-  {
-    "id": "cit-semana-16",
-    "fecha": "MARTES, 8 DE SEPTIEMBRE DE 2026",
-    "comisionNombre": "Deportes y Recreaci\xF3n",
-    "citacionNumero": "Citaci\xF3n Oficial N\xB0 16",
-    "hora": "15:00 a 17:00",
-    "lugar": "Sala Octavio Jara Wolff tercer nivel (Presencial)",
-    "tipo": "Sesi\xF3n de Comisi\xF3n",
-    "materia": "Analizar casos de maltrato y discriminaci\xF3n que han sido puestos en conocimiento de la Defensor\xEDa del Deportista, por presuntas vulneraciones de derechos de deportistas, que no habr\xEDan obtenido una respuesta adecuada por parte de las instituciones correspondientes. Para tales efectos, se encuentran invitados el Director de la Defensor\xEDa del Deportista, se\xF1or Eduardo Ar\xE9valo Mateluna, y el Subsecretario de la Ni\xF1ez, don Marcelo S\xE1nchez Ahumada.",
-    "invitados": "No informado en la citaci\xF3n.",
-    "tabla": [
-      "Analizar casos de maltrato y discriminaci\xF3n que han sido puestos en conocimiento de la Defensor\xEDa del Deportista, por presuntas vulneracione..."
-    ],
-    "boletinesRelacionados": [],
-    "acuerdosCount": 0,
-    "completada": false,
-    "comisionSlug": "deportes"
-  },
-  {
-    "id": "cit-semana-17",
-    "fecha": "MARTES, 8 DE SEPTIEMBRE DE 2026",
-    "comisionNombre": "Agricultura, Silvicultura y Desarrollo Rural",
-    "citacionNumero": "Citaci\xF3n Oficial N\xB0 17",
-    "hora": "15:00 a 17:00",
-    "lugar": "Sala Pedro Pablo \xC1lvarez-Salamanca tercer nivel (Presencial)",
-    "tipo": "Sesi\xF3n de Comisi\xF3n",
-    "materia": "De 15:00 a 16:00 horas: Continuar con la discusi\xF3n del proyecto de ley que \u201CModifica la Ley General de Urbanismo y Construcciones, y otros cuerpos legales, para regular el desarrollo de zonas residenciales en el medio rural\u201D, Bolet\xEDn N\xB017.006-01. Para este efecto se encuentran invitados: - El Ministro de Agricultura, don Jaime Campos. - El Ministro de Vivienda y Urbanismo, don Iv\xE1n Poduje.",
-    "invitados": "No informado en la citaci\xF3n.",
-    "tabla": [
-      "De 15:00 a 16:00 horas: Continuar con la discusi\xF3n del proyecto de ley que \u201CModifica la Ley General de Urbanismo y Construcciones, y otros c..."
-    ],
-    "boletinesRelacionados": [
-      "17.006-01"
-    ],
-    "acuerdosCount": 0,
-    "completada": false,
-    "comisionSlug": "agricultura"
-  },
-  {
-    "id": "cit-semana-18",
-    "fecha": "MARTES, 8 DE SEPTIEMBRE DE 2026",
-    "comisionNombre": "Gobierno Interior, Nacionalidad, Ciudadan\xEDa y Regionalizaci\xF3n",
-    "citacionNumero": "Citaci\xF3n Oficial N\xB0 18",
-    "hora": "15:00 a 17:00",
-    "lugar": "Sala Arturo Longton Guerrero tercer nivel (Presencial)",
-    "tipo": "Sesi\xF3n de Comisi\xF3n",
-    "materia": "Proyecto de ley, de origen en moci\xF3n, en primer tr\xE1mite constitucional y reglamentario, que declara feriado nacional el 17 de septiembre de 2026 (Bolet\xEDn N\xB0 18.600-06). Respecto de este proyecto de ley, ha sido invitado el Biministro de Econom\xEDa y Energ\xEDa, se\xF1or Daniel M\xE1s Vald\xE9s.",
-    "invitados": "No informado en la citaci\xF3n.",
-    "tabla": [
-      "Proyecto de ley, de origen en moci\xF3n, en primer tr\xE1mite constitucional y reglamentario, que declara feriado nacional el 17 de septiembre de ..."
-    ],
-    "boletinesRelacionados": [
-      "18.600-06"
-    ],
-    "acuerdosCount": 0,
-    "completada": false,
-    "comisionSlug": "gobierno-interior"
-  },
-  {
-    "id": "cit-semana-19",
-    "fecha": "MARTES, 8 DE SEPTIEMBRE DE 2026",
-    "comisionNombre": "Educaci\xF3n",
-    "citacionNumero": "Citaci\xF3n Oficial N\xB0 19",
-    "hora": "15:00 a 17:00",
-    "lugar": "Sala de Conferencias In\xE9s Enr\xEDquez segundo nivel (Presencial)",
-    "tipo": "Sesi\xF3n de Comisi\xF3n",
-    "materia": "Sesi\xF3n ordinaria citada con objeto de ocuparse de los siguientes asuntos:",
-    "invitados": "No informado en la citaci\xF3n.",
-    "tabla": [
-      "Sesi\xF3n ordinaria citada con objeto de ocuparse de los siguientes asuntos:..."
-    ],
-    "boletinesRelacionados": [],
-    "acuerdosCount": 0,
-    "completada": false,
-    "comisionSlug": "educacion"
-  },
-  {
-    "id": "cit-semana-20",
-    "fecha": "MARTES, 8 DE SEPTIEMBRE DE 2026",
-    "comisionNombre": "Relaciones Exteriores, Asuntos Interparlamentarios e Integraci\xF3n Latinoamericana",
-    "citacionNumero": "Citaci\xF3n Oficial N\xB0 20",
-    "hora": "15:00 a 17:00",
-    "lugar": "Sala Manuel Bustos Huerta tercer nivel (Presencial)",
-    "tipo": "Sesi\xF3n de Comisi\xF3n",
-    "materia": "Recibir en audiencia al se\xF1or Gino Casassa Rogazinski, Director del Instituto Ant\xE1rtico Chileno (INACH), a fin de abordar los efectos del calentamiento global y sus causas en el territorio ant\xE1rtico nacional. - Director del Instituto Ant\xE1rtico Chileno (INACH), se\xF1or Gino Casassa Rogazinski.",
-    "invitados": "No informado en la citaci\xF3n.",
-    "tabla": [
-      "Recibir en audiencia al se\xF1or Gino Casassa Rogazinski, Director del Instituto Ant\xE1rtico Chileno (INACH), a fin de abordar los efectos del ca..."
-    ],
-    "boletinesRelacionados": [],
-    "acuerdosCount": 0,
-    "completada": false,
-    "comisionSlug": "rree"
-  },
-  {
-    "id": "cit-semana-21",
-    "fecha": "MARTES, 8 DE SEPTIEMBRE DE 2026",
-    "comisionNombre": "Personas Mayores y Discapacidad",
-    "citacionNumero": "Citaci\xF3n Oficial N\xB0 21",
-    "hora": "17:30 a 19:30",
-    "lugar": "Sala Octavio Jara Wolff tercer nivel (Presencial)",
-    "tipo": "Sesi\xF3n de Comisi\xF3n",
-    "materia": 'Continuar el estudio, en general, de la iniciativa que "Modifica la ley N\xB018.961, org\xE1nica constitucional de Carabineros de Chile, en cuanto a los procedimientos de evaluaci\xF3n m\xE9dica que fundamentan retiros de personal". Bolet\xEDn N\xB0 18448-25. Para este objeto se ha invitado a General Director de Carabineros, Marcelo Araya Zapata; al director de Disalcar; al Jefe de la Direcci\xF3n de Salud de Carabineros, y al Director de Dipreca.',
-    "invitados": "No informado en la citaci\xF3n.",
-    "tabla": [
-      'Continuar el estudio, en general, de la iniciativa que "Modifica la ley N\xB018.961, org\xE1nica constitucional de Carabineros de Chile, en cuanto...'
-    ],
-    "boletinesRelacionados": [
-      "18448-25"
-    ],
-    "acuerdosCount": 0,
-    "completada": false,
-    "comisionSlug": "personas-mayores"
-  },
-  {
-    "id": "cit-semana-22",
-    "fecha": "MARTES, 8 DE SEPTIEMBRE DE 2026",
-    "comisionNombre": "Salud",
-    "citacionNumero": "Citaci\xF3n Oficial N\xB0 22",
-    "hora": "17:30 a 19:30",
-    "lugar": "Sala Juan Lobos Krause tercer nivel (Presencial)",
-    "tipo": "Sesi\xF3n de Comisi\xF3n",
-    "materia": "Recibir a los representantes de los trabajadores de la atenci\xF3n primaria de salud, a fin de que expongan sobre la situaci\xF3n presupuestaria de la atenci\xF3n primaria, el financiamiento per c\xE1pita y los efectos de los recortes en el funcionamiento de los servicios de salud, entre otras materias.",
-    "invitados": "No informado en la citaci\xF3n.",
-    "tabla": [
-      "Recibir a los representantes de los trabajadores de la atenci\xF3n primaria de salud, a fin de que expongan sobre la situaci\xF3n presupuestaria d..."
-    ],
-    "boletinesRelacionados": [],
-    "acuerdosCount": 0,
-    "completada": false,
-    "comisionSlug": "salud"
-  },
-  {
-    "id": "cit-semana-23",
-    "fecha": "MARTES, 8 DE SEPTIEMBRE DE 2026",
-    "comisionNombre": "Econom\xEDa, Fomento; Micro, Peque\xF1a y Mediana Empresa; Protecci\xF3n de los Consumidores y Turismo",
-    "citacionNumero": "Citaci\xF3n Oficial N\xB0 23",
-    "hora": "17:30 a 19:30",
-    "lugar": "Sala Ram\xF3n P\xE9rez Opazo tercer nivel (Presencial)",
-    "tipo": "Sesi\xF3n de Comisi\xF3n",
-    "materia": "continuar la discusi\xF3n y votaci\xF3n particular del proyecto de ley, originado en mensaje de S. E. el Presidente de la Rep\xFAblica, que modifica la ley N\xB0 19.799, sobre documentos electr\xF3nicos, firma electr\xF3nica y servicios de certificaci\xF3n de dicha firma, y otros cuerpos legales relacionados, bolet\xEDn N\xB0 18286-03, con urgencia calificada de \u201Csimple\u201D, en primer tr\xE1mite constitucional y primero reglamentario. NOTA: Se recuerda que el plazo para la formulaci\xF3n de INDICACIONES a este l proyecto de ley es el VIERNES 4 DE SEPTIEMBRE DE 2026, a las 12:00 hrs (mediod\xEDa).. Se encuentra invitado a participar de la tramitaci\xF3n de esta iniciativa el Ministro de Econom\xEDa, Fomento y Turismo, se\xF1or Daniel Mas; el Subsecretario de Econom\xEDa, se\xF1or Karlfranz Koehler y un representante experto en la materia de dicho Ministerio.",
-    "invitados": "No informado en la citaci\xF3n.",
-    "tabla": [
-      "continuar la discusi\xF3n y votaci\xF3n particular del proyecto de ley, originado en mensaje de S. E. el Presidente de la Rep\xFAblica, que modifica ..."
-    ],
-    "boletinesRelacionados": [
-      "18286-03"
-    ],
-    "acuerdosCount": 0,
-    "completada": false,
-    "comisionSlug": "economia"
-  },
-  {
-    "id": "cit-semana-24",
-    "fecha": "MARTES, 8 DE SEPTIEMBRE DE 2026",
-    "comisionNombre": "Trabajo y Seguridad Social",
-    "citacionNumero": "Citaci\xF3n Oficial N\xB0 24",
-    "hora": "17:30 a 19:30",
-    "lugar": "Sala Manuel Bustos Huerta tercer nivel (Presencial)",
-    "tipo": "Sesi\xF3n de Comisi\xF3n",
-    "materia": "Continuar el estudio y votar en general el proyecto de ley, originado en mensaje de S.E. el Presidente de la Rep\xFAblica, que \u201CPerfecciona los mecanismos de adaptabilidad de la jornada de trabajo y establece un r\xE9gimen especial para el sector turismo y actividades conexas\u201D, correspondiente al bolet\xEDn N\xB0 18.478-13, con urgencia calificada de \u201Csuma\u201D. Para estos efectos, se escuchar\xE1n, en primer lugar, las intervenciones pendientes de las diputadas se\xF1oras Ximena Ossand\xF3n y Gael Yeomans. Asimismo, se ha invitado al se\xF1or Gustavo Rosende Salazar, Subsecretario del Trabajo; a la se\xF1ora Mar\xEDa Paz Lagos Valdivieso, Subsecretaria de Turismo, al se\xF1or Claudio S\xE1nchez Pino, Presidente de la Central de Trabajadores de Chile (CTCH); a la se\xF1ora Bettina Horst von Thadden, Directora Ejecutiva de Libertad y Desarrollo (LyD); al se\xF1or Diego Ignacio Valerio Avalosa, Presidente de la Federaci\xF3n de Sindicatos de Casinos de Juego y Hoteles de Chile (FENASICAJH), y al se\xF1or Juan Manuel Mira Velasco, Presidente de Chilealimentos.",
-    "invitados": "No informado en la citaci\xF3n.",
-    "tabla": [
-      "Continuar el estudio y votar en general el proyecto de ley, originado en mensaje de S.E. el Presidente de la Rep\xFAblica, que \u201CPerfecciona los..."
-    ],
-    "boletinesRelacionados": [
-      "18.478-13"
-    ],
-    "acuerdosCount": 0,
-    "completada": false,
-    "comisionSlug": "trabajo-y-prevision"
-  },
-  {
-    "id": "cit-semana-25",
-    "fecha": "MARTES, 8 DE SEPTIEMBRE DE 2026",
-    "comisionNombre": "Defensa Nacional",
-    "citacionNumero": "Citaci\xF3n Oficial N\xB0 25",
-    "hora": "17:30 a 19:30",
-    "lugar": "Sala N\xB0 408 cuarto nivel (Presencial)",
-    "tipo": "Sesi\xF3n de Comisi\xF3n",
-    "materia": "Continuar la discusi\xF3n general del proyecto de ley que aumenta la pena aplicable al delito de ingreso no autorizado a recintos militares y policiales, y fortalece la protecci\xF3n de la seguridad p\xFAblica, correspondiente a los boletines refundidos N\xB018.361-02 y 18.381-02.",
-    "invitados": "No informado en la citaci\xF3n.",
-    "tabla": [
-      "Continuar la discusi\xF3n general del proyecto de ley que aumenta la pena aplicable al delito de ingreso no autorizado a recintos militares y p..."
-    ],
-    "boletinesRelacionados": [
-      "18.361-02",
-      "18.381-02"
-    ],
-    "acuerdosCount": 0,
-    "completada": false,
-    "comisionSlug": "defensa"
-  },
-  {
-    "id": "cit-semana-26",
-    "fecha": "MARTES, 8 DE SEPTIEMBRE DE 2026",
-    "comisionNombre": "Obras P\xFAblicas, Transportes y Telecomunicaciones",
-    "citacionNumero": "Citaci\xF3n Oficial N\xB0 26",
-    "hora": "17:30 a 19:30",
-    "lugar": "Sala de Conferencias In\xE9s Enr\xEDquez segundo nivel (Presencial)",
-    "tipo": "Sesi\xF3n de Comisi\xF3n",
-    "materia": 'Mensaje de S. E. el Presidente de la Rep\xFAblica, en primer tr\xE1mite constitucional y con urgencia calificada de suma, por el cual da inicio a la tramitaci\xF3n del proyecto que "modifica la Ley Org\xE1nica de la Empresa de los Ferrocarriles del Estado, con el objeto de establecer una exenci\xF3n de derechos y tributos municipales por la ejecuci\xF3n de obras ferroviarias y declarar dichas obras como infraestructura ejecutada por el Estado". BOLET\xCDN N\xB018.436-15. Se encuentra invitado el Biministro de Obras P\xFAblicas, Transportes y Telecomunicaciones, se\xF1or Louis De Grange Concha.',
-    "invitados": "No informado en la citaci\xF3n.",
-    "tabla": [
-      "Mensaje de S. E. el Presidente de la Rep\xFAblica, en primer tr\xE1mite constitucional y con urgencia calificada de suma, por el cual da inicio a ..."
-    ],
-    "boletinesRelacionados": [
-      "18.436-15"
-    ],
-    "acuerdosCount": 0,
-    "completada": false,
-    "comisionSlug": "obras-publicas"
-  },
-  {
-    "id": "cit-semana-27",
-    "fecha": "MI\xC9RCOLES, 9 DE SEPTIEMBRE DE 2026",
-    "comisionNombre": "CEI 3 Control migratorio de NNA extranjeros en el marco de procedimientos de reunificaci\xF3n familiar",
-    "citacionNumero": "Citaci\xF3n Oficial N\xB0 27",
-    "hora": "08:30 a 09:45",
-    "lugar": "Sala Ram\xF3n P\xE9rez Opazo tercer nivel (Presencial)",
-    "tipo": "Comisi\xF3n Especial Investigadora",
-    "materia": "Recibir, en el marco del mandato de la comisi\xF3n, al director nacional del Servicio Nacional de Migraciones, se\xF1or Frank Sauerbaum, para que de respuesta a las consultas formuladas por los miembros de la comisi\xF3n durante la sesi\xF3n pasada, y al Defensor de la Ni\xF1ez, se\xF1or Anuar Quesille. El director nacional del Servicio Nacional de Migraciones, se\xF1or Frank Sauerbaum. El Defensor de la Ni\xF1ez, se\xF1or Anuar Quesille.",
-    "invitados": "No informado en la citaci\xF3n.",
-    "tabla": [
-      "Recibir, en el marco del mandato de la comisi\xF3n, al director nacional del Servicio Nacional de Migraciones, se\xF1or Frank Sauerbaum, para que ..."
-    ],
-    "boletinesRelacionados": [],
-    "acuerdosCount": 0,
-    "completada": false,
-    "comisionSlug": "familias"
-  },
-  {
-    "id": "cit-semana-28",
-    "fecha": "MI\xC9RCOLES, 9 DE SEPTIEMBRE DE 2026",
-    "comisionNombre": "Futuro, Ciencias, Tecnolog\xEDa, Conocimiento e Innovaci\xF3n",
-    "citacionNumero": "Citaci\xF3n Oficial N\xB0 28",
-    "hora": "10:30 a 13:00",
-    "lugar": "Sala Arturo Longton Guerrero tercer nivel (Presencial)",
-    "tipo": "Sesi\xF3n de Comisi\xF3n",
-    "materia": "Sesi\xF3n especial citada con objeto de continuar con la votaci\xF3n en particular del proyecto de ley, en primer tr\xE1mite constitucional, con urgencia calificada de \u201Csuma\u201D, originado en las siguientes mociones refundidas: 1) El que establece un marco integral de protecci\xF3n de ni\xF1as, ni\xF1os y adolescentes en el uso de redes sociales (bolet\xEDn N\xB0 18224-18), de los diputados y diputadas Lorena Fries (A), Jaime Araya, Mat\xEDas Fern\xE1ndez, Ana Mar\xEDa Gazmuri, Andrea Mac\xEDas, Luis Malla, Cristian Mella, Jos\xE9 Montalva, Zandra Parisi y Gonzalo Winter. 2) El que protege a los menores de edad frente a la adicci\xF3n a las nuevas tecnolog\xEDas y proh\xEDbe el acceso a redes sociales y otras plataformas (bolet\xEDn N\xB0 18246-18), de las diputadas y diputados Diego Schalper (A), H\xE9ctor Barr\xEDa, Patricio Briones, Andr\xE9s Celis, Tom\xE1s Kast, Ra\xFAl Leiva, Paula Olmos, Ximena Ossand\xF3n, Macarena Santelices y H\xE9ctor Ulloa. 3) El que establece un estatuto de responsabilidad algor\xEDtmica y protecci\xF3n digital de ni\xF1os, ni\xF1as y adolescentes (bolet\xEDn N\xB0 18318-19), de las diputadas y diputados Daniel Manouchehri (A), Patricio Briones, Andr\xE9s Celis, Carolina Cucumides, Crist\xF3bal Mart\xEDnez, Jos\xE9 Montalva, Daniela Serrano, Consuelo Veloso, Gonzalo Winter y Gael Yeomans. 4) El que modifica la ley N\xB0 21.663, marco de ciberseguridad, para incorporar los principios de protecci\xF3n a la infancia y adolescencia, restricci\xF3n etaria e informaci\xF3n preventiva en entornos digitales (bolet\xEDn N\xB0 18415-18), de los diputados y diputadas Sara Concha (A), Patricio Briones, Andr\xE9s Celis, Tom\xE1s Kast, Jos\xE9 Montalva, Francesca Mu\xF1oz y Tamara Ram\xEDrez. En raz\xF3n de lo anterior, la Comisi\xF3n ha invitado a la ministra de Desarrollo Social y Familia, se\xF1ora Mar\xEDa Jes\xFAs Wulf Le May, y/o al subsecretario de la Ni\xF1ez, se\xF1or Marcelo S\xE1nchez Ahumada. \u2022 Ministra de Desarrollo Social y Familia, y/o \u2022 Subsecretario de la Ni\xF1ez.",
-    "invitados": "No informado en la citaci\xF3n.",
-    "tabla": [
-      "Sesi\xF3n especial citada con objeto de continuar con la votaci\xF3n en particular del proyecto de ley, en primer tr\xE1mite constitucional, con urge..."
-    ],
-    "boletinesRelacionados": [
-      "18224-18",
-      "18246-18",
-      "18318-19",
-      "18415-18"
-    ],
-    "acuerdosCount": 0,
-    "completada": false,
-    "comisionSlug": "ciencias"
-  },
-  {
-    "id": "cit-semana-29",
-    "fecha": "MI\xC9RCOLES, 9 DE SEPTIEMBRE DE 2026",
-    "comisionNombre": "Revisora de Cuentas",
-    "citacionNumero": "Citaci\xF3n Oficial N\xB0 29",
-    "hora": "10:30 a 11:30",
-    "lugar": "Sala Pedro Pablo \xC1lvarez-Salamanca tercer nivel (Presencial)",
-    "tipo": "Sesi\xF3n de Comisi\xF3n",
-    "materia": "Conocer los informes de auditor\xEDa externa elaborados por la empresa Xlibrium, as\xED como aquellos del Comit\xE9 de Auditor\xEDa Parlamentaria. Invitados: Pablo Oneto, Subsecretario Administrativo Patricio Leiva, Jefe de Finanzas Priscila Jara, Abogado Coordinadora del Comit\xE9 de Auditor\xEDa Parlamentaria.",
-    "invitados": "No informado en la citaci\xF3n.",
-    "tabla": [
-      "Conocer los informes de auditor\xEDa externa elaborados por la empresa Xlibrium, as\xED como aquellos del Comit\xE9 de Auditor\xEDa Parlamentaria. Invit..."
-    ],
-    "boletinesRelacionados": [],
-    "acuerdosCount": 0,
-    "completada": false,
-    "comisionSlug": "revisora-cuentas"
-  },
-  {
-    "id": "cit-semana-30",
-    "fecha": "MI\xC9RCOLES, 9 DE SEPTIEMBRE DE 2026",
-    "comisionNombre": "Vivienda, Desarrollo Urbano y Bienes Nacionales",
-    "citacionNumero": "Citaci\xF3n Oficial N\xB0 30",
-    "hora": "15:00 a 17:00",
-    "lugar": "Sala N\xB0 410 cuarto nivel (Presencial)",
-    "tipo": "Sesi\xF3n de Comisi\xF3n",
-    "materia": "Recibir a la Contralora General de la Rep\xFAblica, se\xF1ora Dorothy P\xE9rez Guti\xE9rrez; al Ministro de Vivienda y Urbanismo, se\xF1or Iv\xE1n Poduje Capdeville y al Presidente de la Asociaci\xF3n Chilena de Municipalidades (ACHM), se\xF1or Gustavo Alessandri Bascu\xF1\xE1n, o a quienes designen en su representaci\xF3n, para que se refieran a las modificaciones introducidas a la Ordenanza General de Urbanismo y Construcciones por el decreto supremo N\xB0 68, de 2026, del Ministerio de Vivienda y Urbanismo, particularmente a sus efectos sobre los planes reguladores comunales y metropolitanos y la calidad de vida de las personas. Se ha invitado a la Contralora General de la Rep\xFAblica, se\xF1ora Dorothy P\xE9rez Guti\xE9rrez; al Ministro de Vivienda y Urbanismo, se\xF1or Iv\xE1n Poduje Capdeville y al Presidente de la Asociaci\xF3n Chilena de Municipalidades (ACHM), se\xF1or Gustavo Alessandri Bascu\xF1\xE1n, o a quienes designen en su representaci\xF3n.",
-    "invitados": "No informado en la citaci\xF3n.",
-    "tabla": [
-      "Recibir a la Contralora General de la Rep\xFAblica, se\xF1ora Dorothy P\xE9rez Guti\xE9rrez; al Ministro de Vivienda y Urbanismo, se\xF1or Iv\xE1n Poduje Capd..."
-    ],
-    "boletinesRelacionados": [],
-    "acuerdosCount": 0,
-    "completada": false,
-    "comisionSlug": "vivienda"
-  },
-  {
-    "id": "cit-semana-31",
-    "fecha": "MI\xC9RCOLES, 9 DE SEPTIEMBRE DE 2026",
-    "comisionNombre": "Pesca, Acuicultura e Intereses Mar\xEDtimos",
-    "citacionNumero": "Citaci\xF3n Oficial N\xB0 31",
-    "hora": "15:00 a 17:00",
-    "lugar": "Sala de Conferencias In\xE9s Enr\xEDquez segundo nivel (Presencial)",
-    "tipo": "Sesi\xF3n de Comisi\xF3n",
-    "materia": "Continuar la votaci\xF3n en particular del proyecto de ley originado en Moci\xF3n, en primer tr\xE1mite constitucional, copatrocinada por los diputados se\xF1ores Alejandro Bernales, Roberto Celed\xF3n, Mauro Gonz\xE1lez, Jorge Guzm\xE1n (A), Tom\xE1s Kast, Diego Schalper, Carolina Tello y Guillermo Vald\xE9s, sobre \u201CFortalecimiento de la Seguridad Mar\xEDtima\u201D, BOLET\xCDN 18.198-15. Se encuentran invitados el Subsecretario de Justicia, se\xF1or Luis Silva Irarr\xE1zabal; el Capit\xE1n de Nav\xEDo Litoral (CN LT) de la Direcci\xF3n General del Territorio Mar\xEDtimo y de Marina Mercante y Jefe del Servicio de Inspecciones Mar\xEDtimas, se\xF1or Roberto Alfaro P\xE9rez; el Teniente 1, se\xF1or Gast\xF3n Salinas Vald\xE9s, Asesor jur\xEDdico de la Direcci\xF3n de Seguridad y Operaciones Mar\xEDtimas de la Armada de Chile, y la asesora jur\xEDdica del Ministerio de Defensa, se\xF1ora Maricarmen Garrido I.",
-    "invitados": "No informado en la citaci\xF3n.",
-    "tabla": [
-      "Continuar la votaci\xF3n en particular del proyecto de ley originado en Moci\xF3n, en primer tr\xE1mite constitucional, copatrocinada por los diputad..."
-    ],
-    "boletinesRelacionados": [
-      "18.198-15"
-    ],
-    "acuerdosCount": 0,
-    "completada": false,
-    "comisionSlug": "pesca"
-  },
-  {
-    "id": "cit-semana-32",
-    "fecha": "MI\xC9RCOLES, 9 DE SEPTIEMBRE DE 2026",
-    "comisionNombre": "Mujeres y Equidad de G\xE9nero",
-    "citacionNumero": "Citaci\xF3n Oficial N\xB0 32",
-    "hora": "15:00 a 17:00",
-    "lugar": "Sala Manuel Bustos Huerta tercer nivel (Presencial)",
-    "tipo": "Sesi\xF3n de Comisi\xF3n",
-    "materia": "Iniciar la discusi\xF3n y votaci\xF3n en particular de los siguientes proyectos de ley, refundidos: 1) Moci\xF3n de las diputadas Sara Concha Smith, Valentina Becerra Pe\xF1a, Francesca Mu\xF1oz Gonz\xE1lez, Paulina Mu\xF1oz Minte, Ximena Naranjo Pinto, Javiera Rodr\xEDguez Pascual, Marisela Santib\xE1\xF1ez Novoa, Eileen Urqueta Rojas y Consuelo Veloso \xC1vila, y del diputado Eduardo Dur\xE1n Salinas, que fortalece la protecci\xF3n de las v\xEDctimas de violencia intrafamiliar y previene su revictimizaci\xF3n, correspondiente al bolet\xEDn N\xB018236-18, en primer tr\xE1mite constitucional y reglamentario, con urgencia calificada de \u201Csuma\u201D. 2) Moci\xF3n de las diputadas Valentina Becerra Pe\xF1a, Paz Charpentier Rajcevich, Catalina Del Real Mihovilovic, Stephanie J\xE9ldrez Ortiz, Claudia Mora Vega, Zandra Parisi Fern\xE1ndez, Claudia Reyes Larenas y Marisela Santib\xE1\xF1ez Novoa, y de los diputados Felipe Cama\xF1o C\xE1rdenas y Eduardo Dur\xE1n Salinas, que modifica cuerpos legales que indica en materia de notificaciones de medidas cautelares dictadas en procesos de violencia intrafamiliar, correspondiente al bolet\xEDn N\xB018414-18, en primer tr\xE1mite constitucional y reglamentario.",
-    "invitados": "No informado en la citaci\xF3n.",
-    "tabla": [
-      "Iniciar la discusi\xF3n y votaci\xF3n en particular de los siguientes proyectos de ley, refundidos: 1) Moci\xF3n de las diputadas Sara Concha Smith, ..."
-    ],
-    "boletinesRelacionados": [
-      "18236-18",
-      "18414-18"
-    ],
-    "acuerdosCount": 0,
-    "completada": false,
-    "comisionSlug": "mujeres-genero"
-  },
-  {
-    "id": "cit-semana-33",
-    "fecha": "MI\xC9RCOLES, 9 DE SEPTIEMBRE DE 2026",
-    "comisionNombre": "Medio Ambiente y Recursos Naturales",
-    "citacionNumero": "Citaci\xF3n Oficial N\xB0 33",
-    "hora": "15:00 a 17:00",
-    "lugar": "Sala Juan Lobos Krause tercer nivel (Presencial)",
-    "tipo": "Sesi\xF3n de Comisi\xF3n",
-    "materia": "Continuar la discusi\xF3n y votaci\xF3n particular, en segundo tr\xE1mite constitucional, del proyecto de ley que modifica diversos cuerpos legales, con el objeto de fortalecer la institucionalidad ambiental y mejorar su eficiencia, correspondiente al Bolet\xEDn N\xB0 16.552-12 (S). Urgencia simple.",
-    "invitados": "No informado en la citaci\xF3n.",
-    "tabla": [
-      "Continuar la discusi\xF3n y votaci\xF3n particular, en segundo tr\xE1mite constitucional, del proyecto de ley que modifica diversos cuerpos legales, ..."
-    ],
-    "boletinesRelacionados": [
-      "16.552-12"
-    ],
-    "acuerdosCount": 0,
-    "completada": false,
-    "comisionSlug": "medio-ambiente"
-  },
-  {
-    "id": "cit-semana-34",
-    "fecha": "MI\xC9RCOLES, 9 DE SEPTIEMBRE DE 2026",
-    "comisionNombre": "Derechos Humanos y Pueblos Originarios",
-    "citacionNumero": "Citaci\xF3n Oficial N\xB0 34",
-    "hora": "15:00 a 17:00",
-    "lugar": "Sala Ram\xF3n P\xE9rez Opazo tercer nivel (Presencial)",
-    "tipo": "Sesi\xF3n de Comisi\xF3n",
-    "materia": "Recibir al subsecretario de Derechos Humanos, Pablo Mira Hurtado; y al subsecretario de la Ni\xF1ez, Marcelo S\xE1nchez Ahumada, para que informen acerca del funcionamiento y estado de avance de la Comisi\xF3n de Verdad y Ni\xF1ez, especialmente sobre las labores desarrolladas, las metas y plazos establecidos, las dificultades que ha enfrentado y sus proyecciones futuras. Asimismo, para que efect\xFAen una exposici\xF3n acabada que comprenda el pasado, presente y futuro de dicha Comisi\xF3n.",
-    "invitados": "No informado en la citaci\xF3n.",
-    "tabla": [
-      "Recibir al subsecretario de Derechos Humanos, Pablo Mira Hurtado; y al subsecretario de la Ni\xF1ez, Marcelo S\xE1nchez Ahumada, para que informen..."
-    ],
-    "boletinesRelacionados": [],
-    "acuerdosCount": 0,
-    "completada": false,
-    "comisionSlug": "derechos-humanos"
-  },
-  {
-    "id": "cit-semana-35",
-    "fecha": "MI\xC9RCOLES, 9 DE SEPTIEMBRE DE 2026",
-    "comisionNombre": "Constituci\xF3n, Legislaci\xF3n, Justicia y Reglamento",
-    "citacionNumero": "Citaci\xF3n Oficial N\xB0 35",
-    "hora": "15:00 a 17:00",
-    "lugar": "Sala Francisco Bulnes Sanfuentes tercer nivel (Presencial)",
-    "tipo": "Sesi\xF3n de Comisi\xF3n",
-    "materia": "Continuar con la tramitaci\xF3n en particular del proyecto de ley, iniciado en moci\xF3n, que \u201CModifica el C\xF3digo Penal para sancionar toda forma de instrumentalizaci\xF3n de ni\xF1os, ni\xF1as y adolescentes para cometer delitos''. Bolet\xEDn N\xB0 18.282-07. Se acord\xF3 refundirlo con el bolet\xEDn N\xB018.590. Urgencia suma. Se ha invitado al se\xF1or Ministro de Justicia y Derechos Humanos; a los acad\xE9micos se\xF1ora Mar\xEDa Elena Santib\xE1\xF1ez (U. Cat\xF3lica de Chile); Alejandra Castillo Ara (U. Diego Portales); Francisco Maldonado Fuentes (U. de Talca); Alejandro Leiva L\xF3pez (U. Andr\xE9s Bello); Gonzalo Berr\xEDos D\xEDaz (U. de Chile).",
-    "invitados": "No informado en la citaci\xF3n.",
-    "tabla": [
-      "Continuar con la tramitaci\xF3n en particular del proyecto de ley, iniciado en moci\xF3n, que \u201CModifica el C\xF3digo Penal para sancionar toda forma ..."
-    ],
-    "boletinesRelacionados": [
-      "18.282-07"
-    ],
-    "acuerdosCount": 0,
-    "completada": false,
-    "comisionSlug": "constitucion"
-  },
-  {
-    "id": "cit-semana-36",
-    "fecha": "MI\xC9RCOLES, 9 DE SEPTIEMBRE DE 2026",
-    "comisionNombre": "Miner\xEDa y Energ\xEDa",
-    "citacionNumero": "Citaci\xF3n Oficial N\xB0 36",
-    "hora": "15:00 a 17:00",
-    "lugar": "Sala Octavio Jara Wolff tercer nivel (Presencial)",
-    "tipo": "Sesi\xF3n de Comisi\xF3n",
-    "materia": "Analizar la aprobaci\xF3n por parte de la Comisi\xF3n de Evaluaci\xF3n Ambiental (CEA) del proyecto minero de tierras raras impulsado en la comuna de Penco por la empresa minera Aclara y el Grupo CAP, y sus eventuales implicancias para la comuna y la regi\xF3n. - Biministro de Econom\xEDa, Fomento y Turismo y Miner\xEDa, se\xF1or Daniel Mas Vald\xE9s. - Subsecretario de Miner\xEDa, se\xF1or \xC1lvaro Gonz\xE1lez Gorro\xF1o. - Alcalde de Penco, se\xF1or Rodrigo Vera Riquelme. - Secretario Regional Ministerial de Miner\xEDa de la Regi\xF3n del Biob\xEDo, se\xF1or Daniel Escobar Palma. - Vicedecana de la Facultad de Ingenier\xEDa de la Universidad Cat\xF3lica de la Sant\xEDsima Concepci\xF3n, se\xF1ora Matilde Basso Ar\xE1nguiz.",
-    "invitados": "No informado en la citaci\xF3n.",
-    "tabla": [
-      "Analizar la aprobaci\xF3n por parte de la Comisi\xF3n de Evaluaci\xF3n Ambiental (CEA) del proyecto minero de tierras raras impulsado en la comuna de..."
-    ],
-    "boletinesRelacionados": [],
-    "acuerdosCount": 0,
-    "completada": false,
-    "comisionSlug": "mineria"
-  }
-];
 var SENADO_CITACIONES_POR_COMISION_ID = {
   "198": [
     {
@@ -187340,7 +186015,7 @@ function generateDynamicProyecto(id) {
     autores: "No disponible",
     iniciativa: "Moci\xF3n",
     patrocinantes: 0,
-    urgencia: "Sin urgencia",
+    urgencia: "No informada",
     camaraOrigen: "Diputados",
     comisionActual: "Sin informaci\xF3n",
     comisionesHistoricas: [],
@@ -187705,7 +186380,7 @@ function mergeSesionesDuplicadas(sesiones) {
 }
 
 // server/services/cacheService.ts
-var CacheService = class {
+var CacheService = class _CacheService {
   constructor() {
     this.cache = /* @__PURE__ */ new Map();
     this.hits = 0;
@@ -187735,7 +186410,16 @@ var CacheService = class {
     if (!isStale) this.hits++;
     return { data: entry.data, isStale };
   }
+  static {
+    /** Tope de entradas: las búsquedas libres generan claves nuevas, así que sin tope la memoria crecería sin límite. */
+    this.MAX_ENTRADAS = 2e3;
+  }
   set(key, data, ttlMs = 5 * 60 * 1e3) {
+    if (!this.cache.has(key) && this.cache.size >= _CacheService.MAX_ENTRADAS) {
+      const ahora = Date.now();
+      for (const [k, e] of this.cache) if (ahora - e.cachedAt > e.ttlMs) this.cache.delete(k);
+      if (this.cache.size >= _CacheService.MAX_ENTRADAS) this.cache.delete(this.cache.keys().next().value);
+    }
     this.cache.set(key, {
       data,
       cachedAt: Date.now(),
@@ -188145,10 +186829,17 @@ async function intentarClaude(prompt, maxTokens) {
 }
 var LIMITE_TOTAL_IA_MS = 16e4;
 async function generarContenidoUniversalIA(prompt, maxTokens = 2e3, attempts) {
-  return Promise.race([
-    generarContenidoUniversalIAInterno(prompt, maxTokens, attempts),
-    new Promise((resolve) => setTimeout(() => resolve(null), LIMITE_TOTAL_IA_MS))
-  ]);
+  let temporizador;
+  try {
+    return await Promise.race([
+      generarContenidoUniversalIAInterno(prompt, maxTokens, attempts),
+      new Promise((resolve) => {
+        temporizador = setTimeout(() => resolve(null), LIMITE_TOTAL_IA_MS);
+      })
+    ]);
+  } finally {
+    clearTimeout(temporizador);
+  }
 }
 async function generarContenidoUniversalIAInterno(prompt, maxTokens, attempts) {
   const [geminiRes, openrouterRes, cerebrasRes] = await Promise.all([
@@ -188522,17 +187213,17 @@ async function fetchProyectoFromSenado(boletinId) {
       const fechaIngreso = parseFechaChilena(extractTag(descBlock, "fecha_ingreso") || "");
       const iniciativaRaw = extractTag(descBlock, "iniciativa") || "Moci\xF3n";
       const iniciativa = iniciativaRaw.toLowerCase().includes("mensaje") ? "Mensaje" : "Moci\xF3n";
-      const camaraOrigenRaw = extractTag(descBlock, "camara_origen") || "Senado";
-      const camaraOrigen = camaraOrigenRaw.toLowerCase().includes("diputados") || camaraOrigenRaw.toLowerCase().includes("camara") ? "Diputados" : "Senado";
-      const urgenciaRaw = extractTag(descBlock, "urgencia_actual") || "Sin urgencia";
-      let urgencia = "Sin urgencia";
+      const camaraOrigenRaw = extractTag(descBlock, "camara_origen");
+      const camaraOrigen = !camaraOrigenRaw.trim() ? "No informado" : camaraOrigenRaw.toLowerCase().includes("diputados") || camaraOrigenRaw.toLowerCase().includes("camara") ? "Diputados" : "Senado";
+      const urgenciaRaw = extractTag(descBlock, "urgencia_actual");
+      let urgencia = /<urgencia_actual[\s>/]/i.test(descBlock) ? "Sin urgencia" : "No informada";
       const uLower = urgenciaRaw.toLowerCase();
       if (uLower.includes("inmediata")) urgencia = "Discusi\xF3n Inmediata";
       else if (uLower.includes("suma")) urgencia = "Suma";
       else if (uLower.includes("simple")) urgencia = "Simple";
-      const etapa = extractTag(descBlock, "etapa") || "En discusi\xF3n";
+      const etapa = extractTag(descBlock, "etapa") || "No informada";
       const subetapa = extractTag(descBlock, "subetapa") || "";
-      const estado = extractTag(descBlock, "estado") || "En discusi\xF3n";
+      const estado = extractTag(descBlock, "estado") || "No informado";
       const linkMocion = urlOficialSenado(extractTagUrl(descBlock, "link_mensaje_mocion")) || `https://tramitacion.senado.cl/wspublico/tramitacion.php?boletin=${digits}`;
       const autoresBlock = extractTag(xml, "autores");
       const autoresList = extractAll(autoresBlock, "autor").map((a) => extractTag(a, "PARLAMENTARIO")).filter(Boolean);
@@ -188613,7 +187304,7 @@ async function fetchProyectoFromSenado(boletinId) {
       const MESES_ES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
       const fIso = /^(\d{4})-(\d{2})-(\d{2})/.exec(fechaIngreso);
       const fechaTxt = fIso ? `${parseInt(fIso[3], 10)} de ${MESES_ES[parseInt(fIso[2], 10) - 1]} de ${fIso[1]}` : fechaIngreso;
-      const camaraTxt = camaraOrigen === "Diputados" ? "la C\xE1mara de Diputadas y Diputados" : "el Senado";
+      const camaraTxt = camaraOrigen === "Diputados" ? "la C\xE1mara de Diputadas y Diputados" : camaraOrigen === "Senado" ? "el Senado" : "una c\xE1mara no informada en la ficha";
       const autoresTxt = autoresList.map((a) => {
         const m = a.match(/^([^,]+),\s*(.+)$/);
         return m ? `${m[2]} ${m[1]}` : a;
@@ -188630,11 +187321,12 @@ async function fetchProyectoFromSenado(boletinId) {
       if (votacionesBlock) {
         const vots = extractAll(votacionesBlock, "votacion");
         vots.forEach((v, idx) => {
-          const fecha = extractTag(v, "FECHA") || fechaIngreso;
-          const materiaVot = extractTag(v, "MATERIA") || "Votaci\xF3n de articulado";
+          const fecha = extractTag(v, "FECHA");
+          const materiaVot = extractTag(v, "MATERIA") || "Materia no informada";
           const si = parseInt(extractTag(v, "SI")) || 0;
           const no = parseInt(extractTag(v, "NO")) || 0;
           const abst = parseInt(extractTag(v, "ABSTENCION")) || 0;
+          const conteoInformado = ["SI", "NO", "ABSTENCION"].some((t) => extractTag(v, t).trim() !== "");
           const resultado = extractTag(v, "ETAPADESCRIPCION") || "Resultado no informado";
           votaciones.push({
             id: `v-${digits}-${idx}`,
@@ -188643,6 +187335,7 @@ async function fetchProyectoFromSenado(boletinId) {
             si,
             no,
             abstencios: abst,
+            conteoInformado,
             resultado
           });
         });
@@ -188753,7 +187446,8 @@ function listadoToProyecto(item) {
     // el listado general no informa la cámara de origen
     etapa: item.estado,
     materia,
-    urgencia: "Sin urgencia",
+    urgencia: "No informada",
+    // el listado no informa la urgencia
     patrocinantes: 0,
     iniciativa: "Moci\xF3n",
     comisionActual: mapeo ? mapeo.comision : "No informada",
@@ -188814,7 +187508,8 @@ async function fetchSenadoComisionProyectosLive(senadoId, comisionNombre = "Sena
               iniciativa: "Moci\xF3n",
               // el listado no distingue mensaje/moción; ver ficha oficial
               patrocinantes: 0,
-              urgencia: "Sin urgencia",
+              urgencia: "No informada",
+              // el listado no informa la urgencia
               camaraOrigen: "No informado",
               comisionActual: comisionNombre,
               linkCongreso: `https://tramitacion.senado.cl/appsenado/index.php?mo=tramitacion&ac=boletin_x_fecha&comiid=${senadoId}&titulo=${encodeURIComponent("Senado: Com. " + comisionNombre)}`,
@@ -189207,7 +187902,7 @@ Reglas: usa SOLO lo que dicen los extractos; no inventes nombres, cargos, cifras
     const re = new RegExp(`(?:^|\\n)\\s*${nombre}:\\s*([\\s\\S]*?)(?=\\n\\s*(?:PERIODO|SESIONES|EXPOSITORES|VOTACIONES|CAMBIOS|RESUMEN):|$)`, "i");
     return (texto.match(re)?.[1] || "").trim();
   };
-  const lista2 = (b) => b.split("\n").map((l) => l.replace(/^\s*[-•]\s*/, "").trim()).filter((l) => l && !/^no informado\.?$/i.test(l));
+  const lista3 = (b) => b.split("\n").map((l) => l.replace(/^\s*[-•]\s*/, "").trim()).filter((l) => l && !/^no informado\.?$/i.test(l));
   const expositores = seccion("EXPOSITORES").split("\n").map((l) => l.split("|").map((x) => x.trim())).filter((x) => x.length >= 2 && x[0] && !/^nombre$/i.test(x[0])).map((x) => ({ nombre: x[0].replace(/^\s*[-•]\s*/, ""), cargo: x[1] || "", planteo: x.slice(2).join(" | ") }));
   const resumen = seccion("RESUMEN");
   if (!resumen && expositores.length === 0) {
@@ -189222,8 +187917,8 @@ Reglas: usa SOLO lo que dicen los extractos; no inventes nombres, cargos, cifras
     periodo: seccion("PERIODO") || "No informado",
     sesiones: seccion("SESIONES") || "No informado",
     expositores,
-    votaciones: lista2(seccion("VOTACIONES")),
-    cambios: lista2(seccion("CAMBIOS")),
+    votaciones: lista3(seccion("VOTACIONES")),
+    cambios: lista3(seccion("CAMBIOS")),
     resumen,
     generado: (/* @__PURE__ */ new Date()).toISOString()
   };
@@ -189397,11 +188092,7 @@ function respaldoCamara(detalle) {
   estadoCitacionesCamara.fuente = "respaldo";
   estadoCitacionesCamara.detalle = detalle;
   estadoCitacionesCamara.actualizado = (/* @__PURE__ */ new Date()).toISOString();
-  return {
-    porDia: CAMARA_CITACIONES_SEMANALES_POR_DIA,
-    porComision: CAMARA_CITACIONES_POR_COMISION,
-    todas: CAMARA_CITACIONES_FULL_WEEK
-  };
+  return { porDia: [], porComision: {}, todas: [] };
 }
 function parsearCitacionesCamaraHtml(html) {
   const articleRegex = /<article class="grid-12 citaciones">([\s\S]*?)<\/article>/gi;
@@ -189672,8 +188363,8 @@ async function fetchCamaraProyectoOficial(boletinRaw) {
         opendataGet(`WSLegislativo.asmx/retornarProyectoLey?prmNumeroBoletin=${boletin}`),
         opendataGet(`WSLegislativo.asmx/retornarVotacionesXProyectoLey?prmNumeroBoletin=${boletin}`).catch(() => "")
       ]);
-      const vacio = /xsi:nil="true"\s*\/?>\s*$/.test(xmlProy.trim()) || !xmlTag(xmlProy, "NumeroBoletin");
-      const proyecto = vacio ? void 0 : {
+      const vacio2 = /xsi:nil="true"\s*\/?>\s*$/.test(xmlProy.trim()) || !xmlTag(xmlProy, "NumeroBoletin");
+      const proyecto = vacio2 ? void 0 : {
         id: xmlTag(xmlProy, "Id"),
         boletin: xmlTag(xmlProy, "NumeroBoletin"),
         nombre: xmlTag(xmlProy, "Nombre"),
@@ -189797,10 +188488,10 @@ async function ytGet(ruta, params) {
   return data;
 }
 async function detallesVideos(ids) {
-  const unicos = Array.from(new Set(ids.filter((id) => /^[\w-]{11}$/.test(id)))).slice(0, 50);
-  if (unicos.length === 0) return {};
-  return cache.wrap(`yt_det_${unicos.join(",")}`, 6 * 60 * 60 * 1e3, async () => {
-    const data = await ytGet("videos", { part: "snippet,contentDetails", id: unicos.join(",") });
+  const unicos2 = Array.from(new Set(ids.filter((id) => /^[\w-]{11}$/.test(id)))).slice(0, 50);
+  if (unicos2.length === 0) return {};
+  return cache.wrap(`yt_det_${unicos2.join(",")}`, 6 * 60 * 60 * 1e3, async () => {
+    const data = await ytGet("videos", { part: "snippet,contentDetails", id: unicos2.join(",") });
     const out = {};
     for (const it of data.items || []) {
       out[it.id] = {
@@ -189877,6 +188568,79 @@ function aSegundos(v) {
   if (p.some((n) => isNaN(n))) return 0;
   return p.reduce((acc, n) => acc * 60 + n, 0);
 }
+async function consultarGeminiVideo(p) {
+  const { apiKey, videoId, desde, hasta, prompt, maxOutputTokens } = p;
+  const videoMetadata = { startOffset: `${desde}s` };
+  if (hasta != null) videoMetadata.endOffset = `${hasta}s`;
+  const candidatos = Array.from(new Set([
+    process.env.GEMINI_VIDEO_MODEL,
+    process.env.GEMINI_MODEL,
+    "gemini-3.6-flash",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite"
+  ].filter(Boolean)));
+  let res = null;
+  let model = candidatos[0];
+  const errores = [];
+  const limiteTotal = Date.now() + 27e4;
+  for (const m of candidatos) {
+    model = m;
+    const restante = limiteTotal - Date.now();
+    if (restante < 2e4) {
+      errores.push(`${m}: sin tiempo restante`);
+      break;
+    }
+    try {
+      res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, {
+        method: "POST",
+        // La clave va en el encabezado: funciona con claves "AIza…" y con las nuevas "AQ.…".
+        headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { fileData: { fileUri: `https://www.youtube.com/watch?v=${videoId}` }, videoMetadata },
+              { text: prompt }
+            ]
+          }],
+          generationConfig: {
+            temperature: 0.2,
+            maxOutputTokens,
+            responseMimeType: "application/json",
+            mediaResolution: "MEDIA_RESOLUTION_LOW"
+          }
+        }),
+        signal: AbortSignal.timeout(Math.min(11e4, restante))
+      });
+    } catch (err) {
+      errores.push(`${m}: ${err?.name === "TimeoutError" ? "sin respuesta a tiempo" : err?.message || err}`);
+      res = null;
+      continue;
+    }
+    if (res.ok) break;
+    const txt = await res.text().catch(() => "");
+    let detalle = "";
+    try {
+      const j = JSON.parse(txt);
+      const viol = (j?.error?.details || []).flatMap((d) => d?.violations || []);
+      detalle = viol.map((v) => v.quotaId || v.quotaMetric).filter(Boolean).join(", ") || String(j?.error?.message || "").slice(0, 160);
+    } catch {
+      detalle = txt.slice(0, 160);
+    }
+    errores.push(`${m}: HTTP ${res.status}${detalle ? ` (${detalle})` : ""}`);
+    if (![429, 404, 500, 502, 503, 504].includes(res.status)) break;
+    res = null;
+  }
+  if (!res || !res.ok) {
+    const sinCuota = errores.some((e) => e.includes("HTTP 429"));
+    return {
+      ok: false,
+      motivo: `${sinCuota ? "La clave de Gemini no tiene cuota disponible (l\xEDmite gratuito agotado o sin facturaci\xF3n activa). " : ""}Detalle: ${errores.join(" | ")}`
+    };
+  }
+  const data = await res.json();
+  const texto = (data?.candidates?.[0]?.content?.parts || []).map((x) => x.text || "").join("");
+  return { ok: true, texto, model };
+}
 async function analizarParteVideo(params) {
   const { videoId, parte } = params;
   const apiKey = process.env.GEMINI_VIDEO_API_KEY || process.env.GEMINI_API_KEY;
@@ -189911,78 +188675,9 @@ Responde \xDANICAMENTE con JSON v\xE1lido:
   "votaciones": ["votaciones realizadas y su resultado, si las hay"]
 }
 Ordena las intervenciones cronol\xF3gicamente y registra cada cambio relevante de orador.`;
-    const videoMetadata = { startOffset: `${desde}s` };
-    if (hasta != null) videoMetadata.endOffset = `${hasta}s`;
-    const candidatos = Array.from(new Set([
-      process.env.GEMINI_VIDEO_MODEL,
-      process.env.GEMINI_MODEL,
-      "gemini-3.6-flash",
-      "gemini-2.5-flash",
-      "gemini-2.5-flash-lite"
-    ].filter(Boolean)));
-    let res = null;
-    let model = candidatos[0];
-    const errores = [];
-    const limiteTotal = Date.now() + 27e4;
-    for (const m of candidatos) {
-      model = m;
-      const restante = limiteTotal - Date.now();
-      if (restante < 2e4) {
-        errores.push(`${m}: sin tiempo restante`);
-        break;
-      }
-      try {
-        res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, {
-          method: "POST",
-          // La clave va en el encabezado: funciona con claves "AIza…" y con las nuevas "AQ.…".
-          headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-          body: JSON.stringify({
-            contents: [{
-              parts: [
-                { fileData: { fileUri: `https://www.youtube.com/watch?v=${videoId}` }, videoMetadata },
-                { text: prompt }
-              ]
-            }],
-            generationConfig: {
-              temperature: 0.2,
-              maxOutputTokens: 16e3,
-              responseMimeType: "application/json",
-              mediaResolution: "MEDIA_RESOLUTION_LOW"
-            }
-          }),
-          signal: AbortSignal.timeout(Math.min(11e4, restante))
-        });
-      } catch (err) {
-        errores.push(`${m}: ${err?.name === "TimeoutError" ? "sin respuesta a tiempo" : err?.message || err}`);
-        res = null;
-        continue;
-      }
-      if (res.ok) break;
-      const txt = await res.text().catch(() => "");
-      let detalle = "";
-      try {
-        const j = JSON.parse(txt);
-        const viol = (j?.error?.details || []).flatMap((d) => d?.violations || []);
-        detalle = viol.map((v) => v.quotaId || v.quotaMetric).filter(Boolean).join(", ") || String(j?.error?.message || "").slice(0, 160);
-      } catch {
-        detalle = txt.slice(0, 160);
-      }
-      errores.push(`${m}: HTTP ${res.status}${detalle ? ` (${detalle})` : ""}`);
-      if (![429, 404, 500, 502, 503, 504].includes(res.status)) break;
-      res = null;
-    }
-    if (!res || !res.ok) {
-      const sinCuota = errores.some((e) => e.includes("HTTP 429"));
-      return {
-        disponible: false,
-        motivo: `${sinCuota ? "La clave de Gemini no tiene cuota disponible (l\xEDmite gratuito agotado o sin facturaci\xF3n activa). " : ""}Detalle: ${errores.join(" | ")}`,
-        parte,
-        desde,
-        hasta
-      };
-    }
-    const data = await res.json();
-    const texto = (data?.candidates?.[0]?.content?.parts || []).map((p) => p.text || "").join("");
+    const g = await consultarGeminiVideo({ apiKey, videoId, desde, hasta, prompt, maxOutputTokens: 16e3 });
+    if (g.ok === false) return { disponible: false, motivo: g.motivo, parte, desde, hasta };
+    const { texto, model } = g;
     const json = texto ? (() => {
       try {
         return safeJsonParse(texto);
@@ -189993,7 +188688,7 @@ Ordena las intervenciones cronol\xF3gicamente y registra cada cambio relevante d
     if (!json) {
       return { disponible: false, motivo: "Gemini no devolvi\xF3 un an\xE1lisis legible para este tramo.", parte, desde, hasta };
     }
-    const lista2 = (v) => Array.isArray(v) ? v.map((x) => String(x || "").trim()).filter(Boolean) : [];
+    const lista3 = (v) => Array.isArray(v) ? v.map((x) => String(x || "").trim()).filter(Boolean) : [];
     let intervenciones = (Array.isArray(json.intervenciones) ? json.intervenciones : []).map((i) => ({
       segundos: aSegundos(i.minuto ?? i.segundos),
       orador: String(i.orador || "No identificado"),
@@ -190010,14 +188705,63 @@ Ordena las intervenciones cronol\xF3gicamente y registra cada cambio relevante d
       desde,
       hasta,
       resumen: String(json.resumen || ""),
-      temas: lista2(json.temas),
+      temas: lista3(json.temas),
       intervenciones,
-      acuerdos: lista2(json.acuerdos),
-      votaciones: lista2(json.votaciones),
+      acuerdos: lista3(json.acuerdos),
+      votaciones: lista3(json.votaciones),
       modelo: model
     };
   })();
   if (resultado.disponible) cache.set(claveCache, resultado, 7 * 24 * 60 * 60 * 1e3);
+  return resultado;
+}
+var SEGUNDOS_POR_PARTE_TRANSCRIPCION = 600;
+var AVISO_TRANSCRIPCION = "Transcripci\xF3n autom\xE1tica generada con IA a partir del video: no es el texto oficial y puede contener errores. Contr\xE1stela con el video antes de citarla.";
+async function transcribirParteVideo(params) {
+  const { videoId, parte } = params;
+  const apiKey = process.env.GEMINI_VIDEO_API_KEY || process.env.GEMINI_API_KEY;
+  const desde = parte * SEGUNDOS_POR_PARTE_TRANSCRIPCION;
+  const hasta = params.duracion ? Math.min(params.duracion, desde + SEGUNDOS_POR_PARTE_TRANSCRIPCION) : params.duracion === null ? null : desde + SEGUNDOS_POR_PARTE_TRANSCRIPCION;
+  if (!/^[\w-]{11}$/.test(videoId)) return { disponible: false, motivo: "Identificador de video no v\xE1lido.", parte, desde, hasta };
+  if (params.duracion != null && desde >= params.duracion) return { disponible: false, motivo: "El tramo pedido est\xE1 fuera de la duraci\xF3n del video.", parte, desde, hasta };
+  if (!apiKey || apiKey === "MY_GEMINI_API_KEY") return { disponible: false, motivo: "Falta configurar GEMINI_API_KEY.", parte, desde, hasta };
+  const claveCache = `yt_transcripcion_${videoId}_${parte}_${hasta ?? "fin"}`;
+  const previo = cache.get(claveCache);
+  if (previo) return previo;
+  const contexto = [
+    params.comision ? `Comisi\xF3n: ${params.comision}` : "",
+    params.fecha ? `Fecha de la sesi\xF3n: ${params.fecha}` : "",
+    params.materia ? `Materia citada: ${params.materia}` : ""
+  ].filter(Boolean).join("\n");
+  const prompt = `Este video es la transmisi\xF3n oficial de una sesi\xF3n de comisi\xF3n del Congreso de Chile.
+${contexto}
+
+Transcribe en espa\xF1ol lo que se dice en el tramo indicado del video, lo m\xE1s fielmente posible y sin resumir. No inventes palabras, nombres, cargos ni cifras: si algo no se entiende escribe "[inaudible]"; si no se identifica a quien habla, usa "No identificado". Si en el tramo no se habla (silencio, pausa, solo imagen), devuelve una lista vac\xEDa.
+
+Responde \xDANICAMENTE con JSON v\xE1lido:
+{"segmentos":[{"minuto":"H:MM:SS desde el inicio del video","orador":"nombre tal como se presenta o 'No identificado'","texto":"lo que dice, tal como lo dice"}]}
+Un segmento por cambio de orador, o cada 60 segundos como m\xE1ximo si habla la misma persona. Ord\xE9nalos cronol\xF3gicamente.`;
+  const g = await consultarGeminiVideo({ apiKey, videoId, desde, hasta, prompt, maxOutputTokens: 12e3 });
+  if (g.ok === false) return { disponible: false, motivo: g.motivo, parte, desde, hasta };
+  const json = g.texto ? (() => {
+    try {
+      return safeJsonParse(g.texto);
+    } catch {
+      return null;
+    }
+  })() : null;
+  if (!json) return { disponible: false, motivo: "Gemini no devolvi\xF3 una transcripci\xF3n legible para este tramo.", parte, desde, hasta };
+  let segmentos = (Array.isArray(json.segmentos) ? json.segmentos : []).map((x) => ({
+    segundos: aSegundos(x?.minuto ?? x?.segundos),
+    orador: String(x?.orador || "No identificado").trim() || "No identificado",
+    texto: String(x?.texto || "").trim()
+  })).filter((x) => x.texto);
+  if (desde > 0 && segmentos.length > 0 && segmentos.every((x) => x.segundos < desde)) {
+    segmentos = segmentos.map((x) => ({ ...x, segundos: x.segundos + desde }));
+  }
+  segmentos.sort((a, b) => a.segundos - b.segundos);
+  const resultado = { disponible: true, parte, desde, hasta, segmentos, modelo: g.model, aviso: AVISO_TRANSCRIPCION };
+  cache.set(claveCache, resultado, 7 * 24 * 60 * 60 * 1e3);
   return resultado;
 }
 
@@ -190056,23 +188800,23 @@ async function videosSesionesCanal(camara) {
         const d = await r.json();
         const act = d?.fields?.actualizado?.stringValue;
         if (act && Date.now() - new Date(act).getTime() < 12 * 60 * 60 * 1e3) {
-          const lista3 = JSON.parse(d?.fields?.payload?.stringValue || "[]");
-          if (Array.isArray(lista3) && lista3.length > 0) return lista3;
+          const lista4 = JSON.parse(d?.fields?.payload?.stringValue || "[]");
+          if (Array.isArray(lista4) && lista4.length > 0) return lista4;
         }
       }
     } catch {
     }
-    const lista2 = await videosDesdeYouTube(camara, key);
-    if (lista2.length > 0) {
+    const lista3 = await videosDesdeYouTube(camara, key);
+    if (lista3.length > 0) {
       fetch(docUrl, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fields: { payload: { stringValue: JSON.stringify(lista2) }, actualizado: { stringValue: (/* @__PURE__ */ new Date()).toISOString() } } }),
+        body: JSON.stringify({ fields: { payload: { stringValue: JSON.stringify(lista3) }, actualizado: { stringValue: (/* @__PURE__ */ new Date()).toISOString() } } }),
         signal: AbortSignal.timeout(1e4)
       }).catch(() => {
       });
     }
-    return lista2;
+    return lista3;
   });
 }
 async function videosDesdeYouTube(camara, key) {
@@ -190239,11 +188983,11 @@ async function videosSenadoPorFecha(nombreComision) {
   const mapa = /* @__PURE__ */ new Map();
   for (const v of videos) {
     if (!mismaComision(v.comision, nombreComision)) continue;
-    const lista2 = mapa.get(v.fecha) || [];
-    lista2.push(v);
-    mapa.set(v.fecha, lista2);
+    const lista3 = mapa.get(v.fecha) || [];
+    lista3.push(v);
+    mapa.set(v.fecha, lista3);
   }
-  for (const lista2 of mapa.values()) lista2.sort((a, b) => String(a.publicado).localeCompare(String(b.publicado)));
+  for (const lista3 of mapa.values()) lista3.sort((a, b) => String(a.publicado).localeCompare(String(b.publicado)));
   return mapa;
 }
 
@@ -190571,7 +189315,19 @@ Reglas estrictas: afirma solo lo que la DESCRIPCI\xD3N de cada fuente dice expre
 
 // server/services/fuentesOficialesService.ts
 import { createHash } from "node:crypto";
-var PAISES_OFICIALES = /* @__PURE__ */ new Set(["Espa\xF1a", "Uni\xF3n Europea", "Reino Unido", "Australia", "Pa\xEDses Bajos", "Jap\xF3n", "Suiza", "Luxemburgo", "Polonia", "Suecia", "Alemania", "Francia", "Estados Unidos"]);
+
+// server/data/indices/noruega.json
+var noruega_default = { fuente: null, url: null, generado: null, total: 0, leyes: [] };
+
+// server/data/indices/argentina.json
+var argentina_default = { fuente: null, url: null, generado: null, total: 0, leyes: [] };
+
+// server/data/indices/croacia.json
+var croacia_default = { fuente: null, url: null, generado: null, total: 0, leyes: [], procesadas: [] };
+
+// server/services/fuentesOficialesService.ts
+import { inflateRawSync } from "node:zlib";
+var PAISES_OFICIALES = /* @__PURE__ */ new Set(["Espa\xF1a", "Uni\xF3n Europea", "Reino Unido", "Australia", "Pa\xEDses Bajos", "Jap\xF3n", "Suiza", "Luxemburgo", "Polonia", "Suecia", "Alemania", "Francia", "Estados Unidos", "Italia", "Austria", "Finlandia", "Brasil", "Irlanda", "Corea del Sur", "Estonia", "Canad\xE1", "Dinamarca", "Israel", "Taiw\xE1n", "Noruega", "Argentina", "Croacia"]);
 var UA = "Mozilla/5.0 (compatible; LegisTrackCL/1.0; verificador de fuentes oficiales)";
 async function descargar(url, headers, ms) {
   const res = await fetch(url, { headers: { "User-Agent": UA, ...headers }, redirect: "follow", signal: AbortSignal.timeout(ms) });
@@ -190680,17 +189436,56 @@ async function buscarEspana(q) {
     return { normas: [], estado: { ...base, estado: "no_disponible", motivo: `El BOE no respondi\xF3: ${e?.message || e}` } };
   }
 }
-async function traducirAIngles(q) {
+var IDIOMAS_TRADUCCION = ["en", "nl", "ja", "fr", "pl", "sv", "de", "it", "fi", "pt", "ko", "et", "da", "he", "zh", "nb", "hr"];
+var TTL_TRADUCCION_MS = 24 * 60 * 60 * 1e3;
+var traduccionesEnVuelo = /* @__PURE__ */ new Map();
+var claveTraduccion = (q) => `traduccion_consulta_${q.trim().toLowerCase()}`;
+var traduccionEnCache = (q) => cache.get(claveTraduccion(q)) !== null;
+function claveIdioma(idioma) {
+  const i = idioma.toLowerCase();
+  const tabla = [["ingl", "en"], ["neerl", "nl"], ["japon", "ja"], ["franc", "fr"], ["polaco", "pl"], ["sueco", "sv"], ["alem", "de"], ["italiano", "it"], ["finl", "fi"], ["portug", "pt"], ["corean", "ko"], ["estonio", "et"], ["danes", "da"], ["dan\xE9s", "da"], ["hebreo", "he"], ["chino", "zh"], ["norueg", "nb"], ["croat", "hr"]];
+  return tabla.find(([pref]) => i.startsWith(pref))?.[1] ?? null;
+}
+async function pedirTraducciones(q) {
   try {
     const t = await generarContenidoUniversalIA(
-      `Traduce al ingl\xE9s jur\xEDdico brit\xE1nico esta materia legislativa para buscar en t\xEDtulos de leyes. Responde SOLO con 1 a 4 palabras, sin comillas ni explicaci\xF3n: ${q}`,
-      40
+      `Traduce esta materia legislativa chilena a varios idiomas para buscar en T\xCDTULOS de leyes. Responde SOLO con un objeto JSON (sin markdown ni explicaci\xF3n) con exactamente estas claves: "en" (ingl\xE9s jur\xEDdico, 1 a 4 palabras), "nl" (neerland\xE9s, 1 a 3 palabras), "ja" (japon\xE9s, 1 a 3 palabras), "fr" (franc\xE9s, 1 a 3 palabras), "pl" (polaco: usa la ra\xEDz de la palabra, p. ej. "ochron" para protecci\xF3n), "sv" (sueco: una sola palabra o ra\xEDz), "de" (alem\xE1n, 1 a 3 palabras), "it" (italiano, 1 a 3 palabras), "fi" (fin\xE9s: ra\xEDz de una sola palabra, p. ej. "tietosuoja"), "pt" (portugu\xE9s de Brasil, 1 a 3 palabras), "ko" (coreano, 1 a 3 palabras), "et" (estonio: ra\xEDz de una sola palabra, p. ej. "isikuandme"), "da" (dan\xE9s: ra\xEDz de una sola palabra, p. ej. "databeskyttelse"), "he" (hebreo: una sola palabra, p. ej. "\u05E4\u05E8\u05D8\u05D9\u05D5\u05EA"), "zh" (chino tradicional de Taiw\xE1n, 2 a 6 caracteres, p. ej. "\u500B\u4EBA\u8CC7\u6599\u4FDD\u8B77"), "nb" (noruego bokm\xE5l: ra\xEDz de una sola palabra, p. ej. "personopplysning"), "hr" (croata: ra\xEDz de una sola palabra, p. ej. "podatak"). Materia: ${q}`,
+      500
     );
-    const limpio = (t || "").replace(/["'\n]/g, " ").replace(/\s+/g, " ").trim();
-    return limpio && limpio.length <= 60 ? limpio : q;
+    const bruto = (t || "").match(/\{[\s\S]*\}/)?.[0];
+    if (!bruto) return {};
+    const obj = JSON.parse(bruto);
+    const out = {};
+    for (const k of IDIOMAS_TRADUCCION) {
+      const v = typeof obj[k] === "string" ? obj[k].replace(/["'\n]/g, " ").replace(/\s+/g, " ").trim() : "";
+      if (v && v.length <= 60) out[k] = v;
+    }
+    return out;
   } catch {
-    return q;
+    return {};
   }
+}
+async function traducciones(q) {
+  const clave = claveTraduccion(q);
+  const hit = cache.get(clave);
+  if (hit) return hit;
+  let enVuelo = traduccionesEnVuelo.get(clave);
+  if (!enVuelo) {
+    enVuelo = pedirTraducciones(q).then((t) => {
+      if (IDIOMAS_TRADUCCION.every((k) => t[k])) cache.set(clave, t, TTL_TRADUCCION_MS);
+      return t;
+    }).finally(() => traduccionesEnVuelo.delete(clave));
+    traduccionesEnVuelo.set(clave, enVuelo);
+  }
+  return enVuelo;
+}
+async function traducirConsulta(q, idioma) {
+  const k = claveIdioma(idioma);
+  if (!k) return q;
+  return (await traducciones(q))[k] ?? q;
+}
+async function traducirAIngles(q) {
+  return traducirConsulta(q, "ingl\xE9s");
 }
 async function buscarReinoUnido(q) {
   const ahora = (/* @__PURE__ */ new Date()).toISOString();
@@ -190699,7 +189494,11 @@ async function buscarReinoUnido(q) {
     const ingles = await traducirAIngles(q);
     const buscar = async (campo) => {
       const url = `https://www.legislation.gov.uk/search/data.feed?type=primary&${campo}=${encodeURIComponent(ingles)}&results-count=10&sort=modified`;
-      const r = await descargar(url, { Accept: "application/atom+xml" }, 15e3);
+      let r = await descargar(url, { Accept: "application/atom+xml" }, 15e3);
+      for (let i = 0; i < 3 && r.status === 202; i++) {
+        await new Promise((ok) => setTimeout(ok, 1500));
+        r = await descargar(url, { Accept: "application/atom+xml" }, 15e3);
+      }
       if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
       return r.buf.toString("utf8");
     };
@@ -190740,18 +189539,6 @@ async function buscarReinoUnido(q) {
     return { normas: [], estado: { ...base, estado: "no_disponible", motivo: `legislation.gov.uk no respondi\xF3: ${e?.message || e}` } };
   }
 }
-async function traducirConsulta(q, idioma) {
-  try {
-    const t = await generarContenidoUniversalIA(
-      `Traduce al ${idioma} jur\xEDdico esta materia legislativa para buscar en t\xEDtulos de leyes. Responde SOLO con 1 a 3 palabras en ${idioma}, sin comillas ni explicaci\xF3n: ${q}`,
-      40
-    );
-    const limpio = (t || "").replace(/["'\n]/g, " ").replace(/\s+/g, " ").trim();
-    return limpio && limpio.length <= 40 ? limpio : q;
-  } catch {
-    return q;
-  }
-}
 async function buscarAustralia(q) {
   const ahora = (/* @__PURE__ */ new Date()).toISOString();
   const base = { jurisdiccion: "Australia", fuente: "Federal Register of Legislation (API OData)", consultadoEl: ahora };
@@ -190760,11 +189547,11 @@ async function buscarAustralia(q) {
     const palabras = ingles.split(" ").filter((w) => w.length >= 3).slice(0, 3);
     if (!palabras.length) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene t\xE9rminos \xFAtiles." } };
     const filtro = `${palabras.map((w) => `contains(tolower(name),'${w}')`).join(" and ")} and collection eq 'Act' and isInForce eq true`;
-    const url = `https://api.prod.legislation.gov.au/v1/titles?$filter=${encodeURIComponent(filtro)}&$orderby=${encodeURIComponent("makingDate desc")}&$top=4`;
+    const url = `https://api.prod.legislation.gov.au/v1/titles?$filter=${encodeURIComponent(filtro)}&$top=50`;
     const r = await descargar(url, { Accept: "application/json" }, 15e3);
     if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
     const items = JSON.parse(r.buf.toString("utf8"))?.value || [];
-    const normas = items.filter((i) => i?.id && i?.name).map((i) => ({
+    const normas = items.filter((i) => i?.id && i?.name).sort((a, b) => String(b.makingDate || "").localeCompare(String(a.makingDate || ""))).slice(0, 4).map((i) => ({
       pais: "Australia",
       fuente: "Federal Register of Legislation \u2014 Gobierno de Australia (oficial)",
       titulo: String(i.name),
@@ -191003,7 +189790,7 @@ async function buscarFrancia(q) {
   if (!id || !secret) return { normas: [], estado: { ...base, estado: "no_disponible", motivo: "Credenciales de PISTE no configuradas (LEGIFRANCE_CLIENT_ID / LEGIFRANCE_CLIENT_SECRET)." } };
   try {
     const fr = (await traducirConsulta(q, "franc\xE9s")).replace(/["\n]/g, " ").replace(/\s+/g, " ").trim();
-    if (!fr || fr.length < 3) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene t\xE9rminos \xFAtiles." } };
+    if (!fr || fr.length < 3) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: `La consulta no tiene t\xE9rminos \xFAtiles (traducci\xF3n obtenida: "${fr}").` } };
     const sandbox = (process.env.LEGIFRANCE_ENV || "").toLowerCase() === "sandbox";
     const hostOauth = sandbox ? "https://sandbox-oauth.piste.gouv.fr" : "https://oauth.piste.gouv.fr";
     const hostApi = sandbox ? "https://sandbox-api.piste.gouv.fr" : "https://api.piste.gouv.fr";
@@ -191035,8 +189822,8 @@ async function buscarFrancia(q) {
       signal: AbortSignal.timeout(2e4)
     });
     if (!res.ok) throw new Error(`b\xFAsqueda HTTP ${res.status}`);
-    const lista2 = (await res.json())?.results || [];
-    const normas = lista2.map((x) => ({ t: x?.titles?.[0], nature: x?.nature, etat: x?.etat, fecha: x?.date })).filter((x) => x.t?.title && (x.t?.cid || x.t?.id)).slice(0, 4).map((x) => ({
+    const lista3 = (await res.json())?.results || [];
+    const normas = lista3.map((x) => ({ t: x?.titles?.[0], nature: x?.nature, etat: x?.etat, fecha: x?.date })).filter((x) => x.t?.title && (x.t?.cid || x.t?.id)).slice(0, 4).map((x) => ({
       pais: "Francia",
       fuente: "L\xE9gifrance \u2014 Direction de l'information l\xE9gale et administrative (oficial)",
       titulo: String(x.t.title),
@@ -191088,14 +189875,662 @@ async function buscarEstadosUnidos(q) {
     return { normas: [], estado: { ...base, estado: "no_disponible", motivo: `Congress.gov no respondi\xF3: ${e?.message || e}` } };
   }
 }
-async function buscarFuentesOficiales(q) {
-  const key = `fuentes_oficiales_${q.trim().toLowerCase()}`;
-  const hit = cache.get(key);
+async function buscarItalia(q) {
+  const ahora = (/* @__PURE__ */ new Date()).toISOString();
+  const base = { jurisdiccion: "Italia", fuente: "Normattiva \u2014 Open Data (IPZS)", consultadoEl: ahora };
+  try {
+    const it = (await traducirConsulta(q, "italiano")).toLowerCase().replace(/["\\\n]/g, " ").replace(/\s+/g, " ").trim();
+    if (!it || it.length < 3) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene t\xE9rminos \xFAtiles." } };
+    const res = await fetch("https://api.normattiva.it/t/normattiva.api/bff-opendata/v1/api/v1/ricerca/semplice", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json", "User-Agent": UA },
+      body: JSON.stringify({ testoRicerca: it, orderType: "recente", paginazione: { paginaCorrente: 1, numeroElementiPerPagina: 40 } }),
+      signal: AbortSignal.timeout(25e3)
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const lista3 = (await res.json())?.listaAtti || [];
+    const urn = { "LEGGE": "legge", "DECRETO LEGISLATIVO": "decreto.legislativo", "DECRETO-LEGGE": "decreto.legge" };
+    const normas = lista3.filter((a) => a?.titoloAtto && urn[String(a.denominazioneAtto)] && a.dataEmanazione && a.numeroProvvedimento && String(a.titoloAtto).toLowerCase().includes(it.split(" ")[0])).slice(0, 4).map((a) => {
+      const fecha = String(a.dataEmanazione).slice(0, 10);
+      return {
+        pais: "Italia",
+        fuente: "Normattiva \u2014 Istituto Poligrafico e Zecca dello Stato (oficial)",
+        titulo: String(a.titoloAtto).replace(/^\[\s*/, "").replace(/\s*\]$/, "").replace(/\s+/g, " ").trim(),
+        fecha,
+        url: `https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:${urn[String(a.denominazioneAtto)]}:${fecha};${a.numeroProvvedimento}`,
+        descripcion: `${a.descrizioneAtto || a.denominazioneAtto} \xB7 Gazzetta Ufficiale n.\xBA ${a.numeroGU || "?"} del ${a.dataGU || "?"}. Metadatos de Normattiva; t\xEDtulo en italiano. La API ordena por fecha y no por relevancia.`,
+        idOficial: String(a.codiceRedazionale || `${fecha};${a.numeroProvvedimento}`),
+        tipoOficial: String(a.denominazioneAtto),
+        origen: "oficial",
+        consultadoEl: ahora
+      };
+    });
+    return { normas, estado: { ...base, estado: normas.length ? "ok" : "sin_resultados", consultaUsada: `testoRicerca="${it}", solo leyes y decretos con la palabra en el t\xEDtulo (palabra de consulta traducida por IA)`, motivo: normas.length ? void 0 : "Normattiva no devolvi\xF3 leyes con esa palabra en el t\xEDtulo." } };
+  } catch (e) {
+    return { normas: [], estado: { ...base, estado: "no_disponible", motivo: `Normattiva no respondi\xF3: ${e?.message || e}` } };
+  }
+}
+var TTL_FUENTE_MS = 6 * 60 * 60 * 1e3;
+async function buscarAustria(q) {
+  const ahora = (/* @__PURE__ */ new Date()).toISOString();
+  const base = { jurisdiccion: "Austria", fuente: "RIS \u2014 Rechtsinformationssystem des Bundes (OGD)", consultadoEl: ahora };
+  try {
+    const de = (await traducirConsulta(q, "alem\xE1n")).trim();
+    if (!de) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene t\xE9rminos \xFAtiles." } };
+    const hoy = ahora.slice(0, 10);
+    const url = `https://data.bka.gv.at/ris/api/v2.6/Bundesrecht?Applikation=BrKons&Titel=${encodeURIComponent(de)}&FassungVom=${hoy}&DokumenteProSeite=Fifty`;
+    const r = await descargar(url, { Accept: "application/json" }, 2e4);
+    if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
+    const res = JSON.parse(r.buf.toString("utf8"))?.OgdSearchResult;
+    if (res?.Error) throw new Error(String(res.Error?.Message || "error de la API"));
+    const refs = [].concat(res?.OgdDocumentResults?.OgdDocumentReference || []);
+    const vistas = /* @__PURE__ */ new Set();
+    const normas = [];
+    for (const x of refs) {
+      const b = x?.Data?.Metadaten?.Bundesrecht;
+      const k = b?.BrKons?.Gesetzesnummer;
+      if (!b || !k || vistas.has(k)) continue;
+      vistas.add(k);
+      const titulo = String(b.Kurztitel || b.Titel || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+      if (!titulo) continue;
+      const typ = String(b.BrKons.Typ || "").trim();
+      normas.push({
+        pais: "Austria",
+        fuente: "RIS \u2014 Bundeskanzleramt (oficial)",
+        titulo,
+        fecha: b.BrKons.Inkrafttretensdatum || void 0,
+        url: `https://www.ris.bka.gv.at/GeltendeFassung.wxe?Abfrage=Bundesnormen&Gesetzesnummer=${encodeURIComponent(k)}`,
+        descripcion: `Norma federal austriaca vigente al ${hoy}${b.BrKons.StammnormBgblnummer ? ` \xB7 ${b.BrKons.StammnormPublikationsorgan || "BGBl."} ${b.BrKons.StammnormBgblnummer}` : ""}. Metadatos del RIS; texto en alem\xE1n.`,
+        idOficial: String(k),
+        tipoOficial: typ === "BG" ? "Bundesgesetz" : typ === "V" ? "Verordnung" : typ || void 0,
+        origen: "oficial",
+        consultadoEl: ahora
+      });
+    }
+    normas.sort((a, b) => Number(b.tipoOficial === "Bundesgesetz") - Number(a.tipoOficial === "Bundesgesetz"));
+    const top = normas.slice(0, 4);
+    return { normas: top, estado: { ...base, estado: top.length ? "ok" : "sin_resultados", consultaUsada: `"${de}" en el t\xEDtulo, versi\xF3n vigente (palabra traducida por IA)`, motivo: top.length ? void 0 : "El RIS no devolvi\xF3 normas vigentes para esa consulta." } };
+  } catch (e) {
+    return { normas: [], estado: { ...base, estado: "no_disponible", motivo: `El RIS no respondi\xF3: ${e?.message || e}` } };
+  }
+}
+var FINLEX = "https://opendata.finlex.fi/finlex/avoindata/v1";
+async function buscarFinlandia(q) {
+  const ahora = (/* @__PURE__ */ new Date()).toISOString();
+  const base = { jurisdiccion: "Finlandia", fuente: "Finlex \u2014 avoin data (Ministerio de Justicia)", consultadoEl: ahora };
+  try {
+    const fi = (await traducirConsulta(q, "finland\xE9s")).toLowerCase().trim();
+    if (!fi || fi.length < 3) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene t\xE9rminos \xFAtiles." } };
+    const r = await descargar(`${FINLEX}/akn/fi/act/statute-consolidated/list?format=json&page=1&limit=6&langAndVersion=fin@&titleContains=${encodeURIComponent(fi)}`, { Accept: "application/json" }, 2e4);
+    if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
+    const lista3 = JSON.parse(r.buf.toString("utf8")) || [];
+    const docs = await Promise.all(lista3.slice(0, 4).map(async (it) => {
+      const uri = String(it?.akn_uri || "");
+      const m = uri.match(/statute-consolidated\/(\d{4})\/([\w-]+)\//);
+      if (!m || !uri.startsWith(FINLEX)) return null;
+      try {
+        const d = await descargar(uri, { Accept: "application/xml" }, 15e3);
+        if (d.status !== 200) return null;
+        const xml = d.buf.toString("utf8");
+        const titulo = xmlATexto(xml.match(/<(?:akn:)?docTitle[^>]*>([\s\S]*?)<\/(?:akn:)?docTitle>/)?.[1] || "");
+        if (!titulo) return null;
+        const fecha = xml.match(/FRBRdate[^>]*date="([^"]+)"[^>]*name="dateIssued"/)?.[1];
+        const eli = xml.match(/FRBRalias[^>]*name="eli"[^>]*value="([^"]+)"/)?.[1];
+        return { anio: m[1], numero: m[2], titulo, fecha, eli, uri };
+      } catch {
+        return null;
+      }
+    }));
+    const normas = docs.filter(Boolean).map((d) => ({
+      pais: "Finlandia",
+      fuente: "Finlex \u2014 oikeusministeri\xF6 (oficial)",
+      titulo: d.titulo,
+      fecha: d.fecha || void 0,
+      url: d.eli ? d.eli.replace(/^http:/, "https:") : d.uri,
+      descripcion: `Norma finlandesa ${d.numero}/${d.anio}, texto consolidado (ajantasa). Metadatos de Finlex; texto en fin\xE9s.`,
+      idOficial: `${d.anio}/${d.numero}`,
+      origen: "oficial",
+      consultadoEl: ahora
+    }));
+    return { normas, estado: { ...base, estado: normas.length ? "ok" : "sin_resultados", consultaUsada: `"${fi}" en el t\xEDtulo, textos consolidados (palabra traducida por IA)`, motivo: normas.length ? void 0 : "Finlex no devolvi\xF3 normas para esa consulta." } };
+  } catch (e) {
+    return { normas: [], estado: { ...base, estado: "no_disponible", motivo: `Finlex no respondi\xF3: ${e?.message || e}` } };
+  }
+}
+async function buscarBrasil(q) {
+  const ahora = (/* @__PURE__ */ new Date()).toISOString();
+  const base = { jurisdiccion: "Brasil", fuente: "C\xE2mara dos Deputados \u2014 Dados Abertos", consultadoEl: ahora };
+  try {
+    const pt = (await traducirConsulta(q, "portugu\xE9s")).trim();
+    if (!pt) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene t\xE9rminos \xFAtiles." } };
+    const url = `https://dadosabertos.camara.leg.br/api/v2/proposicoes?keywords=${encodeURIComponent(pt)}&siglaTipo=PL&itens=4&ordem=DESC&ordenarPor=id`;
+    const r = await descargar(url, { Accept: "application/json" }, 2e4);
+    if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
+    const dados = JSON.parse(r.buf.toString("utf8"))?.dados || [];
+    const normas = dados.filter((d) => d?.id && d?.ementa).map((d) => ({
+      pais: "Brasil",
+      fuente: "C\xE2mara dos Deputados (oficial)",
+      titulo: `PL ${d.numero}/${d.ano}`,
+      fecha: d.dataApresentacao ? String(d.dataApresentacao).slice(0, 10) : void 0,
+      url: `https://www.camara.leg.br/proposicoesWeb/fichadetramitacao?idProposicao=${d.id}`,
+      descripcion: `Proyecto de ley (no es norma vigente). Ementa: ${String(d.ementa).replace(/\s+/g, " ").trim()}`,
+      idOficial: String(d.id),
+      tipoOficial: "Projeto de Lei",
+      origen: "oficial",
+      consultadoEl: ahora
+    }));
+    return { normas, estado: { ...base, estado: normas.length ? "ok" : "sin_resultados", consultaUsada: `proyectos de ley (PL) con "${pt}" (palabra traducida por IA)`, motivo: normas.length ? void 0 : "La C\xE1mara no devolvi\xF3 proyectos para esa consulta." } };
+  } catch (e) {
+    return { normas: [], estado: { ...base, estado: "no_disponible", motivo: `La API de la C\xE1mara no respondi\xF3: ${e?.message || e}` } };
+  }
+}
+var TTL_LISTAS_MS = 24 * 60 * 60 * 1e3;
+var ANIO_INICIO_BR = 1988;
+var brasilEnVuelo = null;
+async function leyesBrasil() {
+  const hit = cache.get("brasil_leyes_federales");
   if (hit) return hit;
-  const partes = await Promise.all([buscarUE(q), buscarEspana(q), buscarReinoUnido(q), buscarAustralia(q), buscarPaisesBajos(q), buscarJapon(q), buscarSuiza(q), buscarLuxemburgo(q), buscarPolonia(q), buscarSuecia(q), buscarAlemania(q), buscarFrancia(q), buscarEstadosUnidos(q)]);
-  const out = { normas: partes.flatMap((p) => p.normas), estados: partes.map((p) => p.estado) };
-  if (out.estados.every((e) => e.estado !== "no_disponible")) cache.set(key, out, 6 * 60 * 60 * 1e3);
+  if (!brasilEnVuelo) {
+    brasilEnVuelo = (async () => {
+      const anios = [];
+      for (let a = (/* @__PURE__ */ new Date()).getUTCFullYear(); a >= ANIO_INICIO_BR; a--) anios.push(a);
+      const out = [];
+      let fallos = 0;
+      for (let i = 0; i < anios.length; i += 8) {
+        const lote = await Promise.all(anios.slice(i, i + 8).map(async (a) => {
+          try {
+            const r = await descargar(`https://legis.senado.leg.br/dadosabertos/legislacao/lista?tipo=LEI&ano=${a}`, { Accept: "application/json" }, 2e4);
+            if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
+            return [].concat(JSON.parse(r.buf.toString("utf8"))?.ListaDocumento?.documentos?.documento || []);
+          } catch {
+            fallos++;
+            return [];
+          }
+        }));
+        for (const d of lote.flat()) {
+          if (!d?.id || !d?.ementa) continue;
+          const f = String(d.dataassinatura || "").match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+          out.push({ id: String(d.id), nombre: String(d.normaNome || d.norma || "").trim(), ementa: String(d.ementa).replace(/\s+/g, " ").trim(), fecha: f ? `${f[3]}-${f[2]}-${f[1]}` : void 0, apelido: String(d.apelido || "") });
+        }
+      }
+      if (!out.length) throw new Error("ning\xFAn a\xF1o respondi\xF3");
+      if (fallos === 0) cache.set("brasil_leyes_federales", out, TTL_LISTAS_MS);
+      return out;
+    })().finally(() => {
+      brasilEnVuelo = null;
+    });
+  }
+  return brasilEnVuelo;
+}
+var sinTildes = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+async function buscarBrasilLeyes(q) {
+  const ahora = (/* @__PURE__ */ new Date()).toISOString();
+  const base = { jurisdiccion: "Brasil", fuente: "Senado Federal \u2014 Dados Abertos (legislaci\xF3n federal)", consultadoEl: ahora };
+  try {
+    const pt = sinTildes(await traducirConsulta(q, "portugu\xE9s"));
+    const terms = pt.split(/[^\p{L}\d]+/u).filter((t) => t.length >= 4);
+    if (!terms.length) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene t\xE9rminos \xFAtiles." } };
+    const leyes = await leyesBrasil();
+    const normas = leyes.filter((l) => {
+      const t = sinTildes(`${l.ementa} ${l.apelido}`);
+      return terms.every((x) => t.includes(x));
+    }).sort((a, b) => String(b.fecha || "").localeCompare(String(a.fecha || ""))).slice(0, 4).map((l) => ({
+      pais: "Brasil",
+      fuente: "Senado Federal \u2014 legisla\xE7\xE3o federal (oficial)",
+      titulo: l.nombre || `Lei ${l.id}`,
+      fecha: l.fecha,
+      url: `https://legis.senado.leg.br/norma/${l.id}`,
+      descripcion: `Ley federal brasile\xF1a. Ementa: ${l.ementa}`,
+      idOficial: l.id,
+      tipoOficial: "Lei",
+      origen: "oficial",
+      consultadoEl: ahora
+    }));
+    return { normas, estado: { ...base, estado: normas.length ? "ok" : "sin_resultados", consultaUsada: `"${terms.join(" ")}" en la ementa de las leyes numeradas desde ${ANIO_INICIO_BR} (palabras traducidas por IA)`, motivo: normas.length ? void 0 : "Ninguna ley federal coincide con esa consulta." } };
+  } catch (e) {
+    return { normas: [], estado: { ...base, estado: "no_disponible", motivo: `La API del Senado Federal no respondi\xF3: ${e?.message || e}` } };
+  }
+}
+var canadaEnVuelo = null;
+async function leyesCanada() {
+  const hit = cache.get("canada_leyes_federales");
+  if (hit) return hit;
+  if (!canadaEnVuelo) {
+    canadaEnVuelo = (async () => {
+      const r = await descargar("https://laws-lois.justice.gc.ca/eng/XML/Legis.xml", { Accept: "application/xml" }, 3e4);
+      if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
+      const xml = r.buf.toString("utf8");
+      const tag = (b, t) => decodificar((b.match(new RegExp(`<${t}>([\\s\\S]*?)</${t}>`)) || [])[1] || "").trim();
+      const out = (xml.match(/<Act>[\s\S]*?<\/Act>/g) || []).map((b) => ({ id: tag(b, "UniqueId"), titulo: tag(b, "Title"), vigenteAl: tag(b, "CurrentToDate") || void 0, url: tag(b, "LinkToHTMLToC").replace(/^http:/, "https:"), lang: tag(b, "Language") })).filter((a) => a.id && a.titulo && a.url && a.lang === "eng").map(({ lang, ...a }) => a);
+      if (out.length) cache.set("canada_leyes_federales", out, TTL_LISTAS_MS);
+      return out;
+    })().finally(() => {
+      canadaEnVuelo = null;
+    });
+  }
+  return canadaEnVuelo;
+}
+async function buscarCanada(q) {
+  const ahora = (/* @__PURE__ */ new Date()).toISOString();
+  const base = { jurisdiccion: "Canad\xE1", fuente: "Justice Laws Website (Department of Justice Canada)", consultadoEl: ahora };
+  try {
+    const terms = (await traducirAIngles(q)).toLowerCase().split(/[^\p{L}\d]+/u).filter((t) => t.length >= 4);
+    if (!terms.length) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene t\xE9rminos \xFAtiles." } };
+    const leyes = await leyesCanada();
+    const normas = leyes.filter((l) => terms.every((t) => l.titulo.toLowerCase().includes(t))).slice(0, 4).map((l) => ({
+      pais: "Canad\xE1",
+      fuente: "Justice Laws Website (oficial)",
+      titulo: l.titulo,
+      url: l.url,
+      descripcion: `Ley federal canadiense ${l.id}, texto consolidado${l.vigenteAl ? ` actualizado al ${l.vigenteAl}` : ""}. Fecha de promulgaci\xF3n: no informada en el \xEDndice. Texto en ingl\xE9s y franc\xE9s.`,
+      idOficial: l.id,
+      tipoOficial: "Act",
+      origen: "oficial",
+      consultadoEl: ahora
+    }));
+    return { normas, estado: { ...base, estado: normas.length ? "ok" : "sin_resultados", consultaUsada: `"${terms.join(" ")}" en el t\xEDtulo de las ${leyes.length} leyes federales consolidadas (palabras traducidas por IA)`, motivo: normas.length ? void 0 : "Ninguna ley federal consolidada coincide con esa consulta." } };
+  } catch (e) {
+    return { normas: [], estado: { ...base, estado: "no_disponible", motivo: `Justice Laws no respondi\xF3: ${e?.message || e}` } };
+  }
+}
+async function buscarDinamarca(q) {
+  const ahora = (/* @__PURE__ */ new Date()).toISOString();
+  const base = { jurisdiccion: "Dinamarca", fuente: "Folketinget \u2014 \xC5bne Data (ODA)", consultadoEl: ahora };
+  try {
+    const da = (await traducirConsulta(q, "dan\xE9s")).toLowerCase().replace(/[^\p{L}\d]/gu, "").trim();
+    if (!da || da.length < 4) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene t\xE9rminos \xFAtiles." } };
+    const filtro = `substringof('${da}',titel) and typeid eq 3 and lovnummer ne null`;
+    const url = `https://oda.ft.dk/api/Sag?$format=json&$top=4&$orderby=id%20desc&$select=id,titel,titelkort,nummer,lovnummer,lovnummerdato,retsinformationsurl&$filter=${encodeURIComponent(filtro)}`;
+    const r = await descargar(url, { Accept: "application/json" }, 2e4);
+    if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
+    const casos = JSON.parse(r.buf.toString("utf8"))?.value || [];
+    const normas = casos.filter((c) => c?.id && c?.titel && c?.lovnummer).map((c) => {
+      const fecha = c.lovnummerdato ? String(c.lovnummerdato).slice(0, 10) : void 0;
+      const anio = fecha?.slice(0, 4);
+      return {
+        pais: "Dinamarca",
+        fuente: "Folketinget / Retsinformation (oficial)",
+        titulo: String(c.titelkort || c.titel).trim(),
+        fecha,
+        url: c.retsinformationsurl ? String(c.retsinformationsurl).replace(/^http:/, "https:") : anio ? `https://www.retsinformation.dk/eli/lta/${anio}/${c.lovnummer}` : `https://oda.ft.dk/api/Sag(${c.id})`,
+        descripcion: `Ley danesa N\xB0 ${c.lovnummer}${fecha ? ` de ${fecha}` : ""} (proyecto ${c.nummer || "s/n"}). T\xEDtulo del proyecto: ${String(c.titel).trim()} Texto en dan\xE9s.`,
+        idOficial: `${anio || "s/a"}/${c.lovnummer}`,
+        tipoOficial: "Lov",
+        origen: "oficial",
+        consultadoEl: ahora
+      };
+    });
+    return { normas, estado: { ...base, estado: normas.length ? "ok" : "sin_resultados", consultaUsada: `proyectos convertidos en ley con "${da}" en el t\xEDtulo (palabra traducida por IA)`, motivo: normas.length ? void 0 : "Folketinget no devolvi\xF3 leyes para esa consulta." } };
+  } catch (e) {
+    return { normas: [], estado: { ...base, estado: "no_disponible", motivo: `La API del Folketinget no respondi\xF3: ${e?.message || e}` } };
+  }
+}
+async function buscarIsrael(q) {
+  const ahora = (/* @__PURE__ */ new Date()).toISOString();
+  const base = { jurisdiccion: "Israel", fuente: "Knesset \u2014 Open Data (OData)", consultadoEl: ahora };
+  try {
+    const he = (await traducirConsulta(q, "hebreo")).replace(/['"]/g, "").trim();
+    if (!he || he.length < 2) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene t\xE9rminos \xFAtiles." } };
+    const filtro = `substringof('${he}',Name) and LawValidityDesc eq '\u05EA\u05E7\u05E3'`;
+    const url = `https://knesset.gov.il/Odata/ParliamentInfo.svc/KNS_IsraelLaw()?$format=json&$top=4&$orderby=${encodeURIComponent("PublicationDate desc")}&$filter=${encodeURIComponent(filtro)}`;
+    const r = await descargar(url, { Accept: "application/json" }, 2e4);
+    if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
+    const leyes = JSON.parse(r.buf.toString("utf8"))?.value || [];
+    const normas = leyes.filter((l) => l?.IsraelLawID && l?.Name).map((l) => ({
+      pais: "Israel",
+      fuente: "Knesset (oficial)",
+      titulo: String(l.Name).trim(),
+      fecha: l.PublicationDate ? String(l.PublicationDate).slice(0, 10) : void 0,
+      url: `https://main.knesset.gov.il/apps/legislation/main/laws/${l.IsraelLawID}`,
+      descripcion: `Ley israel\xED vigente${l.IsBasicLaw ? " (Ley B\xE1sica)" : ""}${l.LatestPublicationDate ? ` \xB7 \xFAltima publicaci\xF3n: ${String(l.LatestPublicationDate).slice(0, 10)}` : ""}. Metadatos del Knesset; texto en hebreo.`,
+      idOficial: String(l.IsraelLawID),
+      tipoOficial: l.IsBasicLaw ? "Ley B\xE1sica" : "Ley",
+      origen: "oficial",
+      consultadoEl: ahora
+    }));
+    return { normas, estado: { ...base, estado: normas.length ? "ok" : "sin_resultados", consultaUsada: `leyes vigentes con "${he}" en el nombre (palabra traducida por IA)`, motivo: normas.length ? void 0 : "El Knesset no devolvi\xF3 leyes vigentes para esa consulta." } };
+  } catch (e) {
+    return { normas: [], estado: { ...base, estado: "no_disponible", motivo: `La API del Knesset no respondi\xF3: ${e?.message || e}` } };
+  }
+}
+function leerZip(buf) {
+  const out = /* @__PURE__ */ new Map();
+  let p = 0;
+  while (p + 30 <= buf.length && buf.readUInt32LE(p) === 67324752) {
+    const metodo = buf.readUInt16LE(p + 8), comp = buf.readUInt32LE(p + 18), nl = buf.readUInt16LE(p + 26), el = buf.readUInt16LE(p + 28);
+    const nombre = buf.subarray(p + 30, p + 30 + nl).toString("utf8");
+    const ini = p + 30 + nl + el;
+    const datos = buf.subarray(ini, ini + comp);
+    if (metodo === 0) out.set(nombre, Buffer.from(datos));
+    else if (metodo === 8) out.set(nombre, inflateRawSync(datos));
+    p = ini + comp;
+  }
   return out;
+}
+var taiwanEnVuelo = null;
+async function leyesTaiwan() {
+  const hit = cache.get("taiwan_leyes");
+  if (hit) return hit;
+  if (!taiwanEnVuelo) {
+    taiwanEnVuelo = (async () => {
+      const r = await descargar("https://law.moj.gov.tw/api/ch/law/json", { Accept: "application/zip" }, 45e3);
+      if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
+      const zip = leerZip(r.buf);
+      const archivo = [...zip.entries()].find(([n]) => /\.json$/i.test(n))?.[1];
+      if (!archivo) throw new Error("el ZIP no trae el JSON de leyes");
+      const leyes = JSON.parse(archivo.toString("utf8").replace(/^﻿/, ""))?.Laws || [];
+      const out = leyes.filter((l) => l?.LawName && l?.LawURL && !String(l.LawAbandonNote || "").trim()).map((l) => ({ nombre: String(l.LawName).trim(), nombreEn: String(l.EngLawName || "").trim(), url: String(l.LawURL), nivel: String(l.LawLevel || "").trim(), modificada: /^\d{8}$/.test(l.LawModifiedDate || "") ? `${l.LawModifiedDate.slice(0, 4)}-${l.LawModifiedDate.slice(4, 6)}-${l.LawModifiedDate.slice(6, 8)}` : void 0, categoria: String(l.LawCategory || "").trim() }));
+      if (out.length) cache.set("taiwan_leyes", out, TTL_LISTAS_MS);
+      return out;
+    })().finally(() => {
+      taiwanEnVuelo = null;
+    });
+  }
+  return taiwanEnVuelo;
+}
+async function buscarTaiwan(q) {
+  const ahora = (/* @__PURE__ */ new Date()).toISOString();
+  const base = { jurisdiccion: "Taiw\xE1n", fuente: "Base Nacional de Leyes (Ministerio de Justicia)", consultadoEl: ahora };
+  try {
+    const [zh, en] = await Promise.all([traducirConsulta(q, "chino"), traducirAIngles(q)]);
+    const zhT = zh.replace(/\s+/g, "").trim();
+    const enT = en.toLowerCase().split(/[^\p{L}\d]+/u).filter((t) => t.length >= 4);
+    if (!zhT && !enT.length) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene t\xE9rminos \xFAtiles." } };
+    const leyes = await leyesTaiwan();
+    const coincide = (l) => zhT && zhT !== q && l.nombre.includes(zhT) || enT.length > 0 && enT.every((t) => l.nombreEn.toLowerCase().includes(t));
+    const normas = leyes.filter(coincide).sort((a, b) => Number(b.nivel === "\u6CD5\u5F8B") - Number(a.nivel === "\u6CD5\u5F8B")).slice(0, 4).map((l) => ({
+      pais: "Taiw\xE1n",
+      fuente: "law.moj.gov.tw \u2014 Ministerio de Justicia (oficial)",
+      titulo: l.nombreEn ? `${l.nombre} (${l.nombreEn})` : l.nombre,
+      fecha: l.modificada,
+      url: l.url,
+      descripcion: `Norma vigente de Taiw\xE1n${l.nivel ? ` (${l.nivel})` : ""}${l.categoria ? ` \xB7 ${l.categoria}` : ""}. La fecha es la de su \xFAltima modificaci\xF3n; el nombre en ingl\xE9s es la traducci\xF3n oficial cuando existe.`,
+      idOficial: (l.url.match(/pcode=([\w]+)/) || [])[1] || l.nombre,
+      tipoOficial: l.nivel || void 0,
+      origen: "oficial",
+      consultadoEl: ahora
+    }));
+    return { normas, estado: { ...base, estado: normas.length ? "ok" : "sin_resultados", consultaUsada: `"${zhT}" en el nombre o "${enT.join(" ")}" en el nombre oficial en ingl\xE9s, entre ${leyes.length} leyes vigentes (palabras traducidas por IA)`, motivo: normas.length ? void 0 : "Ninguna ley vigente coincide con esa consulta." } };
+  } catch (e) {
+    return { normas: [], estado: { ...base, estado: "no_disponible", motivo: `La API de leyes de Taiw\xE1n no respondi\xF3: ${e?.message || e}` } };
+  }
+}
+var sinIndice = (i) => !i?.generado || !Array.isArray(i.leyes) || i.leyes.length === 0;
+var motivoSinIndice = 'El \xEDndice oficial a\xFAn no se ha generado (ejecutar la tarea "Indices de leyes" en GitHub Actions).';
+async function buscarNoruega(q, indice = noruega_default) {
+  const ahora = (/* @__PURE__ */ new Date()).toISOString();
+  const base = { jurisdiccion: "Noruega", fuente: "Lovdata \u2014 leyes vigentes (\xEDndice mensual de datos p\xFAblicos)", consultadoEl: ahora };
+  if (sinIndice(indice)) return { normas: [], estado: { ...base, estado: "no_disponible", motivo: motivoSinIndice } };
+  try {
+    const nb = (await traducirConsulta(q, "noruego")).toLowerCase().replace(/[^\p{L}\d]/gu, "").trim();
+    if (!nb || nb.length < 4) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene t\xE9rminos \xFAtiles." } };
+    const normas = indice.leyes.filter((l) => `${l.titulo} ${l.corto || ""}`.toLowerCase().includes(nb)).slice(0, 4).map((l) => ({
+      pais: "Noruega",
+      fuente: "Lovdata (oficial)",
+      titulo: l.titulo,
+      fecha: l.fecha,
+      url: l.url,
+      descripcion: `Ley noruega vigente ${l.id}${l.corto ? ` (${l.corto})` : ""}${l.ministerio ? ` \xB7 ministerio: ${l.ministerio}` : ""}${l.ultimaModificacion ? ` \xB7 \xFAltima modificaci\xF3n en vigor: ${l.ultimaModificacion}` : ""}. \xCDndice del ${String(indice.generado).slice(0, 10)}; texto en noruego.`,
+      idOficial: l.id,
+      tipoOficial: "Lov",
+      origen: "oficial",
+      consultadoEl: ahora
+    }));
+    return { normas, estado: { ...base, estado: normas.length ? "ok" : "sin_resultados", consultaUsada: `"${nb}" en el t\xEDtulo, entre ${indice.total} leyes vigentes (\xEDndice del ${String(indice.generado).slice(0, 10)}; palabra traducida por IA)`, motivo: normas.length ? void 0 : "Ninguna ley vigente coincide con esa consulta." } };
+  } catch (e) {
+    return { normas: [], estado: { ...base, estado: "no_disponible", motivo: `No se pudo consultar el \xEDndice de Lovdata: ${e?.message || e}` } };
+  }
+}
+async function buscarArgentina(q, indice = argentina_default) {
+  const ahora = (/* @__PURE__ */ new Date()).toISOString();
+  const base = { jurisdiccion: "Argentina", fuente: "InfoLEG \u2014 normativa nacional (\xEDndice mensual de datos abiertos)", consultadoEl: ahora };
+  if (sinIndice(indice)) return { normas: [], estado: { ...base, estado: "no_disponible", motivo: motivoSinIndice } };
+  const terms = terminosDeConsulta(q).map(sinTildes).filter((t) => t.length >= 4);
+  if (!terms.length) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene t\xE9rminos \xFAtiles." } };
+  const normas = indice.leyes.filter((l) => {
+    const t = sinTildes(`${l.titulo} ${l.resumen || ""}`);
+    return terms.every((x) => t.includes(x));
+  }).slice(0, 4).map((l) => ({
+    pais: "Argentina",
+    fuente: "InfoLEG \u2014 Ministerio de Justicia (oficial)",
+    titulo: `Ley ${l.numero}${l.titulo ? ` \u2014 ${l.titulo}` : ""}`,
+    fecha: l.fecha,
+    url: l.url,
+    descripcion: `${l.resumen ? `Resumen InfoLEG: ${l.resumen}` : "Resumen: no informado en la base."} \xCDndice del ${String(indice.generado).slice(0, 10)}.`,
+    idOficial: l.id,
+    tipoOficial: "Ley",
+    origen: "oficial",
+    consultadoEl: ahora
+  }));
+  return { normas, estado: { ...base, estado: normas.length ? "ok" : "sin_resultados", consultaUsada: `"${terms.join(" ")}" en t\xEDtulo y resumen, entre ${indice.total} leyes (\xEDndice del ${String(indice.generado).slice(0, 10)}; sin traducci\xF3n)`, motivo: normas.length ? void 0 : "Ninguna ley nacional coincide con esa consulta." } };
+}
+async function buscarCroacia(q, indice = croacia_default) {
+  const ahora = (/* @__PURE__ */ new Date()).toISOString();
+  const base = { jurisdiccion: "Croacia", fuente: "Narodne novine \u2014 leyes (\xEDndice mensual de la API ELI)", consultadoEl: ahora };
+  if (sinIndice(indice)) return { normas: [], estado: { ...base, estado: "no_disponible", motivo: motivoSinIndice } };
+  try {
+    const hr = (await traducirConsulta(q, "croata")).toLowerCase().replace(/[^\p{L}\d]/gu, "").trim();
+    if (!hr || hr.length < 4) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene t\xE9rminos \xFAtiles." } };
+    const normas = indice.leyes.filter((l) => l.titulo.toLowerCase().includes(hr)).slice(0, 4).map((l) => ({
+      pais: "Croacia",
+      fuente: "Narodne novine \u2014 Diario Oficial (oficial)",
+      titulo: l.titulo,
+      fecha: l.fecha,
+      url: l.url,
+      descripcion: `${l.tipo === "ZAKON" ? "Ley" : "Ley constitucional"} croata publicada en Narodne novine ${l.id.replace(/^(\d+)\/(\d+)\/(\d+)$/, "$2/$1 (acto $3)")}${l.publicada ? ` el ${l.publicada}` : ""}. Puede ser una ley modificatoria. Texto en croata.`,
+      idOficial: l.id,
+      tipoOficial: l.tipo,
+      origen: "oficial",
+      consultadoEl: ahora
+    }));
+    const cobertura = indice.aniosDisponibles?.length === 2 ? `publicaciones ${indice.aniosDisponibles[0]}\u2013${indice.aniosDisponibles[1]}` : "publicaciones con metadatos ELI";
+    return { normas, estado: { ...base, estado: normas.length ? "ok" : "sin_resultados", consultaUsada: `"${hr}" en el t\xEDtulo, entre ${indice.total} leyes (${cobertura}${indice.completo === false ? ", \xEDndice a\xFAn en carga" : ""}; \xEDndice del ${String(indice.generado).slice(0, 10)}; palabra traducida por IA)`, motivo: normas.length ? void 0 : "Ninguna ley del \xEDndice coincide con esa consulta." } };
+  } catch (e) {
+    return { normas: [], estado: { ...base, estado: "no_disponible", motivo: `No se pudo consultar el \xEDndice de Narodne novine: ${e?.message || e}` } };
+  }
+}
+function leyUruguayEnConsulta(q) {
+  const m = q.match(/\bley\s*(?:n[°ºo.]*\s*)?(\d{1,2}\.?\d{3})\s*(?:de(?:l)?\s*(?:\d{1,2}\/\d{1,2}\/)?|\/|-|,)\s*(\d{4}|0\d{2}|9\d{2})\b/i);
+  if (!m) return null;
+  const anio = m[2].length === 4 ? m[2] : m[2].startsWith("0") ? `2${m[2]}` : `1${m[2]}`;
+  return { numero: m[1].replace(".", ""), anio };
+}
+async function buscarUruguay(q) {
+  const ahora = (/* @__PURE__ */ new Date()).toISOString();
+  const base = { jurisdiccion: "Uruguay", fuente: "IMPO \u2014 Base de leyes", consultadoEl: ahora };
+  const ley = leyUruguayEnConsulta(q);
+  if (!ley) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: 'IMPO no tiene buscador por tema; solo se consulta indicando n\xFAmero y a\xF1o (p. ej. "ley 18.331 de 2008").' } };
+  try {
+    const pagina = `https://www.impo.com.uy/bases/leyes/${ley.numero}-${ley.anio}`;
+    const r = await descargar(`${pagina}?json=true`, { Accept: "application/json" }, 2e4);
+    if (r.status === 404) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: `IMPO no tiene la ley ${ley.numero} de ${ley.anio}.` } };
+    if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
+    const charset = (r.contentType.match(/charset=([\w-]+)/i) || [])[1] || "utf-8";
+    const cuerpo = new TextDecoder(charset.toLowerCase()).decode(r.buf);
+    let j;
+    try {
+      j = JSON.parse(cuerpo);
+    } catch {
+      return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: `IMPO no tiene la ley ${ley.numero} de ${ley.anio}.` } };
+    }
+    if (!j?.nroNorma || !j?.nombreNorma) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: `IMPO no tiene la ley ${ley.numero} de ${ley.anio}.` } };
+    const f = String(j.fechaPromulgacion || "").match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    const normas = [{
+      pais: "Uruguay",
+      fuente: "IMPO \u2014 Centro de Informaci\xF3n Oficial (oficial)",
+      titulo: `Ley N\xB0 ${j.nroNorma} \u2014 ${String(j.nombreNorma).trim()}`,
+      fecha: f ? `${f[3]}-${f[2]}-${f[1]}` : void 0,
+      url: pagina,
+      descripcion: `Ley uruguaya promulgada el ${j.fechaPromulgacion || "fecha no informada"}, publicada el ${j.fechaPublicacion || "fecha no informada"}.${String(j.leyenda || "").trim() ? ` ${String(j.leyenda).trim()}.` : ""}`,
+      idOficial: `${j.nroNorma}-${j.anioNorma || ley.anio}`,
+      tipoOficial: String(j.tipoNorma || "Ley"),
+      origen: "oficial",
+      consultadoEl: ahora
+    }];
+    return { normas, estado: { ...base, estado: "ok", consultaUsada: `ley ${ley.numero} de ${ley.anio} (n\xFAmero y a\xF1o tomados de la consulta)` } };
+  } catch (e) {
+    return { normas: [], estado: { ...base, estado: "no_disponible", motivo: `IMPO no respondi\xF3: ${e?.message || e}` } };
+  }
+}
+var TTL_IRLANDA_MS = 24 * 60 * 60 * 1e3;
+var irlandaEnVuelo = null;
+async function leyesIrlanda() {
+  const hit = cache.get("irlanda_leyes_promulgadas");
+  if (hit) return hit;
+  if (!irlandaEnVuelo) {
+    irlandaEnVuelo = (async () => {
+      const r = await descargar("https://api.oireachtas.ie/v1/legislation?bill_status=Enacted&limit=1000&lang=en", { Accept: "application/json" }, 45e3);
+      if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
+      const res = JSON.parse(r.buf.toString("utf8"))?.results || [];
+      const out = res.map((x) => x?.bill?.act).filter((a) => a?.shortTitleEn && a?.actNo && a?.actYear).map((a) => ({
+        titulo: String(a.shortTitleEn).trim(),
+        actNo: String(a.actNo),
+        actYear: String(a.actYear),
+        fecha: a.dateSigned || void 0,
+        url: String(a.statutebookURI || a.uri || "").replace(/^http:/, "https:")
+      })).filter((a) => a.url);
+      if (out.length) cache.set("irlanda_leyes_promulgadas", out, TTL_IRLANDA_MS);
+      return out;
+    })().finally(() => {
+      irlandaEnVuelo = null;
+    });
+  }
+  return irlandaEnVuelo;
+}
+async function buscarIrlanda(q) {
+  const ahora = (/* @__PURE__ */ new Date()).toISOString();
+  const base = { jurisdiccion: "Irlanda", fuente: "Houses of the Oireachtas \u2014 Open Data", consultadoEl: ahora };
+  try {
+    const en = (await traducirAIngles(q)).toLowerCase();
+    const terms = en.split(/[^\p{L}\d]+/u).filter((t) => t.length >= 4);
+    if (!terms.length) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene t\xE9rminos \xFAtiles." } };
+    const leyes = await leyesIrlanda();
+    const normas = leyes.filter((l) => terms.every((t) => l.titulo.toLowerCase().includes(t))).slice(0, 4).map((l) => ({
+      pais: "Irlanda",
+      fuente: "Oireachtas / Irish Statute Book (oficial)",
+      titulo: l.titulo,
+      fecha: l.fecha,
+      url: l.url,
+      descripcion: `Ley irlandesa N\xB0 ${l.actNo} de ${l.actYear}. Metadatos del Oireachtas; texto en ingl\xE9s.`,
+      idOficial: `${l.actYear}/${l.actNo}`,
+      tipoOficial: "Act",
+      origen: "oficial",
+      consultadoEl: ahora
+    }));
+    return { normas, estado: { ...base, estado: normas.length ? "ok" : "sin_resultados", consultaUsada: `"${terms.join(" ")}" en el t\xEDtulo, entre las ${leyes.length} leyes promulgadas m\xE1s recientes (palabras traducidas por IA)`, motivo: normas.length ? void 0 : "Ninguna de las leyes recientes del Oireachtas coincide con esa consulta." } };
+  } catch (e) {
+    return { normas: [], estado: { ...base, estado: "no_disponible", motivo: `La API del Oireachtas no respondi\xF3: ${e?.message || e}` } };
+  }
+}
+async function buscarCorea(q) {
+  const ahora = (/* @__PURE__ */ new Date()).toISOString();
+  const base = { jurisdiccion: "Corea del Sur", fuente: "law.go.kr \u2014 Centro Nacional de Informaci\xF3n Legal", consultadoEl: ahora };
+  const oc = (process.env.KOREA_LAW_OC || "").trim();
+  if (!oc) return { normas: [], estado: { ...base, estado: "no_disponible", motivo: "Falta configurar KOREA_LAW_OC (c\xF3digo gratuito de law.go.kr) en el servidor." } };
+  try {
+    const ko = (await traducirConsulta(q, "coreano")).trim();
+    if (!ko) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene t\xE9rminos \xFAtiles." } };
+    const r = await descargar(`https://www.law.go.kr/DRF/lawSearch.do?OC=${encodeURIComponent(oc)}&target=law&type=JSON&display=4&query=${encodeURIComponent(ko)}`, { Accept: "application/json" }, 2e4);
+    if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
+    const j = JSON.parse(r.buf.toString("utf8"));
+    if (j?.result && !j?.LawSearch) throw new Error(String(j.msg || j.result));
+    const leyes = [].concat(j?.LawSearch?.law || []);
+    const fmt = (d) => d && /^\d{8}$/.test(d) ? `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}` : void 0;
+    const normas = leyes.filter((l) => l?.["\uBC95\uB839\uBA85\uD55C\uAE00"]).slice(0, 4).map((l) => {
+      const nombre = String(l["\uBC95\uB839\uBA85\uD55C\uAE00"]).trim();
+      return {
+        pais: "Corea del Sur",
+        fuente: "law.go.kr \u2014 Ministerio de Legislaci\xF3n (oficial)",
+        titulo: nombre,
+        fecha: fmt(l["\uACF5\uD3EC\uC77C\uC790"]),
+        // Enlace público por nombre: el enlace de la API lleva el código OC y no se expone.
+        url: `https://www.law.go.kr/\uBC95\uB839/${encodeURIComponent(nombre)}`,
+        descripcion: `Norma coreana${l["\uBC95\uB839\uAD6C\uBD84\uBA85"] ? ` (${l["\uBC95\uB839\uAD6C\uBD84\uBA85"]})` : ""}${l["\uC18C\uAD00\uBD80\uCC98\uBA85"] ? ` \xB7 ministerio: ${l["\uC18C\uAD00\uBD80\uCC98\uBA85"]}` : ""}${fmt(l["\uC2DC\uD589\uC77C\uC790"]) ? ` \xB7 vigente desde ${fmt(l["\uC2DC\uD589\uC77C\uC790"])}` : ""}. Texto en coreano.`,
+        idOficial: String(l["\uBC95\uB839ID"] || l["\uBC95\uB839\uC77C\uB828\uBC88\uD638"] || nombre),
+        tipoOficial: l["\uBC95\uB839\uAD6C\uBD84\uBA85"] || void 0,
+        origen: "oficial",
+        consultadoEl: ahora
+      };
+    });
+    return { normas, estado: { ...base, estado: normas.length ? "ok" : "sin_resultados", consultaUsada: `"${ko}" (palabra traducida por IA)`, motivo: normas.length ? void 0 : "law.go.kr no devolvi\xF3 normas para esa consulta." } };
+  } catch (e) {
+    return { normas: [], estado: { ...base, estado: "no_disponible", motivo: `law.go.kr no respondi\xF3: ${e?.message || e}` } };
+  }
+}
+async function buscarEstonia(q) {
+  const ahora = (/* @__PURE__ */ new Date()).toISOString();
+  const base = { jurisdiccion: "Estonia", fuente: "Riigi Teataja (Diario Oficial de Estonia)", consultadoEl: ahora };
+  try {
+    const et = (await traducirConsulta(q, "estonio")).toLowerCase().trim();
+    if (!et || et.length < 3) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene t\xE9rminos \xFAtiles." } };
+    const r = await descargar(`https://www.riigiteataja.ee/api/oigusakt_otsing/1/otsi?leht=1&limiit=40&dokument=seadus&pealkiri=${encodeURIComponent(et)}`, { Accept: "application/json" }, 2e4);
+    if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
+    const j = JSON.parse(r.buf.toString("utf8"));
+    if (j?.staatus && j.staatus !== "OK") throw new Error(String(j.staatus));
+    const vistos = /* @__PURE__ */ new Set();
+    const normas = (j?.aktid || []).filter((a) => a?.globaalID && a?.pealkiri && !a?.kehtivus?.lopp && !a?.mitteJoustunud).filter((a) => {
+      const k = String(a.pealkiri).toLowerCase();
+      if (vistos.has(k)) return false;
+      vistos.add(k);
+      return true;
+    }).slice(0, 4).map((a) => ({
+      pais: "Estonia",
+      fuente: "Riigi Teataja (oficial)",
+      titulo: String(a.pealkiri),
+      fecha: a.kehtivus?.algus || void 0,
+      url: `https://www.riigiteataja.ee/akt/${a.globaalID}`,
+      descripcion: `Ley estonia vigente desde ${a.kehtivus?.algus || "fecha no informada"}${a.valjaandja ? ` \xB7 emisor: ${a.valjaandja}` : ""}. Texto en estonio.`,
+      idOficial: String(a.globaalID),
+      tipoOficial: a.liik || "seadus",
+      origen: "oficial",
+      consultadoEl: ahora
+    }));
+    return { normas, estado: { ...base, estado: normas.length ? "ok" : "sin_resultados", consultaUsada: `leyes (seadus) vigentes con "${et}" en el t\xEDtulo (palabra traducida por IA)`, motivo: normas.length ? void 0 : "Riigi Teataja no devolvi\xF3 leyes vigentes para esa consulta." } };
+  } catch (e) {
+    return { normas: [], estado: { ...base, estado: "no_disponible", motivo: `Riigi Teataja no respondi\xF3: ${e?.message || e}` } };
+  }
+}
+async function conCache(clave, q, usaTraduccion, buscar) {
+  const key = `fuente_oficial_${clave}_${q.trim().toLowerCase()}`;
+  const hit = cache.get(key);
+  if (hit) return structuredClone(hit);
+  const r = await buscar(q);
+  if (r.estado.estado !== "no_disponible" && (!usaTraduccion || traduccionEnCache(q))) cache.set(key, structuredClone(r), TTL_FUENTE_MS);
+  return r;
+}
+async function buscarFuentesOficiales(q) {
+  const partes = await Promise.all([
+    conCache("ue", q, false, buscarUE),
+    conCache("es", q, false, buscarEspana),
+    conCache("uk", q, true, buscarReinoUnido),
+    conCache("au", q, true, buscarAustralia),
+    conCache("nl", q, true, buscarPaisesBajos),
+    conCache("jp", q, true, buscarJapon),
+    conCache("ch", q, true, buscarSuiza),
+    conCache("lu", q, true, buscarLuxemburgo),
+    conCache("pl", q, true, buscarPolonia),
+    conCache("se", q, true, buscarSuecia),
+    conCache("de", q, true, buscarAlemania),
+    conCache("fr", q, true, buscarFrancia),
+    conCache("us", q, true, buscarEstadosUnidos),
+    conCache("it", q, true, buscarItalia),
+    conCache("at", q, true, buscarAustria),
+    conCache("fi", q, true, buscarFinlandia),
+    conCache("br", q, true, buscarBrasil),
+    conCache("ie", q, true, buscarIrlanda),
+    conCache("kr", q, true, buscarCorea),
+    conCache("ee", q, true, buscarEstonia),
+    conCache("brl", q, true, buscarBrasilLeyes),
+    conCache("ca", q, true, buscarCanada),
+    conCache("dk", q, true, buscarDinamarca),
+    conCache("il", q, true, buscarIsrael),
+    conCache("tw", q, true, buscarTaiwan),
+    conCache("no", q, true, (x) => buscarNoruega(x)),
+    conCache("ar", q, false, (x) => buscarArgentina(x)),
+    conCache("uy", q, false, buscarUruguay),
+    conCache("hr", q, true, (x) => buscarCroacia(x))
+  ]);
+  return { normas: partes.flatMap((p) => p.normas), estados: partes.map((p) => p.estado) };
 }
 var IDIOMA_CELLAR = { ES: "spa", EN: "eng", FR: "fra", DE: "deu", PT: "por", IT: "ita" };
 async function fetchTextoOficial(url) {
@@ -191213,56 +190648,6 @@ var SINONIMOS_MATERIA = {
   "criptoactivos": ["criptomonedas", "bitcoin", "blockchain", "fintech", "activos digitales", "tokens"],
   "eutanasia": ["muerte digna", "cuidados paliativos", "suicidio asistido", "voluntades anticipadas"]
 };
-var DICCIONARIO_LEYES_CHILENAS = {
-  "21020": {
-    numero: "21.020",
-    nombreOficial: "Sobre Tenencia Responsable de Mascotas y Animales de Compa\xF1\xEDa",
-    nombrePopular: "Ley Cholito",
-    resumen: "Regula integralmente los deberes de cuidado, protecci\xF3n y control sobre perros, gatos y animales de compa\xF1\xEDa en Chile, creando el Registro Nacional de Mascotas con microchip subcut\xE1neo obligatorio. Su cumplimiento es supervisado por las Municipalidades, las Seremis de Salud y Carabineros.",
-    palabrasClave: ["perro", "perros", "gato", "gatos", "mascota", "mascotas", "animal", "animales", "cholito", "tenencia responsable"]
-  },
-  "21643": {
-    numero: "21.643",
-    nombreOficial: "Modifica el C\xF3digo del Trabajo en materia de Prevenci\xF3n, Investigaci\xF3n y Sanci\xF3n del Acoso Laboral, Sexual y Violencia en el Trabajo",
-    nombrePopular: "Ley Karin",
-    resumen: "Establece un marco preventivo y sancionatorio integral frente al acoso laboral, sexual y la violencia en el trabajo, exigiendo protocolos preventivos obligatorios y medidas cautelares inmediatas de resguardo. Es fiscalizada por la Direcci\xF3n del Trabajo.",
-    palabrasClave: ["karin", "acoso laboral", "acoso sexual", "violencia laboral", "mobbing", "trabajo"]
-  },
-  "21561": {
-    numero: "21.561",
-    nombreOficial: "Modifica el C\xF3digo del Trabajo con el objeto de Reducir la Jornada Laboral a 40 Horas Semanales",
-    nombrePopular: "Ley de 40 Horas",
-    resumen: "Reduce gradualmente la jornada laboral semanal de 45 a 40 horas, contemplando bandas horarias diferidas y la jornada 4x3 como mecanismos de adaptaci\xF3n. Es fiscalizada por la Direcci\xF3n del Trabajo.",
-    palabrasClave: ["40 horas", "jornada laboral", "horario de trabajo", "codigo del trabajo"]
-  },
-  "21663": {
-    numero: "21.663",
-    nombreOficial: "Ley Marco de Ciberseguridad e Infraestructura Cr\xEDtica de la Informaci\xF3n",
-    nombrePopular: "Ley de Ciberseguridad",
-    resumen: "Establece las bases institucionales para la ciberdefensa y ciberseguridad nacional, creando la Agencia Nacional de Ciberseguridad (ANCI) y el CSIRT Nacional. Contempla multas disuasorias de hasta 40.000 UTM ante incumplimientos.",
-    palabrasClave: ["ciberseguridad", "seguridad informatica", "infraestructura critica", "anci"]
-  },
-  "21383": {
-    numero: "21.383",
-    nombreOficial: "Modifica la Carta Fundamental para consagrar la protecci\xF3n de los Neuroderechos y la Integridad Mental",
-    nombrePopular: "Ley de Neuroderechos",
-    resumen: "Pionera reforma constitucional a nivel mundial que protege los datos cerebrales y la privacidad mental frente al avance de la neurotecnolog\xEDa, elevando a rango constitucional el consentimiento informado para el uso de interfaces cerebro-computador. Su tutela se ejerce mediante recurso de protecci\xF3n ante las Cortes de Apelaciones.",
-    palabrasClave: ["neuroderechos", "neurotecnologia", "privacidad mental", "cerebro", "datos neuronales"]
-  },
-  "21220": {
-    numero: "21.220",
-    nombreOficial: "Modifica el C\xF3digo del Trabajo en materia de Trabajo a Distancia y Teletrabajo",
-    nombrePopular: "Ley de Teletrabajo",
-    resumen: "Regula el trabajo a distancia y consagra el derecho a la desconexi\xF3n digital obligatoria de al menos 12 horas continuas, imponiendo al empleador el deber de proporcionar equipos, herramientas y costos de operaci\xF3n. Es fiscalizada por la Direcci\xF3n del Trabajo, con multas por vulneraci\xF3n del descanso.",
-    palabrasClave: ["teletrabajo", "trabajo a distancia", "desconexion digital", "remoto"]
-  }
-};
-function sintetizarResumenNorma(titulo, pais, tipo) {
-  const clean = titulo.replace(/^LEY NUM\.\s*\d+\.?\d*\s*[:\-]?\s*/i, "").replace(/^DECRETO\s*\d+\s*[:\-]?\s*/i, "").replace(/^RESOLUCI[OÓ]N\s*\d+\s*[:\-]?\s*/i, "").trim();
-  const materia = clean.replace(/^(establece normas sobre|modifica|crea|aprueba|fija|regula|sobre)\s*/i, "").trim() || clean;
-  const tipoNorma = tipo || "Normativa oficial";
-  return `Se trata de ${tipoNorma.toLowerCase()} de ${pais} que regula el marco jur\xEDdico relativo a ${materia.toLowerCase()}, disponiendo directrices operativas y deberes de cumplimiento para los sujetos obligados. Su fiscalizaci\xF3n corresponde a los \xF3rganos competentes de ${pais}, y constituye un referente \xFAtil para el debate y la t\xE9cnica legislativa en las comisiones del Congreso Nacional.`;
-}
 function inferirTipoNorma(titulo) {
   const t = titulo.toLowerCase();
   if (/sentencia|jurisprudencia|fallo\b|ruling|judgment|arrêt|corte (suprema|constitucional)|tribunal/.test(t)) return "Jurisprudencia";
@@ -191270,6 +190655,16 @@ function inferirTipoNorma(titulo) {
   if (/reglamento|regulation|verordnung|règlement|regulations\b/.test(t)) return "Reglamento";
   if (/ordenanza|ordinance|bylaw|by-law|satzung|decreto|resoluci[oó]n|resolution|orden administrativa|directiva|directive|circular|instructivo/.test(t)) return "Administrativo";
   return "Documento";
+}
+var TIPO_OFICIAL_LEY = /^(act|lag|lei|ley|lov|lag|loi|legge|ustawa|zakon|ustavni_zakon|seadus|bundesgesetz|ley básica|法律|법률)$/i;
+var TIPO_OFICIAL_REGLAMENTO = /^(verordnung|命令|대통령령|총리령|부령|määrus|reglamento|regulation)$/i;
+function tipoNormaOficial(titulo, tipoOficial) {
+  const t = (tipoOficial || "").trim();
+  if (/projeto de lei|proyecto/i.test(t)) return "Proyecto de ley";
+  if (TIPO_OFICIAL_LEY.test(t)) return "Ley";
+  if (TIPO_OFICIAL_REGLAMENTO.test(t)) return "Reglamento";
+  const porTitulo = inferirTipoNorma(titulo);
+  return porTitulo === "Documento" ? "Norma" : porTitulo;
 }
 function relevanciaPorCoincidencia(q, r) {
   const normQ = normalizarTexto(q);
@@ -191321,20 +190716,15 @@ async function buscarChile(q) {
       const tipoDesc = (block.match(/<Descripcion>([\s\S]*?)<\/Descripcion>/) || [, ""])[1];
       const compuesto = (block.match(/<Compuesto>([\s\S]*?)<\/Compuesto>/) || [, ""])[1];
       const numero = (block.match(/<Numero>([\s\S]*?)<\/Numero>/) || [, ""])[1].trim();
-      const numDigits = numero.replace(/\D/g, "");
-      const infoCatalogo = numDigits ? DICCIONARIO_LEYES_CHILENAS[numDigits] : void 0;
       let tituloFinal = rawTitulo ? decodeEntities(rawTitulo) : "Norma sin t\xEDtulo";
-      let descripcionFinal = void 0;
-      if (infoCatalogo) {
-        tituloFinal = `Ley ${infoCatalogo.numero}: ${infoCatalogo.nombreOficial}${infoCatalogo.nombrePopular ? ` ("${infoCatalogo.nombrePopular}")` : ""}`;
-        descripcionFinal = infoCatalogo.resumen;
-      } else {
-        if (compuesto && compuesto.toLowerCase().startsWith("ley-") && !tituloFinal.toLowerCase().startsWith("ley")) {
-          const numFormat = compuesto.replace(/^ley-/i, "").replace(/(\d+)(\d{3})$/, "$1.$2");
-          tituloFinal = `Ley ${numFormat}: ${tituloFinal}`;
-        }
-        descripcionFinal = sintetizarResumenNorma(tituloFinal, "Chile", tipoDesc || "Documento");
+      if (compuesto && compuesto.toLowerCase().startsWith("ley-") && !tituloFinal.toLowerCase().startsWith("ley")) {
+        const numFormat = compuesto.replace(/^ley-/i, "").replace(/(\d+)(\d{3})$/, "$1.$2");
+        tituloFinal = `Ley ${numFormat}: ${tituloFinal}`;
       }
+      const descripcionFinal = [
+        [tipoDesc ? decodeEntities(tipoDesc).trim() : "", numero ? `N\xB0 ${numero}` : ""].filter(Boolean).join(" "),
+        fecha ? `publicada el ${fecha}` : ""
+      ].filter(Boolean).join(" \xB7 ") + `${tipoDesc || numero || fecha ? ". " : ""}Resumen: no informado por LeyChile en este listado.`;
       return {
         pais: "Chile",
         fuente: "LeyChile \u2014 Biblioteca del Congreso Nacional (API Oficial BCN)",
@@ -191415,6 +190805,32 @@ IMPORTANTE: clasifica el campo "tipo" usando EXCLUSIVAMENTE una de estas 5 categ
 - "Administrativo": decretos, resoluciones, ordenanzas municipales/locales, directivas de organismos administrativos y circulares. Una ordenanza municipal NUNCA es "Ley".
 - "Documento": informes, minutas, estudios t\xE9cnicos u otro texto de referencia sin fuerza normativa vinculante propia.`;
 }
+var TTL_COMPARADO_MS = 6 * 60 * 60 * 1e3;
+async function buscarChileConCache(q) {
+  const key = `comparado_chile_${normalizarTexto(q)}`;
+  const hit = cache.get(key);
+  if (hit) return structuredClone(hit);
+  const r = await buscarChile(q);
+  if (r.length > 0) cache.set(key, structuredClone(r), TTL_COMPARADO_MS);
+  return r;
+}
+async function validarEnlacesConCache(urls) {
+  const out = [];
+  const faltan = [];
+  for (const u of Array.from(new Set(urls))) {
+    const hit = cache.get(`comparado_enlace_${u}`);
+    if (hit) out.push(hit);
+    else faltan.push(u);
+  }
+  if (faltan.length > 0) {
+    for (const e of await validarEnlaces(faltan)) {
+      if (!e) continue;
+      out.push(e);
+      cache.set(`comparado_enlace_${e.url}`, e, e.estado === "roto" ? 10 * 60 * 1e3 : TTL_COMPARADO_MS);
+    }
+  }
+  return out;
+}
 async function buscarComparadoConIA(query, attempts) {
   const jurisdicciones = Object.keys(CODIGO_PAIS).filter((p) => p !== "Chile" && !PAISES_OFICIALES.has(p));
   const TAMANO_LOTE = 7;
@@ -191444,6 +190860,14 @@ async function buscarComparadoConIA(query, attempts) {
     }
   };
   const resolverLote = async (lote) => {
+    const claveLote = `comparado_ia_${normalizarTexto(query)}_${lote.join("|")}`;
+    const enCache = cache.get(claveLote);
+    if (enCache) return structuredClone(enCache);
+    const resuelto = await resolverLoteSinCache(lote);
+    if (resuelto.length > 0) cache.set(claveLote, structuredClone(resuelto), TTL_COMPARADO_MS);
+    return resuelto;
+  };
+  const resolverLoteSinCache = async (lote) => {
     const prompt = construirPromptLoteComparado(query, lote);
     try {
       const primerIntento = await intentarUnaVez(prompt, 2200);
@@ -191459,209 +190883,14 @@ IMPORTANTE: tu respuesta anterior no cumpli\xF3 el formato. Responde EXCLUSIVAME
     return [];
   };
   const resultadosPorLote = await Promise.all(lotes.map(resolverLote));
-  const resultados = resultadosPorLote.flat();
-  if (resultados.length > 0) return resultados;
-  attempts?.push({ provider: "fallback-ontologico", configured: true });
-  return generarFallbackOntologicoComparado(query).filter((r) => !PAISES_OFICIALES.has(r.pais));
-}
-function generarFallbackOntologicoComparado(query) {
-  const q = normalizarTexto(query);
-  if (q.includes("hidrogeno") || q.includes("gases renovables") || q.includes("electrolisis")) {
-    return [
-      {
-        pais: "Uni\xF3n Europea",
-        fuente: "EUR-Lex \u2014 Diario Oficial de la Uni\xF3n Europea",
-        titulo: "Directiva (UE) 2024/1788 relativa a normas comunes para los mercados del gas natural y del hidr\xF3geno",
-        fecha: "2024",
-        url: "https://eur-lex.europa.eu/eli/dir/2024/1788/oj",
-        tipo: "Administrativo",
-        descripcion: "\u{1F3AF} Objeto & \xC1mbito: Establece el marco regulatorio del mercado interior de hidr\xF3geno renovable y gases descarbonizados en toda la UE.\n\u2699\uFE0F Mecanismos Clave: Certificaci\xF3n de hidr\xF3geno verde (RFNBO), acceso de terceros a gasoductos y tarifas no discriminatorias.\n\u2696\uFE0F Fiscalizaci\xF3n & Sanciones: Supervisado por la Agencia de Cooperaci\xF3n de los Reguladores de la Energ\xEDa (ACER).\n\u{1F4A1} Lecci\xF3n para Chile: Fundamental para regular el transporte por ductos y plantas desaladoras en Antofagasta y Magallanes.",
-        relevancia: 98
-      },
-      {
-        pais: "Espa\xF1a",
-        fuente: "BOE \u2014 Bolet\xEDn Oficial del Estado",
-        titulo: "Hoja de Ruta del Hidr\xF3geno: Una apuesta por el hidr\xF3geno renovable (Acuerdo Consejo de Ministros)",
-        fecha: "2022",
-        url: "https://www.boe.es/buscar/act.php?id=BOE-A-2020-12821",
-        tipo: "Reglamento",
-        descripcion: "\u{1F3AF} Objeto & \xC1mbito: Plan nacional con 60 medidas regulatorias para la producci\xF3n y exportaci\xF3n de hidr\xF3geno verde hacia Europa.\n\u2699\uFE0F Mecanismos Clave: Sistema de garant\xEDas de origen del gas renovable y ventanilla \xFAnica de permisos ambientales.\n\u2696\uFE0F Fiscalizaci\xF3n & Sanciones: Gestionado por la Comisi\xF3n Nacional de los Mercados y la Competencia (CNMC).\n\u{1F4A1} Lecci\xF3n para Chile: Inspiraci\xF3n para agilizar la tramitaci\xF3n de permisos sectoriales e incentivos tributarios a electrolizadores.",
-        relevancia: 96
-      },
-      {
-        pais: "Estados Unidos",
-        fuente: "Congress.gov \u2014 U.S. Code",
-        titulo: "Inflation Reduction Act (Public Law 117-169) \u2014 Clean Hydrogen Production Credit (\xA7 45V)",
-        fecha: "2022",
-        url: "https://www.congress.gov/bill/117th-congress/house-bill/5376/text",
-        tipo: "Ley",
-        descripcion: "\u{1F3AF} Objeto & \xC1mbito: Subsidio fiscal de hasta US$ 3,00 por kilogramo de hidr\xF3geno producido con emisiones de carbono cercanas a cero.\n\u2699\uFE0F Mecanismos Clave: Auditor\xEDa rigurosa de emisiones de ciclo de vida (Well-to-Gate) con est\xE1ndar de adici\xF3n horaria.\n\u2696\uFE0F Fiscalizaci\xF3n & Sanciones: Administrado por el Internal Revenue Service (IRS) y el Department of Energy (DOE).\n\u{1F4A1} Lecci\xF3n para Chile: Muestra c\xF3mo estructurar cr\xE9ditos fiscales de producci\xF3n competitivos frente a la ley estadounidense.",
-        relevancia: 95
-      },
-      {
-        pais: "Alemania",
-        fuente: "Bundesgesetzblatt \u2014 Ley Federal Alemana",
-        titulo: "Wasserstoff-Beschleunigungsgesetz (Ley de Aceleraci\xF3n del Hidr\xF3geno)",
-        fecha: "2024",
-        url: "https://www.bmwk.de/Redaktion/DE/Gesetze/Energie/wasserstoffbeschleunigungsgesetz.html",
-        tipo: "Ley",
-        descripcion: "\u{1F3AF} Objeto & \xC1mbito: Declara la producci\xF3n y transporte de hidr\xF3geno como de inter\xE9s p\xFAblico superior para acelerar permisos.\n\u2699\uFE0F Mecanismos Clave: Plazos perentorios para evaluaciones de impacto ambiental y digitalizaci\xF3n integral del tr\xE1mite.\n\u2696\uFE0F Fiscalizaci\xF3n & Sanciones: Supervisado por la Agencia Federal de Redes (Bundesnetzagentur).\n\u{1F4A1} Lecci\xF3n para Chile: Mecanismo para desatorar la permisolog\xEDa ambiental de megaproyectos en la Regi\xF3n de Magallanes.",
-        relevancia: 94
-      },
-      {
-        pais: "Colombia",
-        fuente: "Diario Oficial de Colombia \u2014 Congreso de la Rep\xFAblica",
-        titulo: "Ley 2099 de 2021 (Ley de Transici\xF3n Energ\xE9tica y Promoci\xF3n del Hidr\xF3geno Verde y Azul)",
-        fecha: "2021",
-        url: "https://www.suin-juriscol.gov.co/viewDocument.asp?ruta=Leyes/30043864",
-        tipo: "Ley",
-        descripcion: "\u{1F3AF} Objeto & \xC1mbito: Moderniza el r\xE9gimen de energ\xEDas renovables e introduce incentivos arancelarios y tributarios directos al hidr\xF3geno.\n\u2699\uFE0F Mecanismos Clave: Exenci\xF3n de IVA en la adquisici\xF3n de equipos, deducci\xF3n del 50% en impuesto a la renta y depreciaci\xF3n acelerada.\n\u2696\uFE0F Fiscalizaci\xF3n & Sanciones: Ministerio de Minas y Energ\xEDa y CREG.\n\u{1F4A1} Lecci\xF3n para Chile: Marco normativo latinoamericano m\xE1s cercano en estructura tributaria a la legislaci\xF3n chilena.",
-        relevancia: 93
-      }
-    ];
-  }
-  if (q.includes("neuro") || q.includes("cerebr") || q.includes("neurotecnologia")) {
-    return [
-      {
-        pais: "Espa\xF1a",
-        fuente: "Ministerio de Asuntos Econ\xF3micos y Transformaci\xF3n Digital",
-        titulo: "Carta de Derechos Digitales (Cap\xEDtulo XXV: Derechos ante las neurotecnolog\xEDas)",
-        fecha: "2021",
-        url: "https://www.lamoncloa.gob.es/presidente/actividades/Documents/2021/140721-Carta_Derechos_Digitales.pdf",
-        tipo: "Reglamento",
-        descripcion: "\u{1F3AF} Objeto & \xC1mbito: Consagra la identidad individual, confidencialidad de la actividad cerebral y autodeterminaci\xF3n cognitiva.\n\u2699\uFE0F Mecanismos Clave: Prohibici\xF3n de interfaces neuronales con fines de manipulaci\xF3n conductual no consentida.\n\u2696\uFE0F Fiscalizaci\xF3n & Sanciones: Agencia Espa\xF1ola de Protecci\xF3n de Datos (AEPD).\n\u{1F4A1} Lecci\xF3n para Chile: Complemento directo al art\xEDculo 19 N\xB0 1 de la Constituci\xF3n chilena en materia de integridad ps\xEDquica.",
-        relevancia: 97
-      },
-      {
-        pais: "Estados Unidos",
-        fuente: "Colorado General Assembly \u2014 Public Acts",
-        titulo: "Colorado House Bill 24-1058 (Protecting Privacy of Biological and Neural Data)",
-        fecha: "2024",
-        url: "https://leg.colorado.gov/bills/hb24-1058",
-        tipo: "Ley",
-        descripcion: "\u{1F3AF} Objeto & \xC1mbito: Primera ley estatal de EE.UU. que expande la definici\xF3n de datos personales sensibles a los 'datos neuronales'.\n\u2699\uFE0F Mecanismos Clave: Regula los dispositivos comerciales de consumo (EEG en vinchas o cascos) que recopilan ondas cerebrales.\n\u2696\uFE0F Fiscalizaci\xF3n & Sanciones: Acciones civiles de la Fiscal\xEDa General de Colorado.\n\u{1F4A1} Lecci\xF3n para Chile: Fija est\xE1ndares pr\xE1cticos para dispositivos de consumo masivo m\xE1s all\xE1 del \xE1mbito m\xE9dico.",
-        relevancia: 95
-      },
-      {
-        pais: "Francia",
-        fuente: "L\xE9gifrance \u2014 Code de la sant\xE9 publique",
-        titulo: "Loi n\xB0 2021-1017 relative \xE0 la bio\xE9thique (Article L. 1151-1: Imagerie c\xE9r\xE9brale et neurosciences)",
-        fecha: "2021",
-        url: "https://www.legifrance.gouv.fr/jorf/id/JORFTEXT000043884384",
-        tipo: "Ley",
-        descripcion: "\u{1F3AF} Objeto & \xC1mbito: Restringe el uso de t\xE9cnicas de neuroimagen y registro de actividad cerebral exclusivamente a fines m\xE9dicos y cient\xEDficos.\n\u2699\uFE0F Mecanismos Clave: Prohibici\xF3n absoluta de utilizar datos neuronales con fines comerciales o de neuromarketing.\n\u2696\uFE0F Fiscalizaci\xF3n & Sanciones: Agence de la biom\xE9decine y Comit\xE9 Consultatif National d'\xC9thique (CCNE).\n\u{1F4A1} Lecci\xF3n para Chile: Establece salvaguardas dr\xE1sticas frente a la comercializaci\xF3n de la intimidad ps\xEDquica.",
-        relevancia: 93
-      }
-    ];
-  }
-  if (q.includes("teletrabajo") || q.includes("remoto") || q.includes("desconexion") || q.includes("distancia")) {
-    return [
-      {
-        pais: "Espa\xF1a",
-        fuente: "BOE \u2014 Bolet\xEDn Oficial del Estado",
-        titulo: "Ley 10/2021 de trabajo a distancia y garant\xEDa de la desconexi\xF3n digital",
-        fecha: "2021",
-        url: "https://www.boe.es/buscar/act.php?id=BOE-A-2021-11472",
-        tipo: "Ley",
-        descripcion: "\u{1F3AF} Objeto & \xC1mbito: Regulaci\xF3n integral del trabajo a distancia cuando se realice en al menos un 30% de la jornada durante 3 meses.\n\u2699\uFE0F Mecanismos Clave: Voluntariedad, reversibilidad, compensaci\xF3n obligatoria de gastos y pol\xEDtica de desconexi\xF3n digital.\n\u2696\uFE0F Fiscalizaci\xF3n & Sanciones: Inspecci\xF3n de Trabajo y Seguridad Social (ITSS).\n\u{1F4A1} Lecci\xF3n para Chile: Establece par\xE1metros precisos para el reembolso de servicios b\xE1sicos (luz e internet).",
-        relevancia: 97
-      },
-      {
-        pais: "Francia",
-        fuente: "L\xE9gifrance \u2014 Code du travail",
-        titulo: "Loi n\xB0 2016-1088 relative au travail (Droit \xE0 la d\xE9connexion \u2014 Article L2242-17)",
-        fecha: "2016",
-        url: "https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000033010376",
-        tipo: "Ley",
-        descripcion: "\u{1F3AF} Objeto & \xC1mbito: Norma pionera que consagr\xF3 la obligaci\xF3n de negociar acuerdos de desconexi\xF3n fuera del horario de oficina.\n\u2699\uFE0F Mecanismos Clave: Apagado autom\xE1tico de servidores de correo electr\xF3nico corporativo durante fines de semana y noches.\n\u2696\uFE0F Fiscalizaci\xF3n & Sanciones: Inspection du travail y tribunales de Prud'hommes.\n\u{1F4A1} Lecci\xF3n para Chile: Relevancia de consagrar sanciones espec\xEDficas para empleadores que env\xEDen mensajes en horas de descanso.",
-        relevancia: 95
-      },
-      {
-        pais: "Colombia",
-        fuente: "Diario Oficial de Colombia",
-        titulo: "Ley 2191 de 2022 (Regulaci\xF3n del derecho a la desconexi\xF3n laboral)",
-        fecha: "2022",
-        url: "https://www.suin-juriscol.gov.co/viewDocument.asp?ruta=Leyes/30043884",
-        tipo: "Ley",
-        descripcion: "\u{1F3AF} Objeto & \xC1mbito: Garantiza que los trabajadores no reciban \xF3rdenes, requerimientos o llamadas una vez finalizada su jornada.\n\u2699\uFE0F Mecanismos Clave: Define como conducta constitutiva de acoso laboral la insistencia del empleador en horarios de descanso.\n\u2696\uFE0F Fiscalizaci\xF3n & Sanciones: Ministerio del Trabajo con multas y apertura de procesos disciplinarios.\n\u{1F4A1} Lecci\xF3n para Chile: Conexi\xF3n jur\xEDdica directa entre la vulneraci\xF3n de la desconexi\xF3n y el acoso laboral.",
-        relevancia: 94
-      }
-    ];
-  }
-  const conceptoLimpio = query.trim();
-  const conceptoMayus = conceptoLimpio.charAt(0).toUpperCase() + conceptoLimpio.slice(1);
-  return [
-    {
-      pais: "Uni\xF3n Europea",
-      fuente: "EUR-Lex \u2014 Diario Oficial de la Uni\xF3n Europea",
-      titulo: `Directiva y Marco Regulatorio Armonizado sobre ${conceptoMayus}`,
-      fecha: "2024",
-      url: "https://eur-lex.europa.eu/homepage.html",
-      tipo: "Administrativo",
-      descripcion: `Directiva comunitaria que armoniza los est\xE1ndares m\xEDnimos, las licencias de operaci\xF3n y los principios de precauci\xF3n en torno a ${conceptoLimpio}. Establece la obligaci\xF3n de una evaluaci\xF3n de riesgos previa, registros p\xFAblicos unificados y protocolos de transparencia, cuya fiscalizaci\xF3n corresponde al Comit\xE9 Europeo de Supervisi\xF3n y a las autoridades nacionales competentes, facultadas para aplicar sanciones administrativas disuasorias.`,
-      relevancia: 96
-    },
-    {
-      pais: "Espa\xF1a",
-      fuente: "BOE \u2014 Bolet\xEDn Oficial del Estado",
-      titulo: `Ley Org\xE1nica de Regulaci\xF3n y Supervisi\xF3n de ${conceptoMayus}`,
-      fecha: "2023",
-      url: "https://www.boe.es/buscar/legislacion.php",
-      tipo: "Ley",
-      descripcion: `Ley de \xE1mbito estatal que regula las condiciones de ejercicio, los deberes de informaci\xF3n y el r\xE9gimen sancionador aplicables a ${conceptoLimpio}. Crea comisiones t\xE9cnicas sectoriales y un r\xE9gimen de autorizaciones previas, quedando su fiscalizaci\xF3n a cargo de los \xF3rganos reguladores estatales, con potestad sancionadora graduada seg\xFAn la gravedad de la infracci\xF3n.`,
-      relevancia: 95
-    },
-    {
-      pais: "Estados Unidos",
-      fuente: "Congress.gov \u2014 U.S. Code",
-      titulo: `${conceptoMayus} Regulatory Oversight and Standards Act`,
-      fecha: "2023",
-      url: "https://www.congress.gov",
-      tipo: "Ley",
-      descripcion: `Estatuto federal que fija directrices t\xE9cnicas, directivas de cumplimiento voluntario y mandatos de no discriminaci\xF3n en materia de ${conceptoLimpio}. Los est\xE1ndares son emitidos por agencias especializadas y sujetos a auditor\xEDas peri\xF3dicas de cumplimiento, mientras que la fiscalizaci\xF3n queda entregada a las agencias regulatorias federales competentes.`,
-      relevancia: 93
-    },
-    {
-      pais: "Alemania",
-      fuente: "Bundesgesetzblatt \u2014 Legislaci\xF3n Federal Alemana",
-      titulo: `Gesetz zur Regulierung und Beaufsichtigung von ${conceptoMayus}`,
-      fecha: "2024",
-      url: "https://www.gesetze-im-internet.de",
-      tipo: "Ley",
-      descripcion: `Ley federal con altos est\xE1ndares de rigor t\xE9cnico, trazabilidad de procesos y seguridad jur\xEDdica respecto de ${conceptoLimpio}. Impone deberes de reporte preventivo y peritajes externos independientes, quedando su fiscalizaci\xF3n a cargo de la autoridad federal competente (Bundesoberbeh\xF6rde), facultada para aplicar clausuras cautelares y multas acumulativas.`,
-      relevancia: 92
-    },
-    {
-      pais: "Colombia",
-      fuente: "Diario Oficial de Colombia \u2014 Congreso de la Rep\xFAblica",
-      titulo: `Ley Marco por medio de la cual se establecen directrices para ${conceptoMayus}`,
-      fecha: "2023",
-      url: "https://www.suin-juriscol.gov.co",
-      tipo: "Ley",
-      descripcion: `Legislaci\xF3n latinoamericana que adapta las mejores pr\xE1cticas internacionales sobre ${conceptoLimpio} a realidades institucionales regionales, mediante planes graduales de implementaci\xF3n y mesas de di\xE1logo multisectorial. Su fiscalizaci\xF3n corresponde a las superintendencias sectoriales respectivas.`,
-      relevancia: 91
-    },
-    {
-      pais: "Reino Unido",
-      fuente: "Legislation.gov.uk \u2014 UK Public General Acts",
-      titulo: `${conceptoMayus} (Governance and Compliance) Regulations`,
-      fecha: "2024",
-      url: "https://www.legislation.gov.uk",
-      tipo: "Reglamento",
-      descripcion: `Marco normativo brit\xE1nico enfocado en una regulaci\xF3n flexible basada en principios y resultados (outcomes-based regulation) para ${conceptoLimpio}. Contempla espacios de prueba regulatoria (sandboxes) y c\xF3digos de conducta vinculantes, con supervisi\xF3n a cargo de autoridades regulatorias sectoriales independientes.`,
-      relevancia: 90
-    }
-  ];
+  return resultadosPorLote.flat();
 }
 async function buscarDerechoComparado(q) {
-  const cacheKey = `derecho_comparado_ia_${normalizarTexto(q)}`;
-  const cached = cache.get(cacheKey);
-  if (cached) return cached;
   const resultado = await (async () => {
     const fuentesFallidas = [];
     const aiAttempts = [];
     const [chileResult, oficialesResult, iaResult] = await Promise.allSettled([
-      buscarChile(q),
+      buscarChileConCache(q),
       buscarFuentesOficiales(q),
       buscarComparadoConIA(q, aiAttempts)
     ]);
@@ -191691,7 +190920,7 @@ async function buscarDerechoComparado(q) {
           fecha: n.fecha,
           url: n.url,
           descripcion: n.descripcion,
-          tipo: inferirTipoNorma(n.titulo),
+          tipo: tipoNormaOficial(n.titulo, n.tipoOficial),
           origen: "oficial",
           idOficial: n.idOficial,
           consultadoEl: n.consultadoEl
@@ -191702,18 +190931,13 @@ async function buscarDerechoComparado(q) {
         if (e.estado === "no_disponible") fuentesFallidas.push(`${e.jurisdiccion} (fuente oficial no disponible)`);
       }
     } else {
-      for (const j of ["Uni\xF3n Europea", "Espa\xF1a", "Reino Unido", "Australia", "Pa\xEDses Bajos", "Jap\xF3n", "Suiza", "Luxemburgo", "Polonia", "Suecia", "Alemania", "Francia", "Estados Unidos"]) {
+      for (const j of PAISES_OFICIALES) {
         estadoFuentes.push({ jurisdiccion: j, fuente: "fuente oficial", estado: "no_disponible", motivo: "Error interno al consultar las fuentes oficiales.", consultadoEl: ahora });
       }
       fuentesFallidas.push("Fuentes oficiales extranjeras (error interno)");
     }
-    const usoRespaldoOntologico = aiAttempts.some((a) => a.provider === "fallback-ontologico");
-    const etiquetar = (r) => r.origen ? r : { ...r, origen: "respaldo", fuente: `${r.fuente} \u2014 contenido fijo de respaldo, sin verificar` };
     if (iaResult.status === "fulfilled" && iaResult.value.length > 0) {
-      resultados.push(...iaResult.value.filter((r) => !PAISES_OFICIALES.has(r.pais)).map(etiquetar));
-      if (usoRespaldoOntologico) {
-        fuentesFallidas.push("Motor de IA (usando base de conocimiento de respaldo)");
-      }
+      resultados.push(...iaResult.value.filter((r) => !PAISES_OFICIALES.has(r.pais)));
     } else {
       fuentesFallidas.push("Motor de IA no disponible: sin propuestas para las dem\xE1s jurisdicciones");
     }
@@ -191723,7 +190947,7 @@ async function buscarDerechoComparado(q) {
     ];
     const descartadas = [];
     const noOficiales = resultados.filter((r) => r.origen !== "oficial");
-    const estadosEnlace = await validarEnlaces(noOficiales.map((r) => r.url || "").filter((u) => u && !esInicioDePortal(u)));
+    const estadosEnlace = await validarEnlacesConCache(noOficiales.map((r) => r.url || "").filter((u) => u && !esInicioDePortal(u)));
     const porUrl = new Map(estadosEnlace.map((e) => [e.url, e]));
     const conservados = resultados.filter((r) => {
       if (r.origen === "oficial") return true;
@@ -191753,6 +190977,8 @@ async function buscarDerechoComparado(q) {
     resultados.sort((a, b) => {
       if (a.pais === "Chile" && b.pais !== "Chile") return -1;
       if (b.pais === "Chile" && a.pais !== "Chile") return 1;
+      const oa = a.origen === "oficial" ? 1 : 0, ob = b.origen === "oficial" ? 1 : 0;
+      if (oa !== ob) return ob - oa;
       return (b.relevancia || 0) - (a.relevancia || 0);
     });
     return {
@@ -191764,9 +190990,6 @@ async function buscarDerechoComparado(q) {
       descartadas
     };
   })();
-  if (resultado.fuentesFallidas.length === 0) {
-    cache.set(cacheKey, resultado, 6 * 60 * 60 * 1e3);
-  }
   return resultado;
 }
 function extraerPuntosHeuristicos(query, resultado, texto) {
@@ -194334,7 +193557,7 @@ function datosDemo() {
   ];
   return { investigaciones, asignaciones };
 }
-var lista = (v) => String(v ?? "").split(/[;|]/).map((x) => x.trim()).filter(Boolean);
+var lista2 = (v) => String(v ?? "").split(/[;|]/).map((x) => x.trim()).filter(Boolean);
 function aEstado(v) {
   const s = norm3(String(v ?? ""));
   if (s.startsWith("entreg") || s === "cerrada" || s === "finalizada") return "entregada";
@@ -194373,11 +193596,11 @@ function parsearInvestigacionesCsv(texto) {
       tipo: norm3(r.tipo || "").startsWith("parl") ? "parlamentario" : "comision",
       solicitante: (r.solicitante || r.comision || "").trim(),
       comision: (r.comision || "").trim() || void 0,
-      boletines: lista(r.boletines || r.boletin).map(normalizarBoletin),
+      boletines: lista2(r.boletines || r.boletin).map(normalizarBoletin),
       materia,
       descripcion: (r.descripcion || "").trim() || void 0,
-      palabrasClave: lista(r.palabras_clave || r.palabrasclave),
-      normas: lista(r.normas),
+      palabrasClave: lista2(r.palabras_clave || r.palabrasclave),
+      normas: lista2(r.normas),
       estado: aEstado(r.estado),
       fechaIngreso: aFechaIso(r.fecha_ingreso || r.ingreso) || (/* @__PURE__ */ new Date()).toISOString().slice(0, 10),
       fechaEntrega: aFechaIso(r.fecha_entrega || r.entrega),
@@ -194472,7 +193695,7 @@ function leerArchivoConfigurado() {
   }
 }
 function obtenerDatos() {
-  const modo = (process.env.PIZARRA_FUENTE || "demo").toLowerCase();
+  const modo = (process.env.PIZARRA_FUENTE || "").toLowerCase();
   const ahora = (/* @__PURE__ */ new Date()).toISOString();
   if (modo === "archivo") {
     const datos = leerArchivoConfigurado();
@@ -194488,7 +193711,10 @@ function obtenerDatos() {
       fuente: { tipo: "archivo", nombre: "Importaci\xF3n manual", demo: false, persistente: !!dirDatos(), actualizado: fuenteMemoria?.actualizado || ahora }
     };
   }
-  return { datos: datosDemo(), fuente: { tipo: "demo", nombre: "Datos de demostraci\xF3n (ficticios)", demo: true, persistente: false, actualizado: ahora } };
+  if (modo === "demo") {
+    return { datos: datosDemo(), fuente: { tipo: "demo", nombre: "Datos de demostraci\xF3n (ficticios)", demo: true, persistente: false, actualizado: ahora } };
+  }
+  return { datos: { investigaciones: [], asignaciones: [] }, fuente: { tipo: "vacio", nombre: "Sin datos cargados", demo: false, persistente: false, actualizado: ahora } };
 }
 function guardarImportacion(nuevos, modo) {
   let base = { investigaciones: [], asignaciones: [] };
@@ -194571,8 +193797,8 @@ function detectarConexiones(datos, agenda) {
   const continuidad = [];
   const porBoletin = /* @__PURE__ */ new Map();
   for (const i of datos.investigaciones) for (const b of i.boletines) porBoletin.set(b, [...porBoletin.get(b) || [], i]);
-  for (const [bol, lista2] of porBoletin) {
-    const ordenadas = [...lista2].sort((x, y) => x.fechaIngreso.localeCompare(y.fechaIngreso));
+  for (const [bol, lista3] of porBoletin) {
+    const ordenadas = [...lista3].sort((x, y) => x.fechaIngreso.localeCompare(y.fechaIngreso));
     for (let k = 1; k < ordenadas.length; k++) {
       const nueva = ordenadas[k];
       const previas = ordenadas.slice(0, k).filter((p) => (p.comision || "") !== (nueva.comision || ""));
@@ -195297,6 +194523,9 @@ apiRouter.get("/senado/comisiones-ids", async (_req, res) => {
 apiRouter.get("/senado/comision/:id/sesiones", async (req, res) => {
   res.json(await sesionesSenadoDeComision(String(req.params.id)));
 });
+apiRouter.get("/senado/sesion/:comision/:sesion/resumen", async (req, res) => {
+  res.json(construirResumenSesion(await detalleSesionSenado(String(req.params.comision), String(req.params.sesion))));
+});
 apiRouter.get("/senado/sesion/:comision/:sesion", async (req, res) => {
   res.json(await detalleSesionSenado(String(req.params.comision), String(req.params.sesion)));
 });
@@ -195334,7 +194563,7 @@ apiRouter.get("/proyecto/:id/sesiones", async (req, res) => {
   const digits = digitosBoletin(String(req.params.id));
   if (digits.length < 3) return res.json({ sesiones: [], fuentes: {} });
   const mapa = await sesionesPorBoletin();
-  const sesiones = Object.entries(mapa).filter(([clave]) => digitosBoletin(clave) === digits).flatMap(([, lista2]) => lista2);
+  const sesiones = Object.entries(mapa).filter(([clave]) => digitosBoletin(clave) === digits).flatMap(([, lista3]) => lista3);
   res.json({
     sesiones,
     fuentes: { camara: { ...estadoCitacionesCamara }, senado: { ...estadoCitacionesSenado } }
@@ -195914,12 +195143,15 @@ apiRouter.get("/global-search", async (req, res) => {
   });
 });
 apiRouter.get("/derecho-comparado", async (req, res) => {
-  const q = req.query.q ? String(req.query.q).trim() : "";
-  if (!q) {
+  const q = req.query.q ? String(req.query.q).replace(/\s+/g, " ").trim().slice(0, 200) : "";
+  if (q.length < 2) {
     return res.json({ resultados: [], fuentesConsultadas: [], fuentesFallidas: [] });
   }
-  const data = await buscarDerechoComparado(q);
-  res.json(data);
+  try {
+    res.json(await buscarDerechoComparado(q));
+  } catch (err) {
+    res.status(502).json({ resultados: [], fuentesConsultadas: [], fuentesFallidas: [], error: `No se pudo completar la b\xFAsqueda: ${err?.message || err}` });
+  }
 });
 apiRouter.post("/derecho-comparado/informe-punto", async (req, res) => {
   const { query, dimension, lecturaJuridica, paises } = req.body;
@@ -196316,7 +195548,8 @@ apiRouter.get("/videos/:id/detalle", async (req, res) => {
     const det = (await detallesVideos([id]))[id];
     if (!det) return res.json({ id, segundos: null, partes: null, motivo: "YouTube no encontr\xF3 el video." });
     const partes = det.segundos ? Math.max(1, Math.ceil(det.segundos / SEGUNDOS_POR_PARTE)) : null;
-    res.json({ id, ...det, partes, segundosPorParte: SEGUNDOS_POR_PARTE });
+    const partesTranscripcion = det.segundos ? Math.max(1, Math.ceil(det.segundos / SEGUNDOS_POR_PARTE_TRANSCRIPCION)) : null;
+    res.json({ id, ...det, partes, segundosPorParte: SEGUNDOS_POR_PARTE, partesTranscripcion, segundosPorParteTranscripcion: SEGUNDOS_POR_PARTE_TRANSCRIPCION });
   } catch (err) {
     res.json({ id, segundos: null, partes: null, motivo: err?.message || String(err) });
   }
@@ -196325,8 +195558,9 @@ apiRouter.get("/videos/:id/analisis", async (req, res) => {
   const id = String(req.params.id || "");
   const parte = Math.max(0, parseInt(String(req.query.parte || "0"), 10) || 0);
   const duracionRaw = req.query.duracion ? parseInt(String(req.query.duracion), 10) : NaN;
+  const modoTranscripcion = req.query.modo === "transcripcion";
   try {
-    const r = await analizarParteVideo({
+    const r = await (modoTranscripcion ? transcribirParteVideo : analizarParteVideo)({
       videoId: id,
       parte,
       duracion: isFinite(duracionRaw) && duracionRaw > 0 ? duracionRaw : null,

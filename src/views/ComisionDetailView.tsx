@@ -3,6 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ultimoMovimiento } from "../utils/tramitacion";
+import ResumenSesionCamara from "../components/ResumenSesionCamara";
+import ResumenSesionOficial from "../components/ResumenSesionOficial";
 import { getAnalisisVideoFromFirestore } from "../services/firebaseService";
 import { useState, useEffect, useRef } from "react";
 import { motion } from "motion/react";
@@ -3048,7 +3051,8 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
                       }
 
                       return list.map((p) => {
-                        const latestAct = p.timeline && p.timeline.length > 0 ? p.timeline[0] : null;
+                        const um = ultimoMovimiento(p.timeline);
+                        const latestAct = um ? { fecha: um.fechaTexto, titulo: um.titulo || um.descripcion || "Movimiento" } : null;
                         return (
                           <tr 
                             key={p.id}
@@ -3076,8 +3080,8 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
                               </span>
                             </td>
                             <td className="py-3.5 px-3 text-slate-500 whitespace-nowrap text-[11px]">
-                              {latestAct ? latestAct.fecha : p.fechaIngreso}<br />
-                              <span className="text-[9px] text-slate-400 font-medium uppercase">{latestAct ? latestAct.titulo : "Ingreso"}</span>
+                              {latestAct ? latestAct.fecha : (p.fechaIngreso || "No informada")}<br />
+                              <span className="text-[9px] text-slate-400 font-medium uppercase">{latestAct ? latestAct.titulo : "Sin hitos informados"}</span>
                             </td>
                             <td className="py-3.5 px-3 text-right whitespace-nowrap">
                               <button
@@ -3229,6 +3233,13 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
                           </div>
                         )}
                       </div>
+
+                      {ses.senadoComisionId && ses.senadoSesionId && (
+                        <ResumenSesionOficial comisionId={ses.senadoComisionId} sesionId={ses.senadoSesionId} />
+                      )}
+                      {!ses.senadoSesionId && String(ses.id).startsWith("ses-cd-hist-") && (
+                        <ResumenSesionCamara sesion={ses as any} />
+                      )}
 
                       {/* Clean visible Action Buttons */}
                       <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-slate-100">

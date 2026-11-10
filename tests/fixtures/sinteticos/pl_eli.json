@@ -1,0 +1,32 @@
+{
+  "count": 3,
+  "items": [
+    {
+      "ELI": "DU/2019/9001",
+      "title": "Ustawa o ochronie danych (ficticio)",
+      "inForce": "IN_FORCE",
+      "announcementDate": "2019-05-01",
+      "displayAddress": "Dz.U. 2019 poz. 9001",
+      "status": "obowiązujący",
+      "entryIntoForce": "2019-05-15",
+      "type": "Ustawa"
+    },
+    {
+      "ELI": "DU/2021/9002",
+      "title": "Ustawa o zmianie ustawy o ochronie danych (ficticio)",
+      "inForce": "IN_FORCE",
+      "announcementDate": "2021-02-01",
+      "displayAddress": "Dz.U. 2021 poz. 9002",
+      "status": "obowiązujący",
+      "entryIntoForce": "2021-03-01",
+      "type": "Ustawa"
+    },
+    {
+      "ELI": "DU/1997/9003",
+      "title": "Ustawa derogada: se descarta (ficticio)",
+      "inForce": "NOT_IN_FORCE",
+      "announcementDate": "1997-10-01",
+      "type": "Ustawa"
+    }
+  ]
+}

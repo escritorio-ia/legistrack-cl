@@ -1,0 +1,23 @@
+{
+  "laws": [
+    {
+      "law_info": {
+        "law_id": "999AC0000000001",
+        "law_type": "Act",
+        "law_num": "例示法律第一号（ficticio）",
+        "promulgation_date": "2003-05-30"
+      },
+      "revision_info": {
+        "law_title": "個人情報保護例示法（ficticio）",
+        "amendment_enforcement_date": "2024-04-01",
+        "current_revision_status": "CurrentEnforced"
+      }
+    },
+    {
+      "law_info": {
+        "law_id": "999AC0000000002"
+      },
+      "revision_info": {}
+    }
+  ]
+}

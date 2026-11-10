@@ -5,7 +5,7 @@
  * Diseño pensado para instalarse en servidores propios:
  *  - La lógica de detección trabaja sobre un registro neutro (Investigacion) y NO
  *    sabe de dónde vienen los datos. La fuente se elige con PIZARRA_FUENTE:
- *      demo    -> datos ficticios de demostración (por defecto)
+ *      demo    -> datos ficticios de demostración (solo si se pide expresamente; por defecto la Pizarra parte vacía)
  *      archivo -> CSV o JSON en el servidor (PIZARRA_ARCHIVO), p. ej. una exportación
  *                 periódica del SUP depositada en una ruta compartida
  *    Para conectar el SUP directamente basta agregar un proveedor en PROVEEDORES.
@@ -52,7 +52,7 @@ export interface DatosPizarra {
 }
 
 export interface InfoFuente {
-  tipo: "demo" | "archivo";
+  tipo: "demo" | "archivo" | "vacio";
   nombre: string;
   demo: boolean;
   persistente: boolean;
@@ -352,7 +352,7 @@ function leerArchivoConfigurado(): DatosPizarra | null {
 
 /** Entrega los datos vigentes según la fuente configurada. */
 export function obtenerDatos(): { datos: DatosPizarra; fuente: InfoFuente } {
-  const modo = (process.env.PIZARRA_FUENTE || "demo").toLowerCase();
+  const modo = (process.env.PIZARRA_FUENTE || "").toLowerCase();
   const ahora = new Date().toISOString();
 
   if (modo === "archivo") {
@@ -371,7 +371,12 @@ export function obtenerDatos(): { datos: DatosPizarra; fuente: InfoFuente } {
       fuente: { tipo: "archivo", nombre: "Importación manual", demo: false, persistente: !!dirDatos(), actualizado: fuenteMemoria?.actualizado || ahora }
     };
   }
-  return { datos: datosDemo(), fuente: { tipo: "demo", nombre: "Datos de demostración (ficticios)", demo: true, persistente: false, actualizado: ahora } };
+  // Los datos ficticios solo se usan si se pide expresamente (PIZARRA_FUENTE=demo, p. ej. para capacitación).
+  // Sin datos cargados la Pizarra queda vacía: no se muestran investigaciones de ejemplo como si fueran reales.
+  if (modo === "demo") {
+    return { datos: datosDemo(), fuente: { tipo: "demo", nombre: "Datos de demostración (ficticios)", demo: true, persistente: false, actualizado: ahora } };
+  }
+  return { datos: { investigaciones: [], asignaciones: [] }, fuente: { tipo: "vacio", nombre: "Sin datos cargados", demo: false, persistente: false, actualizado: ahora } };
 }
 
 export function guardarImportacion(

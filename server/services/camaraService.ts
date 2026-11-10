@@ -1,9 +1,6 @@
 import { 
   DIPUTADOS_COMISIONES_DETALLE, 
-  SENADO_COMISIONES_DETALLE,
-  CAMARA_CITACIONES_SEMANALES_POR_DIA,
-  CAMARA_CITACIONES_POR_COMISION,
-  CAMARA_CITACIONES_FULL_WEEK
+  SENADO_COMISIONES_DETALLE
 } from "../../src/data/comisionesData";
 import { cache } from "./cacheService";
 
@@ -80,11 +77,9 @@ function respaldoCamara(detalle: string) {
   estadoCitacionesCamara.fuente = "respaldo";
   estadoCitacionesCamara.detalle = detalle;
   estadoCitacionesCamara.actualizado = new Date().toISOString();
-  return {
-    porDia: CAMARA_CITACIONES_SEMANALES_POR_DIA,
-    porComision: CAMARA_CITACIONES_POR_COMISION,
-    todas: CAMARA_CITACIONES_FULL_WEEK
-  };
+  // Antes se devolvían citaciones precargadas (de semanas anteriores) como si fueran la agenda vigente.
+  // Ahora, si camara.cl no responde y no hay lectura importada, no hay citaciones: se informa "no disponible".
+  return { porDia: [] as any[], porComision: {} as Record<string, any[]>, todas: [] as any[] };
 }
 
 /** Convierte el HTML de la página semanal de citaciones de camara.cl en datos. */

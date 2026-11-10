@@ -12,3 +12,9 @@ scratch/
 
 .vercel
 .env*
+
+# Documentos de trabajo (no son código de la app)
+*.docx
+*.pptx
+CONTINUIDAD_PARA_OTRA_CUENTA.md
+PAQUETE_TRASPASO_DERECHO_COMPARADO_IA/

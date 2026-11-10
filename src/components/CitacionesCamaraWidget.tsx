@@ -42,7 +42,6 @@ import {
   CheckSquare,
   RotateCcw
 } from "lucide-react";
-import { CAMARA_CITACIONES_FULL_WEEK, SENADO_CITACIONES_FULL_WEEK } from "../data/comisionesData";
 
 export interface CitacionesCamaraWidgetProps {
   setView?: (view: string) => void;
@@ -69,1084 +68,28 @@ export interface Citacion {
   chamber?: "CD" | "SR";
 }
 
-// Highly comprehensive, enriched legislative schedule database
-const CITACIONES_CAMARA: Citacion[] = [
-  {
-    comision: "Comisión Especial - Medidas ante violencia desde 18 oct 2019",
-    fechaISO: "Martes 11 de Agosto, 2026",
-    hora: "08:30 a 09:50 hrs",
-    lugar: "Sala Arturo Longton Guerrero, tercer nivel (Presencial)",
-    materia: "Cumplir con su mandato relativo a las medidas de orden público ante hechos de violencia.",
-    invitados: "Ministro del Interior señor Claudio Alvarado Andrade, Subsecretario del Interior señor Máximo Pavez Cantillano, Ministro de Relaciones Exteriores señor Francisco Pérez Mackenna, periodista señora Mónica González.",
-    week: 33,
-    presidente: "Diputado Integrante Especial",
-    tipoSesion: "Especial",
-    canalTransmision: "Cámara de Diputados TV (CDTV) / Señal Online 1",
-    ordenDelDia: [
-      "1. Escuchar la exposición del Ministro del Interior, don Claudio Alvarado.",
-      "2. Recibir el testimonio y análisis de la periodista Mónica González."
-    ]
-  },
-  {
-    comision: "Comisión Especial - Discrepancias producción Codelco 2025",
-    fechaISO: "Martes 11 de Agosto, 2026",
-    hora: "08:30 a 09:50 hrs",
-    lugar: "Sala Ramón Pérez Opazo, tercer nivel (Presencial)",
-    materia: "Con el objeto de recibir en audiencia, en el marco de su mandato, a directivos y ex ejecutivos de Codelco para tratar discrepancias de producción.",
-    invitados: "Sra. Tamara Agnic Martínez (Presidenta del Comité de Auditoría, Compensaciones y Ética de Codelco), Sr. César Márquez Márquez (ex Ejecutivo de Codelco División Chuquicamata).",
-    week: 33,
-    presidente: "Diputado Investigador Principal",
-    tipoSesion: "Especial",
-    canalTransmision: "Señal Online 3 - Cámara de Diputados",
-    ordenDelDia: [
-      "1. Exposición de la Sra. Tamara Agnic sobre las auditorías éticas internas.",
-      "2. Audiencia con el ex Ejecutivo César Márquez sobre los procesos de Chuquicamata."
-    ]
-  },
-  {
-    comision: "Comisión de Gobierno Interior, Nacionalidad, Ciudadanía y Regionalización",
-    fechaISO: "Martes 11 de Agosto, 2026",
-    hora: "10:15 a 13:00 hrs",
-    lugar: "Sala Arturo Longton Guerrero, tercer nivel (Presencial)",
-    materia: "Discutir y votar en particular el proyecto de ley que fortalece la institucionalidad municipal en materia de seguridad pública y prevención del delito (Boletín N° 18.525-06). Urgencia calificada de 'discusión inmediata'.",
-    boletin: "18525-06",
-    week: 33,
-    presidente: "Diputado Rubén Oyarzo Figueroa",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "Cámara de Diputados TV (CDTV) / Canal Principal",
-    ordenDelDia: [
-      "1. Votación en particular del articulado del Boletín N° 18.525-06 sobre fortalecimiento municipal.",
-      "2. Análisis de indicaciones relativas al porte de armas y equipamiento preventivo de inspectores de seguridad comunales."
-    ]
-  },
-  {
-    comision: "Comisión de Desarrollo Social, Superación de la Pobreza y Planificación",
-    fechaISO: "Martes 11 de Agosto, 2026",
-    hora: "10:30 a 13:00 hrs",
-    lugar: "Sala Juan Lobos Krause, tercer nivel (Presencial)",
-    materia: "Continuar la discusión y votación en particular hasta total despacho del proyecto que establece un beneficio de compensación por la compra de pañales y de medicamentos (Boletín N° 18255-31 / 103-374). Con urgencia de discusión inmediata.",
-    boletin: "18255-31",
-    week: 33,
-    presidente: "Diputada Carolina Marzán Pinto",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "Señal Online 2 - Cámara de Diputados",
-    ordenDelDia: [
-      "1. Discusión en particular de las enmiendas al subsidio de adquisición de pañales para adultos mayores.",
-      "2. Debate y votación de la cobertura de medicamentos de alto costo no cubiertos por Isapres ni Fonasa."
-    ]
-  },
-  {
-    comision: "Comisión de Ética y Transparencia",
-    fechaISO: "Martes 11 de Agosto, 2026",
-    hora: "11:00 a 12:30 hrs",
-    lugar: "Sala Pedro Pablo Álvarez-Salamanca, tercer nivel (Presencial)",
-    materia: "Tratar materias e informes propios de su competencia interna y revisión de causas disciplinarias pendientes.",
-    week: 33,
-    presidente: "Diputada Ana María Gazmuri",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "Señal Privada de Comisión",
-    ordenDelDia: [
-      "1. Análisis de los requerimientos y denuncias parlamentarias de transparencia.",
-      "2. Redacción de resoluciones internas sobre conducta parlamentaria."
-    ]
-  },
-  {
-    comision: "Comisión de Constitución, Legislación, Justicia y Reglamento",
-    fechaISO: "Martes 11 de Agosto, 2026",
-    hora: "15:00 a 17:00 hrs",
-    lugar: "Sala Francisco Bulnes Sanfuentes, tercer nivel (Presencial)",
-    materia: "Continuar la tramitación en general de la Reforma Constitucional en materia de detención para la ejecución de expulsiones administrativas (Boletín N° 18.314-07). Con suma urgencia.",
-    invitados: "Ministro de Justicia y Derechos Humanos, Director Nacional de la PDI, Subdirector de Inteligencia de la PDI; constitucionalistas Marisol Peña (UDP), Tomás Jordán (UAH), y Alan Bronfman (UCV).",
-    boletin: "18314-07",
-    week: 33,
-    presidente: "Diputado Miguel Ángel Calisto",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "Señal Online 4 - Cámara de Diputados",
-    ordenDelDia: [
-      "1. Escuchar la exposición técnica de la Policía de Investigaciones (PDI) sobre la logística de las expulsiones.",
-      "2. Análisis doctrinario de los plazos de detención con los constitucionalistas invitados.",
-      "3. Votación en general de la reforma antes del término de la sesión ordinaria."
-    ]
-  },
-  {
-    comision: "Comisión de Gobierno Interior, Nacionalidad, Ciudadanía y Regionalización",
-    fechaISO: "Martes 11 de Agosto, 2026",
-    hora: "15:00 a 17:00 hrs",
-    lugar: "Sala Arturo Longton Guerrero, tercer nivel (Presencial)",
-    materia: "Estudio de proyectos sobre rehabilitación de nacionalidad, matrimonios falsificados de carácter migratorio y requisitos de reunificación familiar (Boletín N° 17.905-06, Boletín N° 17.511-06).",
-    invitados: "Diputado Sergio Bobadilla, Director Nacional del Servicio Nacional de Migraciones, Director Nacional del Servicio de Registro Civil e Identificación (y Jefe de la oficina de San Felipe).",
-    boletin: "17905-06",
-    week: 33,
-    presidente: "Diputado Rubén Oyarzo Figueroa",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "Cámara de Diputados TV (CDTV) / Señal Online 1",
-    ordenDelDia: [
-      "1. Trámite del proyecto que rehabilita la nacionalidad chilena a Karen Parada Figueroa-Lange (Boletín 17905-06).",
-      "2. Abordar la eventual existencia de una red comercializadora de 'matrimonios de papel' con el Director de Migraciones y de Registro Civil.",
-      "3. Iniciar el debate sobre la reunificación familiar (Boletín 17511-06)."
-    ]
-  },
-  {
-    comision: "Comisión de Agricultura, Silvicultura y Desarrollo Rural",
-    fechaISO: "Martes 11 de Agosto, 2026",
-    hora: "15:00 a 17:00 hrs",
-    lugar: "Sala Pedro Pablo Álvarez-Salamanca, tercer nivel (Presencial)",
-    materia: "Votar en general los proyectos refundidos sobre control de perros asilvestrados o ferales (Boletines 16962-01, 18269-01 y 18400-01) y requisitos para semillas corrientes.",
-    invitados: "Director Nacional del SAG don Domingo Rojas, Presidente de la Asociación de importadores de bulbos y floricultores don Matías Jofré.",
-    boletin: "16962-01",
-    week: 33,
-    presidente: "Diputado Juan Antonio Coloma",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "Señal Online 5 - Cámara de Diputados",
-    ordenDelDia: [
-      "1. Votación en general de los proyectos refundidos sobre perros ferales o asilvestrados.",
-      "2. Exposición del SAG y gremio floricultor sobre la consulta pública que fija requisitos de semillas corrientes internas."
-    ]
-  },
-  {
-    comision: "Comisión de Deportes y Recreación",
-    fechaISO: "Martes 11 de Agosto, 2026",
-    hora: "15:00 a 17:00 hrs",
-    lugar: "Sala Octavio Jara Wolff, tercer nivel (Presencial)",
-    materia: "Homenaje a la Selección Chilena de Fútbol Adaptado Campeona del Mundo y votar en general el proyecto de ley que reconoce al fútbol amateur como actividad de interés público (Boletín N° 18205-29).",
-    invitados: "Selección Chilena de Fútbol Adaptado, asesor de la Biblioteca del Congreso Nacional don Juan Pablo Cavada Herrera.",
-    boletin: "18205-29",
-    week: 33,
-    presidente: "Diputado Roberto Arroyo Muñoz",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "Señal Online de Deportes CDTV",
-    ordenDelDia: [
-      "1. Ceremonia de reconocimiento oficial a los deportistas campeones de fútbol adaptado.",
-      "2. Discusión y votación en general del proyecto de regulación de seguridad y transparencia del fútbol amateur."
-    ]
-  },
-  {
-    comision: "Comisión de Educación",
-    fechaISO: "Martes 11 de Agosto, 2026",
-    hora: "15:00 a 17:00 hrs",
-    lugar: "Sala de Conferencias Inés Enríquez, segundo nivel (Presencial)",
-    materia: "Iniciar tramitación del proyecto para regular deberes y derechos de apoderados en el sistema educacional (Boletín N° 18461-04) y analizar condiciones de educadoras parvularias VTF.",
-    invitados: "Ministra de Educación doña María Paz Arzola, presidentas de VTF Chile y Sindicatos 1 y 2 de Fundación Integra.",
-    boletin: "18461-04",
-    week: 33,
-    presidente: "Diputada Emilia Schneider Videla",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "Cámara de Diputados TV (CDTV)",
-    ordenDelDia: [
-      "1. Exposición de autores y Ministra de Educación sobre el proyecto de ley de regulación de apoderados (Boletín 18461-04).",
-      "2. Audiencia de trabajadoras de educación inicial VTF e Integra para evaluar mejoras laborales de educadoras de párvulos."
-    ]
-  },
-  {
-    comision: "Comisión de Relaciones Exteriores, Asuntos Interparlamentarios e Integración Latinoamericana",
-    fechaISO: "Martes 11 de Agosto, 2026",
-    hora: "15:00 a 17:00 hrs",
-    lugar: "Sala Manuel Bustos Huerta, tercer nivel (Presencial)",
-    materia: "Iniciar estudio del Acuerdo de Servicios Aéreos firmado entre la República de Chile y el Sultanato de Omán suscrito en Kuala Lumpur el 2024.",
-    invitados: "Ministro de Relaciones Exteriores señor Francisco Pérez Mackenna, Subsecretaria de Relaciones Económicas Internacionales (Subrei) señora Paula Estévez Weinstein, Director de Asuntos Jurídicos Felipe Tagle.",
-    boletin: "17400-10",
-    week: 33,
-    presidente: "Diputada Carmen Hertz Cádiz",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "Señal Online 6 - Cámara de Diputados",
-    ordenDelDia: [
-      "1. Exposición ministerial sobre las rutas aéreas y facilidades arancelarias comerciales con el Sultanato de Omán.",
-      "2. Análisis del informe técnico de servicios de transporte aéreo."
-    ]
-  },
-  {
-    comision: "Comisión de Hacienda",
-    fechaISO: "Martes 11 de Agosto, 2026",
-    hora: "15:00 a 17:00 hrs",
-    lugar: "Sala de Conferencias Juan Bustos Ramírez, segundo nivel (Presencial)",
-    materia: "Tratar proyecto de ley que Crea la Comisión de Comercio Estratégico y regula exportación de material de uso dual (Boletín N° 14.773-02) y votación particular de enmiendas aduaneras al contrabando agropecuario (Boletín N° 17.720-05).",
-    invitados: "Ministro de RREE Francisco Pérez Mackenna, Subsecretario Patricio Torres Espinosa, Ministro de Defensa Fernando Barros Tocornal, Subsecretario Rodrigo Álvarez Aguirre, Ministro de Hacienda Jorge Quiroz Castro, Subsecretario Sebastián Vallebona Espinosa.",
-    boletin: "14773-02",
-    week: 33,
-    presidente: "Diputado Carlos Bianchi Chelech",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "Cámara de Diputados TV (CDTV) / Señal Online 1",
-    ordenDelDia: [
-      "1. Análisis del proyecto sobre material de defensa estratégico de uso dual con las carteras de RREE, Defensa y Hacienda.",
-      "2. Votación en particular del proyecto que modifica la Ordenanza de Aduanas para sancionar contrabando agropecuario (Boletín 17720-05)."
-    ]
-  },
-  {
-    comision: "Comisión de Economía, Fomento y Desarrollo",
-    fechaISO: "Martes 11 de Agosto, 2026",
-    hora: "17:30 a 19:30 hrs",
-    lugar: "Sala Ramón Pérez Opazo, tercer nivel (Presencial)",
-    materia: "Mociones de cobros improcedentes post fallecimiento en contratos de tracto sucesivo (Boletín N° 18476-03), leyenda obligatoria de IA en publicidad (Boletín N° 18512-03) y presentación de Chile Data Center.",
-    invitados: "Diputados autores de las mociones, Gerente General de Chile Data Center señora Natalia López.",
-    boletin: "18476-03",
-    week: 33,
-    presidente: "Diputada Sofía Cid Versalovic",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "Señal Online 3 - Cámara de Diputados",
-    ordenDelDia: [
-      "1. Exposición de moción parlamentaria para prohibir cobros sucesivos post mortem en retail y servicios (Boletín 18476-03).",
-      "2. Debate sobre obligación de etiquetar publicidad comercial creada de forma sustantiva por Inteligencia Artificial (Boletín 18512-03).",
-      "3. Recibir a la gerencia de Chile Data Center para analizar la contribución y encadenamiento del ecosistema digital chileno."
-    ]
-  },
-  {
-    comision: "Comisión de Obras Públicas, Transportes y Telecomunicaciones",
-    fechaISO: "Martes 11 de Agosto, 2026",
-    hora: "17:30 a 19:30 hrs",
-    lugar: "Sala de Conferencias Inés Enríquez, segundo nivel (Presencial)",
-    materia: "Proyecto que modifica la Ley Orgánica de EFE para eximir cobros municipales por obras de infraestructura estatal (Boletín N° 18.436-15) y moción que deroga el peaje electrónico en vías públicas (Boletín N° 16.346-15).",
-    invitados: "Biministro de OOPP y Transportes, Presidente de EFE señor Jorge Claude Bourdel, Alcalde de Estación Central señor Felipe Muñoz Vallejos.",
-    boletin: "18436-15",
-    week: 33,
-    presidente: "Diputado Jaime Sáez Quiroz",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "Cámara de Diputados TV (CDTV) / Señal Online 2",
-    ordenDelDia: [
-      "1. Discusión del Boletín N° 18.436-15 de exenciones tributarias municipales a obras ferroviarias de EFE.",
-      "2. Exposición de Jaime Mulet sobre derogación de cobro de tag/peajes electrónicos en vías públicas nacionales (Boletín 16346-15)."
-    ]
-  },
-  {
-    comision: "Comisión de Defensa Nacional",
-    fechaISO: "Martes 11 de Agosto, 2026",
-    hora: "17:30 a 19:30 hrs",
-    lugar: "Sala Pedro Pablo Álvarez-Salamanca, tercer nivel (Presencial)",
-    materia: "Analizar el seguimiento del Sistema de Inteligencia del Estado (Leyes 21.821 y 19.974) y abordar el estado de la zanja de resguardo y control en la frontera norte chilena.",
-    invitados: "Ministro del Interior señor Claudio Alvarado Andrade, Director de la Agencia Nacional de Inteligencia Ronald Mc Intyre, Ministro de OOPP Louis De Grange Concha.",
-    week: 33,
-    presidente: "Diputado Francisco Undurraga",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "Cámara de Diputados TV (CDTV)",
-    ordenDelDia: [
-      "1. Conocer el plan de implementación del nuevo Estatuto Especial de Inteligencia y dictación reglamentaria de la ANI.",
-      "2. Recibir del Ministro de Obras Públicas el informe y catastro de conservación física de la zanja fronteriza de seguridad del norte del país."
-    ]
-  },
-  {
-    comision: "Comisión de Personas Mayores y Discapacidad",
-    fechaISO: "Martes 11 de Agosto, 2026",
-    hora: "17:30 a 19:30 hrs",
-    lugar: "Sala Octavio Jara Wolff, tercer nivel (Presencial)",
-    materia: "Iniciar la discusión particular del proyecto de ley que precisa el alcance del concepto de discapacidad en el ámbito deportivo (Boletín N° 17.981-35 / 18.176-35 refundidos).",
-    boletin: "17981-35",
-    week: 33,
-    presidente: "Diputada Catalina Del Real",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "Señal Online de Deportes CDTV",
-    ordenDelDia: [
-      "1. Votación y discusión pormenorizada del articulado aprobado en el Senado que modifica la ley N° 19.712 del Deporte.",
-      "2. Definición reglamentaria de categorías adaptadas federadas para deportistas paralímpicos."
-    ]
-  },
-  {
-    comision: "Comisión de Salud",
-    fechaISO: "Martes 11 de Agosto, 2026",
-    hora: "17:30 a 19:30 hrs",
-    lugar: "Sala Juan Lobos Krause, tercer nivel (Presencial)",
-    materia: "Iniciar discusión y votación particular de proyectos sobre prevención de la infertilidad y etiquetado o rotulado sanitario del recurso jurel (Boletines N° 16708-11, N° 16709-11 y N° 17800-11).",
-    boletin: "16708-11",
-    week: 33,
-    presidente: "Diputada Ana María Gazmuri",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "Señal Online 4 - Cámara de Diputados",
-    ordenDelDia: [
-      "1. Votación particular de la incorporación de acciones preventivas contra infertilidad en el Código Sanitario (Boletines refundidos).",
-      "2. Iniciar debate del proyecto que modifica rotulado de seguridad alimenticia enlatada de recurso jurel (Boletín 17800-11)."
-    ]
-  },
-  {
-    comision: "Comisión de Trabajo y Previsión Social",
-    fechaISO: "Martes 11 de Agosto, 2026",
-    hora: "17:30 a 19:30 hrs",
-    lugar: "Sala Manuel Bustos Huerta, tercer nivel (Presencial)",
-    materia: "Discutir licencias médicas fraudulentas como causal de falta de probidad (Boletín N° 17.914-13) y adaptabilidad de jornada en turismo (Boletín N° 18.478-13).",
-    invitados: "Subsecretario del Trabajo señor Gustavo Rosende Salazar, Subsecretaria de Turismo señora María Paz Lagos, Presidenta de FEDETUR Sra. Mónica Zalaquett, Presidente de Hoteleros de Chile Alberto Pirola.",
-    boletin: "17914-13",
-    week: 33,
-    presidente: "Diputado Luis Cuello Peña y Lillo",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "Cámara de Diputados TV (CDTV) / Señal Online 1",
-    ordenDelDia: [
-      "1. Iniciar estudio en particular de sanción laboral a licencias médicas maliciosas de trabajadores (Boletín 17914-13).",
-      "2. Debate técnico con subsecretarios y gremios turísticos (FEDETUR, Hoteleros) sobre jornadas de adaptabilidad turística (Boletín 18478-13)."
-    ]
-  },
-  {
-    comision: "Comisión de Bomberos",
-    fechaISO: "Martes 11 de Agosto, 2026",
-    hora: "17:30 a 19:30 hrs",
-    lugar: "Sala Francisco Bulnes Sanfuentes, tercer nivel (Presencial)",
-    materia: "Iniciar la discusión y votación particular de eximir el pago de peaje/tag en todas las autopistas concesionadas del país a los vehículos de los Cuerpos de Bomberos (Boletín N° 18.294-15).",
-    boletin: "18294-15",
-    week: 33,
-    presidente: "Diputado Luis Malla Valenzuela",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "Señal Privada de Comisión",
-    ordenDelDia: [
-      "1. Exposición de autores de la moción del Boletín N° 18.294-15.",
-      "2. Votación en particular de la exención de tarifa frente a emergencias y movilización rutinaria bomberil."
-    ]
-  },
-  {
-    comision: "Comisión Especial - Control migratorio de NNA extranjeros",
-    fechaISO: "Miércoles 12 de Agosto, 2026",
-    hora: "08:30 a 09:45 hrs",
-    lugar: "Sala Ramón Pérez Opazo, tercer nivel (Presencial)",
-    materia: "Recibir testimonios en audiencia técnica sobre los procesos y regularización de control migratorio de niños, niñas y adolescentes extranjeros en territorio nacional.",
-    invitados: "Director Nacional de Migraciones Frank Sauerbaum, exdirector Luis Eduardo Thayer.",
-    week: 33,
-    presidente: "Diputado Investigador Especial",
-    tipoSesion: "Especial",
-    canalTransmision: "Señal Online 3 - Cámara de Diputados",
-    ordenDelDia: [
-      "1. Exposición de Frank Sauerbaum sobre tasas de regularización y enrolamiento biométrico infanto-juvenil.",
-      "2. Análisis del exdirector Luis Eduardo Thayer acerca de las directrices normativas aplicadas en pasos habilitados."
-    ]
-  },
-  {
-    comision: "Comisión de Derechos Humanos y Pueblos Originarios",
-    fechaISO: "Miércoles 12 de Agosto, 2026",
-    hora: "15:00 a 17:00 hrs",
-    lugar: "Sala Ramón Pérez Opazo, tercer nivel (Presencial)",
-    materia: "Iniciar la discusión en particular del proyecto de ley que restringe las causales de reconocimiento de la calidad de indígena (Boletín N° 16.172-17).",
-    boletin: "16172-17",
-    week: 33,
-    presidente: "Diputada Lorena Fries Monleón",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "Señal Online 2 - Cámara de Diputados",
-    ordenDelDia: [
-      "1. Discusión pormenorizada del Boletín N° 16.172-17 sobre acreditación de calidad indígena por parte de la CONADI.",
-      "2. Evaluación de comentarios de comunidades de pueblos originarios ingresados por correspondencia oficial."
-    ]
-  },
-  {
-    comision: "Comisión de Medio Ambiente y Recursos Naturales",
-    fechaISO: "Miércoles 12 de Agosto, 2026",
-    hora: "15:00 a 17:00 hrs",
-    lugar: "Sala Juan Lobos Krause, tercer nivel (Presencial)",
-    materia: "Continuar la discusión y votación particular del proyecto que fortalece la institucionalidad ambiental y mejora su eficiencia en la tramitación del SEIA (Boletín N° 16.552-12 (S)). Urgencia simple.",
-    boletin: "16552-12",
-    week: 33,
-    presidente: "Diputado Daniel Melo Contreras",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "Cámara de Diputados TV (CDTV) / Señal Online 1",
-    ordenDelDia: [
-      "1. Debate de indicaciones parlamentarias destinadas a acotar plazos de reclamación en el comité de ministros.",
-      "2. Votación de enmiendas al estatuto de participación ciudadana vinculante."
-    ]
-  },
-  {
-    comision: "Comisión de Vivienda, Desarrollo Urbano y Bienes Nacionales",
-    fechaISO: "Miércoles 12 de Agosto, 2026",
-    hora: "15:00 a 17:00 hrs",
-    lugar: "Sala Pedro Pablo Álvarez-Salamanca, tercer nivel (Presencial)",
-    materia: "Iniciar discusión general del proyecto de detectores de humo obligatorios en viviendas nuevas (Boletín 18444-14) y de exigencia de ejecución de obras de mitigación directa en proyectos inmobiliarios (Boletín 18309-14).",
-    invitados: "Diputado Eduardo Durán Salinas, Diputada Ana María Gazmuri Vieira.",
-    boletin: "18444-14",
-    week: 33,
-    presidente: "Diputado Tomás Hirsch Goldschmidt",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "Señal Online 1 - Cámara de Diputados",
-    ordenDelDia: [
-      "1. Exposición del diputado Eduardo Durán sobre alcance y obligatoriedad de detectores de humo (Boletín 18444-14).",
-      "2. Presentación de la diputada Ana María Gazmuri sobre mitigación directa en el marco de la LGUC (Boletín 18309-14)."
-    ]
-  },
-  {
-    comision: "Comisión de Pesca, Acuicultura e Intereses Marítimos",
-    fechaISO: "Miércoles 12 de Agosto, 2026",
-    hora: "15:00 a 17:00 hrs",
-    lugar: "Sala Arturo Longton Guerrero, tercer nivel (Presencial)",
-    materia: "Iniciar la votación en particular del proyecto de ley copatrocinado por diputados que legisla sobre el Fortalecimiento de la Seguridad Marítima nacional (Boletín N° 18.198-15).",
-    boletin: "18198-15",
-    week: 33,
-    presidente: "Diputado Jorge Brito Hasbún",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "Cámara de Diputados TV (CDTV)",
-    ordenDelDia: [
-      "1. Revisión de las atribuciones fiscalizadoras de Directemar en zonas de exclusión económica.",
-      "2. Votación particular de los primeros tres artículos del Boletín N° 18.198-15."
-    ]
-  },
-  {
-    comision: "Comisión de Mujeres y Equidad de Género",
-    fechaISO: "Miércoles 12 de Agosto, 2026",
-    hora: "15:00 a 17:00 hrs",
-    lugar: "Sala Manuel Bustos Huerta, tercer nivel (Presencial)",
-    materia: "Mociones que fortalece la protección a víctimas de violencia intrafamiliar, evitan la revictimización y regulan la notificación de medidas cautelares (Boletines N° 18236-18 y N° 18414-18).",
-    invitados: "Diputada Valentina Becerra Peña, Presidenta de la Asociación de Magistrados Mariela Hernández Acevedo, Directora CAJ Paula Torres Bruna, representantes de Miles Chile y Corporación Humanas.",
-    boletin: "18236-18",
-    week: 33,
-    presidente: "Diputada Carolina Tello",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "Señal Online de Equidad CDTV",
-    ordenDelDia: [
-      "1. Exposición de la diputada Valentina Becerra Peña sobre los fundamentos de la moción del Boletín N° 18414-18.",
-      "2. Recibir aportes y observaciones del Poder Judicial (Magistrados) y de corporaciones defensoras de derechos humanos femeninos (Miles Chile, Humanas)."
-    ]
-  },
-  {
-    comision: "Comisión de Constitución, Legislación, Justicia y Reglamento",
-    fechaISO: "Miércoles 12 de Agosto, 2026",
-    hora: "15:00 a 17:00 hrs",
-    lugar: "Sala Francisco Bulnes Sanfuentes, tercer nivel (Presencial)",
-    materia: "Continuar la tramitación general del proyecto de ley que amplía las hipótesis penales de tráfico ilícito de migrantes y endurece sus penas (Boletines refundidos N° 18.315-07 y N° 16.948-07). Con suma urgencia.",
-    invitados: "Ministro de Justicia y DDHH, penalistas Diego Falcone (U. Andrés Bello), Javier Wilenmann (U. Adolfo Ibáñez) y Marcos Zamora Uribe (U. de Viña del Mar).",
-    boletin: "18315-07",
-    week: 33,
-    presidente: "Diputado Miguel Ángel Calisto",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "Señal Online 4 - Cámara de Diputados",
-    ordenDelDia: [
-      "1. Análisis dogmático penal de los nuevos agravantes de tráfico migratorio con los profesores de derecho penal invitados.",
-      "2. Presentación jurídica de la secretaría sobre la refundición de los Boletines 18315-07 y 16948-07."
-    ]
-  },
-  {
-    comision: "Comisión de Minería y Energía",
-    fechaISO: "Miércoles 12 de Agosto, 2026",
-    hora: "15:00 a 17:00 hrs",
-    lugar: "Sala Octavio Jara Wolff, tercer nivel (Presencial)",
-    materia: "Abordar la decisión de Codelco de suspender temporalmente las actividades de desarrollo y construcción del proyecto Andes Norte de la División El Teniente.",
-    invitados: "Presidente del Directorio Bernardo Fontaine Talavera, Presidente Ejecutivo de Codelco Jorge Gómez Díaz, Biministro de Economía y Minería Daniel Mas Valdés.",
-    week: 33,
-    presidente: "Diputada Yovana Ahumada Flores",
-    tipoSesion: "Especial",
-    canalTransmision: "Señal de Minería CDTV / Online 5",
-    ordenDelDia: [
-      "1. Conocer los fundamentos geomecánicos de la detención provisoria de las obras del túnel Andes Norte de División El Teniente.",
-      "2. Evaluar el impacto de la suspensión sobre la dotación de trabajadores contratistas e ingresos fiscales proyectados."
-    ]
-  }
-];
+// Las citaciones salen SOLO de lo que el servidor leyó de camara.cl y senado.cl. Antes había aquí más de mil
+// líneas de citaciones precargadas (con presidentes y canales de transmisión supuestos) que se mostraban como
+// agenda vigente; se eliminaron: si una fuente no responde, se informa "no disponible".
 
-const CITACIONES_SENADO: Citacion[] = [
-  {
-    comision: "Comisión de Salud",
-    fechaISO: "Martes 11 de Agosto, 2026",
-    hora: "09:30 a 11:00 hrs",
-    lugar: "Sala 11, Valparaíso",
-    materia: "Proyecto de ley sobre composición nutricional de alimentos libres de gluten (Boletín 18302-11); procreación asistida subrogante (Boletín 17922-11); y receta electrónica (Boletín 17355-11).",
-    invitados: "Honorable Senador señor Matías Walker (autor de iniciativa); Ministra de Salud.",
-    boletin: "18302-11",
-    week: 33,
-    presidente: "Senador Francisco Chahuán",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "TV Senado / Señal Online 1",
-    ordenDelDia: [
-      "1. Bol.N° 18302-11: Proyecto de ley que modifica la ley N° 20.606, sobre composición nutricional de los alimentos y su publicidad, con el objeto de facilitar el acceso a alimentos libres de gluten en establecimientos de comercio y garantizar su inocuidad.",
-      "2. Bol.N° 17922-11: Proyecto de ley que regula la procreación asistida con transferencia embrionaria en una gestora subrogante, y modifica el Código Civil del modo que indica (Invitado: Senador Matías Walker).",
-      "3. Bol.N° 17355-11: Proyecto de ley que modifica diversos cuerpos legales, con el objeto de establecer la prescripción médica por medio de receta electrónica y sancionar su falsificación (Invitada: Ministra de Salud)."
-    ]
-  },
-  {
-    comision: "Comisión de Economía (HA QUEDADO SIN EFECTO)",
-    fechaISO: "Martes 11 de Agosto, 2026",
-    hora: "09:30 a 11:00 hrs",
-    lugar: "Sala N° 3 de Comisiones, Valparaíso",
-    materia: "Continuar el estudio del proyecto de ley sobre Propiedad Intelectual para regular las medidas tecnológicas de protección (Boletín N° 14767-03). SESIÓN SUSPENDIDA.",
-    invitados: "Subsecretaria de Telecomunicaciones señora Romina Garrido; señor Francisco Nieto (IFPI); señora María Esperanza Silva (Chileactores); señor Alfie Ulloa (Chile Telcos); Biblioteca del Congreso Nacional.",
-    boletin: "14767-03",
-    week: 33,
-    presidente: "Senadora Paulina Vodanovic",
-    tipoSesion: "Especial",
-    canalTransmision: "Sesión Cancelada - Sin Transmisión",
-    ordenDelDia: [
-      "1. Bol.N° 14767-03: Regular las medidas tecnológicas de protección en ley de Propiedad Intelectual.",
-      "NOTA: ESTA SESIÓN HA QUEDADO SIN EFECTO."
-    ]
-  },
-  {
-    comision: "Comisión de Hacienda",
-    fechaISO: "Martes 11 de Agosto, 2026",
-    hora: "10:30 a 12:30 hrs",
-    lugar: "Sala 12, segundo piso, Senado en Valparaíso",
-    materia: "Estudio del proyecto de ley que equipara el derecho de sala cuna para trabajadoras, trabajadores e independientes y crea fondo solidario (Boletín N° 14782-13).",
-    invitados: "Asesores técnicos legislativos y representantes ministeriales.",
-    boletin: "14782-13",
-    week: 33,
-    presidente: "Senador Ricardo Lagos Weber",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "TV Senado / Señal Online 2",
-    ordenDelDia: [
-      "1. Bol.N° 14782-13: Equipara el derecho de sala cuna para las trabajadoras, los trabajadores y los independientes que indica, en las condiciones que establece, modifica el Código del Trabajo para tales efectos y crea un fondo solidario de sala cuna."
-    ]
-  },
-  {
-    comision: "Comisión de Seguridad Pública",
-    fechaISO: "Martes 11 de Agosto, 2026",
-    hora: "11:00 a 12:30 hrs",
-    lugar: "Sala 10, tercer piso, Valparaíso",
-    materia: "Recibir al Alcalde de Collipulli sobre hechos de violencia; tramitar proyecto de continuidad del juicio oral (Boletín 18208-25); e indicaciones de modernización de Carabineros de Chile (Boletín 17535-25).",
-    invitados: "Alcalde de Collipulli señor Manuel Macaya; Ministro de Justicia señor Fernando Rabat; Ministro de Seguridad Pública señor Martín Arrau; General Director de Carabineros señor Marcelo Araya.",
-    boletin: "18208-25",
-    week: 33,
-    presidente: "Senador Presidente de Seguridad",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "TV Senado / Señal Online 3",
-    ordenDelDia: [
-      "1. Audiencia con el Alcalde de Collipulli, señor Manuel Macaya, sobre atentados y violencia en su comuna.",
-      "2. Bol.N° 18208-25: Asuntos pendientes sobre reforma al Código Procesal Penal para regular la continuidad del juicio oral ante incomparecencia injustificada (Invitado: Ministro Fernando Rabat).",
-      "3. Bol.N° 17535-25: Estudio de indicaciones para modernizar el sistema de incentivos y extender la carrera en Carabineros de Chile (Invitados: Ministro Martín Arrau y General Director Marcelo Araya)."
-    ]
-  },
-  {
-    comision: "Comisión de Familia, Infancia y Adolescencia",
-    fechaISO: "Martes 11 de Agosto, 2026",
-    hora: "11:15 a 12:30 hrs",
-    lugar: "Sala 5, Valparaíso",
-    materia: "Proyecto de ley sobre sanciones para acusaciones, denuncias o querellas falsas (Boletín 18239-36); y bono extraordinario de apoyo a la niñez (Boletín 18401-31).",
-    invitados: "Ministra de Desarrollo Social y Familia señora María Jesús Wulf; Subsecretario de Evaluación Social señor Gabriel Ugarte; Subsecretaria de Previsión Social señora María Elisa Cabezón.",
-    boletin: "18239-36",
-    week: 33,
-    presidente: "Senadora Presidenta de Familia",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "TV Senado / Señal Online 4",
-    ordenDelDia: [
-      "1. Bol.N° 18239-36: Estudio de proyecto que establece sanciones en el caso de acusaciones, denuncias o querellas falsas (Discusión Inmediata).",
-      "2. Bol.N° 18401-31: Iniciar estudio de proyecto que entrega un bono extraordinario de apoyo a la niñez (Suma Urgencia; Invitados: Ministra María Jesús Wulf, Subsecretario Gabriel Ugarte y Subsecretaria María Elisa Cabezón)."
-    ]
-  },
-  {
-    comision: "Comisión de Defensa Nacional",
-    fechaISO: "Martes 11 de Agosto, 2026",
-    hora: "12:15 a 13:30 hrs",
-    lugar: "Comando de Operaciones Navales, Armada de Chile, Valparaíso",
-    materia: "Considerar materias de competencia de la instancia legislativa en terreno.",
-    invitados: "Altos mandos de la Armada de Chile.",
-    week: 33,
-    presidente: "Senador Kenneth Pugh Olavarría",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "Sesión Reservada",
-    ordenDelDia: [
-      "1. Considerar materias de competencia de la instancia legislativa de Defensa Nacional en dependencias del Comando de Operaciones Navales de la Armada de Chile."
-    ]
-  },
-  {
-    comision: "Comisión de Gobierno, Descentralización y Regionalización",
-    fechaISO: "Martes 11 de Agosto, 2026",
-    hora: "12:30 a 14:00 hrs",
-    lugar: "Sala N° 2 de Comisiones del Senado, Valparaíso",
-    materia: "Considerar materias propias de la competencia de la comisión en el ámbito regional y municipal.",
-    invitados: "Representantes y asesores legislativos de gobiernos regionales.",
-    week: 33,
-    presidente: "Senador Presidente de Gobierno",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "TV Senado / Señal Online 5",
-    ordenDelDia: [
-      "1. Análisis de iniciativas sobre descentralización, competencias regionales y desarrollo de territorios subnacionales."
-    ]
-  },
-  {
-    comision: "Comisión de Medio Ambiente, Cambio Climático y Bienes Nacionales",
-    fechaISO: "Martes 11 de Agosto, 2026",
-    hora: "12:30 a 14:00 hrs",
-    lugar: "Sala N° 11, Valparaíso",
-    materia: "Exposición sobre el Parque Marino 'Mar de Juan Fernández'; y fortalecimiento fiscalizador de la Superintendencia del Medio Ambiente (Boletín 16553-12).",
-    invitados: "Alcalde de Juan Fernández señor Pablo Manríquez Angulo; Ministra del Medio Ambiente señora Francisca Toledo; Subsecretario señor José Ignacio Vial.",
-    boletin: "16553-12",
-    week: 33,
-    presidente: "Senadora Paulina Vodanovic",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "Streaming Web Senado / Canal 1",
-    ordenDelDia: [
-      "1. Recibir en audiencia al alcalde de la comuna de Juan Fernández, señor Pablo Manríquez Angulo, para exponer sobre el Parque Marino 'Mar de Juan Fernández'.",
-      "2. Bol.N° 16553-12: Continuar el estudio de las indicaciones presentadas al proyecto de ley que fortalece y mejora la eficacia de la fiscalización de la Superintendencia del Medio Ambiente (Invitados: Ministra Francisca Toledo y Subsecretario José Ignacio Vial)."
-    ]
-  },
-  {
-    comision: "Comisión de Relaciones Exteriores",
-    fechaISO: "Martes 11 de Agosto, 2026",
-    hora: "12:30 a 14:00 hrs",
-    lugar: "Sala 1, Valparaíso",
-    materia: "Estudio y aprobación de Convenio de Transporte Aéreo entre Chile y Costa Rica (Boletín 18301-10).",
-    invitados: "Ministro de Relaciones Exteriores.",
-    boletin: "18301-10",
-    week: 33,
-    presidente: "Senador Francisco Chahuán",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "TV Senado / Señal Online 1",
-    ordenDelDia: [
-      "1. Bol.N° 18301-10: Proyecto que aprueba el Convenio de Transporte Aéreo entre el Gobierno de la República de Chile y el Gobierno de la República de Costa Rica, suscrito en Lima, Perú, el 13 de diciembre de 2023 (Invitado: Canciller)."
-    ]
-  },
-  {
-    comision: "Quinta Subcomisión Mixta de Presupuestos",
-    fechaISO: "Martes 11 de Agosto, 2026",
-    hora: "14:45 a 15:30 hrs",
-    lugar: "Sala 5, Valparaíso",
-    materia: "Constitución de la Quinta Subcomisión Mixta de Presupuestos, elección de presidencia y acuerdos de procedimiento.",
-    invitados: "Parlamentarios integrantes de la subcomisión.",
-    week: 33,
-    presidente: "Por definir (Sesión Constitutiva)",
-    tipoSesion: "Constitutiva",
-    canalTransmision: "Streaming Congreso Nacional",
-    ordenDelDia: [
-      "1. Constituirse legalmente como Quinta Subcomisión Mixta de Presupuestos.",
-      "2. Elegir Presidente(a) de la instancia.",
-      "3. Adoptar los demás acuerdos que la Subcomisión estime pertinentes para el estudio de partidas presupuestarias."
-    ]
-  },
-  {
-    comision: "Comisión de Ética y Transparencia (HA QUEDADO SIN EFECTO)",
-    fechaISO: "Martes 11 de Agosto, 2026",
-    hora: "15:00 a 16:00 hrs",
-    lugar: "Sala N° 1 de Comisiones, Piso 3, Valparaíso",
-    materia: "Tratar materias de competencia de la comisión. SESIÓN SUSPENDIDA.",
-    invitados: "Asesores y secretarios de la comisión de ética.",
-    week: 33,
-    presidente: "Senador Presidente de Ética",
-    tipoSesion: "Especial",
-    canalTransmision: "Sesión Cancelada - Sin Transmisión",
-    ordenDelDia: [
-      "1. Tratar materias de competencia interna del Senado.",
-      "NOTA: ESTA SESIÓN HA QUEDADO SIN EFECTO."
-    ]
-  },
-  {
-    comision: "Comisión de Derechos Humanos, Nacionalidad y Ciudadanía",
-    fechaISO: "Martes 11 de Agosto, 2026",
-    hora: "15:00 a 16:00 hrs",
-    lugar: "Sala 7, tercer piso de Comisiones, Valparaíso",
-    materia: "Iniciar votación en particular de modificación a la LOC del Congreso sobre informes de tratados internacionales de DD.HH. (Boletín 16017-17).",
-    invitados: "Asesores de Derechos Humanos y representantes ministeriales.",
-    boletin: "16017-17",
-    week: 33,
-    presidente: "Senador Presidente de Derechos Humanos",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "TV Senado / Señal Online 2",
-    ordenDelDia: [
-      "1. Bol.N° 16017-17: Iniciar la votación en particular del proyecto de ley que modifica la LOC del Congreso Nacional, para regular la remisión y recepción de informes relativos al cumplimiento de tratados internacionales y recomendaciones de sistemas de DD.HH."
-    ]
-  },
-  {
-    comision: "Comisión Mixta para Boletín N° 15805-07 (RUF)",
-    fechaISO: "Martes 11 de Agosto, 2026",
-    hora: "15:00 a 16:00 hrs",
-    lugar: "Sala N° 10 de Comisiones, tercer piso, Valparaíso",
-    materia: "Comisión Mixta encargada de proponer forma de resolver discrepancias sobre Reglas de Uso de la Fuerza (RUF) (Boletín 15805-07).",
-    invitados: "Ministro de Seguridad Pública.",
-    boletin: "15805-07",
-    week: 33,
-    presidente: "Senador Presidente de la Mixta RUF",
-    tipoSesion: "Especial",
-    canalTransmision: "TV Senado / Señal Online Comisiones",
-    ordenDelDia: [
-      "1. Bol.N° 15805-07: Proponer la forma y modo de resolver las divergencias surgidas con ocasión de la tramitación del proyecto que establece normas generales sobre el uso de la fuerza para el personal de orden, seguridad pública y FF.AA. (Invitado: Ministro de Seguridad Pública)."
-    ]
-  },
-  {
-    comision: "Tercera Subcomisión Mixta de Presupuestos",
-    fechaISO: "Martes 11 de Agosto, 2026",
-    hora: "15:30 a 16:00 hrs",
-    lugar: "Sala N° 9, tercer piso Senado, Valparaíso",
-    materia: "Constitución de la Tercera Subcomisión Mixta de Presupuestos, elección de presidencia y otros acuerdos.",
-    invitados: "Parlamentarios integrantes de la subcomisión.",
-    week: 33,
-    presidente: "Por definir (Sesión Constitutiva)",
-    tipoSesion: "Constitutiva",
-    canalTransmision: "Streaming Congreso Nacional",
-    ordenDelDia: [
-      "1. Constituirse legalmente como Tercera Subcomisión Mixta de Presupuestos.",
-      "2. Elegir Presidente (a) de la instancia.",
-      "3. Tratar otras materias de su competencia y coordinar análisis presupuestario."
-    ]
-  },
-  {
-    comision: "Comisión de Minería y Energía",
-    fechaISO: "Miércoles 12 de Agosto, 2026",
-    hora: "09:00 a 10:30 hrs",
-    lugar: "Sala de Sesiones, Valparaíso",
-    materia: "Proyecto de ley que modifica el Código de Minería en materia de amparo minero (Boletín 18259-08).",
-    invitados: "Ministro de Minería señor Daniel Mas; Subsecretario señor Álvaro González; Vicepresidente Ejecutivo de ENAMI señor Juan Carlos Sáez; Presidente de SONAMI señor Jorge Riesco.",
-    boletin: "18259-08",
-    week: 33,
-    presidente: "Senadora Yasna Provoste Campillay",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "TV Senado / Señal Online 1",
-    ordenDelDia: [
-      "1. Bol.N° 18259-08: Modifica el Código de Minería y las leyes números 21.420 y 21.649, en materia de amparo minero y otras materias (Invitados: Ministro Daniel Mas, Subsecretario Álvaro González, Vicepresidente ENAMI Juan Carlos Sáez y Presidente SONAMI Jorge Riesco)."
-    ]
-  },
-  {
-    comision: "Comisión de Transportes y Telecomunicaciones",
-    fechaISO: "Miércoles 12 de Agosto, 2026",
-    hora: "09:30 a 11:00 hrs",
-    lugar: "Sala 5, Valparaíso",
-    materia: "Iniciar estudio de proyecto que modifica Ley de Tránsito para disponer test de alcohol y drogas en terminales para conductores (Boletines refundidos 16853-15 y 16872-15).",
-    invitados: "Presidente de FENABUS señor Marcos Carter; Presidenta de Fundación Emilia señora Carolina Figueroa.",
-    boletin: "16853-15",
-    week: 33,
-    presidente: "Senador Juan Castro Prieto",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "TV Senado / Señal Online 2",
-    ordenDelDia: [
-      "1. Bol.N° 16853-15 y 16.872-15 (refundidos): Iniciar el estudio del proyecto de ley que modifica la ley N° 18.290 de Tránsito, para que los operadores de transporte público mayor dispongan, en los terminales, de instrumentos de control de alcohol y drogas (Invitados: Marcos Carter de FENABUS y Carolina Figueroa de Fundación Emilia)."
-    ]
-  },
-  {
-    comision: "Comisión de Recursos Hídricos, Desertificación y Sequía",
-    fechaISO: "Miércoles 12 de Agosto, 2026",
-    hora: "09:30 a 11:00 hrs",
-    lugar: "Sala N° 9 de Comisiones, tercer piso del Senado, Valparaíso",
-    materia: "Abordar efectos de frentes de mal tiempo en riego; indicaciones a ley de servicios sanitarios rurales (Boletín 17877-33) y escuchar a dirigentes de APR.",
-    invitados: "Ministro de Agricultura señor Jaime Campos; Ministro de Obras Públicas; dirigentes de federaciones de comités y cooperativas de agua potable rural FENAPRU, APR Chile y FESAN.",
-    boletin: "17877-33",
-    week: 33,
-    presidente: "Senador Presidente de Recursos Hídricos",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "TV Senado / Señal Online 3",
-    ordenDelDia: [
-      "1. Abordar los efectos de los frentes de mal tiempo en la infraestructura de riego y en la agricultura, y las medidas de mitigación y prevención (Invitado: Ministro Jaime Campos).",
-      "2. Bol.N° 17877-33: Conocer del Ministro de Obras Públicas los contenidos de las indicaciones del Ejecutivo al proyecto que fortalece el régimen de servicios sanitarios rurales.",
-      "3. Escuchar la opinión de dirigentes de FENAPRU, APR Chile y FESAN sobre las indicaciones presentadas.",
-      "4. Iniciar la discusión de las indicaciones formuladas a la referida iniciativa legal."
-    ]
-  },
-  {
-    comision: "Comisión de Agricultura",
-    fechaISO: "Miércoles 12 de Agosto, 2026",
-    hora: "11:00 a 12:30 hrs",
-    lugar: "Sala 7, tercer piso de Comisiones, Valparaíso",
-    materia: "Analizar impacto de nuevos aranceles impuestos por Estados Unidos a las exportaciones agrícolas chilenas.",
-    invitados: "Ministro de Agricultura señor Jaime Campos; Subsecretaria de Relaciones Económicas Internacionales señora Paula Estévez Weinstein.",
-    week: 33,
-    presidente: "Senador Presidente de Agricultura",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "TV Senado / Señal Online 4",
-    ordenDelDia: [
-      "1. Analizar la situación de los nuevos aranceles impuestos por EE.UU. a las exportaciones chilenas y su impacto en el mercado agrícola nacional (Invitados: Ministro Jaime Campos y Subsecretaria Paula Estévez)."
-    ]
-  },
-  {
-    comision: "Comisión de Intereses Marítimos, Pesca y Acuicultura",
-    fechaISO: "Miércoles 12 de Agosto, 2026",
-    hora: "11:00 a 12:30 hrs",
-    lugar: "Sala N° 1, Valparaíso",
-    materia: "Estudio de excepción de artes de pesca para extracción de jibia (Boletín 18173-21); alzas arancelarias de EE.UU. a industria del salmón; y convenios de colaboración del SBAP.",
-    invitados: "Subsecretario de Pesca; dirigentes de sindicatos de Quellón del sector salmonero; Ministra del Medio Ambiente; Director Nacional del SBAP.",
-    boletin: "18173-21",
-    week: 33,
-    presidente: "Senador Presidente de Pesca",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "TV Senado / Señal Online 5",
-    ordenDelDia: [
-      "1. Bol.N° 18173-21: Iniciar estudio de proyecto de excepción de prohibición de artes y aparejos para extracción de jibia, y votar la idea de legislar (Invitado: Subsecretario de Pesca).",
-      "2. Recibir a dirigentes de sindicatos de Quellón sobre alzas arancelarias del 10% al 12.5% de EE.UU. a importaciones de salmón.",
-      "3. Conocer convenios de colaboración suscritos entre el SBAP y diversas ONG de conservación (Invitados: Ministra del Medio Ambiente y Director Nacional del SBAP)."
-    ]
-  },
-  {
-    comision: "Comisión de Constitución, Legislación, Justicia y Reglamento",
-    fechaISO: "Miércoles 12 de Agosto, 2026",
-    hora: "11:00 a 13:00 hrs",
-    lugar: "Sala N° 10 de Comisiones, Valparaíso",
-    materia: "Proyecto que modifica ley de responsabilidad penal de adolescentes para fortalecer respuesta sancionatoria ante delitos graves (Boletín 15589-07).",
-    invitados: "Ministro de Justicia señor Fernando Rabat; Fiscal Nacional señor Ángel Valencia; Defensor de la Niñez señor Anuar Quesille.",
-    boletin: "15589-07",
-    week: 33,
-    presidente: "Senador Alfonso de Urresti",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "TV Senado / Señal Online 1",
-    ordenDelDia: [
-      "1. Bol.N° 15589-07: Modifica la ley N° 20.084 sobre responsabilidad penal adolescente para fortalecer sanciones en conductas de especial gravedad (Invitados: Ministro Fernando Rabat, Fiscal Nacional Ángel Valencia y Defensor de la Niñez Anuar Quesille)."
-    ]
-  },
-  {
-    comision: "Comisión de Educación",
-    fechaISO: "Miércoles 12 de Agosto, 2026",
-    hora: "12:00 a 14:00 hrs",
-    lugar: "Sala 8, Comisiones, Senado, Valparaíso",
-    materia: "Iniciar discusión en general de la reforma que modifica el Sistema de Educación Pública para ajustar la instalación de SLEP (Boletín 18551-04).",
-    invitados: "Representantes y asesores del Ministerio de Educación.",
-    boletin: "18551-04",
-    week: 33,
-    presidente: "Senador José García Ruminot",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "TV Senado / Señal Online 2",
-    ordenDelDia: [
-      "1. Bol.N° 18551-04: Iniciar la discusión en general del proyecto de ley de S.E. el Presidente, que modifica la ley N° 21.040, que crea el Sistema de Educación Pública, para ajustar la segunda etapa de instalación y traspaso de los SLEP."
-    ]
-  },
-  {
-    comision: "Comisión del Adulto Mayor y Discapacidad",
-    fechaISO: "Miércoles 12 de Agosto, 2026",
-    hora: "12:30 a 14:00 hrs",
-    lugar: "Sala N° 2 de Comisiones del Senado, Valparaíso",
-    materia: "Discusión sobre infraestructura de asistencia para personas mayores en turismo (Boletín 18491-03); y participación de la sociedad civil (Boletín 17979-35).",
-    invitados: "Subsecretaria de Turismo señora María Paz Lagos; Director Nacional del Sernatur señor Jaime Benítez; Presidenta de Fedetur señora Mónica Zalaquett.",
-    boletin: "18491-03",
-    week: 33,
-    presidente: "Senador Presidente de Adulto Mayor",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "TV Senado / Señal Online 3",
-    ordenDelDia: [
-      "1. Bol.N° 18491-03: Proyecto que obliga a prestadores turísticos a contar con infraestructura de asistencia y seguridad para personas mayores (Invitados: María Paz Lagos, Jaime Benítez y Mónica Zalaquett).",
-      "2. Bol.N° 17979-35: Continuar la discusión de reforma a la ley N° 21.545 para fortalecer la participación de la sociedad civil."
-    ]
-  },
-  {
-    comision: "Comisión de Obras Públicas",
-    fechaISO: "Miércoles 12 de Agosto, 2026",
-    hora: "12:30 a 14:00 hrs",
-    lugar: "Sala N° 4 de Comisiones, tercer piso, Valparaíso",
-    materia: "Escuchar al Director Nacional (s) de Vialidad sobre pavimentación de infraestructura caminera secundaria.",
-    invitados: "Director Nacional (s) de Vialidad; representantes del Consorcio Ecoterra-Blauemeer.",
-    week: 33,
-    presidente: "Senador Presidente de Obras Públicas",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "TV Senado / Señal Online 4",
-    ordenDelDia: [
-      "1. Escuchar la exposición del Director Nacional (s) de Vialidad respecto del plan nacional de pavimentación de caminos secundarios e infraestructura caminera local.",
-      "2. Recibir en audiencia a representantes del Consorcio de infraestructura Ecoterra-Blauemeer."
-    ]
-  },
-  {
-    comision: "Comisión de Trabajo y Previsión Social",
-    fechaISO: "Miércoles 12 de Agosto, 2026",
-    hora: "12:30 a 14:00 hrs",
-    lugar: "Sala N° 9, tercer piso Senado, Valparaíso",
-    materia: "Continuar estudio del proyecto que modifica el Código del Trabajo para crear el contrato por horas (Boletín 11929-13).",
-    invitados: "Ex Ministro del Trabajo señor Osvaldo Andrade; representantes de la Central Unitaria de Trabajadores (CUT).",
-    boletin: "11929-13",
-    week: 33,
-    presidente: "Senador Presidente de Trabajo",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "TV Senado / Señal Online 5",
-    ordenDelDia: [
-      "1. Bol.N° 11929-13: Continuar estudio de proyecto de ley que crea el contrato por horas para flexibilización y formalización laboral (Invitados: Osvaldo Andrade y representantes de la CUT)."
-    ]
-  },
-  {
-    comision: "Comisión de Ética y Transparencia",
-    fechaISO: "Miércoles 12 de Agosto, 2026",
-    hora: "14:00 a 15:00 hrs",
-    lugar: "Sala N° 1 de Comisiones, piso 3, Valparaíso",
-    materia: "Tratar materias propias de su competencia reglamentaria interna.",
-    invitados: "Secretarios legislativos de la comisión.",
-    week: 33,
-    presidente: "Senador Presidente de Ética",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "TV Senado / Señal Privada",
-    ordenDelDia: [
-      "1. Revisión de oficios, resoluciones y requerimientos internos en materia de ética, probidad y transparencia parlamentaria."
-    ]
-  },
-  {
-    comision: "Comisión Mixta para Boletín N° 16335-14",
-    fechaISO: "Miércoles 12 de Agosto, 2026",
-    hora: "14:30 a 15:30 hrs",
-    lugar: "Sala 7, tercer piso de Comisiones, Valparaíso",
-    materia: "Constitución de Comisión Mixta para el proyecto de prevención y mitigación de incendios forestales (Boletín 16335-14).",
-    invitados: "Parlamentarios de ambas cámaras integrantes de la comisión mixta.",
-    boletin: "16335-14",
-    week: 33,
-    presidente: "Por definir (Sesión Constitutiva de Mixta)",
-    tipoSesion: "Constitutiva",
-    canalTransmision: "Streaming Congreso Nacional",
-    ordenDelDia: [
-      "1. Bol.N° 16335-14: Constitución de la Comisión Mixta que regula la prevención y mitigación de incendios forestales.",
-      "2. Elección de Presidente de la instancia legislativa unificada.",
-      "3. Acordar las normas de procedimiento y cronograma para resolver las discrepancias del proyecto."
-    ]
-  },
-  {
-    comision: "Comisión Especial de Zonas Extremas y Territorios Especiales",
-    fechaISO: "Miércoles 12 de Agosto, 2026",
-    hora: "15:00 a 16:00 hrs",
-    lugar: "Sala 11, Valparaíso",
-    materia: "Analizar el contrabando de productos agrícolas en la zona fronteriza norte y sus consecuencias sanitarias y productivas.",
-    invitados: "Biministro del Interior y Vocero; Ministro de Agricultura; Directora Nacional de Aduanas; Comisionado Presidencial para la Macrozona Norte.",
-    week: 33,
-    presidente: "Senador Presidente de Zonas Extremas",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "TV Senado / Señal Online 1",
-    ordenDelDia: [
-      "1. Analizar de manera intersectorial la situación del contrabando de productos agrícolas por pasos fronterizos de la macrozona norte (Invitados: Biministro del Interior, Ministro de Agricultura, Directora de Aduanas y Comisionado Macrozona Norte)."
-    ]
-  },
-  {
-    comision: "Comisión Mixta para Boletín N° 14309-04",
-    fechaISO: "Miércoles 12 de Agosto, 2026",
-    hora: "15:15 a 16:00 hrs",
-    lugar: "Sala 8, Comisiones, Senado, Valparaíso",
-    materia: "Constitución de Comisión Mixta sobre el sistema de subvenciones para la modalidad educativa de reingreso (Boletín 14309-04).",
-    invitados: "Parlamentarios integrantes de la Comisión Mixta.",
-    boletin: "14309-04",
-    week: 33,
-    presidente: "Por definir (Sesión Constitutiva)",
-    tipoSesion: "Constitutiva",
-    canalTransmision: "Streaming Congreso Nacional",
-    ordenDelDia: [
-      "1. Bol.N° 14309-04: Constitución de la Comisión Mixta encargada de proponer forma de resolver discrepancias sobre subvención de modalidad de reingreso educativo.",
-      "2. Elegir Presidente de la instancia mixta.",
-      "3. Adoptar las normas de procedimiento y coordinación de audiencias técnicas."
-    ]
-  },
-  {
-    comision: "Comisión de la Mujer y Equidad de Género",
-    fechaISO: "Jueves 13 de Agosto, 2026",
-    hora: "10:30 a 13:00 hrs",
-    lugar: "Sala de Sesiones Ex Congreso Santiago",
-    materia: "SEMINARIO SOBRE VIOLENCIA DIGITAL: Desafíos para su prevención, protección y sanción.",
-    invitados: "Aluna Serrano (IDEA Internacional); Representante Corporación Humanas; Laura Mayer (Académica PUCV); Mitza González (Carabineros); Karen Vergara (ONG Amaranta); Juan Pablo Cavada (BCN); Daniela Santana (BCN).",
-    week: 33,
-    presidente: "Senadora Presidenta de la Mujer",
-    tipoSesion: "Especial",
-    canalTransmision: "TV Senado / Transmisión Especial Ex Congreso",
-    ordenDelDia: [
-      "1. Palabras de Apertura e inauguración del seminario técnico (10:30 hrs).",
-      "2. Panel 1: Diagnóstico de la violencia digital en Chile, nuevas hipótesis que vulneran la dignidad (Exponen Aluna Serrano, Laura Mayer y Corporación Humanas).",
-      "3. Panel 2: Propuestas legislativas y policiales para enfrentar y sancionar la violencia digital (Exponen Generala Mitza González, Karen Vergara, Juan Pablo Cavada y Daniela Santana).",
-      "4. Ronda de preguntas del público asistente e inscritos vía correo comisiondelamujer@senado.cl (12:30 hrs)."
-    ]
-  },
-  {
-    comision: "Comisión de Minería y Energía",
-    fechaISO: "Jueves 13 de Agosto, 2026",
-    hora: "11:30 a 13:30 hrs",
-    lugar: "I. Municipalidad de Illapel, calle Constitución N° 24",
-    materia: "Abordar las principales problemáticas que afectan a la pequeña minería en terreno.",
-    invitados: "Dirigentes pirquineros, pequeños mineros de la Provincia de Choapa, Alcalde de Illapel y autoridades comunales.",
-    week: 33,
-    presidente: "Senadora Yasna Provoste Campillay",
-    tipoSesion: "Especial",
-    canalTransmision: "Registro en diferido / Coquimbo TV",
-    ordenDelDia: [
-      "1. Sesión especial descentralizada en la comuna de Illapel para escuchar de primera fuente los requerimientos tributarios, logísticos y de fomento de pirquineros y pequeños mineros."
-    ]
-  },
-  {
-    comision: "Comisión de Seguridad Pública",
-    fechaISO: "Jueves 13 de Agosto, 2026",
-    hora: "15:00 a 18:00 hrs",
-    lugar: "Salón Plenario Nelda Panicucci Bianchi, Gobierno Regional, Punta Arenas",
-    materia: "Creación de Escuela de Formación de Carabineros en Magallanes; y análisis de crimen organizado patagónico y seguridad marítima austral.",
-    invitados: "Ministro Martín Arrau; General Director Marcelo Araya; General Marco Alvarado; especialista Pablo Zeballos; Ministro de Defensa Fernando Barros; Fiscal Regional Cristián Crisosto; Eugenio Campos (UNAC); Vicealmirante Arturo Oxley; Fiscal Julio César Zárate (Argentina); Embajadores de Nueva Zelanda, Australia y Reino Unido.",
-    week: 33,
-    presidente: "Senador Presidente de Seguridad",
-    tipoSesion: "Especial",
-    canalTransmision: "TV Senado / Señal Austral Directa",
-    ordenDelDia: [
-      "1. Bloque 1 (15:00 a 16:30 hrs): Analizar factibilidad y diseño de la Escuela de Formación de Carabineros de Chile en Magallanes (Invitados: Ministro Arrau, General Araya, General Alvarado y especialista Pablo Zeballos).",
-      "2. Bloque 2 (16:30 a 18:00 hrs): Seguridad estratégica y crimen organizado en extremo sur, rutas marítimas y soberanía en el Estrecho de Magallanes (Invitados: Ministro de Defensa Fernando Barros, Fiscal Federal Julio Zárate, Embajadores Nicola Somerville, Andrew Martin, David Concar, DIRECTEMAR y PDI)."
-    ]
-  },
-  {
-    comision: "Comisión de Seguridad Pública",
-    fechaISO: "Viernes 14 de Agosto, 2026",
-    hora: "10:00 a 12:00 hrs",
-    lugar: "Salón Plenario Nelda Panicucci Bianchi, Gobierno Regional, Punta Arenas",
-    materia: "Abordar de forma integral la situación de la explotación sexual de niños, niñas y adolescentes en la región de Magallanes.",
-    invitados: "Ministro de Seguridad Pública señor Martín Arrau; Fiscal Regional de Magallanes señor Cristián Crisosto Rifo; Defensor de la Niñez señor Anuar Quesille; especialista señor Pablo Zeballos.",
-    week: 33,
-    presidente: "Senador Presidente de Seguridad",
-    tipoSesion: "Especial",
-    canalTransmision: "TV Senado / Señal Austral Directa",
-    ordenDelDia: [
-      "1. Sesión especial en Punta Arenas para diagnosticar, evaluar y coordinar medidas preventivas frente a la explotación sexual infantil (ESNNA) en el extremo sur (Invitados: Ministro Arrau, Fiscal Regional Crisosto, Defensor Quesille y especialista Zeballos)."
-    ]
-  },
-  {
-    comision: "Comisión de Economía",
-    fechaISO: "Viernes 14 de Agosto, 2026",
-    hora: "12:00 a 15:00 hrs",
-    lugar: "Gobierno Regional de Coquimbo, calle Arturo Prat 350, La Serena",
-    materia: "Analizar efectos económicos de la catástrofe por el temporal y río atmosférico en Coquimbo, y medidas de apoyo a sectores productivos.",
-    invitados: "Ministro de Economía Daniel Mas; Gobernador Regional Cristóbal Juliá; parlamentarios de la región y representantes de gremios agrícolas, pesqueros y comerciales.",
-    week: 33,
-    presidente: "Senadora Presidenta de Economía",
-    tipoSesion: "Especial",
-    canalTransmision: "Señal Regional Coquimbo / Diferido TV Senado",
-    ordenDelDia: [
-      "1. Analizar el impacto económico del reciente temporal y río atmosférico en Coquimbo, levantando necesidades urgentes de pymes y sectores productivos regionales junto al Ministro Daniel Mas y al Gobernador Cristóbal Juliá."
-    ]
-  },
-  {
-    comision: "Primera Subcomisión Mixta de Presupuestos",
-    fechaISO: "Martes 18 de Agosto, 2026",
-    hora: "17:00 a 18:30 hrs",
-    lugar: "Sala 7, tercer piso de Comisiones, Valparaíso",
-    materia: "Constitución de la Primera Subcomisión Mixta de Presupuestos, elección de presidente y acuerdos de funcionamiento.",
-    invitados: "Parlamentarios integrantes de la subcomisión.",
-    week: 34,
-    presidente: "Por definir (Sesión Constitutiva)",
-    tipoSesion: "Constitutiva",
-    canalTransmision: "Streaming Congreso Nacional",
-    ordenDelDia: [
-      "1. Constitución legal de la Primera Subcomisión Mixta para el estudio presupuestario.",
-      "2. Elección de Presidente(a).",
-      "3. Acordar la agenda de funcionamiento, priorización de partidas ministeriales y citaciones de autoridades."
-    ]
-  },
-  {
-    comision: "Comisión Especial de Zonas Extremas y Territorios Especiales",
-    fechaISO: "Miércoles 19 de Agosto, 2026",
-    hora: "15:00 a 16:00 hrs",
-    lugar: "Sala 11, Valparaíso",
-    materia: "Recibir al representante de la OPS/OMS en Chile para analizar la situación sanitaria pública en zonas insulares y extremas del país.",
-    invitados: "Representante de la OPS/OMS en Chile señor Giovanni Escalante.",
-    week: 34,
-    presidente: "Senador Presidente de Zonas Extremas",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "TV Senado / Señal Online 1",
-    ordenDelDia: [
-      "1. Escuchar la exposición detallada del representante OPS/OMS Giovanni Escalante respecto de la infraestructura médica, brechas asistenciales y planes de salud pública aplicables a las zonas extremas e insulares."
-    ]
-  },
-  {
-    comision: "Primera Subcomisión Mixta de Presupuestos",
-    fechaISO: "Miércoles 19 de Agosto, 2026",
-    hora: "17:00 a 18:30 hrs",
-    lugar: "Sala N° 2 de Comisiones del Senado, Valparaíso",
-    materia: "Análisis técnico de la ejecución presupuestaria de la Partida 27 (Ministerio de la Mujer y la Equidad de Género).",
-    invitados: "Ministra de la Mujer y la Equidad de Género; analistas de la Dirección de Presupuestos (Dipres).",
-    week: 34,
-    presidente: "Por definir (Miembro electo presidiendo)",
-    tipoSesion: "Ordinaria",
-    canalTransmision: "Streaming Congreso / Señal Especial Mixta",
-    ordenDelDia: [
-      "1. Partida 27: Evaluar el estado de ejecución de los fondos asignados al Ministerio de la Mujer y la Equidad de Género, sus programas de prevención de VIF, fomento y equidad, detectando desvíos o necesidades de ajuste sectorial."
-    ]
-  }
-];
-
-const DYNAMIC_CAMARA_CITACIONES: Citacion[] = CAMARA_CITACIONES_FULL_WEEK.map((c) => {
-  const normName = c.comisionNombre.startsWith("Comisión") ? c.comisionNombre : `Comisión de ${c.comisionNombre}`;
-  return {
-    comision: normName,
-    fechaISO: c.fecha,
-    hora: c.hora.includes("hrs") ? c.hora : `${c.hora} hrs`,
-    lugar: c.lugar,
-    materia: c.materia,
-    invitados: c.invitados,
-    boletin: c.boletinesRelacionados && c.boletinesRelacionados.length > 0 ? c.boletinesRelacionados[0] : undefined,
-    week: 37,
-    presidente: "Presidente de Comisión",
-    tipoSesion: (c.tipo && c.tipo.includes("Especial")) ? "Especial" : "Ordinaria",
-    canalTransmision: "Cámara de Diputados TV (CDTV) / Señal Online",
-    ordenDelDia: c.tabla && c.tabla.length > 0 ? c.tabla : [c.materia],
-    chamber: "CD" as const
-  };
-});
-
-const DYNAMIC_SENADO_CITACIONES: Citacion[] = (SENADO_CITACIONES_FULL_WEEK || []).map((c) => {
-  return {
-    comision: c.comision,
-    fechaISO: c.fecha,
-    hora: c.hora.includes("hrs") ? c.hora : `${c.hora} hrs`,
-    lugar: c.lugar,
-    materia: c.materia,
-    invitados: c.invitados || "No informado en la citación",
-    boletin: c.boletin,
-    week: 37,
-    presidente: "Presidente de Comisión",
-    tipoSesion: c.tipo && c.tipo.includes("Especial") ? "Especial" : "Ordinaria",
-    canalTransmision: c.canalTransmision || "TV Senado / Señal Online",
-    ordenDelDia: c.tabla && c.tabla.length > 0 ? c.tabla : [c.materia],
-    chamber: "SR" as const
-  };
-});
+const MESES_CIT: Record<string, number> = { enero: 0, febrero: 1, marzo: 2, abril: 3, mayo: 4, junio: 5, julio: 6, agosto: 7, septiembre: 8, setiembre: 8, octubre: 9, noviembre: 10, diciembre: 11 };
+/** Fecha real de una citación ("LUNES, 7 DE SEPTIEMBRE DE 2026", "Martes 11 de Agosto, 2026" o "2026-09-07"); null si no se puede leer. */
+export function fechaDeCitacion(texto?: string): Date | null {
+  const t = String(texto || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const iso = t.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+  const m = t.match(/(\d{1,2})\s+de\s+([a-z]+)(?:\s+de)?[\s,]+(\d{4})/);
+  if (!m || !(m[2] in MESES_CIT)) return null;
+  return new Date(Number(m[3]), MESES_CIT[m[2]], Number(m[1]));
+}
+/** Semana ISO de una fecha (0 si no hay fecha). */
+function semanaISO(d: Date | null): number {
+  if (!d) return 0;
+  const x = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dia = x.getUTCDay() || 7;
+  x.setUTCDate(x.getUTCDate() + 4 - dia);
+  return Math.ceil(((x.getTime() - Date.UTC(x.getUTCFullYear(), 0, 1)) / 86400000 + 1) / 7);
+}
 
 export default function CitacionesCamaraWidget({
   setView,
@@ -1172,10 +115,8 @@ export default function CitacionesCamaraWidget({
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
   const [copiedToast, setCopiedToast] = useState<string | null>(null);
-  const [liveWeekCitaciones, setLiveWeekCitaciones] = useState<Citacion[]>([
-    ...DYNAMIC_CAMARA_CITACIONES,
-    ...DYNAMIC_SENADO_CITACIONES
-  ]);
+  const [liveWeekCitaciones, setLiveWeekCitaciones] = useState<Citacion[]>([]);
+  const [errorCitaciones, setErrorCitaciones] = useState<string | null>(null);
   const [isLiveSyncing, setIsLiveSyncing] = useState(false);
   // Origen real de las citaciones (el servidor informa si son de esta semana o de respaldo).
   const [fuentesCitaciones, setFuentesCitaciones] = useState<{
@@ -1190,39 +131,40 @@ export default function CitacionesCamaraWidget({
       .then(res => res.json())
       .then(data => {
         if (data && data.fuentes) setFuentesCitaciones(data.fuentes);
-        const rawCitList = data.citaciones || data.todas;
-        if (rawCitList && Array.isArray(rawCitList) && rawCitList.length > 0) {
-          const mapped: Citacion[] = rawCitList.map((c: any) => {
-            const isSR = c.chamber === "SR" || c.id?.startsWith("senado-") || c.comision?.toLowerCase().includes("senado");
-            const normName = c.comisionNombre 
-              ? (c.comisionNombre.startsWith("Comisión") ? c.comisionNombre : `Comisión de ${c.comisionNombre}`)
-              : (c.comision || "Comisión Legislativa");
-
-            return {
-              comision: normName,
-              fechaISO: c.fecha,
-              hora: c.hora ? (c.hora.includes("hrs") ? c.hora : `${c.hora} hrs`) : "Horario reglamentario",
-              lugar: c.lugar || "Valparaíso / Santiago",
-              materia: c.materia || "Sesión de Comisión",
-              invitados: c.invitados,
-              boletin: c.boletin || (c.boletinesRelacionados && c.boletinesRelacionados.length > 0 ? c.boletinesRelacionados[0] : undefined),
-              week: 37,
-              presidente: c.presidente || "",
-              tipoSesion: (c.tipo && c.tipo.includes("Especial")) ? "Especial" : "Ordinaria",
-              canalTransmision: isSR ? (c.canalTransmision || "TV Senado / Señal Online") : (c.canalTransmision || "Cámara de Diputados TV (CDTV) / Señal Online"),
-              ordenDelDia: c.tabla && c.tabla.length > 0 ? c.tabla : [c.materia || "Sesión legislativa"],
-              chamber: isSR ? ("SR" as const) : ("CD" as const)
-            };
-          });
-          setLiveWeekCitaciones(mapped);
-          if (forceRefresh) {
-            setCopiedToast("¡Citaciones de Congreso (Cámara y Senado) sincronizadas en vivo!");
-            setTimeout(() => setCopiedToast(null), 3500);
-          }
+        const rawCitList: any[] = Array.isArray(data?.citaciones) ? data.citaciones : Array.isArray(data?.todas) ? data.todas : [];
+        const mapped: Citacion[] = rawCitList.map((c: any) => {
+          const isSR = c.chamber === "SR" || c.id?.startsWith("senado-") || c.comision?.toLowerCase().includes("senado");
+          const normName = c.comisionNombre
+            ? (c.comisionNombre.startsWith("Comisión") ? c.comisionNombre : `Comisión de ${c.comisionNombre}`)
+            : (c.comision || "Comisión no informada");
+          return {
+            comision: normName,
+            fechaISO: c.fecha || "Fecha no informada",
+            hora: c.hora ? (c.hora.includes("hrs") ? c.hora : `${c.hora} hrs`) : "Hora no informada",
+            lugar: c.lugar || "Lugar no informado",
+            materia: c.materia || "Materia no informada",
+            invitados: c.invitados,
+            boletin: c.boletin || (c.boletinesRelacionados && c.boletinesRelacionados.length > 0 ? c.boletinesRelacionados[0] : undefined),
+            week: semanaISO(fechaDeCitacion(c.fecha)),
+            presidente: c.presidente || "No informado",
+            tipoSesion: (c.tipo && c.tipo.includes("Especial")) ? "Especial" : "Ordinaria",
+            canalTransmision: c.canalTransmision || "No informado",
+            ordenDelDia: c.tabla && c.tabla.length > 0 ? c.tabla : (c.materia ? [c.materia] : []),
+            chamber: isSR ? ("SR" as const) : ("CD" as const)
+          };
+        });
+        // Se muestra exactamente lo que entregó el servidor, aunque sea una lista vacía.
+        setLiveWeekCitaciones(mapped);
+        setErrorCitaciones(null);
+        if (forceRefresh) {
+          const vivas = data?.fuentes?.camara?.fuente === "vivo" && data?.fuentes?.senado?.fuente === "vivo";
+          setCopiedToast(vivas ? "Citaciones de la Cámara y del Senado actualizadas desde los sitios oficiales." : "Actualización parcial: revise el aviso sobre las fuentes que no respondieron.");
+          setTimeout(() => setCopiedToast(null), 3500);
         }
       })
       .catch(err => {
         console.warn("Could not fetch live citaciones:", err);
+        setErrorCitaciones("No se pudo consultar el servidor de citaciones. Reintente en un momento.");
       })
       .finally(() => {
         setIsLiveSyncing(false);
@@ -1245,10 +187,7 @@ export default function CitacionesCamaraWidget({
     const camaraTagged = liveWeekCitaciones.filter(c => c.chamber === "CD");
     const senadoTagged = liveWeekCitaciones.filter(c => c.chamber === "SR");
 
-    const camaraAll = [...camaraTagged, ...CITACIONES_CAMARA.map(c => ({ ...c, chamber: "CD" as const }))];
-    const senadoAll = [...senadoTagged, ...CITACIONES_SENADO.map(c => ({ ...c, chamber: "SR" as const }))];
-
-    return [...camaraAll, ...senadoAll];
+    return [...camaraTagged, ...senadoTagged];
   }, [liveWeekCitaciones]);
 
   // Deduplicated unique commissions for the quick-select dropdown
@@ -1381,7 +320,10 @@ export default function CitacionesCamaraWidget({
 
       // Temporal & Followed Scope Filter:
       // Note: Week 33 (11-14 Agosto) and earlier/specific past months are past; Week 34+ is active / upcoming
-      const isPastSession = c.week <= 33 || fNorm.includes("marzo") || fNorm.includes("abril") || fNorm.includes("mayo") || fNorm.includes("junio") || fNorm.includes("julio");
+      // Pasada = su fecha real es anterior a hoy (si la fecha no se puede leer, no se da por pasada).
+      const fechaReal = fechaDeCitacion(c.fechaISO);
+      const hoy0 = new Date(); hoy0.setHours(0, 0, 0, 0);
+      const isPastSession = !!fechaReal && fechaReal.getTime() < hoy0.getTime();
 
       if (scope === "mis-comisiones") {
         // Must be in followed commissions
@@ -1490,7 +432,7 @@ export default function CitacionesCamaraWidget({
     const chamberLabel = cit.chamber === "SR" ? "Senado de la República" : "Cámara de Diputadas y Diputados";
     const text = `🏛️ CITACIÓN LEGISLATIVA OFICIAL - CONGRESO NACIONAL DE CHILE
 📌 Comisión: ${cit.comision} (${chamberLabel})
-📅 Fecha: ${cit.fechaISO} (Semana ${cit.week})
+📅 Fecha: ${cit.fechaISO}${cit.week ? ` (Semana ${cit.week})` : ""}
 ⏰ Horario: ${cit.hora}
 📍 Sala / Lugar: ${cit.lugar}
 👤 Preside: ${cit.presidente}
@@ -1622,14 +564,17 @@ END:VCALENDAR`;
 
   return (
     <div className="bg-slate-900 text-white rounded-3xl border border-slate-800 p-6 md:p-8 flex flex-col gap-6 shadow-2xl relative overflow-hidden font-sans" id="citaciones-camara-widget-container">
+      {errorCitaciones && (
+        <div className="bg-rose-500/10 border border-rose-400/40 text-rose-100 rounded-2xl px-4 py-3 text-[11px]" role="alert">{errorCitaciones}</div>
+      )}
       {fuentesCitaciones && (fuentesCitaciones.camara?.fuente !== "vivo" || fuentesCitaciones.senado?.fuente !== "vivo") && (
         <div className="bg-amber-500/10 border border-amber-400/40 text-amber-100 rounded-2xl px-4 py-3 text-[11px] leading-relaxed">
           <strong className="text-amber-300">Atención:</strong>{" "}
           {fuentesCitaciones.camara?.fuente !== "vivo" && (
-            <span>Las citaciones de la Cámara no se pudieron actualizar ({fuentesCitaciones.camara?.detalle}); se muestran datos guardados de semanas anteriores. </span>
+            <span>Las citaciones de la Cámara no están disponibles ({fuentesCitaciones.camara?.detalle}); no se muestran datos antiguos en su lugar. </span>
           )}
           {fuentesCitaciones.senado?.fuente !== "vivo" && (
-            <span>Las citaciones del Senado no se pudieron actualizar ({fuentesCitaciones.senado?.detalle}). </span>
+            <span>Las citaciones del Senado no están disponibles ({fuentesCitaciones.senado?.detalle}). </span>
           )}
           Revisa el sitio oficial para la agenda vigente.
         </div>

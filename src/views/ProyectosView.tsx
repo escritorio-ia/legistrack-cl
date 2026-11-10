@@ -600,6 +600,7 @@ export default function ProyectosView({
                   <option value="Suma">Suma</option>
                   <option value="Simple">Simple</option>
                   <option value="Sin urgencia">Sin urgencia</option>
+                  <option value="No informada">No informada</option>
                 </select>
               </div>
 
@@ -759,7 +760,7 @@ export default function ProyectosView({
                   >
                     {/* Left priority column */}
                     <div className="flex flex-col justify-start pt-1 text-amber-500">
-                      {proyecto.urgencia !== "Sin urgencia" ? (
+                      {(proyecto.urgencia !== "Sin urgencia" && proyecto.urgencia !== "No informada") ? (
                         <span title={`Urgencia: ${proyecto.urgencia}`}>
                           <Zap className="w-5 h-5 fill-amber-400 text-amber-500" />
                         </span>
@@ -898,7 +899,7 @@ export default function ProyectosView({
                             </span>
                           )}
 
-                          {proyecto.urgencia !== "Sin urgencia" && (
+                          {(proyecto.urgencia !== "Sin urgencia" && proyecto.urgencia !== "No informada") && (
                             <span className="bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded font-bold uppercase text-[9.5px]">
                               ⚡ {proyecto.urgencia}
                             </span>
@@ -913,7 +914,7 @@ export default function ProyectosView({
                               setView("legislacion-comparada");
                             }}
                             className="text-[10.5px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1 cursor-pointer shadow-2xs"
-                            title="Buscar cómo regulan esta materia otros 27 países"
+                            title="Buscar cómo regulan esta materia otros países"
                           >
                             <Globe className="w-3.5 h-3.5 text-blue-600" />
                             <span>Derecho Comparado</span>

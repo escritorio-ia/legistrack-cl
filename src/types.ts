@@ -38,6 +38,8 @@ export interface VotacionItem {
   no: number;
   abstencios: number;
   abstenciones?: number;
+  /** false = la ficha oficial no trae el conteo de votos (no mostrar 0-0-0 como si fuera real). */
+  conteoInformado?: boolean;
   resultado: string;
 }
 
@@ -51,7 +53,8 @@ export interface Proyecto {
   camaraOrigen: "Diputados" | "Senado" | "No informado";
   etapa: string;
   materia: string;
-  urgencia: "Simple" | "Suma" | "Discusión Inmediata" | "Sin urgencia";
+  /** "No informada" = la fuente consultada no trae el dato (distinto de "Sin urgencia", que sí lo informa). */
+  urgencia: "Simple" | "Suma" | "Discusión Inmediata" | "Sin urgencia" | "No informada";
   patrocinantes: number;
   iniciativa: "Moción" | "Mensaje";
   autores?: string;

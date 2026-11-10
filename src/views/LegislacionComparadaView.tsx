@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import ContenidoProtegido from "../components/ContenidoProtegido";
 import CruceBoletinPanel, { type CruceBoletinEstado, type FuenteCruceUI } from "../components/CruceBoletinPanel";
-import MatrizComparadaTable, { MatrizColumna, MatrizComparadaData, MatrizFilaDinamica, TODAS_LAS_MATRICES } from "../components/MatrizComparadaTable";
+import MatrizComparadaTable, { MatrizColumna, MatrizComparadaData, MatrizFilaDinamica } from "../components/MatrizComparadaTable";
 import { normalizeSearchText } from "../utils/textUtils";
 import {
   saveInformeComparadoToFirestore,
@@ -21,235 +21,6 @@ import {
   deleteInformeComparadoFromFirestore,
   InformeComparadoGuardado
 } from "../services/firebaseService";
-
-export interface ComparativeTopic {
-  id: string;
-  titulo: string;
-  categoria: string;
-  boletinReferencia: string;
-  supNumero: string;
-  fechaInforme: string;
-  autor: string;
-  comisionDestino: string;
-  resumenChile: string;
-  documentoAnalisis: {
-    introduccion: string;
-    aspectosGenerales: string;
-    comparativaInternacional: string;
-    impactoEstimado: string;
-    conclusionComision: string;
-  };
-  paises: {
-    nombre: string;
-    bandera: string;
-    normativa: string;
-    enfoque: string;
-    sancionesOmision: string;
-    leccionParaChile: string;
-  }[];
-  cuadrosResumen: {
-    medida: string;
-    subcategorias: string[];
-  }[];
-  textosNormativos: {
-    titulo: string;
-    enlace: string;
-  }[];
-}
-
-export const COMPARATIVE_TOPICS: ComparativeTopic[] = [
-  {
-    id: "ia-reg",
-    titulo: "Regulación de Inteligencia Artificial y Datos Personales",
-    categoria: "Tecnología e Innovación",
-    boletinReferencia: "Boletín 15.869-19",
-    supNumero: "Nº SUP: 146302",
-    fechaInforme: "Junio 2025",
-    autor: "Jaime Rojas Castillo (jrojas@bcn.cl)",
-    comisionDestino: "Comisión de Desafíos del Futuro, Ciencia, Tecnología e Innovación del Senado",
-    resumenChile: "Proyecto basado en el enfoque de riesgo europeo, exigiendo gobernanza de modelos de alto riesgo, protección de datos biométricos y fiscalización por la Agencia de Protección de Datos.",
-    documentoAnalisis: {
-      introduccion: "El presente informe, elaborado a solicitud de la Comisión de Desafíos del Futuro, analiza los estándares de derecho comparado sobre la regulación de sistemas de inteligencia artificial y la protección de derechos digitales en la Unión Europea y América Latina.",
-      aspectosGenerales: "La obligación de regular la IA comprende la mitigación de sesgos algorítmicos, la transparencia en decisiones automatizadas y la salvaguarda de la privacidad conforme a los estándares OCDE.",
-      comparativaInternacional: "A nivel comparado, la Unión Europea con el AI Act establece un estándar estricto de clasificación de riesgos. España pionera con la AESIA ofrece un modelo institucional de gobernanza pública. EE.UU. opta por directrices sectoriales NIST.",
-      impactoEstimado: "Se proyecta un impacto regulatorio moderado en grandes desarrolladores y proveedores de servicios de IA de alto riesgo, con exigencias de auditorías técnicas previas a la puesta en marcha.",
-      conclusionComision: "Se recomienda incorporar incentivos a la innovación y clarificar los umbrales de las sanciones para evitar frenar el ecosistema de emprendimiento tecnológico nacional."
-    },
-    paises: [
-      {
-        nombre: "Unión Europea",
-        bandera: "🇪🇺",
-        normativa: "AI Act (Reglamento UE 2024/1689)",
-        enfoque: "Clasificación estricta por niveles de riesgo (Inaceptable, Alto, Limitado, Mínimo). Prohibición de sistemas de manipulación cognitiva y biometría en tiempo real.",
-        sancionesOmision: "Multas de hasta 35 millones de euros o el 7% de la facturación global anual.",
-        leccionParaChile: "Establecer areneras regulatorias (sandboxes) y autoridades de aplicación con multas proporcionales al volumen de negocio."
-      },
-      {
-        nombre: "España",
-        bandera: "🇪🇸",
-        normativa: "Agencia Española de Supervisión de IA (AESIA)",
-        enfoque: "Pionero en la creación de agencia específica de supervisión algorítmica previa a la entrada en vigor total del AI Act.",
-        sancionesOmision: "Armonizado con la normativa europea de protección de datos (LOPDGDD).",
-        leccionParaChile: "El diseño institucional chileno debe contemplar autonomía técnica y presupuesto para auditorías algorítmicas públicas."
-      },
-      {
-        nombre: "Estados Unidos",
-        bandera: "🇺🇸",
-        normativa: "Executive Order on AI & NIST AI Risk Management Framework",
-        enfoque: "Enfoque sectorial y voluntario basado en estándares NIST, complementado por regulaciones estatales (California, Colorado).",
-        sancionesOmision: "Acciones de la FTC (Federal Trade Commission) bajo prácticas engañosas.",
-        leccionParaChile: "Fomentar la coinnovación público-privada sin ahogar el desarrollo de startups tecnológicas locales."
-      }
-    ],
-    cuadrosResumen: [
-      { medida: "Gobernanza de Riesgo", subcategorias: ["I. Clasificación obligatoria de sistemas de alto riesgo", "II. Auditorías algorítmicas previas", "III. Registro público de algoritmos estatales"] },
-      { medida: "Transparencia", subcategorias: ["I. Divulgación de contenidos generados por IA", "II. Derecho a la explicabilidad de decisiones", "III. Notificación previa a usuarios afectados"] },
-      { medida: "Sanciones", subcategorias: ["I. Multas disuasorias proporcionales a facturación global", "II. Suspensión temporal de modelos no conformes", "III. Responsabilidad administrativa y civil de directores"] }
-    ],
-    textosNormativos: [
-      { titulo: "AI Act (Reglamento UE 2024/1689) - Texto oficial consolidado", enlace: "https://c.bcn.cl/ia-eu-2024" },
-      { titulo: "Ley de Creación de la AESIA (España)", enlace: "https://c.bcn.cl/aesia-es" }
-    ]
-  },
-  {
-    id: "jornada-40h",
-    titulo: "Reducción de Jornada Laboral a 40 Horas Semanales",
-    categoria: "Trabajo y Previsión Social",
-    boletinReferencia: "Boletín 11.179-13",
-    supNumero: "Nº SUP: 135412",
-    fechaInforme: "Mayo 2023",
-    autor: "Daniela Santana Silva (dasantana@bcn.cl)",
-    comisionDestino: "Comisión de Trabajo y Previsión Social del Senado",
-    resumenChile: "Ley 21.561 que reduce gradualmente la jornada ordinaria de 45 a 40 horas, introduciendo adaptabilidad, bandas horarias y teletrabajo.",
-    documentoAnalisis: {
-      introduccion: "El informe examina la experiencia comparada en la implementación de reducciones de jornada laboral semanal en economías de la OCDE, evaluando su impacto en la productividad y conciliación laboral.",
-      aspectosGenerales: "El derecho al descanso y la limitación de la jornada máxima son pilares del Derecho Internacional del Trabajo (Convenios OIT).",
-      comparativaInternacional: "Francia redujo a 35 horas mediante la Loi Aubry con fuertes tensiones operativas iniciales. Colombia implementa una reducción gradual de 48 a 42 horas. Alemania combina límites legales con convenios colectivos sectoriales.",
-      impactoEstimado: "Reorganización de turnos en industrias de continuidad operacional y comercio, con ganancias de productividad asociadas al bienestar y menor fatiga laboral.",
-      conclusionComision: "La gradualidad de 5 años ha demostrado ser clave para amortiguar el impacto en micro y pequeñas empresas."
-    },
-    paises: [
-      {
-        nombre: "Francia",
-        bandera: "🇫🇷",
-        normativa: "Loi Aubry (35 horas semanales)",
-        enfoque: "Estableció por ley las 35 horas en el año 2000, con incentivos a la negociación colectiva por empresa y reducción de cargas sociales.",
-        sancionesOmision: "Inspección laboral estricta con penalizaciones penales y civiles por exceso de horas extraordinarias.",
-        leccionParaChile: "La gradualidad chilena (5 años) evita el shock operativo que enfrentó Francia en su transición inicial."
-      },
-      {
-        nombre: "Colombia",
-        bandera: "🇨🇴",
-        normativa: "Ley 2101 de 2021",
-        enfoque: "Reducción progresiva de 48 a 42 horas semanales en un plazo de 6 años sin reducción salarial.",
-        sancionesOmision: "Sanciones administrativas del Ministerio del Trabajo.",
-        leccionParaChile: "Comparte la estrategia de implementación escalonada para dar respiro a micro y pequeñas empresas (PyMEs)."
-      },
-      {
-        nombre: "Alemania",
-        bandera: "🇩🇪",
-        normativa: "Arbeitszeitgesetz (Gesetzliche Arbeitszeit)",
-        enfoque: "Límite de 8 horas diarias ampliables a 10 con promedio compensatorio en 6 meses, con fuerte rol de los convenios colectivos (Tarifvertrag).",
-        sancionesOmision: "Multas severas a empleadores y responsabilidad personal del directorio en casos graves de fatiga laboral.",
-        leccionParaChile: "El modelo chileno de promedios en bandas de 4 semanas se asemeja al modelo de compensación germano."
-      }
-    ],
-    cuadrosResumen: [
-      { medida: "Reducción Gradual", subcategorias: ["I. Implementación escalonada plurianual", "II. Excepciones para PyMEs y microempresas", "III. Monitoreo de impacto sectorial"] },
-      { medida: "Adaptabilidad", subcategorias: ["I. Bancos de horas pactados colectivamente", "II. Bandas horarias de ingreso y salida", "III. Teletrabajo y desconexión digital"] }
-    ],
-    textosNormativos: [
-      { titulo: "Loi Aubry (Francia)", enlace: "https://c.bcn.cl/loi-aubry" },
-      { titulo: "Ley 2101 de 2021 (Colombia)", enlace: "https://c.bcn.cl/colombia-42h" }
-    ]
-  },
-  {
-    id: "ciberseguridad",
-    titulo: "Ley Marco de Ciberseguridad e Infraestructura Crítica",
-    categoria: "Seguridad y Defensa",
-    boletinReferencia: "Boletín 14.847-06",
-    supNumero: "Nº SUP: 141209",
-    fechaInforme: "Agosto 2024",
-    autor: "Jaime Rojas Castillo (jrojas@bcn.cl)",
-    comisionDestino: "Comisión de Defensa Nacional y Seguridad Pública",
-    resumenChile: "Crea la Agencia Nacional de Ciberseguridad (ANCI), define operadores de importancia vital y establece obligación estricta de reportar incidentes en plazos críticos.",
-    documentoAnalisis: {
-      introduccion: "A solicitud de la Comisión Mixta, el informe revisa los marcos institucionales de ciberdefensa y ciberseguridad en Estonia y la Unión Europea (Directiva NIS 2).",
-      aspectosGenerales: "La protección de infraestructuras críticas constituye un deber ineludible del Estado para garantizar la continuidad de servicios básicos esenciales.",
-      comparativaInternacional: "Estonia lidera con la arquitectura RIA de ciberdefensa integrada. La Unión Europea con la Directiva NIS 2 endurece la responsabilidad de los directorios corporativos ante brechas de seguridad.",
-      impactoEstimado: "Incremento en las inversiones de infraestructura tecnológica y ciberdefensa en sectores bancario, energético, telecomunicaciones y salud.",
-      conclusionComision: "Es indispensable garantizar la interoperabilidad del CSIRT Nacional con los centros sectoriales existentes."
-    },
-    paises: [
-      {
-        nombre: "Estonia",
-        bandera: "🇪🇪",
-        normativa: "Cybersecurity Act & RIA (State Information System)",
-        enfoque: "Considerada potencia digital mundial con ciberdefensa integrada a nivel estatal, municipal y bancario.",
-        sancionesOmision: "Auditorías obligatorias anuales y suspensión de licencias de operación digital.",
-        leccionParaChile: "La creación de la ANCI sigue el modelo estonio de centralización de la respuesta a incidentes (CSIRT Nacional)."
-      },
-      {
-        nombre: "Unión Europea",
-        bandera: "🇪🇺",
-        normativa: "Directiva NIS 2 (Network and Information Security)",
-        enfoque: "Amplía los sectores regulados (salud, energía, transporte, administración pública) y endurece la gobernanza de ciberseguridad en directivos.",
-        sancionesOmision: "Multas de hasta 10 millones de euros o el 2% de la facturación global de la entidad.",
-        leccionParaChile: "La tipificación de delitos informáticos y las multas disuasorias chilenas están alineadas con NIS 2."
-      }
-    ],
-    cuadrosResumen: [
-      { medida: "Notificación de Incidentes", subcategorias: ["I. Alerta temprana en plazo crítico de 24 horas", "II. Reporte técnico detallado a los CSIRT sectoriales", "III. Cooperación transfronteriza ante ciberataques"] },
-      { medida: "Gobernanza Corporativa", subcategorias: ["I. Responsabilidad solidaria del directorio", "II. Auditorías externas de ciberseguridad obligatorias", "III. Planes de contingencia y resiliencia digital"] }
-    ],
-    textosNormativos: [
-      { titulo: "Directiva NIS 2 (UE)", enlace: "https://c.bcn.cl/nis2-ue" }
-    ]
-  },
-  {
-    id: "pensiones",
-    titulo: "Reforma al Sistema de Pensiones y Pilar Solidario",
-    categoria: "Hacienda y Previsión Social",
-    boletinReferencia: "Boletín 15.480-13",
-    supNumero: "Nº SUP: 144501",
-    fechaInforme: "Enero 2025",
-    autor: "Daniela Santana Silva (dasantana@bcn.cl)",
-    comisionDestino: "Comisión de Hacienda y Trabajo del Senado",
-    resumenChile: "Reforma estructural que introduce cotización adicional con cargo al empleador, separación de la industria entre gestión de inversiones y soporte, y fortalecimiento de la Pensión Garantizada Universal (PGU).",
-    documentoAnalisis: {
-      introduccion: "El informe analiza modelos previsionales mixtos en Suecia y Uruguay, enfocándose en la separación de la gestión de fondos y los mecanismos de solidaridad intergeneracional.",
-      aspectosGenerales: "El derecho a la seguridad social es un derecho humano fundamental consagrado en el PIDESC y en la Convención Americana.",
-      comparativaInternacional: "Suecia opera con cuentas nocionales de reparto combinadas con capitalización individual. Uruguay unificó regímenes previsionales en la Ley 20.130.",
-      impactoEstimado: "Impacto macroeconómico en el mercado laboral formal y en la profundidad del mercado de capitales nacional.",
-      conclusionComision: "Se requiere un equilibrio técnico entre la solidaridad intergeneracional y los incentivos al ahorro individual."
-    },
-    paises: [
-      {
-        nombre: "Suecia",
-        bandera: "🇸🇪",
-        normativa: "Inkomstpension & Premiepension System",
-        enfoque: "Sistema mixto de cuentas nocionales de reparto (NDC) combinadas con fondos de capitalización individual obligatorios y fuerte componente redistributivo.",
-        sancionesOmision: "Cotización previsional obligatoria retenida mediante el sistema de impuestos central (Skatteverket).",
-        leccionParaChile: "La separación entre entidades pagadoras y el ente administrador estatal refleja el modelo sueco de eficiencia de costos."
-      },
-      {
-        nombre: "Uruguay",
-        bandera: "🇺🇾",
-        normativa: "Reforma Previsional de la Ley 20.130",
-        enfoque: "Convergencia de regímenes previsionales (BPS, AFAP, policiales y militares) en un sistema único de pilares.",
-        sancionesOmision: "Control de legalidad previsional y fiscalización de aportes patronales.",
-        leccionParaChile: "Uruguay comparte con Chile el desafío demográfico de envejecimiento poblacional acelerado."
-      }
-    ],
-    cuadrosResumen: [
-      { medida: "Separación de Industria", subcategorias: ["I. Licitación centralizada de cartera de afiliados", "II. Ente público autónomo de soporte y cobranza", "III. Reducción de comisiones por economías de escala"] },
-      { medida: "Pilar Solidario", subcategorias: ["I. Financiamiento fiscal progresivo", "II. Garantía de pensión mínima universal", "III. Compensación por brecha de género"] }
-    ],
-    textosNormativos: [
-      { titulo: "Ley 20.130 de Reforma Previsional (Uruguay)", enlace: "https://c.bcn.cl/uruguay-ley20130" }
-    ]
-  }
-];
 
 export interface ResultadoComparado {
   pais: string;
@@ -261,8 +32,8 @@ export interface ResultadoComparado {
   descripcion?: string;
   tipo?: string;
   relevancia?: number;
-  /** oficial = devuelta por la API de la fuente; ia = propuesta por un modelo; respaldo = contenido fijo. */
-  origen?: "oficial" | "ia" | "respaldo";
+  /** oficial = devuelta por la API de la fuente; ia = propuesta por un modelo, sin verificar. */
+  origen?: "oficial" | "ia";
   idOficial?: string;
   consultadoEl?: string;
   verificacionEnlace?: "ok" | "bloqueado" | "no_verificable";
@@ -296,7 +67,8 @@ const CODIGO_PAIS: Record<string, string> = {
   "Francia": "FR", "Alemania": "DE", "Italia": "IT", "Portugal": "PT", "Canadá": "CA",
   "Australia": "AU", "Nueva Zelanda": "NZ", "Suiza": "CH", "Suecia": "SE", "Finlandia": "FI",
   "Noruega": "NO", "Dinamarca": "DK", "Países Bajos": "NL", "Irlanda": "IE", "Polonia": "PL",
-  "Japón": "JP", "Luxemburgo": "LU"
+  "Japón": "JP", "Luxemburgo": "LU", "Austria": "AT", "Estonia": "EE", "Corea del Sur": "KR", "Israel": "IL",
+  "Taiwán": "TW", "Croacia": "HR", "México": "MX", "Perú": "PE"
 };
 
 const BANDERA_PAIS: Record<string, string> = {
@@ -305,20 +77,24 @@ const BANDERA_PAIS: Record<string, string> = {
   "Francia": "🇫🇷", "Alemania": "🇩🇪", "Italia": "🇮🇹", "Portugal": "🇵🇹", "Canadá": "🇨🇦",
   "Australia": "🇦🇺", "Nueva Zelanda": "🇳🇿", "Suiza": "🇨🇭", "Suecia": "🇸🇪", "Finlandia": "🇫🇮",
   "Noruega": "🇳🇴", "Dinamarca": "🇩🇰", "Países Bajos": "🇳🇱", "Irlanda": "🇮🇪", "Polonia": "🇵🇱",
-  "Japón": "🇯🇵", "Luxemburgo": "🇱🇺"
+  "Japón": "🇯🇵", "Luxemburgo": "🇱🇺", "Austria": "🇦🇹", "Estonia": "🇪🇪", "Corea del Sur": "🇰🇷", "Israel": "🇮🇱",
+  "Taiwán": "🇹🇼", "Croacia": "🇭🇷", "México": "🇲🇽", "Perú": "🇵🇪"
 };
+
+/** Jurisdicciones extranjeras con conector a su fuente oficial (ver server/services/fuentesOficialesService.ts). */
+const N_JURISDICCIONES_OFICIALES = 28;
 
 const REGION_MAP: Record<string, string[]> = {
   "Iberoamérica": ["Chile", "España", "Brasil", "Argentina", "Uruguay", "Colombia", "Panamá", "Portugal"],
-  "Unión Europea": ["Unión Europea", "España", "Francia", "Alemania", "Italia", "Portugal", "Polonia", "Suecia", "Finlandia", "Dinamarca", "Países Bajos", "Irlanda", "Luxemburgo"],
-  "OCDE / Global": ["Estados Unidos", "Reino Unido", "Canadá", "Australia", "Nueva Zelanda", "Alemania", "Francia", "Italia", "Suiza", "Noruega", "Japón"],
+  "Unión Europea": ["Unión Europea", "España", "Francia", "Alemania", "Italia", "Portugal", "Polonia", "Suecia", "Finlandia", "Dinamarca", "Países Bajos", "Irlanda", "Luxemburgo", "Austria", "Estonia", "Croacia"],
+  "OCDE / Global": ["Estados Unidos", "Reino Unido", "Canadá", "Australia", "Nueva Zelanda", "Alemania", "Francia", "Italia", "Suiza", "Noruega", "Japón", "Corea del Sur", "Israel", "Austria", "Finlandia", "Dinamarca", "Irlanda", "Estonia", "Suecia", "Países Bajos", "Polonia", "España", "Chile"],
   "Chile": ["Chile"],
   // Agrupaciones por continente -- complementan las agrupaciones temáticas
   // de arriba (Iberoamérica, UE, OCDE), que no cubren "todo un continente"
   // sino bloques político-económicos específicos.
-  "Europa": ["España", "Unión Europea", "Reino Unido", "Francia", "Alemania", "Italia", "Portugal", "Suiza", "Suecia", "Finlandia", "Noruega", "Dinamarca", "Países Bajos", "Irlanda", "Polonia", "Luxemburgo"],
+  "Europa": ["España", "Unión Europea", "Reino Unido", "Francia", "Alemania", "Italia", "Portugal", "Suiza", "Suecia", "Finlandia", "Noruega", "Dinamarca", "Países Bajos", "Irlanda", "Polonia", "Luxemburgo", "Austria", "Estonia", "Croacia"],
   "América": ["Chile", "Estados Unidos", "Brasil", "Argentina", "Uruguay", "Colombia", "México", "Perú", "Panamá", "Canadá"],
-  "Asia-Pacífico": ["Japón", "Australia", "Nueva Zelanda"]
+  "Asia-Pacífico": ["Japón", "Australia", "Nueva Zelanda", "Corea del Sur", "Taiwán", "Israel"]
 };
 
 const TIPO_ESTILO: Record<string, string> = {
@@ -381,7 +157,12 @@ function buildParrafoAutomatico(query: string, resultados: ResultadoComparado[])
   const detallePaises = paises
     .map(([pais, n]) => `${pais} (${n} resultado${n === 1 ? "" : "s"})`)
     .join(", ");
-  return `Se identificaron ${resultados.length} resultado${resultados.length === 1 ? "" : "s"} en ${paises.length} país(es) sobre "${query}": ${detallePaises}. Este resumen se basa en los registros normativos oficiales obtenidos en tiempo real; para conocer el contenido exhaustivo de cada iniciativa es recomendable acceder al documento original en el enlace correspondiente.`;
+  const oficiales = resultados.filter(r => r.origen === "oficial").length;
+  const ia = resultados.length - oficiales;
+  const procedencia = ia === 0
+    ? "Todos provienen de fuentes oficiales consultadas en línea."
+    : `${oficiales} proviene${oficiales === 1 ? "" : "n"} de fuentes oficiales consultadas en línea y ${ia} ${ia === 1 ? "es una propuesta" : "son propuestas"} de IA cuyo enlace fue visitado (sin verificación del contenido).`;
+  return `Se identificaron ${resultados.length} resultado${resultados.length === 1 ? "" : "s"} en ${paises.length} país(es) sobre "${query}": ${detallePaises}. ${procedencia} Para conocer el contenido de cada norma, abra el documento original en su enlace.`;
 }
 
 // Agrupa las fuentes consultadas por tipo de documento (Normativa,
@@ -696,7 +477,7 @@ function exportarAExcel(query: string, resultados: ResultadoComparado[]) {
     "Título Oficial",
     "Fecha Publicación",
     "Fuente Oficial",
-    "Relevancia (%)",
+    "Origen del dato",
     "Enlace Gaceta Oficial",
     "Resumen / Objeto de la Norma"
   ];
@@ -704,11 +485,11 @@ function exportarAExcel(query: string, resultados: ResultadoComparado[]) {
   const rows = resultados.map((r) => [
     `"${(r.pais || "").replace(/"/g, '""')}"`,
     `"${(CODIGO_PAIS[r.pais] || "").replace(/"/g, '""')}"`,
-    `"${(r.tipo || "Ley").replace(/"/g, '""')}"`,
+    `"${(r.tipo || "No informado").replace(/"/g, '""')}"`,
     `"${(r.titulo || "").replace(/"/g, '""')}"`,
     `"${(r.fecha || "N/D").replace(/"/g, '""')}"`,
     `"${(r.fuente || "").replace(/"/g, '""')}"`,
-    `"${r.relevancia ?? 90}"`,
+    `"${r.origen === "oficial" ? "Fuente oficial" : "Propuesta de IA (enlace visitado)"}"`,
     `"${(r.url || "").replace(/"/g, '""')}"`,
     `"${(r.descripcion || "").replace(/"/g, '""')}"`
   ]);
@@ -1315,7 +1096,6 @@ interface LegislacionComparadaViewProps {
 
 export default function LegislacionComparadaView({ setSelectedProyectoId, initialQuery }: LegislacionComparadaViewProps = {}) {
   const [searchTerm, setSearchTerm] = useState<string>("");
-  const [selectedTopicId, setSelectedTopicId] = useState<string>(COMPARATIVE_TOPICS[0].id);
   const [savedReports, setSavedReports] = useState<CustomReport[]>([]);
   const [cargandoCompartidos, setCargandoCompartidos] = useState<boolean>(false);
 
@@ -1350,15 +1130,12 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
     return () => { cancelado = true; };
   }, []);
   const [materiasDestacadasAbiertas, setMateriasDestacadasAbiertas] = useState<boolean>(false);
-  const [dossierEjemplosAbierto, setDossierEjemplosAbierto] = useState<boolean>(false);
   // Diagnóstico técnico de qué proveedor de IA respondió (o falló y por qué) en
   // la última búsqueda -- antes solo se podía ver llamando a la API por curl.
   const [liveAiDiagnostics, setLiveAiDiagnostics] = useState<AIProviderAttempt[]>([]);
   const [diagnosticoAbierto, setDiagnosticoAbierto] = useState<boolean>(false);
-  // Informe Técnico BCN generado en vivo a partir del tema efectivamente buscado
-  // (liveResultados), en vez de depender únicamente del catálogo estático
-  // precargado de COMPARATIVE_TOPICS. Se genera al seleccionar/pedir el informe
-  // desde la pestaña de Búsqueda en Vivo.
+  // Informe Técnico BCN generado en vivo a partir del tema efectivamente buscado (liveResultados).
+  // Se genera al seleccionar/pedir el informe desde la pestaña de Búsqueda en Vivo.
   const [informeLiveMarkdown, setInformeLiveMarkdown] = useState<string | null>(null);
   const [informeLiveQuery, setInformeLiveQuery] = useState<string>("");
   
@@ -1381,6 +1158,9 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
   const [liveEstadoFuentes, setLiveEstadoFuentes] = useState<EstadoFuenteUI[]>([]);
   const [liveDescartadas, setLiveDescartadas] = useState<NormaDescartadaUI[]>([]);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const busquedaActual = useRef(0);
+  // Segundos transcurridos de la búsqueda en curso (la primera del día puede tardar: varias fuentes se descargan completas).
+  const [segundosBusqueda, setSegundosBusqueda] = useState(0);
   const [redactingIdx, setRedactingIdx] = useState<number | null>(null);
 
   // Analysis & inspection
@@ -1436,9 +1216,10 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
   const [historial, setHistorial] = useState<string[]>(() => {
     try {
       const raw = localStorage.getItem("legiscomparada_historial");
-      return raw ? JSON.parse(raw) : ["Inteligencia Artificial", "Ciberseguridad", "Jornada 40 Horas", "Reforma Previsional"];
+      const guardado = raw ? JSON.parse(raw) : [];
+      return Array.isArray(guardado) ? guardado.filter((t) => typeof t === "string") : [];
     } catch {
-      return ["Inteligencia Artificial", "Ciberseguridad", "Jornada 40 Horas"];
+      return [];
     }
   });
 
@@ -1470,25 +1251,25 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
     } catch {}
   };
 
-  // Filter BCN topics by search term (Insensible a tildes y mayúsculas)
-  const matchedBcnTopic = useMemo(() => {
-    if (!searchTerm.trim()) {
-      return COMPARATIVE_TOPICS.find(t => t.id === selectedTopicId) || COMPARATIVE_TOPICS[0];
-    }
-    const term = normalizeSearchText(searchTerm);
-    return COMPARATIVE_TOPICS.find(t => 
-      normalizeSearchText(t.titulo).includes(term) ||
-      normalizeSearchText(t.categoria).includes(term) ||
-      normalizeSearchText(t.boletinReferencia).includes(term)
-    ) || COMPARATIVE_TOPICS.find(t => t.id === selectedTopicId) || COMPARATIVE_TOPICS[0];
-  }, [searchTerm, selectedTopicId]);
-
-  const currentTopic = matchedBcnTopic;
-
   // Execute live search
   const handleBuscarRegulacion = async (term: string, autoSwitchTab = true) => {
     if (!term.trim()) return;
-    let queryClean = term.trim();
+    let queryClean = term.replace(/\s+/g, " ").trim().slice(0, 200);
+    // Cada búsqueda lleva un número: si llega la respuesta de una búsqueda anterior (más lenta), se ignora.
+    const miBusqueda = ++busquedaActual.current;
+    const vigente = () => busquedaActual.current === miBusqueda;
+    // Se limpia lo de la búsqueda anterior para no mostrar sus normas bajo la consulta nueva.
+    setLiveResultados([]);
+    setLiveEstadoFuentes([]);
+    setLiveDescartadas([]);
+    setLiveFuentesFallidas([]);
+    setLiveAiDiagnostics([]);
+    setInformeLiveMarkdown(null);
+    setLeySeleccionada(null);
+    setSearchError(null);
+    setFiltroRegion("Todos");
+    setFiltroPais("Todos");
+    setFiltroTipo("Todos");
 
     // Si se nombra un Boletín (ej. "16777-07" o "Boletín 16.777-07"): se busca la ficha oficial
     // del proyecto y se usa su materia para buscar las normas de otros países; después se cruza
@@ -1504,6 +1285,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
         const rp = await fetch(`/api/proyecto/${encodeURIComponent(mBol[1])}`);
         if (rp.ok) proyectoCruce = await rp.json();
       } catch { /* se informa abajo */ }
+      if (!vigente()) return;
       if (proyectoCruce?.titulo) {
         queryClean = String(proyectoCruce.titulo).replace(/^\s*(proyecto de ley|modifica|establece)\s*[,:]?\s*/i, "$1 ").slice(0, 160).trim();
         setCruceBoletin({ boletin: mBol[1], cargando: true, titulo: proyectoCruce.titulo, iniciativa: proyectoCruce.iniciativa, autores: proyectoCruce.autores, fechaIngreso: proyectoCruce.fechaIngreso, fuentes: [] });
@@ -1529,21 +1311,12 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
       setActiveTab("live");
     }
 
-    // Also match preloaded BCN topic if applicable (Insensible a tildes)
-    const normQ = normalizeSearchText(queryClean);
-    const matched = COMPARATIVE_TOPICS.find(t =>
-      normalizeSearchText(t.titulo).includes(normQ) ||
-      normalizeSearchText(t.categoria).includes(normQ) ||
-      normalizeSearchText(t.boletinReferencia).includes(normQ)
-    );
-    if (matched) {
-      setSelectedTopicId(matched.id);
-    }
-
     try {
       const res = await fetch(`/api/derecho-comparado?q=${encodeURIComponent(queryClean)}`);
+      if (!vigente()) return;
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: { resultados: ResultadoComparado[]; fuentesConsultadas: string[]; fuentesFallidas: string[]; aiDiagnostics?: AIProviderAttempt[]; estadoFuentes?: EstadoFuenteUI[]; descartadas?: NormaDescartadaUI[] } = await res.json();
+      if (!vigente()) return;
       const resultados = data.resultados || [];
       setLiveResultados(resultados);
       setLiveFuentesConsultadas(data.fuentesConsultadas || []);
@@ -1552,8 +1325,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
       setLiveDescartadas(data.descartadas || []);
       setLiveAiDiagnostics(data.aiDiagnostics || []);
 
-      // Genera automáticamente el Informe Técnico BCN del tema efectivamente
-      // buscado (no un dossier precargado desconectado) para que la pestaña
+      // Genera automáticamente el Informe Técnico BCN del tema efectivamente buscado, para que la pestaña
       // esté lista al llegar, sin exigir un clic extra en "Generar Informe".
       if (proyectoCruce?.titulo && mBol) {
         // Fuentes citables: [1] ficha oficial, [2..] moción/mensaje y documentos del expediente, luego las normas.
@@ -1581,8 +1353,8 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
           }),
         })
           .then(r => r.json())
-          .then(resultado => setCruceBoletin(prev => ({ ...(prev as CruceBoletinEstado), cargando: false, fuentes, resultado })))
-          .catch(() => setCruceBoletin(prev => ({ ...(prev as CruceBoletinEstado), cargando: false, fuentes, error: "No se pudo generar el cruce. Reintenta en un minuto." })));
+          .then(resultado => { if (vigente()) setCruceBoletin(prev => ({ ...(prev as CruceBoletinEstado), cargando: false, fuentes, resultado })); })
+          .catch(() => { if (vigente()) setCruceBoletin(prev => ({ ...(prev as CruceBoletinEstado), cargando: false, fuentes, error: "No se pudo generar el cruce. Reintenta en un minuto." })); });
       } else if (soloBoletin) {
         setCruceBoletin(prev => (prev ? { ...prev, cargando: false } : prev));
       }
@@ -1596,13 +1368,24 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
         setInformeLiveQuery("");
       }
     } catch (err) {
+      if (!vigente()) return;
       setCruceBoletin(prev => (prev ? { ...prev, cargando: false, error: prev.error || "No fue posible consultar las normas de otros países para cruzar con el boletín." } : prev));
-      setSearchError("No fue posible consultar algunas fuentes internacionales en tiempo real.");
-      setLiveFuentesFallidas(["Reino Unido", "Brasil", "Suecia", "Nueva Zelanda"]);
+      // No se sabe qué fuentes fallaron: solo se informa que la búsqueda no se completó (no se listan fuentes supuestas).
+      setSearchError(`La búsqueda no se pudo completar (${(err as Error)?.message || "sin conexión con el servidor"}). No se muestran resultados parciales.`);
+      setLiveResultados([]);
+      setInformeLiveMarkdown(null);
+      setInformeLiveQuery("");
     } finally {
-      setLiveLoading(false);
+      if (vigente()) setLiveLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!liveLoading) return;
+    setSegundosBusqueda(0);
+    const t = setInterval(() => setSegundosBusqueda((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, [liveLoading]);
 
   // Si se llega a esta vista con una materia ya definida (ej. desde el banner
   // "¿Cómo regulan esta materia otros 27 países?" de un proyecto de ley),
@@ -1679,6 +1462,8 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
       arr.sort((a, b) => {
         if (a.pais === "Chile" && b.pais !== "Chile") return -1;
         if (b.pais === "Chile" && a.pais !== "Chile") return 1;
+        const oa = a.origen === "oficial" ? 1 : 0, ob = b.origen === "oficial" ? 1 : 0;
+        if (oa !== ob) return ob - oa;
         return (b.relevancia || 0) - (a.relevancia || 0);
       });
     }
@@ -2064,8 +1849,8 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
         </div>
         <div className="z-10 shrink-0 flex items-center gap-3">
           <div className="bg-white/10 backdrop-blur-md border border-white/20 p-4 rounded-xl text-center">
-            <span className="block text-xl font-black text-white font-mono">{liveResultados.length > 0 ? liveResultados.length : COMPARATIVE_TOPICS.length}</span>
-            <span className="text-[10px] text-slate-300 font-bold uppercase tracking-wider">Normas en Memoria</span>
+            <span className="block text-xl font-black text-white font-mono">{liveResultados.length}</span>
+            <span className="text-[10px] text-slate-300 font-bold uppercase tracking-wider">Normas en esta búsqueda</span>
           </div>
         </div>
       </div>
@@ -2086,12 +1871,12 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
           <span className="text-xs text-slate-500 font-medium">
             {liveLoading ? (
               <span className="text-blue-700 flex items-center gap-1.5 font-bold">
-                <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Analizando normativa en Chile y 27 países con IA...
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Consultando Chile y {N_JURISDICCIONES_OFICIALES} fuentes oficiales extranjeras… {segundosBusqueda} s
               </span>
             ) : liveQuery ? (
               <span>Consulta activa: <strong className="text-slate-900">"{liveQuery}"</strong> ({liveResultados.length} resultados)</span>
             ) : (
-              <span>Búsqueda asistida por IA en 28 gacetas y repositorios oficiales</span>
+              <span>LeyChile y {N_JURISDICCIONES_OFICIALES} fuentes oficiales extranjeras; el resto, propuestas de IA con enlace verificado</span>
             )}
           </span>
         </div>
@@ -2109,7 +1894,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && searchTerm.trim()) {
+                if (e.key === 'Enter' && searchTerm.trim() && !liveLoading) {
                   handleBuscarRegulacion(searchTerm);
                 }
               }}
@@ -2139,12 +1924,12 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
             {liveLoading ? (
               <>
                 <RefreshCw className="w-4 h-4 animate-spin" />
-                <span>Analizando con IA...</span>
+                <span>Buscando… {segundosBusqueda} s</span>
               </>
             ) : (
               <>
                 <Sparkles className="w-4 h-4 text-amber-300" />
-                <span>Buscar con IA en 27 Países</span>
+                <span>Buscar en fuentes oficiales</span>
               </>
             )}
           </button>
@@ -2193,6 +1978,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
                 <div
                   key={term}
                   onClick={() => {
+                    if (liveLoading) return;
                     setSearchTerm(term);
                     handleBuscarRegulacion(term);
                   }}
@@ -2265,7 +2051,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
         >
           <FileText className="w-4 h-4" />
           <span>
-            Informe Técnico ({(informeLiveMarkdown && informeLiveQuery === liveQuery ? liveQuery : currentTopic.titulo).slice(0, 35)}...)
+            Informe Técnico{informeLiveMarkdown && informeLiveQuery === liveQuery ? ` (${liveQuery.slice(0, 35)}...)` : ""}
           </span>
         </button>
 
@@ -2297,7 +2083,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
       </div>
       )}
 
-      {/* TAB 1: BÚSQUEDA EN VIVO INTERNACIONAL (19 FUENTES) */}
+      {/* TAB 1: BÚSQUEDA EN VIVO INTERNACIONAL */}
       {liveQuery && activeTab === "live" && (
         <div className="flex flex-col gap-6 animate-fade-in">
 
@@ -2308,46 +2094,76 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
               conocimiento de referencia generica en vez de fallar por completo
               -- pero eso NO es lo mismo que un resultado verificado por IA en
               vivo, y no debe presentarse como si lo fuera. */}
-          {!liveLoading && liveEstadoFuentes.length > 0 && (
-            <div className="border border-slate-200 rounded-xl bg-white px-4 py-3 text-xs flex flex-col gap-2" id="estado-fuentes-oficiales">
-              <p className="font-extrabold text-slate-800 uppercase tracking-wider text-[11px] font-mono">Estado de las fuentes oficiales</p>
-              <ul className="flex flex-col gap-1">
-                {liveEstadoFuentes.map((e, i) => (
-                  <li key={i} className="flex flex-wrap items-baseline gap-x-2">
-                    <span className={e.estado === "ok" ? "text-emerald-700 font-bold" : e.estado === "sin_resultados" ? "text-slate-500 font-bold" : "text-red-700 font-bold"}>
-                      {e.estado === "ok" ? "✓ consultada" : e.estado === "sin_resultados" ? "○ sin resultados" : "✗ no disponible"}
-                    </span>
-                    <span className="font-semibold text-slate-800">{e.jurisdiccion}</span>
-                    <span className="text-slate-500">{e.fuente}</span>
-                    {e.motivo && e.estado !== "ok" && <span className="text-slate-500 italic">— {e.motivo}</span>}
-                  </li>
-                ))}
-              </ul>
-              <p className="text-slate-500">
-                Las demás jurisdicciones no se consultan en fuentes oficiales: sus normas son propuestas por IA y solo se muestran si el enlace fue visitado y responde.
-              </p>
-              {liveDescartadas.length > 0 && (
-                <details className="text-slate-600">
-                  <summary className="cursor-pointer font-semibold text-amber-800">
-                    {liveDescartadas.length} propuesta(s) de IA excluida(s) por enlace roto, ausente o de portada
-                  </summary>
-                  <ul className="mt-1 ml-4 list-disc space-y-0.5">
-                    {liveDescartadas.map((d, i) => (
-                      <li key={i}><span className="font-semibold">{d.pais}</span>: {d.titulo} — {d.motivo}</li>
-                    ))}
-                  </ul>
-                </details>
-              )}
+          {!liveLoading && searchError && (
+            <div className="bg-red-50 border border-red-300 text-red-900 rounded-xl px-4 py-3 flex items-start gap-2.5 text-xs" role="alert">
+              <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="font-bold">No se pudo completar la búsqueda</p>
+                <p className="mt-0.5">{searchError}</p>
+              </div>
+              <button onClick={() => handleBuscarRegulacion(liveQuery)} className="shrink-0 bg-red-700 hover:bg-red-800 text-white font-bold px-3 py-1.5 rounded-lg cursor-pointer">Reintentar</button>
             </div>
           )}
 
-          {!liveLoading && liveResultados.length > 0 && liveFuentesFallidas.some(f => /motor de ia/i.test(f)) && (
+          {!liveLoading && liveEstadoFuentes.length > 0 && (() => {
+            const conResultados = liveEstadoFuentes.filter(e => e.estado === "ok");
+            const sinResultados = liveEstadoFuentes.filter(e => e.estado === "sin_resultados");
+            const caidas = liveEstadoFuentes.filter(e => e.estado === "no_disponible");
+            const fila = (e: EstadoFuenteUI, i: number) => (
+              <li key={i} className="flex flex-wrap items-baseline gap-x-2">
+                <span className={e.estado === "ok" ? "text-emerald-700 font-bold" : e.estado === "sin_resultados" ? "text-slate-500 font-bold" : "text-red-700 font-bold"}>
+                  {e.estado === "ok" ? "✓ con resultados" : e.estado === "sin_resultados" ? "○ sin resultados" : "✗ no disponible"}
+                </span>
+                <span className="font-semibold text-slate-800">{BANDERA_PAIS[e.jurisdiccion] || ""} {e.jurisdiccion}</span>
+                <span className="text-slate-500">{e.fuente}</span>
+                {e.motivo && e.estado !== "ok" && <span className="text-slate-500 italic">— {e.motivo}</span>}
+                {e.consultaUsada && <span className="text-slate-400">· búsqueda: {e.consultaUsada}</span>}
+              </li>
+            );
+            return (
+              <div className="border border-slate-200 rounded-xl bg-white px-4 py-3 text-xs flex flex-col gap-2" id="estado-fuentes-oficiales">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-extrabold text-slate-800 uppercase tracking-wider text-[11px] font-mono mr-1">Fuentes oficiales consultadas: {liveEstadoFuentes.length}</p>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold">{conResultados.length} con resultados</span>
+                  <span className="px-2 py-0.5 rounded-full bg-slate-50 text-slate-600 border border-slate-200 font-bold">{sinResultados.length} sin resultados</span>
+                  <span className={`px-2 py-0.5 rounded-full border font-bold ${caidas.length ? "bg-red-50 text-red-800 border-red-200" : "bg-slate-50 text-slate-600 border-slate-200"}`}>{caidas.length} no disponibles</span>
+                </div>
+                {caidas.length > 0 && (
+                  <details className="text-slate-700">
+                    <summary className="cursor-pointer font-semibold text-red-800">Ver las {caidas.length} fuente(s) que no respondieron (sus países no aparecen en los resultados)</summary>
+                    <ul className="mt-1 flex flex-col gap-1">{caidas.map(fila)}</ul>
+                  </details>
+                )}
+                <details className="text-slate-700">
+                  <summary className="cursor-pointer font-semibold text-slate-700">Ver el detalle de cada fuente y la búsqueda que se usó</summary>
+                  <ul className="mt-1 flex flex-col gap-1">{[...conResultados, ...sinResultados].map(fila)}</ul>
+                </details>
+                <p className="text-slate-500">
+                  Las demás jurisdicciones no se consultan en fuentes oficiales: sus normas son propuestas por IA y solo se muestran si el enlace fue visitado y responde.
+                </p>
+                {liveDescartadas.length > 0 && (
+                  <details className="text-slate-600">
+                    <summary className="cursor-pointer font-semibold text-amber-800">
+                      {liveDescartadas.length} propuesta(s) de IA excluida(s) por enlace roto, ausente o de portada
+                    </summary>
+                    <ul className="mt-1 ml-4 list-disc space-y-0.5">
+                      {liveDescartadas.map((d, i) => (
+                        <li key={i}><span className="font-semibold">{d.pais}</span>: {d.titulo} — {d.motivo}</li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+              </div>
+            );
+          })()}
+
+          {!liveLoading && !searchError && liveFuentesFallidas.some(f => /motor de ia/i.test(f)) && (
             <div className="bg-amber-50 border border-amber-300 text-amber-900 rounded-xl px-4 py-3 flex items-start gap-2.5 text-xs">
               <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
               <div>
-                <p className="font-bold">Resultado de referencia, no verificado por IA en este momento</p>
+                <p className="font-bold">El motor de IA no respondió en esta búsqueda</p>
                 <p className="text-amber-800/90 mt-0.5">
-                  El motor de IA no respondió (saturación temporal o límite de cuota). Estos resultados provienen de una base de conocimiento general de referencia, no de una consulta en vivo verificada — trátalos como punto de partida, no como cita definitiva. Vuelve a intentar la búsqueda en unos minutos.
+                  Solo se muestran las normas de Chile y de las fuentes oficiales. Los países sin fuente oficial conectada no aparecen esta vez; puede reintentar en unos minutos.
                 </p>
               </div>
             </div>
@@ -2396,7 +2212,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
           {liveLoading ? (
             <div className="bg-slate-50 border-l-4 border-blue-700 p-5 rounded-r-2xl border border-slate-200 flex items-center gap-3">
               <RefreshCw className="w-4 h-4 text-blue-700 animate-spin shrink-0" />
-              <span className="text-xs text-slate-600 font-bold">Buscando "{liveQuery}" en Chile y las jurisdicciones internacionales...</span>
+              <span className="text-xs text-slate-600 font-bold">Buscando "{liveQuery}" en LeyChile y {N_JURISDICCIONES_OFICIALES} fuentes oficiales extranjeras… {segundosBusqueda} s</span>
             </div>
           ) : (
             <div className="bg-slate-50 border-l-4 border-blue-700 p-5 rounded-r-2xl border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -2406,7 +2222,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
                     Materia: {liveQuery}
                   </span>
                   <span className="text-xs text-slate-500 font-mono">
-                    {paisesDisponibles.length} países con resultados · {liveResultados.length} normativas oficiales
+                    {paisesDisponibles.length} países con resultados · {liveResultados.filter(r => r.origen === "oficial").length} de fuente oficial · {liveResultados.filter(r => r.origen !== "oficial").length} propuestas de IA
                   </span>
                 </div>
                 <p className="text-xs text-slate-700 leading-relaxed font-medium">
@@ -2443,7 +2259,8 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
             </div>
           )}
 
-          {/* Filter & Sorting Controls */}
+          {/* Filter & Sorting Controls (solo cuando hay algo que filtrar) */}
+          {!liveLoading && liveResultados.length > 0 && (
           <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex flex-col gap-4">
             
             {/* Top row filters */}
@@ -2487,7 +2304,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
                   onChange={(e) => { setOrden(e.target.value as typeof orden); setPaginaResultados(1); }}
                   className="text-xs font-semibold bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-slate-700 cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-600"
                 >
-                  <option value="relevancia">Mayor Relevancia</option>
+                  <option value="relevancia">Chile y fuentes oficiales primero</option>
                   <option value="fecha-desc">Más reciente</option>
                   <option value="fecha-asc">Más antigua</option>
                   <option value="pais">País (A-Z)</option>
@@ -2500,7 +2317,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                 Tipo de norma:
               </span>
-              {["Todos", "Ley", "Reglamento", "Jurisprudencia", "Administrativo", "Documento"].map((tipo) => (
+              {["Todos", ...tiposDisponibles].map((tipo) => (
                 <button
                   key={tipo}
                   onClick={() => { setFiltroTipo(tipo); setPaginaResultados(1); }}
@@ -2519,6 +2336,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
               </span>
             </div>
           </div>
+          )}
 
           {/* Floating Comparison Action Bar */}
           {seleccionComparar.length > 0 && (
@@ -2559,9 +2377,10 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
             <div className="bg-white p-12 rounded-2xl border border-slate-200 flex flex-col items-center justify-center gap-4 text-center">
               <RefreshCw className="w-8 h-8 text-blue-700 animate-spin" />
               <div className="flex flex-col gap-1">
-                <h3 className="text-sm font-bold text-slate-900">Consultando gacetas legislativas internacionales en paralelo...</h3>
-                <p className="text-xs text-slate-500">
-                  Conectando con LeyChile, BOE (España), CELLAR EUR-Lex (UE), Dados Abertos (Brasil), Legislation.gov.uk, Oireachtas (Irlanda), Stortinget (Noruega) y 12 fuentes más.
+                <h3 className="text-sm font-bold text-slate-900">Consultando las fuentes oficiales en paralelo… {segundosBusqueda} s</h3>
+                <p className="text-xs text-slate-500 max-w-xl">
+                  LeyChile y {N_JURISDICCIONES_OFICIALES} fuentes oficiales extranjeras (Unión Europea, España, Reino Unido, Alemania, Francia, Brasil, Japón y otras).
+                  La primera búsqueda del día puede tardar hasta un minuto, porque algunas fuentes se descargan completas; las siguientes son más rápidas.
                 </p>
               </div>
             </div>
@@ -2571,6 +2390,15 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
               <h3 className="text-sm font-bold text-slate-800">Ingrese un concepto para iniciar la búsqueda</h3>
               <p className="text-xs text-slate-500 max-w-md">
                 Escriba una materia, ley internacional o número de boletín (ej. hidrógeno verde, neuroderechos, teletrabajo, ciberseguridad) y presione Enter o el botón de búsqueda.
+              </p>
+            </div>
+          ) : searchError ? null : liveResultados.length === 0 ? (
+            <div className="bg-white p-12 rounded-2xl border border-slate-200 text-center flex flex-col items-center justify-center gap-3">
+              <BookOpen className="w-8 h-8 text-slate-300" />
+              <h3 className="text-sm font-bold text-slate-800">Ninguna fuente devolvió normas para "{liveQuery}"</h3>
+              <p className="text-xs text-slate-500 max-w-md">
+                Pruebe con un término más corto o más general (por ejemplo "protección de datos" en vez de una frase larga).
+                Las fuentes extranjeras buscan la palabra traducida en el título de la norma. Arriba puede revisar qué respondió cada fuente.
               </p>
             </div>
           ) : liveResultadosFiltrados.length === 0 ? (
@@ -2596,7 +2424,6 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
                 const codigo = CODIGO_PAIS[r.pais] || r.pais.slice(0, 2).toUpperCase();
                 const bandera = BANDERA_PAIS[r.pais] || "🌐";
                 const tipo = r.tipo || "Documento";
-                const relevancia = r.relevancia ?? 0;
 
                 return (
                   <div
@@ -2624,7 +2451,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
                                 className={`self-start mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wide ${r.origen === "oficial" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-amber-50 text-amber-800 border border-amber-200"}`}
                                 title={r.origen === "oficial" ? `Obtenida de la API oficial${r.idOficial ? ` · ${r.idOficial}` : ""}${r.consultadoEl ? ` · consultada ${new Date(r.consultadoEl).toLocaleString("es-CL")}` : ""}` : r.verificacionEnlace && r.verificacionEnlace !== "ok" ? "Propuesta por IA; el sitio bloquea la comprobación automática del enlace" : "Propuesta por IA: el enlace respondió, pero el contenido no fue contrastado"}
                               >
-                                {r.origen === "oficial" ? "Fuente oficial" : r.origen === "respaldo" ? "Respaldo · sin verificar" : r.verificacionEnlace && r.verificacionEnlace !== "ok" ? "IA · enlace no verificable" : "IA · enlace verificado"}
+                                {r.origen === "oficial" ? "Fuente oficial" : r.verificacionEnlace && r.verificacionEnlace !== "ok" ? "IA · enlace no verificable" : "IA · enlace verificado"}
                               </span>
                             )}
                           </div>
@@ -2683,12 +2510,6 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
                           {r.fecha && (
                             <span className="text-[10px] text-slate-400 font-mono">{r.fecha}</span>
                           )}
-                          <span className="flex items-center gap-1 font-mono font-bold">
-                            <span className="text-[9px] text-slate-400 uppercase">Rel:</span>
-                            <span className={`text-[11px] ${relevancia >= 80 ? "text-emerald-700" : relevancia >= 50 ? "text-blue-700" : "text-slate-500"}`}>
-                              {relevancia}%
-                            </span>
-                          </span>
                         </div>
                       </div>
 
@@ -2713,7 +2534,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
                             rel="noreferrer"
                             className="text-[11px] font-semibold text-slate-500 hover:text-slate-900 flex items-center gap-1"
                           >
-                            <span>Gaceta Oficial</span>
+                            <span>{r.origen === "oficial" ? "Fuente oficial" : "Abrir enlace"}</span>
                             <ExternalLink className="w-3 h-3" />
                           </a>
                         )}
@@ -2794,8 +2615,7 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
       {/* TAB 2: INFORME OFICIAL BCN (ESTRUCTURA TÉCNICA PARLAMENTARIA) */}
       {activeTab === "documento" && (
         <div className="flex flex-col gap-6 animate-fade-in">
-          {/* Informe Técnico BCN generado EN VIVO a partir de la búsqueda real
-              (no del catálogo estático de ejemplo de más abajo). Solo se muestra
+          {/* Informe Técnico BCN generado EN VIVO a partir de la búsqueda real. Solo se muestra
               si corresponde a la consulta actualmente activa. */}
           {informeLiveMarkdown && informeLiveQuery === liveQuery && (
             <div className="bg-white rounded-2xl border-2 border-blue-200 shadow-sm overflow-hidden">
@@ -2845,248 +2665,17 @@ export default function LegislacionComparadaView({ setSelectedProyectoId, initia
             </div>
           )}
 
-        {/* El catálogo de ejemplos precargados es solo referencia ilustrativa, sin
-            relación con la búsqueda del usuario -- se pliega por defecto para no
-            competir en atención con el informe real generado arriba. */}
-        <button
-          type="button"
-          onClick={() => setDossierEjemplosAbierto(v => !v)}
-          className="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider hover:text-slate-600 cursor-pointer w-fit"
-        >
-          <span>Dossiers Oficiales BCN (Ejemplos Precargados)</span>
-          <ChevronDown className={`w-3.5 h-3.5 transition-transform ${dossierEjemplosAbierto ? "rotate-180" : ""}`} />
-        </button>
-
-        {dossierEjemplosAbierto && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col font-sans">
-
-          {/* Topic Selector Pills */}
-          <div className="bg-slate-50 p-4 border-b border-slate-200 flex flex-wrap items-center gap-2">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-2">
-              Dossiers Oficiales BCN (Ejemplos Precargados):
-            </span>
-            {COMPARATIVE_TOPICS.map((topic) => {
-              const isSelected = topic.id === currentTopic.id;
-              return (
-                <button
-                  key={topic.id}
-                  onClick={() => setSelectedTopicId(topic.id)}
-                  className={`text-xs font-bold px-3 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-2 border ${
-                    isSelected
-                      ? "bg-blue-700 text-white border-blue-700 shadow-xs"
-                      : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
-                  }`}
-                >
-                  <span>{topic.titulo}</span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${isSelected ? "bg-blue-800 text-white" : "bg-slate-100 text-slate-600"}`}>
-                    {topic.boletinReferencia}
-                  </span>
-                </button>
-              );
-            })}
+        {!(informeLiveMarkdown && informeLiveQuery === liveQuery) && (
+          <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
+            Aún no hay un informe para esta consulta. Busque una materia y genere el informe técnico: se redacta solo con las normas
+            obtenidas de las fuentes consultadas.
           </div>
-
-          {/* BCN Official Header */}
-          <div className="bg-blue-700 text-white px-8 py-3 flex items-center justify-between text-xs font-mono font-bold tracking-wider">
-            <span>BIBLIOTECA DEL CONGRESO NACIONAL DE CHILE | Asesoría Técnica Parlamentaria</span>
-            <span>{currentTopic.fechaInforme}</span>
-          </div>
-
-          <div className="p-8 md:p-12 flex flex-col gap-8">
-            {/* Title & Metadata */}
-            <div className="flex flex-col gap-3 border-b border-slate-200 pb-6">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="bg-slate-100 text-slate-800 font-bold px-2.5 py-1 text-[11px] font-mono rounded border border-slate-200">
-                  {currentTopic.boletinReferencia}
-                </span>
-                <span className="bg-blue-50 text-blue-800 font-bold px-2.5 py-1 text-[11px] font-mono rounded border border-blue-100">
-                  {currentTopic.supNumero}
-                </span>
-                <span className="text-xs text-slate-500 font-medium ml-auto">
-                  Comisión: {currentTopic.comisionDestino}
-                </span>
-              </div>
-              
-              <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
-                {currentTopic.titulo}
-              </h2>
-              
-              <div className="flex flex-wrap items-center gap-6 text-xs text-slate-600 pt-2 font-medium">
-                <div><span className="font-bold text-slate-900">Autor:</span> {currentTopic.autor}</div>
-                <div><span className="font-bold text-slate-900">Materia:</span> {currentTopic.categoria}</div>
-              </div>
-
-              <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
-                <ExportToolbar
-                  query={currentTopic.titulo}
-                  resultados={currentTopic.paises.map(p => ({
-                    pais: p.nombre,
-                    fuente: `BCN SUP N° ${currentTopic.supNumero}`,
-                    titulo: p.normativa,
-                    descripcion: `Enfoque: ${p.enfoque}. Sanciones: ${p.sancionesOmision}. Lección para Chile: ${p.leccionParaChile}`,
-                    tipo: "Ley"
-                  }))}
-                  parrafoAuto={currentTopic.resumenChile}
-                  redaccionIA={currentTopic.documentoAnalisis.conclusionComision}
-                  onNotify={(msg) => {
-                    setSuccessMessage(msg);
-                    setTimeout(() => setSuccessMessage(null), 3500);
-                  }}
-                  label="Exportar Informe BCN:"
-                />
-              </div>
-            </div>
-
-            {/* Resumen Box */}
-            <div className="bg-slate-50 border-l-4 border-blue-700 p-6 rounded-r-xl flex flex-col gap-2">
-              <h3 className="text-xs font-extrabold text-blue-900 uppercase tracking-widest font-mono">
-                Resumen Ejecutivo
-              </h3>
-              <p className="text-xs md:text-sm text-slate-700 leading-relaxed font-medium">
-                {currentTopic.resumenChile}
-              </p>
-            </div>
-
-            {/* Introducción */}
-            <div className="flex flex-col gap-2">
-              <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider font-mono border-b border-slate-200 pb-2">
-                Introducción
-              </h3>
-              <p className="text-xs md:text-sm text-slate-700 leading-relaxed">
-                {currentTopic.documentoAnalisis.introduccion}
-              </p>
-            </div>
-
-            {/* I. Aspectos Generales */}
-            <div className="flex flex-col gap-2">
-              <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider font-mono border-b border-slate-200 pb-2">
-                I. Aspectos Generales y Marco Doctrinal
-              </h3>
-              <p className="text-xs md:text-sm text-slate-700 leading-relaxed">
-                {currentTopic.documentoAnalisis.aspectosGenerales}
-              </p>
-            </div>
-
-            {/* II. Referencias de Derecho Comparado */}
-            <div className="flex flex-col gap-2">
-              <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider font-mono border-b border-slate-200 pb-2">
-                II. Experiencia y Legislación Comparada Internacional
-              </h3>
-              <p className="text-xs md:text-sm text-slate-700 leading-relaxed">
-                {currentTopic.documentoAnalisis.comparativaInternacional}
-              </p>
-            </div>
-
-            {/* III. Fichas por País */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-              {currentTopic.paises.map((p, idx) => (
-                <div key={idx} className="bg-slate-50 border border-slate-200 rounded-xl p-5 flex flex-col gap-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl">{p.bandera}</span>
-                    <div>
-                      <h4 className="text-sm font-bold text-slate-900">{p.nombre}</h4>
-                      <span className="text-[10px] text-blue-700 font-mono font-bold">{p.normativa}</span>
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-1 text-xs text-slate-600">
-                    <strong className="text-slate-800 text-[10px] uppercase">Enfoque:</strong>
-                    <p className="leading-relaxed">{p.enfoque}</p>
-                  </div>
-                  <div className="flex flex-col gap-1 text-xs bg-blue-50/70 p-3 rounded-lg border border-blue-100 text-blue-950 mt-auto">
-                    <strong className="text-blue-900 text-[10px] uppercase flex items-center gap-1">
-                      <CheckCircle className="w-3 h-3 text-blue-700" /> Lección para Chile:
-                    </strong>
-                    <p className="leading-relaxed font-semibold">{p.leccionParaChile}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* IV. Cuadro Resumen de Medidas y Subcategorías */}
-            <div className="flex flex-col gap-4">
-              <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider font-mono border-b border-slate-200 pb-2">
-                Cuadro Síntesis. Medidas y Subcategorías Normativas
-              </h3>
-              <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-slate-900 text-white text-xs font-mono uppercase">
-                      <th className="p-4 w-1/3 border-r border-slate-800">Medida / Categoría</th>
-                      <th className="p-4 w-2/3">Subcategorías y Componentes Regulatorios</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 text-xs">
-                    {currentTopic.cuadrosResumen.map((cuadro, idx) => (
-                      <tr key={idx} className={idx % 2 === 0 ? "bg-white" : "bg-slate-50/70"}>
-                        <td className="p-4 font-bold text-slate-900 border-r border-slate-200 align-top">
-                          {cuadro.medida}
-                        </td>
-                        <td className="p-4 text-slate-700 align-top">
-                          <ul className="flex flex-col gap-1.5">
-                            {cuadro.subcategorias.map((sub, sIdx) => (
-                              <li key={sIdx} className="flex items-start gap-2">
-                                <span className="text-blue-700 font-bold">•</span>
-                                <span>{sub}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* V. Impacto y Conclusiones */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
-              <div className="bg-slate-50 border border-slate-200 p-5 rounded-xl flex flex-col gap-2">
-                <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider font-mono">
-                  Impacto Estimado en Sectores Clave
-                </h4>
-                <p className="text-xs text-slate-700 leading-relaxed">
-                  {currentTopic.documentoAnalisis.impactoEstimado}
-                </p>
-              </div>
-
-              <div className="bg-slate-50 border border-slate-200 p-5 rounded-xl flex flex-col gap-2">
-                <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider font-mono">
-                  Conclusiones y Recomendaciones para la Comisión
-                </h4>
-                <p className="text-xs text-slate-700 leading-relaxed">
-                  {currentTopic.documentoAnalisis.conclusionComision}
-                </p>
-              </div>
-            </div>
-
-            {/* VI. Textos Normativos y Referencias */}
-            <div className="flex flex-col gap-3 border-t border-slate-200 pt-6">
-              <h3 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider font-mono">
-                Textos Normativos y Enlaces de Referencia BCN
-              </h3>
-              <ul className="flex flex-col gap-2">
-                {currentTopic.textosNormativos.map((norma, idx) => (
-                  <li key={idx} className="flex items-center gap-2 text-xs">
-                    <ExternalLink className="w-3.5 h-3.5 text-blue-700 shrink-0" />
-                    <span className="font-bold text-slate-800">{norma.titulo}:</span>
-                    <a href={norma.enlace} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline font-mono">
-                      {norma.enlace}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-          </div>
-        </div>
         )}
         </div>
       )}
 
-      {/* TAB 4: COMPARADOR MULTIPAÍS LADO A LADO (incluye vista de matriz dinámica
-          real y fichas lado a lado -- reemplaza a la antigua pestaña "Matriz
-          Comparada Multidimensional", que solo mostraba datos de ejemplo fijos
-          sin relación con la búsqueda ni la selección del usuario). */}
+      {/* TAB 4: COMPARADOR MULTIPAÍS LADO A LADO (vista de matriz dinámica real y fichas lado a lado,
+          siempre a partir de las normas buscadas y seleccionadas). */}
       {activeTab === "comparador" && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col gap-6 animate-fade-in">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">

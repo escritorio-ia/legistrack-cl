@@ -11,7 +11,11 @@ import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 
-for (const k of ["GEMINI_API_KEY", "OPENROUTER_API_KEY", "CEREBRAS_API_KEY", "GROQ_API_KEY", "ANTHROPIC_API_KEY"]) delete process.env[k];
+for (const k of ["GEMINI_API_KEY", "GEMINI_VIDEO_API_KEY", "OPENROUTER_API_KEY", "CEREBRAS_API_KEY", "GROQ_API_KEY", "ANTHROPIC_API_KEY", "LEGIFRANCE_CLIENT_ID", "LEGIFRANCE_CLIENT_SECRET", "CONGRESS_API_KEY"]) delete process.env[k];
+
+// buscarFuentesOficiales consulta 29 fuentes; estas pruebas solo simulan UE, España y Reino Unido (las demás: tests/fuentesOficialesNuevos.test.ts).
+const TRES = ["Unión Europea", "España", "Reino Unido"];
+const estadosDeLasTres = (es: Array<{ jurisdiccion: string; estado: string }>) => TRES.map((j) => es.find((e) => e.jurisdiccion === j)?.estado);
 
 const dir = join(process.cwd(), "tests", "fixtures");
 const fx = (n: string) => readFileSync(join(dir, n), "utf8");
@@ -36,7 +40,7 @@ test("las tres fuentes responden: normas oficiales con identificador, sin IA", a
     [/legislation\.gov\.uk\/search\/data\.feed/, () => xml(fx("uk_atom.xml"))],
   ]);
   const r = await buscarFuentesOficiales("seguridad de las redes");
-  assert.deepEqual(r.estados.map((e) => e.estado), ["ok", "ok", "ok"]);
+  assert.deepEqual(estadosDeLasTres(r.estados), ["ok", "ok", "ok"]);
   assert.ok(r.normas.every((n) => n.origen === "oficial" && n.idOficial && n.url.startsWith("https://")));
   const ue = r.normas.filter((n) => n.pais === "Unión Europea");
   assert.deepEqual(ue.map((n) => n.idOficial), ["32017D0179", "32016L1148"], "descarta CELEX preparatorios (5…) y ordena por fecha");
@@ -68,7 +72,7 @@ test("respuesta vacía del BOE = sin_resultados", async () => {
     [/legislation\.gov\.uk/, () => xml('<feed xmlns="http://www.w3.org/2005/Atom"></feed>')],
   ]);
   const r = await buscarFuentesOficiales("tema sin resultados xyzw");
-  assert.deepEqual(r.estados.map((e) => e.estado), ["sin_resultados", "sin_resultados", "sin_resultados"]);
+  assert.deepEqual(estadosDeLasTres(r.estados), ["sin_resultados", "sin_resultados", "sin_resultados"]);
   assert.equal(r.normas.length, 0);
 });
 

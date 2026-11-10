@@ -1,0 +1,42 @@
+{
+  "head": {
+    "vars": [
+      "act",
+      "title"
+    ]
+  },
+  "results": {
+    "bindings": [
+      {
+        "act": {
+          "type": "uri",
+          "value": "http://data.legilux.public.lu/eli/etat/leg/loi/2002/08/02/n9/jo"
+        },
+        "title": {
+          "type": "literal",
+          "value": "Loi du 2 août 2002 relative à la protection des données (ficticio)"
+        }
+      },
+      {
+        "act": {
+          "type": "uri",
+          "value": "http://data.legilux.public.lu/eli/etat/leg/loi/2018/08/01/a999/jo"
+        },
+        "title": {
+          "type": "literal",
+          "value": "Loi du 1er août 2018 portant organisation de la protection des données (ficticio)\\n"
+        }
+      },
+      {
+        "act": {
+          "type": "uri",
+          "value": "http://data.legilux.public.lu/eli/etat/leg/rgd/2018/08/01/a998/jo"
+        },
+        "title": {
+          "type": "literal",
+          "value": "Règlement grand-ducal: se descarta (ficticio)"
+        }
+      }
+    ]
+  }
+}

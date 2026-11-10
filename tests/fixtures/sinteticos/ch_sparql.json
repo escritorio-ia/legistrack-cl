@@ -1,0 +1,52 @@
+{
+  "head": {
+    "vars": [
+      "act",
+      "title"
+    ]
+  },
+  "results": {
+    "bindings": [
+      {
+        "act": {
+          "type": "uri",
+          "value": "https://fedlex.data.admin.ch/eli/cc/2099/2"
+        },
+        "title": {
+          "type": "literal",
+          "value": "Ordonnance sur la protection des données (ficticio)"
+        }
+      },
+      {
+        "act": {
+          "type": "uri",
+          "value": "https://fedlex.data.admin.ch/eli/cc/2099/1"
+        },
+        "title": {
+          "type": "literal",
+          "value": "Loi fédérale sur la protection des données (ficticio)"
+        }
+      },
+      {
+        "act": {
+          "type": "uri",
+          "value": "https://fedlex.data.admin.ch/eli/cc/2099/1"
+        },
+        "title": {
+          "type": "literal",
+          "value": "Loi fédérale sur la protection des données (ficticio)"
+        }
+      },
+      {
+        "act": {
+          "type": "uri",
+          "value": "https://fedlex.data.admin.ch/eli/oc/2099/3"
+        },
+        "title": {
+          "type": "literal",
+          "value": "Loi publiée au RO, no consolidada: se descarta (ficticio)"
+        }
+      }
+    ]
+  }
+}

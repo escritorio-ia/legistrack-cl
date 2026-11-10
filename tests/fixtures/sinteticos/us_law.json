@@ -1,0 +1,42 @@
+{
+  "bills": [
+    {
+      "congress": 119,
+      "type": "HR",
+      "number": "9001",
+      "title": "Example Consumer Data Protection Act (ficticio)",
+      "latestAction": {
+        "actionDate": "2026-03-01",
+        "text": "Became Public Law No: 119-901 (ficticio)."
+      }
+    },
+    {
+      "congress": 119,
+      "type": "S",
+      "number": "9002",
+      "title": "Example Data Protection Improvement Act (ficticio)",
+      "latestAction": {
+        "actionDate": "2026-06-15",
+        "text": "Became Public Law No: 119-902 (ficticio)."
+      }
+    },
+    {
+      "congress": 119,
+      "type": "HR",
+      "number": "9003",
+      "title": "Unrelated Highways Act (ficticio)",
+      "latestAction": {
+        "actionDate": "2026-07-01"
+      }
+    },
+    {
+      "congress": 119,
+      "type": "HRES",
+      "number": "9004",
+      "title": "Data Protection Resolution: tipo no admitido (ficticio)",
+      "latestAction": {
+        "actionDate": "2026-08-01"
+      }
+    }
+  ]
+}
