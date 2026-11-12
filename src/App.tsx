@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.5
  */
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
 import DashboardView from "./views/DashboardView";
@@ -156,6 +156,9 @@ export default function App() {
         else window.location.hash = "#/escritorio";
       } else if (rawHash === "configuracion" || rawHash === "settings") {
         setView("configuracion");
+      } else {
+        // Dirección desconocida (enlace antiguo o mal escrito): se vuelve al inicio en vez de dejar la pantalla anterior.
+        window.location.hash = "#/escritorio";
       }
     };
 
@@ -168,6 +171,40 @@ export default function App() {
     window.addEventListener("hashchange", handleHashChange);
     return () => window.removeEventListener("hashchange", handleHashChange);
   }, []);
+
+  // Al cambiar de sección o abrir otro proyecto/comisión se vuelve al inicio de la página
+  // (antes se quedaba a media página, en la posición de la vista anterior).
+  useEffect(() => {
+    window.scrollTo({ top: 0 });
+  }, [view, selectedProyectoId, selectedComisionId]);
+
+  // Nombre de lo que se está viendo, para la ruta de navegación y el título de la pestaña del navegador.
+  const detalleActual = useMemo(() => {
+    if (view === "proyecto-detail") return `Boletín ${selectedProyectoId}`;
+    if (view === "comision-detail") {
+      // El prefijo indica la cámara (hay comisiones con el mismo identificador en ambas, p. ej. Hacienda).
+      const esSenado = /^(senado|sen|sr)-/.test(selectedComisionId);
+      const id = selectedComisionId.replace(/^(cd|senado|sen|sr)-/, "");
+      const c = (esSenado ? SENADO_COMISIONES : DIPUTADOS_COMISIONES).find((x: any) => x.id === id);
+      return c ? `${c.nombre} (${esSenado ? "Senado" : "Cámara"})` : "Comisión";
+    }
+    return "";
+  }, [view, selectedProyectoId, selectedComisionId]);
+
+  useEffect(() => {
+    const TITULOS: Record<string, string> = {
+      escritorio: "Escritorio++", dashboard: "Legislación++", proyectos: "Proyectos", comisiones: "Comisiones", sala: "Sala en Vivo",
+      alertas: "Alertas", "legislacion-comparada": "Derecho Comparado", static: "Statistics++", pizarra: "Pizarra ATP",
+      configuracion: "Configuración", "search-results": "Búsqueda",
+    };
+    const nombre = detalleActual || TITULOS[view] || "";
+    document.title = nombre ? `${nombre} · Legislación++` : "Legislación++";
+  }, [view, detalleActual]);
+
+  const irATabComisiones = (tab: "directorio" | "citaciones" | "seguidas" | "graficas") => {
+    setCommActiveTab(tab);
+    window.location.hash = `#/comisiones?tab=${tab}`;
+  };
 
   // Refs sincronizadas: el patrón setSelectedX(id); setView("x-detail") llama dos veces a
   // navigateView en el mismo tick y la segunda leía el id viejo del estado (abría otra comisión/proyecto).
@@ -220,18 +257,20 @@ export default function App() {
   const [followedComs, setFollowedComs] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem("followedComs");
-      return saved ? JSON.parse(saved) : ["Comisión de Trabajo y Previsión Social", "Comisión de Hacienda"];
+      const v = saved ? JSON.parse(saved) : [];
+      return Array.isArray(v) ? v : [];
     } catch {
-      return ["Comisión de Trabajo y Previsión Social", "Comisión de Hacienda"];
+      return [];
     }
   });
 
   const [followedProys, setFollowedProys] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem("followedProys");
-      return saved ? JSON.parse(saved) : ["16.621-13"];
+      const v = saved ? JSON.parse(saved) : [];
+      return Array.isArray(v) ? v : [];
     } catch {
-      return ["16.621-13"];
+      return [];
     }
   });
 
@@ -300,6 +339,7 @@ export default function App() {
         activeAlertsCount={activeAlertsCount}
         setSelectedProyectoId={(id) => navigateView("proyecto-detail", id)}
         setSelectedComisionId={(id) => navigateView("comision-detail", id)}
+        detalleActual={detalleActual}
       />
 
       {/* Main Content Area */}
@@ -404,7 +444,7 @@ export default function App() {
                 {/* Primary Sub-Tabs */}
                 <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1 rounded-2xl border border-slate-200">
                   <button
-                    onClick={() => setCommActiveTab("directorio")}
+                    onClick={() => irATabComisiones("directorio")}
                     className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
                       commActiveTab === "directorio"
                         ? "bg-white text-slate-900 shadow-sm border border-slate-200"
@@ -421,7 +461,7 @@ export default function App() {
                   </button>
 
                   <button
-                    onClick={() => setCommActiveTab("citaciones")}
+                    onClick={() => irATabComisiones("citaciones")}
                     className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
                       commActiveTab === "citaciones"
                         ? "bg-amber-500 text-slate-950 shadow-sm border border-amber-400 font-extrabold"
@@ -429,11 +469,11 @@ export default function App() {
                     }`}
                   >
                     <Calendar className="w-3.5 h-3.5" />
-                    <span>Citaciones Semanales en Vivo</span>
+                    <span>Citaciones de la Semana</span>
                   </button>
 
                   <button
-                    onClick={() => setCommActiveTab("seguidas")}
+                    onClick={() => irATabComisiones("seguidas")}
                     className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
                       commActiveTab === "seguidas"
                         ? "bg-indigo-600 text-white shadow-sm border border-indigo-500"
@@ -450,7 +490,7 @@ export default function App() {
                   </button>
 
                   <button
-                    onClick={() => setCommActiveTab("graficas")}
+                    onClick={() => irATabComisiones("graficas")}
                     className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
                       commActiveTab === "graficas"
                         ? "bg-emerald-600 text-white shadow-sm border border-emerald-500"

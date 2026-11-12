@@ -1,64 +1,597 @@
 // server/vercelHandler.ts
 import express from "express";
 
-// server/services/resumenSesionService.ts
-var vacio = (s) => {
-  const t = String(s ?? "").replace(/\s+/g, " ").trim();
-  return !t || /^(null|undefined|n\/?a|-+)$/i.test(t) ? null : t;
-};
-var lista = (s) => String(s ?? "").split(/[;\n]+/).map((x) => x.replace(/\s+/g, " ").trim()).filter((x) => x && !/^(null|undefined)$/i.test(x));
-var unicos = (xs) => {
-  const vistos = /* @__PURE__ */ new Set();
-  return xs.filter((x) => {
-    const k = x.toLowerCase();
-    if (vistos.has(k)) return false;
-    vistos.add(k);
-    return true;
-  });
-};
-var minutos = (h) => {
-  const m = /^(\d{1,2}):(\d{2})/.exec(String(h ?? "").trim());
-  return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : null;
-};
-function construirResumenSesion(det) {
-  const fuente = "Registro oficial de la sesi\xF3n en senado.cl";
-  if (!det?.disponible) {
-    return { disponible: false, motivo: det?.motivo || "Detalle de la sesi\xF3n no disponible.", url: det?.url, asistentes: [], invitados: [], boletines: [], puntos: [], presentaciones: [], fuente };
+// server/services/cacheService.ts
+var CacheService = class _CacheService {
+  constructor() {
+    this.cache = /* @__PURE__ */ new Map();
+    this.hits = 0;
+    this.misses = 0;
   }
-  const puntos = (det.puntos || []).map((p) => {
-    const acu = vacio(p.acuerdos);
+  get(key) {
+    const entry = this.cache.get(key);
+    if (!entry) {
+      this.misses++;
+      return null;
+    }
+    const isExpired = Date.now() - entry.cachedAt > entry.ttlMs;
+    if (isExpired) {
+      this.misses++;
+      return null;
+    }
+    this.hits++;
+    return entry.data;
+  }
+  getStale(key) {
+    const entry = this.cache.get(key);
+    if (!entry) {
+      this.misses++;
+      return { data: null, isStale: false };
+    }
+    const isStale = Date.now() - entry.cachedAt > entry.ttlMs;
+    if (!isStale) this.hits++;
+    return { data: entry.data, isStale };
+  }
+  static {
+    /** Tope de entradas: las búsquedas libres generan claves nuevas, así que sin tope la memoria crecería sin límite. */
+    this.MAX_ENTRADAS = 2e3;
+  }
+  set(key, data, ttlMs = 5 * 60 * 1e3) {
+    if (!this.cache.has(key) && this.cache.size >= _CacheService.MAX_ENTRADAS) {
+      const ahora = Date.now();
+      for (const [k, e] of this.cache) if (ahora - e.cachedAt > e.ttlMs) this.cache.delete(k);
+      if (this.cache.size >= _CacheService.MAX_ENTRADAS) this.cache.delete(this.cache.keys().next().value);
+    }
+    this.cache.set(key, {
+      data,
+      cachedAt: Date.now(),
+      ttlMs
+    });
+  }
+  delete(key) {
+    this.cache.delete(key);
+  }
+  clear() {
+    this.cache.clear();
+  }
+  getStats() {
     return {
-      numero: vacio(p.numero) || "",
-      boletin: vacio(p.boletin),
-      tema: vacio(p.tema) || "Tema no informado",
-      aspectos: vacio(p.aspectos),
-      acuerdos: acu && !/^pendiente\.?$/i.test(acu) ? acu : null,
-      invitados: unicos(lista(p.invitados)),
-      asistentes: unicos(lista(p.asistentes))
+      size: this.cache.size,
+      hits: this.hits,
+      misses: this.misses,
+      hitRate: this.hits + this.misses > 0 ? (this.hits / (this.hits + this.misses)).toFixed(2) : "0.00"
     };
+  }
+  /**
+   * Helper that returns cached value or executes fallback function, updating cache in background.
+   */
+  async wrap(key, ttlMs, fetcher) {
+    const { data, isStale } = this.getStale(key);
+    if (data !== null && !isStale) {
+      return data;
+    }
+    if (data !== null && isStale) {
+      fetcher().then((fresh2) => this.set(key, fresh2, ttlMs)).catch((err) => console.error(`[Cache SWR Error for ${key}]:`, err));
+      return data;
+    }
+    const fresh = await fetcher();
+    this.set(key, fresh, ttlMs);
+    return fresh;
+  }
+};
+var cache = new CacheService();
+
+// server/services/aiService.ts
+import Anthropic from "@anthropic-ai/sdk";
+var aiClient = null;
+var isClaudeQuotaExceeded = false;
+function handleClaudeError(context, err) {
+  const errStr = (String(err?.message || "") + " " + String(err?.status || "") + " " + String(err?.statusCode || "") + " " + String(err?.code || "")).toLowerCase();
+  const isQuotaOrAuth = errStr.includes("quota") || errStr.includes("exhausted") || errStr.includes("billing") || errStr.includes("plan") || errStr.includes("exceeded") || errStr.includes("rate limit") || errStr.includes("429") || errStr.includes("limit") || errStr.includes("key") || errStr.includes("api_key") || errStr.includes("unauthorized") || errStr.includes("invalid") || err?.status === 429 || err?.status === 401;
+  if (isQuotaOrAuth) {
+    isClaudeQuotaExceeded = true;
+    console.log(`[Claude Info] ${context}: Quota/key limit active. Switched to alternative AI provider or high-fidelity offline mode.`);
+  } else {
+    console.log(`[Claude Info] ${context}: ${err?.message || err}`);
+  }
+}
+function getClaudeClient() {
+  if (isClaudeQuotaExceeded) {
+    return null;
+  }
+  if (!aiClient) {
+    const key = process.env.ANTHROPIC_API_KEY;
+    if (key && key !== "MY_ANTHROPIC_API_KEY") {
+      aiClient = new Anthropic({
+        apiKey: key,
+        // El SDK por defecto espera hasta 10 min y reintenta 2 veces: una sola
+        // llamada colgada dejaba la generación congelada indefinidamente.
+        timeout: 3e4,
+        maxRetries: 0,
+        defaultHeaders: {
+          "User-Agent": "aistudio-build"
+        }
+      });
+    }
+  }
+  return aiClient;
+}
+function safeJsonParse(text) {
+  let cleaned = text.trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch (ignore) {
+  }
+  if (cleaned.startsWith("```")) {
+    cleaned = cleaned.replace(/^```[a-zA-Z]*\s*/, "");
+    cleaned = cleaned.replace(/\s*```$/, "");
+  }
+  cleaned = cleaned.trim();
+  cleaned = cleaned.replace(/^```json\s*/i, "").replace(/\s*```$/, "").trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch (ignore) {
+  }
+  const firstBrace = cleaned.indexOf("{");
+  const firstBracket = cleaned.indexOf("[");
+  let startIdx = -1;
+  let endIdx = -1;
+  if (firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) {
+    startIdx = firstBrace;
+    endIdx = cleaned.lastIndexOf("}");
+  } else if (firstBracket !== -1) {
+    startIdx = firstBracket;
+    endIdx = cleaned.lastIndexOf("]");
+  }
+  if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+    const candidate = cleaned.substring(startIdx, endIdx + 1);
+    try {
+      return JSON.parse(candidate);
+    } catch (e) {
+      throw new Error(`JSON parsing failed: ${e.message}`);
+    }
+  }
+  throw new Error(`Could not find valid JSON boundaries in response text.`);
+}
+function rescatarObjetosJson(text) {
+  const inicio = text.indexOf("[");
+  if (inicio === -1) return [];
+  const out = [];
+  let profundidad = 0;
+  let enString = false;
+  let escape = false;
+  let desde = -1;
+  for (let i = inicio + 1; i < text.length; i++) {
+    const c = text[i];
+    if (enString) {
+      if (escape) escape = false;
+      else if (c === "\\") escape = true;
+      else if (c === '"') enString = false;
+      continue;
+    }
+    if (c === '"') {
+      enString = true;
+      continue;
+    }
+    if (c === "{") {
+      if (profundidad === 0) desde = i;
+      profundidad++;
+    } else if (c === "}") {
+      profundidad--;
+      if (profundidad === 0 && desde !== -1) {
+        try {
+          out.push(JSON.parse(text.slice(desde, i + 1)));
+        } catch {
+        }
+        desde = -1;
+      }
+    }
+  }
+  return out;
+}
+async function generarConGeminiUnaVez(prompt, maxTokens, apiKey, model, timeoutMs) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      // Temperatura baja (no 0 -- algunos modelos rechazan temperatura
+      // exactamente 0) para tareas de búsqueda/extracción factual: reduce
+      // la variabilidad entre llamadas idénticas, que antes hacía que la
+      // misma búsqueda devolviera países/resultados distintos cada vez.
+      generationConfig: { maxOutputTokens: maxTokens, temperature: 0.15 }
+    }),
+    signal: AbortSignal.timeout(timeoutMs)
   });
-  const ini = minutos(det.inicio), fin = minutos(det.termino);
-  const duracionMin = ini !== null && fin !== null && fin >= ini ? fin - ini : null;
-  const asistentes = unicos(puntos.flatMap((p) => p.asistentes));
-  const invitados = unicos(puntos.flatMap((p) => p.invitados));
-  const boletines = unicos(puntos.map((p) => p.boletin || "").filter(Boolean));
-  const conAcuerdos = puntos.filter((p) => p.acuerdos).length;
+  if (!res.ok) {
+    const err = await res.text().catch(() => "");
+    throw new Error(`Gemini HTTP ${res.status}: ${err.slice(0, 150)}`);
+  }
+  const data = await res.json();
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) throw new Error("Gemini no devolvi\xF3 texto");
+  return String(text).trim();
+}
+async function generarConGemini(prompt, maxTokens = 2e3) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || apiKey === "MY_GEMINI_API_KEY") throw new Error("GEMINI_API_KEY no configurada");
+  const model = process.env.GEMINI_MODEL || "gemini-3.6-flash";
+  let lastErr;
+  for (let intento = 1; intento <= 2; intento++) {
+    try {
+      return await generarConGeminiUnaVez(prompt, maxTokens, apiKey, model, 25e3);
+    } catch (err) {
+      lastErr = err;
+      const esSaturacion = /HTTP 503|HTTP 429/.test(err?.message || "");
+      if (intento < 2 && esSaturacion) {
+        await new Promise((r) => setTimeout(r, 1200));
+        continue;
+      }
+      break;
+    }
+  }
+  throw lastErr;
+}
+var GROQ_MODELOS_CANDIDATOS = [
+  "openai/gpt-oss-120b",
+  "llama-3.3-70b-versatile",
+  "llama-3.1-8b-instant"
+];
+async function llamarGroqConModelo(prompt, maxTokens, apiKey, model) {
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: "user", content: prompt }],
+      // Temperatura baja para tareas de búsqueda/extracción factual -- ver
+      // nota en generarConGeminiUnaVez.
+      temperature: 0.15,
+      // Los modelos "openai/gpt-oss-*" servidos por Groq exigen max_completion_tokens
+      // en vez de (o además de) max_tokens; se envían ambos por compatibilidad.
+      max_tokens: maxTokens,
+      max_completion_tokens: maxTokens,
+      // gpt-oss-* son modelos de razonamiento: sin esto gastan el presupuesto de
+      // tokens en su "pensamiento" interno y devuelven contenido final vacío,
+      // sobre todo con maxTokens bajos (health checks, prompts cortos).
+      ...model.startsWith("openai/gpt-oss") ? { reasoning_effort: "low" } : {}
+    }),
+    signal: AbortSignal.timeout(2e4)
+  });
+  if (!res.ok) {
+    const err = await res.text().catch(() => "");
+    throw new Error(`Groq HTTP ${res.status}: ${err.slice(0, 150)}`);
+  }
+  const data = await res.json();
+  const text = data?.choices?.[0]?.message?.content;
+  if (!text) throw new Error("Groq no devolvi\xF3 texto");
+  return String(text).trim();
+}
+async function generarConGroq(prompt, maxTokens = 2e3) {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey || apiKey === "MY_GROQ_API_KEY") throw new Error("GROQ_API_KEY no configurada");
+  const modeloFijado = process.env.GROQ_MODEL;
+  if (modeloFijado) return llamarGroqConModelo(prompt, maxTokens, apiKey, modeloFijado);
+  let lastErr;
+  for (const model of GROQ_MODELOS_CANDIDATOS) {
+    try {
+      return await llamarGroqConModelo(prompt, maxTokens, apiKey, model);
+    } catch (e) {
+      lastErr = e;
+      if (!/model.*(not exist|does not exist|no access|invalid_request_error|decommissioned)|HTTP 429/i.test(e.message)) {
+        throw e;
+      }
+    }
+  }
+  throw lastErr;
+}
+async function generarConOpenRouter(prompt, maxTokens = 1500) {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey || apiKey === "MY_OPENROUTER_API_KEY") throw new Error("OPENROUTER_API_KEY no configurada");
+  const configuredModel = process.env.OPENROUTER_MODEL;
+  const models = [
+    configuredModel && !configuredModel.includes("claude-3.5-haiku") ? configuredModel : void 0,
+    // Orden por capacidad (verificados contra el catálogo público de OpenRouter);
+    // el modelo pequeño de 2.6B queda de último recurso.
+    "nvidia/nemotron-3-super-120b-a12b:free",
+    "google/gemma-4-31b-it:free",
+    "qwen/qwen3.8-27b:free",
+    "nvidia/nemotron-3-ultra-550b-a55b:free"
+  ].filter((m) => Boolean(m));
+  let lastError = "";
+  for (const model of models) {
+    try {
+      const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": process.env.APP_URL || "http://localhost:3000",
+          "X-Title": "LegisTrack-CL"
+        },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: "user", content: prompt }],
+          max_tokens: maxTokens,
+          temperature: 0.15
+        }),
+        // Tareas largas (leer varios documentos y redactar cientos de palabras) necesitan más tiempo.
+        signal: AbortSignal.timeout(maxTokens > 2e3 || prompt.length > 12e3 ? 7e4 : 15e3)
+      });
+      if (!resp.ok) {
+        const errText = await resp.text().catch(() => "");
+        lastError = `OpenRouter (${model}) HTTP ${resp.status}: ${errText.slice(0, 200)}`;
+        continue;
+      }
+      const data = await resp.json();
+      const text = data?.choices?.[0]?.message?.content;
+      if (text) return String(text).trim();
+    } catch (e) {
+      lastError = e?.message || String(e);
+    }
+  }
+  throw new Error(lastError || "OpenRouter no devolvi\xF3 contenido");
+}
+var CEREBRAS_MODELOS_CANDIDATOS = ["llama-3.3-70b", "llama3.1-8b", "qwen-3-32b"];
+async function llamarCerebrasConModelo(prompt, maxTokens, apiKey, model) {
+  const res = await fetch("https://api.cerebras.ai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.15,
+      max_tokens: maxTokens
+    }),
+    signal: AbortSignal.timeout(15e3)
+  });
+  if (!res.ok) {
+    const err = await res.text().catch(() => "");
+    throw new Error(`Cerebras (${model}) HTTP ${res.status}: ${err.slice(0, 150)}`);
+  }
+  const data = await res.json();
+  const text = data?.choices?.[0]?.message?.content;
+  if (!text) throw new Error("Cerebras no devolvi\xF3 texto");
+  return String(text).trim();
+}
+async function generarConCerebras(prompt, maxTokens = 2e3) {
+  const apiKey = process.env.CEREBRAS_API_KEY;
+  if (!apiKey || apiKey === "MY_CEREBRAS_API_KEY") throw new Error("CEREBRAS_API_KEY no configurada");
+  const modeloFijado = process.env.CEREBRAS_MODEL;
+  if (modeloFijado) return llamarCerebrasConModelo(prompt, maxTokens, apiKey, modeloFijado);
+  let lastErr;
+  for (const model of CEREBRAS_MODELOS_CANDIDATOS) {
+    try {
+      return await llamarCerebrasConModelo(prompt, maxTokens, apiKey, model);
+    } catch (e) {
+      lastErr = e;
+      if (!/model.*(not exist|does not exist|no access|invalid_request_error|decommissioned)/i.test(e.message)) {
+        throw e;
+      }
+    }
+  }
+  throw lastErr;
+}
+async function intentarGemini(prompt, maxTokens) {
+  const configured = !!(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY");
+  if (!configured) return { provider: "gemini", configured };
+  try {
+    const text = await generarConGemini(prompt, maxTokens);
+    return text ? { provider: "gemini", configured, text } : { provider: "gemini", configured, error: "respuesta vac\xEDa" };
+  } catch (e) {
+    console.log(`[Gemini Free Info]: ${e?.message || e}`);
+    return { provider: "gemini", configured, error: e?.message || String(e) };
+  }
+}
+async function intentarOpenRouter(prompt, maxTokens) {
+  const configured = !!(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY !== "MY_OPENROUTER_API_KEY");
+  if (!configured) return { provider: "openrouter", configured };
+  try {
+    const text = await generarConOpenRouter(prompt, maxTokens);
+    return text ? { provider: "openrouter", configured, text } : { provider: "openrouter", configured, error: "respuesta vac\xEDa" };
+  } catch (e) {
+    console.log(`[OpenRouter Info]: ${e?.message || e}`);
+    return { provider: "openrouter", configured, error: e?.message || String(e) };
+  }
+}
+async function intentarCerebras(prompt, maxTokens) {
+  const configured = !!(process.env.CEREBRAS_API_KEY && process.env.CEREBRAS_API_KEY !== "MY_CEREBRAS_API_KEY");
+  if (!configured) return { provider: "cerebras", configured };
+  try {
+    const text = await generarConCerebras(prompt, maxTokens);
+    return text ? { provider: "cerebras", configured, text } : { provider: "cerebras", configured, error: "respuesta vac\xEDa" };
+  } catch (e) {
+    console.log(`[Cerebras Free Info]: ${e?.message || e}`);
+    return { provider: "cerebras", configured, error: e?.message || String(e) };
+  }
+}
+async function intentarGroq(prompt, maxTokens) {
+  const configured = !!(process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== "MY_GROQ_API_KEY");
+  if (!configured) return { provider: "groq", configured };
+  try {
+    const text = await generarConGroq(prompt, maxTokens);
+    return text ? { provider: "groq", configured, text } : { provider: "groq", configured, error: "respuesta vac\xEDa" };
+  } catch (e) {
+    console.log(`[Groq Free Info]: ${e?.message || e}`);
+    return { provider: "groq", configured, error: e?.message || String(e) };
+  }
+}
+async function intentarClaude(prompt, maxTokens) {
+  const claude = getClaudeClient();
+  if (!claude) return { provider: "claude", configured: !!process.env.ANTHROPIC_API_KEY };
+  const modelos = Array.from(new Set([process.env.ANTHROPIC_MODEL, "claude-haiku-5-5", "claude-haiku-4-5"].filter(Boolean)));
+  let ultimoError = "";
+  for (const model of modelos) {
+    try {
+      const resp = await claude.messages.create({
+        model,
+        max_tokens: maxTokens,
+        messages: [{ role: "user", content: prompt }]
+      });
+      const bloque = resp.content.find((c) => c.type === "text");
+      const text = bloque?.text || "";
+      if (text) return { provider: "claude", configured: true, text };
+      ultimoError = "respuesta vac\xEDa";
+    } catch (err) {
+      ultimoError = err?.message || String(err);
+      if (!/not[_ ]found|404|model/i.test(ultimoError)) {
+        handleClaudeError("Claude Universal", err);
+        break;
+      }
+    }
+  }
+  return { provider: "claude", configured: true, error: ultimoError };
+}
+var LIMITE_TOTAL_IA_MS = 16e4;
+async function generarContenidoUniversalIA(prompt, maxTokens = 2e3, attempts) {
+  let temporizador;
+  try {
+    return await Promise.race([
+      generarContenidoUniversalIAInterno(prompt, maxTokens, attempts),
+      new Promise((resolve) => {
+        temporizador = setTimeout(() => resolve(null), LIMITE_TOTAL_IA_MS);
+      })
+    ]);
+  } finally {
+    clearTimeout(temporizador);
+  }
+}
+async function generarContenidoUniversalIAInterno(prompt, maxTokens, attempts) {
+  const [geminiRes, openrouterRes, cerebrasRes] = await Promise.all([
+    intentarGemini(prompt, maxTokens),
+    intentarOpenRouter(prompt, maxTokens),
+    intentarCerebras(prompt, maxTokens)
+  ]);
+  const primeraRonda = [geminiRes, openrouterRes, cerebrasRes];
+  for (const r of primeraRonda) {
+    attempts?.push({ provider: r.provider, configured: r.configured, error: r.error });
+  }
+  const exitoPrimeraRonda = primeraRonda.find((r) => r.text);
+  if (exitoPrimeraRonda) return exitoPrimeraRonda.text;
+  const groqRes = await intentarGroq(prompt, maxTokens);
+  attempts?.push({ provider: groqRes.provider, configured: groqRes.configured, error: groqRes.error });
+  if (groqRes.text) return groqRes.text;
+  const claudeRes = await intentarClaude(prompt, maxTokens);
+  attempts?.push({ provider: claudeRes.provider, configured: claudeRes.configured, error: claudeRes.error });
+  if (claudeRes.text) return claudeRes.text;
+  const respaldo = await intentarGeminiRespaldo(prompt, maxTokens);
+  attempts?.push({ provider: "gemini-respaldo", configured: respaldo.configured, error: respaldo.error });
+  if (respaldo.text) return respaldo.text;
+  return null;
+}
+async function intentarGeminiRespaldo(prompt, maxTokens) {
+  const key = process.env.GEMINI_VIDEO_API_KEY;
+  if (!key || key === process.env.GEMINI_API_KEY) return { configured: false };
+  let ultimo = "";
+  for (const model of ["gemini-2.5-flash", "gemini-2.5-flash-lite"]) {
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { maxOutputTokens: Math.max(maxTokens, 2048), temperature: 0.15 }
+        }),
+        signal: AbortSignal.timeout(6e4)
+      });
+      if (!res.ok) {
+        ultimo = `${model} HTTP ${res.status}: ${(await res.text().catch(() => "")).slice(0, 120)}`;
+        continue;
+      }
+      const data = await res.json();
+      const text = (data?.candidates?.[0]?.content?.parts || []).map((p) => p.text || "").join("").trim();
+      if (text) return { configured: true, text };
+      ultimo = `${model}: respuesta vac\xEDa`;
+    } catch (e) {
+      ultimo = `${model}: ${e?.message || e}`;
+    }
+  }
+  return { configured: true, error: ultimo };
+}
+async function responderCopilotoLegislativo(params) {
+  const { mensaje, contextoBoletin, contextoComision, historial = [] } = params;
+  const prompt = `Eres el "Copiloto Legislativo", un asistente experto en t\xE9cnica legislativa, derecho parlamentario y transparencia del Congreso Nacional de Chile.
+Tu misi\xF3n es explicar con claridad t\xE9cnica, objetiva y sobria el proceso legislativo, el estado de los proyectos de ley (boletines), el rol de las comisiones, qu\xF3rums requeridos y antecedentes comparados.
+
+Contexto actual del usuario:
+- Bolet\xEDn en pantalla: ${contextoBoletin || "No especificado"}
+- Comisi\xF3n en pantalla: ${contextoComision || "No especificado"}
+
+Pregunta del usuario:
+"${mensaje}"
+
+Instrucciones:
+1. Responde de forma directa, sobria y t\xE9cnicamente rigurosa (m\xE1ximo 160 palabras).
+2. Si el usuario pregunta por qu\xF3rums, cita el art\xEDculo correspondiente (ej. Art. 66 o Art. 127 de la CPR).
+3. Utiliza formato Markdown limpio (vi\xF1etas cortas y negritas en conceptos clave).
+4. No inventes art\xEDculos ni resultados de votaciones inexistentes.
+
+Responde \xFAnicamente con el texto de la respuesta.`;
+  const textoIA = await generarContenidoUniversalIA(prompt, 800);
+  if (textoIA) {
+    return {
+      respuesta: textoIA,
+      sugerencias: [
+        "\xBFCu\xE1les son los plazos seg\xFAn la urgencia vigente?",
+        "\xBFQu\xE9 qu\xF3rum se requiere para aprobar este proyecto?",
+        "\xBFQu\xE9 ministerios est\xE1n involucrados?"
+      ],
+      fuente: "ia"
+    };
+  }
+  let respuestaFallback = `El proceso legislativo chileno contempla distintas etapas constitucionales (Primer Tr\xE1mite, Segundo Tr\xE1mite, Comisi\xF3n Mixta y Promulgaci\xF3n). `;
+  if (contextoBoletin) {
+    respuestaFallback += `Para el **Bolet\xEDn ${contextoBoletin}**, puedes revisar el desglose del hemiciclo en la pesta\xF1a *Simulador de Qu\xF3rum*, las diferencias de redacci\xF3n en el *Comparador de Textos* o descargar la *Ficha Ejecutiva* formal con antecedentes oficiales.`;
+  } else {
+    respuestaFallback += `Puedes explorar el cat\xE1logo de proyectos vigentes, las citaciones en vivo de comisiones o buscar antecedentes en la secci\xF3n de *Legislaci\xF3n Comparada*.`;
+  }
   return {
-    disponible: true,
-    url: det.url,
-    fuente,
-    encabezado: { comision: vacio(det.comision), fecha: vacio(det.fecha), inicio: vacio(det.inicio), termino: vacio(det.termino), duracionMin, lugar: vacio(det.lugar) },
-    asistentes,
-    invitados,
-    boletines,
-    puntos,
-    presentaciones: (det.presentaciones || []).filter((x) => x.url),
-    estadisticas: { puntos: puntos.length, conAcuerdos, sinAcuerdos: puntos.length - conAcuerdos, boletines: boletines.length, invitados: invitados.length, asistentes: asistentes.length }
+    respuesta: respuestaFallback,
+    sugerencias: [
+      "\xBFC\xF3mo funciona una Comisi\xF3n Mixta?",
+      "\xBFQu\xE9 diferencia hay entre Moci\xF3n y Mensaje?",
+      "\xBFC\xF3mo se calculan las 4/7 partes?"
+    ],
+    fuente: "fallback"
   };
 }
-
-// server/routes/apiRoutes.ts
-import { Router, text as expressText } from "express";
+function getAIProvidersStatus() {
+  return {
+    gemini: Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY"),
+    groq: Boolean(process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== "MY_GROQ_API_KEY"),
+    openrouter: Boolean(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY !== "MY_OPENROUTER_API_KEY"),
+    cerebras: Boolean(process.env.CEREBRAS_API_KEY && process.env.CEREBRAS_API_KEY !== "MY_CEREBRAS_API_KEY"),
+    claude: Boolean(process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_API_KEY !== "MY_ANTHROPIC_API_KEY" && !isClaudeQuotaExceeded),
+    claudeQuotaExceeded: isClaudeQuotaExceeded
+  };
+}
+async function testearProveedoresIAReal() {
+  const promptTrivial = 'Responde solo con: {"ok":true}';
+  const [gemini, openrouter, cerebras, groq, claude] = await Promise.all([
+    intentarGemini(promptTrivial, 30),
+    intentarOpenRouter(promptTrivial, 30),
+    intentarCerebras(promptTrivial, 30),
+    // Groq: se le da más presupuesto porque el modelo por defecto (gpt-oss, de
+    // razonamiento) puede consumir tokens en pensar antes de responder.
+    intentarGroq(promptTrivial, 200),
+    intentarClaude(promptTrivial, 30)
+  ]);
+  const toResult = (r) => ({ configured: r.configured, ok: !!r.text, error: r.error });
+  return {
+    gemini: toResult(gemini),
+    openrouter: toResult(openrouter),
+    cerebras: toResult(cerebras),
+    groq: toResult(groq),
+    claude: toResult(claude)
+  };
+}
 
 // src/data/comisionesData.ts
 var DIPUTADOS_COMISIONES_DETALLE = [
@@ -186041,936 +186574,6 @@ function resolveProyecto(id) {
   return generateDynamicProyecto(id);
 }
 
-// src/utils/searchEngine.ts
-function normalizeSearchString(str) {
-  if (!str) return "";
-  return str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9\s\.\-]/g, " ").trim();
-}
-function extractBoletinDigits(query) {
-  const clean = query.replace(/[\s\.]/g, "");
-  const match = clean.match(/(\d{4,6})(?:-(\d{1,2}))?/);
-  if (match) {
-    return match[1];
-  }
-  return null;
-}
-function performUnifiedSearch(rawQuery) {
-  const normQ = normalizeSearchString(rawQuery);
-  const boletinDigits = extractBoletinDigits(rawQuery);
-  if (!normQ) {
-    return {
-      proyectos: [],
-      comisiones: [],
-      autores: [],
-      fuentesDatos: [],
-      documentos: [],
-      comparada: [],
-      webLinks: []
-    };
-  }
-  const allProjects = getAllMasterProyectos();
-  const qClean = cleanBulletin(rawQuery);
-  const isDirectBulletin = boletinDigits && boletinDigits.length >= 3 || rawQuery.includes("-");
-  const matchedProjects = allProjects.filter((p) => {
-    const pClean = cleanBulletin(p.id);
-    const normId = normalizeSearchString(p.id);
-    const normTit = normalizeSearchString(p.titulo);
-    const normMat = normalizeSearchString(p.materia);
-    const normRes = normalizeSearchString(p.resumen);
-    const normAut = normalizeSearchString(p.autores || "");
-    if (qClean && qClean.length >= 3 && (pClean.includes(qClean) || qClean.includes(pClean))) {
-      return true;
-    }
-    if (boletinDigits && normId.replace(/[\.\-]/g, "").includes(boletinDigits)) {
-      return true;
-    }
-    return normId.includes(normQ) || normTit.includes(normQ) || normMat.includes(normQ) || normRes.includes(normQ) || normAut.includes(normQ);
-  });
-  if (isDirectBulletin) {
-    const resolved = findPreloadedProyecto(rawQuery);
-    if (resolved && !matchedProjects.some((p) => cleanBulletin(p.id) === cleanBulletin(resolved.id))) {
-      matchedProjects.unshift(resolved);
-    }
-  }
-  const matchedComisiones = TODAS_COMISIONES_DETALLE.filter((c) => {
-    const normId = normalizeSearchString(c.id);
-    const normNom = normalizeSearchString(c.nombre);
-    const normDesc = normalizeSearchString(c.descripcion);
-    const normTemas = (c.temas || []).map(normalizeSearchString).join(" ");
-    return normId.includes(normQ) || normNom.includes(normQ) || normDesc.includes(normQ) || normTemas.includes(normQ);
-  });
-  const authorsMap = /* @__PURE__ */ new Map();
-  for (const com of TODAS_COMISIONES_DETALLE) {
-    for (const i of com.integrantes) {
-      const normNombre = normalizeSearchString(i.nombre);
-      const normPartido = normalizeSearchString(i.partido);
-      if (normNombre.includes(normQ) || normPartido.includes(normQ)) {
-        if (!authorsMap.has(i.nombre)) {
-          authorsMap.set(i.nombre, {
-            ...i,
-            comisionNombre: com.nombre,
-            comisionId: `${com.prefix}${com.id}`
-          });
-        }
-      }
-    }
-  }
-  const matchedAuthors = Array.from(authorsMap.values());
-  const sampleDocs = [];
-  const sampleComparada = [];
-  const encodedQ = encodeURIComponent(rawQuery.trim());
-  const encodedBoletin = encodeURIComponent(rawQuery.split("-")[0].trim());
-  const qLower = normalizeSearchString(rawQuery);
-  let searchDisplayName = rawQuery;
-  if (isDirectBulletin && matchedProjects.length > 0) {
-    searchDisplayName = matchedProjects[0].titulo;
-  } else if (isDirectBulletin) {
-    searchDisplayName = `Bolet\xEDn ${rawQuery}`;
-  }
-  const fuentesDatos = [
-    {
-      id: "fuente-senado",
-      nombre: "Senado de la Rep\xFAblica de Chile",
-      institucion: "Congreso Nacional de Chile",
-      categoria: "Congreso & Normativa",
-      descripcion: "Sistema de Tramitaci\xF3n de Proyectos, boletines oficiales, actas de comisiones, transmisiones de Sala y Open Data parlamentario.",
-      url: `https://tramitacion.senado.cl/wspublico/tramitacion.php?boletin=${encodedBoletin}`,
-      queBuscar: `Boletines, estados de tramitaci\xF3n, qu\xF3rum de votaci\xF3n y proyectos de ley radicados en el Senado sobre "${searchDisplayName}".`,
-      cobertura: "Congreso Nacional (1990 - 2026)",
-      relevancia: "Alta"
-    },
-    {
-      id: "fuente-camara",
-      nombre: "C\xE1mara de Diputadas y Diputados",
-      institucion: "Congreso Nacional de Chile",
-      categoria: "Congreso & Normativa",
-      descripcion: "Buscador de labor parlamentaria, registros de votaciones electr\xF3nicas en sala, asistencia, oficios fiscalizadores y mociones.",
-      url: `https://www.camara.cl/legislacion/proyectos/busqueda.aspx?prmTexto=${encodedQ}`,
-      queBuscar: `Mociones, acuerdos, votaciones y trabajo de comisiones de la C\xE1mara de Diputadas y Diputados sobre "${searchDisplayName}".`,
-      cobertura: "C\xE1mara Baja (Hist\xF3rico & Vigente)",
-      relevancia: "Alta"
-    },
-    {
-      id: "fuente-bcn-leychile",
-      nombre: "LeyChile \u2014 Biblioteca del Congreso Nacional",
-      institucion: "Biblioteca del Congreso Nacional (BCN)",
-      categoria: "Congreso & Normativa",
-      descripcion: "Repositorio oficial de leyes promulgadas y normativa legal chilena. Texto completo, historia de la ley y jurisprudencia.",
-      url: `https://www.bcn.cl/leychile/consulta/busqueda_rapida?texto=${encodedQ}`,
-      queBuscar: `Textos oficiales de leyes publicadas, modificaciones a c\xF3digos y vigencia normativa de "${searchDisplayName}".`,
-      cobertura: "Toda la legislaci\xF3n de la Rep\xFAblica (1810 - 2026)",
-      relevancia: "Alta"
-    },
-    {
-      id: "fuente-bcn-asesoria",
-      nombre: "BCN Asesor\xEDa T\xE9cnica & SIIT Territorial",
-      institucion: "Biblioteca del Congreso Nacional (BCN)",
-      categoria: "Estad\xEDstica & Cifras",
-      descripcion: "Informes t\xE9cnicos, dosieres y visualizaci\xF3n de datos estad\xEDsticos territoriales para asesor\xEDa al legislador.",
-      url: `https://www.bcn.cl/observatorio/busqueda?q=${encodedQ}`,
-      queBuscar: `Informes t\xE9cnicos parlamentarios, comparativas de derecho internacional y estad\xEDsticas sectoriales sobre "${searchDisplayName}".`,
-      cobertura: "16 regiones y asesor\xEDa parlamentaria transversal",
-      relevancia: "Media"
-    },
-    {
-      id: "fuente-dipres",
-      nombre: "Direcci\xF3n de Presupuestos (DIPRES)",
-      institucion: "Ministerio de Hacienda",
-      categoria: "Presupuesto & Finanzas",
-      descripcion: "Informes financieros, evaluaci\xF3n de programas p\xFAblicos y documentos del presupuesto nacional de la Rep\xFAblica.",
-      url: `https://www.dipres.gob.cl/598/w3-propertyvalue-15439.html?_q=${encodedQ}`,
-      queBuscar: `Informes financieros que acompa\xF1an a proyectos de ley y evaluaci\xF3n de gasto p\xFAblico relacionados a "${searchDisplayName}".`,
-      cobertura: "Finanzas P\xFAblicas (Vigente & Archivo)",
-      relevancia: qLower.includes("presupuesto") || qLower.includes("gasto") || qLower.includes("hacienda") || qLower.includes("financier") || qLower.includes("tribut") ? "Alta" : "Media"
-    },
-    {
-      id: "fuente-datos-gob",
-      nombre: "Portal de Datos Abiertos del Estado",
-      institucion: "Gobierno Digital / Ministerio Secretar\xEDa General de la Presidencia",
-      categoria: "Jurisprudencia & Transparencia",
-      descripcion: "Cat\xE1logo centralizado de datos p\xFAblicos interoperables del Estado chileno (formatos CSV, JSON y API) provistos por ministerios y servicios p\xFAblicos.",
-      url: `https://datos.gob.cl/dataset?q=${encodedQ}`,
-      queBuscar: `Datasets oficiales, n\xF3minas p\xFAblicas, subsidios, contrataciones y registros sectoriales sobre "${rawQuery}".`,
-      cobertura: "Administraci\xF3n Central del Estado",
-      relevancia: "Alta"
-    },
-    {
-      id: "fuente-diario-oficial",
-      nombre: "Diario Oficial de la Rep\xFAblica de Chile",
-      institucion: "Ministerio del Interior y Seguridad P\xFAblica",
-      categoria: "Congreso & Normativa",
-      descripcion: "Publicaci\xF3n oficial indispensable para la entrada en vigencia de leyes, reglamentos, tratados internacionales y decretos de la Rep\xFAblica.",
-      url: `https://www.diariooficial.interior.gob.cl/`,
-      queBuscar: `Ediciones oficiales, fechas de promulgaci\xF3n y publicaciones de normas sobre "${rawQuery}".`,
-      cobertura: "Diario Oficial de Chile",
-      relevancia: "Media"
-    },
-    {
-      id: "fuente-ine",
-      nombre: "INE \u2014 Instituto Nacional de Estad\xEDsticas",
-      institucion: "Instituto Nacional de Estad\xEDsticas (Chile)",
-      categoria: "Estad\xEDstica & Cifras",
-      descripcion: "Censos de poblaci\xF3n, Encuesta Nacional de Empleo (ENE), \xCDndice de Precios al Consumidor (IPC) y estad\xEDsticas socioecon\xF3micas oficiales.",
-      url: `https://www.ine.gob.cl/estadisticas`,
-      queBuscar: `Cifras demogr\xE1ficas, estad\xEDsticas laborales, \xEDndices de precios y series hist\xF3ricas vinculadas a "${rawQuery}".`,
-      cobertura: "Nacional, regional y comunal",
-      relevancia: qLower.includes("empleo") || qLower.includes("trabajo") || qLower.includes("ipc") || qLower.includes("censo") || qLower.includes("poblacion") || qLower.includes("estadistic") ? "Alta" : "Media"
-    },
-    {
-      id: "fuente-infolobby",
-      nombre: "Plataforma InfoLobby & CPLT",
-      institucion: "Consejo para la Transparencia (CPLT)",
-      categoria: "Jurisprudencia & Transparencia",
-      descripcion: "Registro p\xFAblico de audiencias de lobby, gestores de intereses, viajes oficiales y donativos de diputados, senadores y autoridades de gobierno.",
-      url: `https://www.infolobby.gob.cl/`,
-      queBuscar: `Audiencias registradas entre parlamentarios y organizaciones de la sociedad civil o gremios en torno a "${rawQuery}".`,
-      cobertura: "Autoridades y sujetos pasivos Ley 20.730",
-      relevancia: "Media"
-    },
-    {
-      id: "fuente-ocde",
-      nombre: "OCDE Legal Instruments & Policy Database",
-      institucion: "Organizaci\xF3n para la Cooperaci\xF3n y el Desarrollo Econ\xF3micos (OCDE)",
-      categoria: "Internacional & OCDE",
-      descripcion: "Recomendaciones vinculantes, marcos de gobernanza y revisiones de pol\xEDticas regulatorias de los 38 pa\xEDses miembros de la OCDE.",
-      url: `https://legalinstruments.oecd.org/en/`,
-      queBuscar: `Est\xE1ndares internacionales, buenas pr\xE1cticas regulatorias y evaluaci\xF3n de impacto legislativo de la OCDE sobre "${rawQuery}".`,
-      cobertura: "38 Pa\xEDses Miembros de la OCDE (incluyendo Chile)",
-      relevancia: qLower.includes("comparad") || qLower.includes("internacional") || qLower.includes("ocde") || qLower.includes("europa") || qLower.includes("latam") ? "Alta" : "Complementaria"
-    }
-  ];
-  const webLinks = [
-    {
-      name: "C\xE1mara de Diputadas y Diputados",
-      url: `https://www.camara.cl/legislacion/proyectos/busqueda.aspx?prmTexto=${encodedQ}`,
-      description: `B\xFAsqueda en tiempo real en la base de datos de proyectos y comisiones de la C\xE1mara.`,
-      source: "camara"
-    },
-    {
-      name: "Senado de la Rep\xFAblica",
-      url: `https://www.senado.cl/actividad-legislativa/proyectos-de-ley?buscar=${encodedQ}`,
-      description: `Consulta directa en el repositorio oficial de tramitaci\xF3n del Senado de Chile.`,
-      source: "senado"
-    },
-    {
-      name: "Biblioteca del Congreso Nacional (BCN)",
-      url: `https://www.bcn.cl/obtienearchivo?id=recursoslegales/10221.3/${encodedQ}`,
-      description: `Estudios t\xE9cnicos, asesor\xEDa parlamentaria e informes jur\xEDdicos de la BCN.`,
-      source: "bcn"
-    },
-    {
-      name: "LeyChile \u2014 BCN",
-      url: `https://www.bcn.cl/leychile/consulta/buscador_resultado?texto=${encodedQ}`,
-      description: `Buscador oficial de legislaci\xF3n vigente y normas refundidas de la Rep\xFAblica de Chile.`,
-      source: "leychile"
-    }
-  ];
-  return {
-    proyectos: matchedProjects,
-    comisiones: matchedComisiones,
-    autores: matchedAuthors,
-    fuentesDatos,
-    documentos: sampleDocs,
-    comparada: sampleComparada,
-    webLinks
-  };
-}
-
-// src/utils/dateUtils.ts
-var MESES = {
-  enero: 0,
-  febrero: 1,
-  marzo: 2,
-  abril: 3,
-  mayo: 4,
-  junio: 5,
-  julio: 6,
-  agosto: 7,
-  septiembre: 8,
-  octubre: 9,
-  noviembre: 10,
-  diciembre: 11
-};
-function parseFechaSesion(fechaStr) {
-  if (!fechaStr) return null;
-  const isoMatch = fechaStr.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
-  if (isoMatch) {
-    return new Date(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3]), 23, 59, 59);
-  }
-  const dmy = fechaStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-  if (dmy) {
-    return new Date(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]), 23, 59, 59);
-  }
-  const match = fechaStr.match(/(\d{1,2})\s+de\s+([a-zA-ZáéíóúÁÉÍÓÚ]+)\s+de\s+(\d{4})/i);
-  if (match) {
-    const day = Number(match[1]);
-    const monthStr = match[2].toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
-    const year = Number(match[3]);
-    const month = MESES[monthStr] ?? 0;
-    return new Date(year, month, day, 23, 59, 59);
-  }
-  return null;
-}
-function isSessionDatePassed(fechaStr) {
-  const d = parseFechaSesion(fechaStr);
-  if (!d) return false;
-  const now = /* @__PURE__ */ new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-  return d.getTime() < today.getTime();
-}
-function compareSesionesDesc(a, b) {
-  const da = parseFechaSesion(a.fecha);
-  const db = parseFechaSesion(b.fecha);
-  if (da && db) return db.getTime() - da.getTime();
-  if (da && !db) return -1;
-  if (!da && db) return 1;
-  return (b.id || "").localeCompare(a.id || "");
-}
-function riquezaSesion(s) {
-  let score = 0;
-  if (s.completada) score += 4;
-  if (s.actaTexto) score += 3;
-  if (s.videoUrl) score += 3;
-  if (s.acuerdosTexto && s.acuerdosTexto.length > 0) score += 2;
-  if (s.tabla && s.tabla.length > 0) score += 1;
-  if (s.materia) score += Math.min(s.materia.length / 100, 2);
-  return score;
-}
-function mergeSesionesDuplicadas(sesiones) {
-  const grupos = /* @__PURE__ */ new Map();
-  const ordenGrupos = [];
-  sesiones.forEach((s, idx) => {
-    const d = parseFechaSesion(s.fecha);
-    const idOficial = s.senadoSesionId ? `-${s.senadoSesionId}` : "";
-    const key = d ? `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}${idOficial}` : `__sin_fecha_${s.id || idx}`;
-    if (!grupos.has(key)) {
-      grupos.set(key, []);
-      ordenGrupos.push(key);
-    }
-    grupos.get(key).push(s);
-  });
-  const resultado = [];
-  for (const key of ordenGrupos) {
-    const items = grupos.get(key);
-    if (items.length === 1) {
-      resultado.push(items[0]);
-      continue;
-    }
-    const [base, ...resto] = [...items].sort((a, b) => riquezaSesion(b) - riquezaSesion(a));
-    const merged = { ...base };
-    for (const otra of resto) {
-      if (!merged.hora && otra.hora) merged.hora = otra.hora;
-      if (!merged.lugar && otra.lugar) merged.lugar = otra.lugar;
-      if (!merged.invitados && otra.invitados) merged.invitados = otra.invitados;
-      if (!merged.citacionNumero && otra.citacionNumero) merged.citacionNumero = otra.citacionNumero;
-      if (!merged.actaTexto && otra.actaTexto) merged.actaTexto = otra.actaTexto;
-      if (!merged.videoUrl && otra.videoUrl) merged.videoUrl = otra.videoUrl;
-      if ((!merged.acuerdosTexto || merged.acuerdosTexto.length === 0) && otra.acuerdosTexto?.length) {
-        merged.acuerdosTexto = otra.acuerdosTexto;
-      }
-      if ((!merged.tabla || merged.tabla.length === 0) && otra.tabla?.length) {
-        merged.tabla = otra.tabla;
-      }
-      if (!merged.completada && otra.completada) merged.completada = true;
-      if ((merged.acuerdosCount || 0) < (otra.acuerdosCount || 0)) merged.acuerdosCount = otra.acuerdosCount;
-    }
-    resultado.push(merged);
-  }
-  return resultado;
-}
-
-// server/services/cacheService.ts
-var CacheService = class _CacheService {
-  constructor() {
-    this.cache = /* @__PURE__ */ new Map();
-    this.hits = 0;
-    this.misses = 0;
-  }
-  get(key) {
-    const entry = this.cache.get(key);
-    if (!entry) {
-      this.misses++;
-      return null;
-    }
-    const isExpired = Date.now() - entry.cachedAt > entry.ttlMs;
-    if (isExpired) {
-      this.misses++;
-      return null;
-    }
-    this.hits++;
-    return entry.data;
-  }
-  getStale(key) {
-    const entry = this.cache.get(key);
-    if (!entry) {
-      this.misses++;
-      return { data: null, isStale: false };
-    }
-    const isStale = Date.now() - entry.cachedAt > entry.ttlMs;
-    if (!isStale) this.hits++;
-    return { data: entry.data, isStale };
-  }
-  static {
-    /** Tope de entradas: las búsquedas libres generan claves nuevas, así que sin tope la memoria crecería sin límite. */
-    this.MAX_ENTRADAS = 2e3;
-  }
-  set(key, data, ttlMs = 5 * 60 * 1e3) {
-    if (!this.cache.has(key) && this.cache.size >= _CacheService.MAX_ENTRADAS) {
-      const ahora = Date.now();
-      for (const [k, e] of this.cache) if (ahora - e.cachedAt > e.ttlMs) this.cache.delete(k);
-      if (this.cache.size >= _CacheService.MAX_ENTRADAS) this.cache.delete(this.cache.keys().next().value);
-    }
-    this.cache.set(key, {
-      data,
-      cachedAt: Date.now(),
-      ttlMs
-    });
-  }
-  delete(key) {
-    this.cache.delete(key);
-  }
-  clear() {
-    this.cache.clear();
-  }
-  getStats() {
-    return {
-      size: this.cache.size,
-      hits: this.hits,
-      misses: this.misses,
-      hitRate: this.hits + this.misses > 0 ? (this.hits / (this.hits + this.misses)).toFixed(2) : "0.00"
-    };
-  }
-  /**
-   * Helper that returns cached value or executes fallback function, updating cache in background.
-   */
-  async wrap(key, ttlMs, fetcher) {
-    const { data, isStale } = this.getStale(key);
-    if (data !== null && !isStale) {
-      return data;
-    }
-    if (data !== null && isStale) {
-      fetcher().then((fresh2) => this.set(key, fresh2, ttlMs)).catch((err) => console.error(`[Cache SWR Error for ${key}]:`, err));
-      return data;
-    }
-    const fresh = await fetcher();
-    this.set(key, fresh, ttlMs);
-    return fresh;
-  }
-};
-var cache = new CacheService();
-
-// server/services/aiService.ts
-import Anthropic from "@anthropic-ai/sdk";
-var aiClient = null;
-var isClaudeQuotaExceeded = false;
-function handleClaudeError(context, err) {
-  const errStr = (String(err?.message || "") + " " + String(err?.status || "") + " " + String(err?.statusCode || "") + " " + String(err?.code || "")).toLowerCase();
-  const isQuotaOrAuth = errStr.includes("quota") || errStr.includes("exhausted") || errStr.includes("billing") || errStr.includes("plan") || errStr.includes("exceeded") || errStr.includes("rate limit") || errStr.includes("429") || errStr.includes("limit") || errStr.includes("key") || errStr.includes("api_key") || errStr.includes("unauthorized") || errStr.includes("invalid") || err?.status === 429 || err?.status === 401;
-  if (isQuotaOrAuth) {
-    isClaudeQuotaExceeded = true;
-    console.log(`[Claude Info] ${context}: Quota/key limit active. Switched to alternative AI provider or high-fidelity offline mode.`);
-  } else {
-    console.log(`[Claude Info] ${context}: ${err?.message || err}`);
-  }
-}
-function getClaudeClient() {
-  if (isClaudeQuotaExceeded) {
-    return null;
-  }
-  if (!aiClient) {
-    const key = process.env.ANTHROPIC_API_KEY;
-    if (key && key !== "MY_ANTHROPIC_API_KEY") {
-      aiClient = new Anthropic({
-        apiKey: key,
-        // El SDK por defecto espera hasta 10 min y reintenta 2 veces: una sola
-        // llamada colgada dejaba la generación congelada indefinidamente.
-        timeout: 3e4,
-        maxRetries: 0,
-        defaultHeaders: {
-          "User-Agent": "aistudio-build"
-        }
-      });
-    }
-  }
-  return aiClient;
-}
-function safeJsonParse(text) {
-  let cleaned = text.trim();
-  try {
-    return JSON.parse(cleaned);
-  } catch (ignore) {
-  }
-  if (cleaned.startsWith("```")) {
-    cleaned = cleaned.replace(/^```[a-zA-Z]*\s*/, "");
-    cleaned = cleaned.replace(/\s*```$/, "");
-  }
-  cleaned = cleaned.trim();
-  cleaned = cleaned.replace(/^```json\s*/i, "").replace(/\s*```$/, "").trim();
-  try {
-    return JSON.parse(cleaned);
-  } catch (ignore) {
-  }
-  const firstBrace = cleaned.indexOf("{");
-  const firstBracket = cleaned.indexOf("[");
-  let startIdx = -1;
-  let endIdx = -1;
-  if (firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) {
-    startIdx = firstBrace;
-    endIdx = cleaned.lastIndexOf("}");
-  } else if (firstBracket !== -1) {
-    startIdx = firstBracket;
-    endIdx = cleaned.lastIndexOf("]");
-  }
-  if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
-    const candidate = cleaned.substring(startIdx, endIdx + 1);
-    try {
-      return JSON.parse(candidate);
-    } catch (e) {
-      throw new Error(`JSON parsing failed: ${e.message}`);
-    }
-  }
-  throw new Error(`Could not find valid JSON boundaries in response text.`);
-}
-function rescatarObjetosJson(text) {
-  const inicio = text.indexOf("[");
-  if (inicio === -1) return [];
-  const out = [];
-  let profundidad = 0;
-  let enString = false;
-  let escape = false;
-  let desde = -1;
-  for (let i = inicio + 1; i < text.length; i++) {
-    const c = text[i];
-    if (enString) {
-      if (escape) escape = false;
-      else if (c === "\\") escape = true;
-      else if (c === '"') enString = false;
-      continue;
-    }
-    if (c === '"') {
-      enString = true;
-      continue;
-    }
-    if (c === "{") {
-      if (profundidad === 0) desde = i;
-      profundidad++;
-    } else if (c === "}") {
-      profundidad--;
-      if (profundidad === 0 && desde !== -1) {
-        try {
-          out.push(JSON.parse(text.slice(desde, i + 1)));
-        } catch {
-        }
-        desde = -1;
-      }
-    }
-  }
-  return out;
-}
-async function generarConGeminiUnaVez(prompt, maxTokens, apiKey, model, timeoutMs) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      // Temperatura baja (no 0 -- algunos modelos rechazan temperatura
-      // exactamente 0) para tareas de búsqueda/extracción factual: reduce
-      // la variabilidad entre llamadas idénticas, que antes hacía que la
-      // misma búsqueda devolviera países/resultados distintos cada vez.
-      generationConfig: { maxOutputTokens: maxTokens, temperature: 0.15 }
-    }),
-    signal: AbortSignal.timeout(timeoutMs)
-  });
-  if (!res.ok) {
-    const err = await res.text().catch(() => "");
-    throw new Error(`Gemini HTTP ${res.status}: ${err.slice(0, 150)}`);
-  }
-  const data = await res.json();
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) throw new Error("Gemini no devolvi\xF3 texto");
-  return String(text).trim();
-}
-async function generarConGemini(prompt, maxTokens = 2e3) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey || apiKey === "MY_GEMINI_API_KEY") throw new Error("GEMINI_API_KEY no configurada");
-  const model = process.env.GEMINI_MODEL || "gemini-3.6-flash";
-  let lastErr;
-  for (let intento = 1; intento <= 2; intento++) {
-    try {
-      return await generarConGeminiUnaVez(prompt, maxTokens, apiKey, model, 25e3);
-    } catch (err) {
-      lastErr = err;
-      const esSaturacion = /HTTP 503|HTTP 429/.test(err?.message || "");
-      if (intento < 2 && esSaturacion) {
-        await new Promise((r) => setTimeout(r, 1200));
-        continue;
-      }
-      break;
-    }
-  }
-  throw lastErr;
-}
-var GROQ_MODELOS_CANDIDATOS = [
-  "openai/gpt-oss-120b",
-  "llama-3.3-70b-versatile",
-  "llama-3.1-8b-instant"
-];
-async function llamarGroqConModelo(prompt, maxTokens, apiKey, model) {
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model,
-      messages: [{ role: "user", content: prompt }],
-      // Temperatura baja para tareas de búsqueda/extracción factual -- ver
-      // nota en generarConGeminiUnaVez.
-      temperature: 0.15,
-      // Los modelos "openai/gpt-oss-*" servidos por Groq exigen max_completion_tokens
-      // en vez de (o además de) max_tokens; se envían ambos por compatibilidad.
-      max_tokens: maxTokens,
-      max_completion_tokens: maxTokens,
-      // gpt-oss-* son modelos de razonamiento: sin esto gastan el presupuesto de
-      // tokens en su "pensamiento" interno y devuelven contenido final vacío,
-      // sobre todo con maxTokens bajos (health checks, prompts cortos).
-      ...model.startsWith("openai/gpt-oss") ? { reasoning_effort: "low" } : {}
-    }),
-    signal: AbortSignal.timeout(2e4)
-  });
-  if (!res.ok) {
-    const err = await res.text().catch(() => "");
-    throw new Error(`Groq HTTP ${res.status}: ${err.slice(0, 150)}`);
-  }
-  const data = await res.json();
-  const text = data?.choices?.[0]?.message?.content;
-  if (!text) throw new Error("Groq no devolvi\xF3 texto");
-  return String(text).trim();
-}
-async function generarConGroq(prompt, maxTokens = 2e3) {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey || apiKey === "MY_GROQ_API_KEY") throw new Error("GROQ_API_KEY no configurada");
-  const modeloFijado = process.env.GROQ_MODEL;
-  if (modeloFijado) return llamarGroqConModelo(prompt, maxTokens, apiKey, modeloFijado);
-  let lastErr;
-  for (const model of GROQ_MODELOS_CANDIDATOS) {
-    try {
-      return await llamarGroqConModelo(prompt, maxTokens, apiKey, model);
-    } catch (e) {
-      lastErr = e;
-      if (!/model.*(not exist|does not exist|no access|invalid_request_error|decommissioned)|HTTP 429/i.test(e.message)) {
-        throw e;
-      }
-    }
-  }
-  throw lastErr;
-}
-async function generarConOpenRouter(prompt, maxTokens = 1500) {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey || apiKey === "MY_OPENROUTER_API_KEY") throw new Error("OPENROUTER_API_KEY no configurada");
-  const configuredModel = process.env.OPENROUTER_MODEL;
-  const models = [
-    configuredModel && !configuredModel.includes("claude-3.5-haiku") ? configuredModel : void 0,
-    // Orden por capacidad (verificados contra el catálogo público de OpenRouter);
-    // el modelo pequeño de 2.6B queda de último recurso.
-    "nvidia/nemotron-3-super-120b-a12b:free",
-    "google/gemma-4-31b-it:free",
-    "qwen/qwen3.8-27b:free",
-    "nvidia/nemotron-3-ultra-550b-a55b:free"
-  ].filter((m) => Boolean(m));
-  let lastError = "";
-  for (const model of models) {
-    try {
-      const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": process.env.APP_URL || "http://localhost:3000",
-          "X-Title": "LegisTrack-CL"
-        },
-        body: JSON.stringify({
-          model,
-          messages: [{ role: "user", content: prompt }],
-          max_tokens: maxTokens,
-          temperature: 0.15
-        }),
-        // Tareas largas (leer varios documentos y redactar cientos de palabras) necesitan más tiempo.
-        signal: AbortSignal.timeout(maxTokens > 2e3 || prompt.length > 12e3 ? 7e4 : 15e3)
-      });
-      if (!resp.ok) {
-        const errText = await resp.text().catch(() => "");
-        lastError = `OpenRouter (${model}) HTTP ${resp.status}: ${errText.slice(0, 200)}`;
-        continue;
-      }
-      const data = await resp.json();
-      const text = data?.choices?.[0]?.message?.content;
-      if (text) return String(text).trim();
-    } catch (e) {
-      lastError = e?.message || String(e);
-    }
-  }
-  throw new Error(lastError || "OpenRouter no devolvi\xF3 contenido");
-}
-var CEREBRAS_MODELOS_CANDIDATOS = ["llama-3.3-70b", "llama3.1-8b", "qwen-3-32b"];
-async function llamarCerebrasConModelo(prompt, maxTokens, apiKey, model) {
-  const res = await fetch("https://api.cerebras.ai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model,
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.15,
-      max_tokens: maxTokens
-    }),
-    signal: AbortSignal.timeout(15e3)
-  });
-  if (!res.ok) {
-    const err = await res.text().catch(() => "");
-    throw new Error(`Cerebras (${model}) HTTP ${res.status}: ${err.slice(0, 150)}`);
-  }
-  const data = await res.json();
-  const text = data?.choices?.[0]?.message?.content;
-  if (!text) throw new Error("Cerebras no devolvi\xF3 texto");
-  return String(text).trim();
-}
-async function generarConCerebras(prompt, maxTokens = 2e3) {
-  const apiKey = process.env.CEREBRAS_API_KEY;
-  if (!apiKey || apiKey === "MY_CEREBRAS_API_KEY") throw new Error("CEREBRAS_API_KEY no configurada");
-  const modeloFijado = process.env.CEREBRAS_MODEL;
-  if (modeloFijado) return llamarCerebrasConModelo(prompt, maxTokens, apiKey, modeloFijado);
-  let lastErr;
-  for (const model of CEREBRAS_MODELOS_CANDIDATOS) {
-    try {
-      return await llamarCerebrasConModelo(prompt, maxTokens, apiKey, model);
-    } catch (e) {
-      lastErr = e;
-      if (!/model.*(not exist|does not exist|no access|invalid_request_error|decommissioned)/i.test(e.message)) {
-        throw e;
-      }
-    }
-  }
-  throw lastErr;
-}
-async function intentarGemini(prompt, maxTokens) {
-  const configured = !!(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY");
-  if (!configured) return { provider: "gemini", configured };
-  try {
-    const text = await generarConGemini(prompt, maxTokens);
-    return text ? { provider: "gemini", configured, text } : { provider: "gemini", configured, error: "respuesta vac\xEDa" };
-  } catch (e) {
-    console.log(`[Gemini Free Info]: ${e?.message || e}`);
-    return { provider: "gemini", configured, error: e?.message || String(e) };
-  }
-}
-async function intentarOpenRouter(prompt, maxTokens) {
-  const configured = !!(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY !== "MY_OPENROUTER_API_KEY");
-  if (!configured) return { provider: "openrouter", configured };
-  try {
-    const text = await generarConOpenRouter(prompt, maxTokens);
-    return text ? { provider: "openrouter", configured, text } : { provider: "openrouter", configured, error: "respuesta vac\xEDa" };
-  } catch (e) {
-    console.log(`[OpenRouter Info]: ${e?.message || e}`);
-    return { provider: "openrouter", configured, error: e?.message || String(e) };
-  }
-}
-async function intentarCerebras(prompt, maxTokens) {
-  const configured = !!(process.env.CEREBRAS_API_KEY && process.env.CEREBRAS_API_KEY !== "MY_CEREBRAS_API_KEY");
-  if (!configured) return { provider: "cerebras", configured };
-  try {
-    const text = await generarConCerebras(prompt, maxTokens);
-    return text ? { provider: "cerebras", configured, text } : { provider: "cerebras", configured, error: "respuesta vac\xEDa" };
-  } catch (e) {
-    console.log(`[Cerebras Free Info]: ${e?.message || e}`);
-    return { provider: "cerebras", configured, error: e?.message || String(e) };
-  }
-}
-async function intentarGroq(prompt, maxTokens) {
-  const configured = !!(process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== "MY_GROQ_API_KEY");
-  if (!configured) return { provider: "groq", configured };
-  try {
-    const text = await generarConGroq(prompt, maxTokens);
-    return text ? { provider: "groq", configured, text } : { provider: "groq", configured, error: "respuesta vac\xEDa" };
-  } catch (e) {
-    console.log(`[Groq Free Info]: ${e?.message || e}`);
-    return { provider: "groq", configured, error: e?.message || String(e) };
-  }
-}
-async function intentarClaude(prompt, maxTokens) {
-  const claude = getClaudeClient();
-  if (!claude) return { provider: "claude", configured: !!process.env.ANTHROPIC_API_KEY };
-  const modelos = Array.from(new Set([process.env.ANTHROPIC_MODEL, "claude-haiku-5-5", "claude-haiku-4-5"].filter(Boolean)));
-  let ultimoError = "";
-  for (const model of modelos) {
-    try {
-      const resp = await claude.messages.create({
-        model,
-        max_tokens: maxTokens,
-        messages: [{ role: "user", content: prompt }]
-      });
-      const bloque = resp.content.find((c) => c.type === "text");
-      const text = bloque?.text || "";
-      if (text) return { provider: "claude", configured: true, text };
-      ultimoError = "respuesta vac\xEDa";
-    } catch (err) {
-      ultimoError = err?.message || String(err);
-      if (!/not[_ ]found|404|model/i.test(ultimoError)) {
-        handleClaudeError("Claude Universal", err);
-        break;
-      }
-    }
-  }
-  return { provider: "claude", configured: true, error: ultimoError };
-}
-var LIMITE_TOTAL_IA_MS = 16e4;
-async function generarContenidoUniversalIA(prompt, maxTokens = 2e3, attempts) {
-  let temporizador;
-  try {
-    return await Promise.race([
-      generarContenidoUniversalIAInterno(prompt, maxTokens, attempts),
-      new Promise((resolve) => {
-        temporizador = setTimeout(() => resolve(null), LIMITE_TOTAL_IA_MS);
-      })
-    ]);
-  } finally {
-    clearTimeout(temporizador);
-  }
-}
-async function generarContenidoUniversalIAInterno(prompt, maxTokens, attempts) {
-  const [geminiRes, openrouterRes, cerebrasRes] = await Promise.all([
-    intentarGemini(prompt, maxTokens),
-    intentarOpenRouter(prompt, maxTokens),
-    intentarCerebras(prompt, maxTokens)
-  ]);
-  const primeraRonda = [geminiRes, openrouterRes, cerebrasRes];
-  for (const r of primeraRonda) {
-    attempts?.push({ provider: r.provider, configured: r.configured, error: r.error });
-  }
-  const exitoPrimeraRonda = primeraRonda.find((r) => r.text);
-  if (exitoPrimeraRonda) return exitoPrimeraRonda.text;
-  const groqRes = await intentarGroq(prompt, maxTokens);
-  attempts?.push({ provider: groqRes.provider, configured: groqRes.configured, error: groqRes.error });
-  if (groqRes.text) return groqRes.text;
-  const claudeRes = await intentarClaude(prompt, maxTokens);
-  attempts?.push({ provider: claudeRes.provider, configured: claudeRes.configured, error: claudeRes.error });
-  if (claudeRes.text) return claudeRes.text;
-  const respaldo = await intentarGeminiRespaldo(prompt, maxTokens);
-  attempts?.push({ provider: "gemini-respaldo", configured: respaldo.configured, error: respaldo.error });
-  if (respaldo.text) return respaldo.text;
-  return null;
-}
-async function intentarGeminiRespaldo(prompt, maxTokens) {
-  const key = process.env.GEMINI_VIDEO_API_KEY;
-  if (!key || key === process.env.GEMINI_API_KEY) return { configured: false };
-  let ultimo = "";
-  for (const model of ["gemini-2.5-flash", "gemini-2.5-flash-lite"]) {
-    try {
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { maxOutputTokens: Math.max(maxTokens, 2048), temperature: 0.15 }
-        }),
-        signal: AbortSignal.timeout(6e4)
-      });
-      if (!res.ok) {
-        ultimo = `${model} HTTP ${res.status}: ${(await res.text().catch(() => "")).slice(0, 120)}`;
-        continue;
-      }
-      const data = await res.json();
-      const text = (data?.candidates?.[0]?.content?.parts || []).map((p) => p.text || "").join("").trim();
-      if (text) return { configured: true, text };
-      ultimo = `${model}: respuesta vac\xEDa`;
-    } catch (e) {
-      ultimo = `${model}: ${e?.message || e}`;
-    }
-  }
-  return { configured: true, error: ultimo };
-}
-async function responderCopilotoLegislativo(params) {
-  const { mensaje, contextoBoletin, contextoComision, historial = [] } = params;
-  const prompt = `Eres el "Copiloto Legislativo", un asistente experto en t\xE9cnica legislativa, derecho parlamentario y transparencia del Congreso Nacional de Chile.
-Tu misi\xF3n es explicar con claridad t\xE9cnica, objetiva y sobria el proceso legislativo, el estado de los proyectos de ley (boletines), el rol de las comisiones, qu\xF3rums requeridos y antecedentes comparados.
-
-Contexto actual del usuario:
-- Bolet\xEDn en pantalla: ${contextoBoletin || "No especificado"}
-- Comisi\xF3n en pantalla: ${contextoComision || "No especificado"}
-
-Pregunta del usuario:
-"${mensaje}"
-
-Instrucciones:
-1. Responde de forma directa, sobria y t\xE9cnicamente rigurosa (m\xE1ximo 160 palabras).
-2. Si el usuario pregunta por qu\xF3rums, cita el art\xEDculo correspondiente (ej. Art. 66 o Art. 127 de la CPR).
-3. Utiliza formato Markdown limpio (vi\xF1etas cortas y negritas en conceptos clave).
-4. No inventes art\xEDculos ni resultados de votaciones inexistentes.
-
-Responde \xFAnicamente con el texto de la respuesta.`;
-  const textoIA = await generarContenidoUniversalIA(prompt, 800);
-  if (textoIA) {
-    return {
-      respuesta: textoIA,
-      sugerencias: [
-        "\xBFCu\xE1les son los plazos seg\xFAn la urgencia vigente?",
-        "\xBFQu\xE9 qu\xF3rum se requiere para aprobar este proyecto?",
-        "\xBFQu\xE9 ministerios est\xE1n involucrados?"
-      ],
-      fuente: "ia"
-    };
-  }
-  let respuestaFallback = `El proceso legislativo chileno contempla distintas etapas constitucionales (Primer Tr\xE1mite, Segundo Tr\xE1mite, Comisi\xF3n Mixta y Promulgaci\xF3n). `;
-  if (contextoBoletin) {
-    respuestaFallback += `Para el **Bolet\xEDn ${contextoBoletin}**, puedes revisar el desglose del hemiciclo en la pesta\xF1a *Simulador de Qu\xF3rum*, las diferencias de redacci\xF3n en el *Comparador de Textos* o descargar la *Ficha Ejecutiva* formal con antecedentes oficiales.`;
-  } else {
-    respuestaFallback += `Puedes explorar el cat\xE1logo de proyectos vigentes, las citaciones en vivo de comisiones o buscar antecedentes en la secci\xF3n de *Legislaci\xF3n Comparada*.`;
-  }
-  return {
-    respuesta: respuestaFallback,
-    sugerencias: [
-      "\xBFC\xF3mo funciona una Comisi\xF3n Mixta?",
-      "\xBFQu\xE9 diferencia hay entre Moci\xF3n y Mensaje?",
-      "\xBFC\xF3mo se calculan las 4/7 partes?"
-    ],
-    fuente: "fallback"
-  };
-}
-function getAIProvidersStatus() {
-  return {
-    gemini: Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY"),
-    groq: Boolean(process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== "MY_GROQ_API_KEY"),
-    openrouter: Boolean(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY !== "MY_OPENROUTER_API_KEY"),
-    cerebras: Boolean(process.env.CEREBRAS_API_KEY && process.env.CEREBRAS_API_KEY !== "MY_CEREBRAS_API_KEY"),
-    claude: Boolean(process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_API_KEY !== "MY_ANTHROPIC_API_KEY" && !isClaudeQuotaExceeded),
-    claudeQuotaExceeded: isClaudeQuotaExceeded
-  };
-}
-async function testearProveedoresIAReal() {
-  const promptTrivial = 'Responde solo con: {"ok":true}';
-  const [gemini, openrouter, cerebras, groq, claude] = await Promise.all([
-    intentarGemini(promptTrivial, 30),
-    intentarOpenRouter(promptTrivial, 30),
-    intentarCerebras(promptTrivial, 30),
-    // Groq: se le da más presupuesto porque el modelo por defecto (gpt-oss, de
-    // razonamiento) puede consumir tokens en pensar antes de responder.
-    intentarGroq(promptTrivial, 200),
-    intentarClaude(promptTrivial, 30)
-  ]);
-  const toResult = (r) => ({ configured: r.configured, ok: !!r.text, error: r.error });
-  return {
-    gemini: toResult(gemini),
-    openrouter: toResult(openrouter),
-    cerebras: toResult(cerebras),
-    groq: toResult(groq),
-    claude: toResult(claude)
-  };
-}
-
 // src/utils/comisionesNombre.ts
 var CORTES = /\s*(?:,\s*y\b|\s+y\s*,|,?\s+posteriormente\b|,?\s+finalmente\b|,?\s+luego\b|\s+para\s|\s+con\s+ocasi[oó]n|\s+en\s+(?:el|la|los|las|lo|su|sesi[oó]n)\b|\s+el\s+rechazo|\s+y\s+a(?:\s|$)|\s+rechaz|\s+a\s+fin\b|\s+que\s|\s+por\s|[.:(]).*$/i;
 function limpiarNombreComision(raw) {
@@ -188033,6 +187636,503 @@ async function detalleSesionSenado(idComision, idSesion) {
   } catch (err) {
     return { disponible: false, motivo: `No se pudo consultar senado.cl: ${err?.message || err}`, url };
   }
+}
+
+// server/services/discusionService.ts
+var RE_DEBATE = /DISCUSI[ÓO]N|DEBATE|IDEA DE LEGISLAR|VOTACI[ÓO]N|ACUERDOS ADOPTADOS|S[ÍI]NTESIS/;
+var SOLO_MAYUS = /^[^a-záéíóúñü]*[A-ZÁÉÍÓÚÑÜ][^a-záéíóúñü]*$/;
+var LETRA_SUELTA = /^[A-ZÁÉÍÓÚÑ][.)-]*$/;
+function tituloDeTramo(tramo) {
+  const re = /\S+/g;
+  const palabras = [];
+  let m;
+  while ((m = re.exec(tramo)) && palabras.length < 14) palabras.push({ t: m[0], fin: m.index + m[0].length });
+  let n = 0;
+  for (let i = 0; i < palabras.length && i < 12; i++) {
+    const w = palabras[i].t;
+    if (!SOLO_MAYUS.test(w)) break;
+    if (LETRA_SUELTA.test(w) && w !== "H." && (/[.)-]/.test(w) || /^[a-záéíóúñ]/.test(palabras[i + 1]?.t || ""))) break;
+    n = i + 1;
+  }
+  if (n === 0) return { titulo: "", largoTitulo: 0 };
+  const titulo = palabras.slice(0, n).map((p) => p.t).join(" ").replace(/[\s.:,-]+$/, "");
+  return titulo.replace(/[^A-ZÁÉÍÓÚÑÜ]/g, "").length < 4 ? { titulo: "", largoTitulo: 0 } : { titulo, largoTitulo: palabras[n - 1].fin };
+}
+var ROMANOS = { I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6, VII: 7, VIII: 8, IX: 9, X: 10, XI: 11, XII: 12, XIII: 13, XIV: 14, XV: 15 };
+function cortesPorRomanos(texto) {
+  const re = /(?:^|\s)([IVX]{1,4})(?:\.\s?[-–]?|\s?[-–])\s?(?=[A-ZÁÉÍÓÚÑ]{2})/g;
+  const cortes = [];
+  let ultimo = 0;
+  let m;
+  while (m = re.exec(texto)) {
+    const v = ROMANOS[m[1]];
+    if (!v) continue;
+    if (ultimo === 0 ? v <= 2 : v === ultimo + 1 || v === ultimo + 2) {
+      cortes.push(m.index + m[0].length);
+      ultimo = v;
+    }
+  }
+  if (cortes.length < 2) return [];
+  const sub = /[.)]\s+((?:DISCUSI[ÓO]N|VOTACI[ÓO]N)(?: Y VOTACI[ÓO]N)?(?: EN)? (?:GENERAL|PARTICULAR))\s+(?=[A-ZÁÉÍÓÚÑ][a-záéíóúñ])/g;
+  while (m = sub.exec(texto)) cortes.push(m.index + m[0].indexOf(m[1]));
+  return cortes.sort((a, b) => a - b);
+}
+function seccionesInforme(texto, largoExtracto = 2500) {
+  const out = [];
+  const sep = /\s-\s-\s-\s/g;
+  let cortes = [];
+  let m;
+  while (m = sep.exec(texto)) cortes.push(m.index + m[0].length);
+  if (cortes.length < 3) cortes = cortesPorRomanos(texto);
+  for (let i = 0; i < cortes.length; i++) {
+    const ini = cortes[i];
+    const fin = i + 1 < cortes.length ? cortes[i + 1] : texto.length;
+    const { titulo, largoTitulo } = tituloDeTramo(texto.slice(ini, Math.min(fin, ini + 400)));
+    if (!titulo) {
+      const previa = out[out.length - 1];
+      if (previa) previa.largo = fin - previa.inicio;
+      continue;
+    }
+    if (/^[ÍI]NDICE\b/.test(titulo)) break;
+    out.push({ titulo, inicio: ini + largoTitulo, largo: fin - (ini + largoTitulo), esDebate: RE_DEBATE.test(titulo) });
+  }
+  for (const s of out) {
+    s.largo = Math.max(0, s.largo);
+    if (s.esDebate) s.extracto = texto.slice(s.inicio, s.inicio + Math.min(s.largo, largoExtracto)).trim();
+  }
+  return out;
+}
+var TTL_MS = 24 * 60 * 60 * 1e3;
+var MAX_INFORMES = 6;
+async function discusionDeProyecto(boletinId) {
+  const fuente = "Informes de comisi\xF3n publicados en tramitacion.senado.cl";
+  const consultadoEl = (/* @__PURE__ */ new Date()).toISOString();
+  const digits = String(boletinId || "").replace(/\./g, "").match(/\d{3,6}/)?.[0] || "";
+  if (!digits) return { disponible: false, motivo: "N\xFAmero de bolet\xEDn no v\xE1lido.", informes: [], fuente, consultadoEl };
+  const clave = `discusion_proyecto_v1_${digits}`;
+  const previo = cache.get(clave);
+  if (previo) return previo;
+  const p = await fetchProyectoFromSenado(digits);
+  if (!p) return { disponible: false, motivo: "No se encontr\xF3 el proyecto en la ficha oficial del Senado.", informes: [], fuente, consultadoEl };
+  const informes = (p.documentos || []).filter((d) => d?.tipo === "Informe" && /^https:\/\/tramitacion\.senado\.cl\//.test(String(d.url || ""))).slice(0, MAX_INFORMES);
+  if (informes.length === 0) {
+    return { disponible: false, motivo: "La ficha oficial no registra informes de comisi\xF3n para este proyecto.", boletin: p.id, informes: [], fuente, consultadoEl };
+  }
+  const resultado = await Promise.all(informes.map(async (d) => {
+    const base = { titulo: String(d.titulo || "Informe de comisi\xF3n"), fecha: d.fecha || void 0, url: String(d.url) };
+    try {
+      const texto = await fetchTextoInformeDocx(base.url);
+      if (!texto) return { ...base, disponible: false, motivo: "No se pudo leer el documento del informe.", secciones: [] };
+      const secciones = seccionesInforme(texto);
+      if (secciones.length === 0) {
+        return { ...base, disponible: false, motivo: "El informe no usa el formato de secciones reconocible; \xE1bralo en el enlace oficial.", totalCaracteres: texto.length, secciones: [] };
+      }
+      return { ...base, disponible: true, totalCaracteres: texto.length, secciones };
+    } catch (e) {
+      return { ...base, disponible: false, motivo: `No se pudo leer el informe: ${e?.message || e}`, secciones: [] };
+    }
+  }));
+  const res = { disponible: resultado.some((r) => r.disponible), boletin: p.id, informes: resultado, fuente, consultadoEl };
+  if (!res.disponible) res.motivo = "No se pudo leer ninguno de los informes de comisi\xF3n.";
+  if (resultado.every((r) => r.disponible)) cache.set(clave, res, TTL_MS);
+  return res;
+}
+
+// server/services/resumenSesionService.ts
+var vacio = (s) => {
+  const t = String(s ?? "").replace(/\s+/g, " ").trim();
+  return !t || /^(null|undefined|n\/?a|-+)$/i.test(t) ? null : t;
+};
+var lista = (s) => String(s ?? "").split(/[;\n]+/).map((x) => x.replace(/\s+/g, " ").trim()).filter((x) => x && !/^(null|undefined)$/i.test(x));
+var unicos = (xs) => {
+  const vistos = /* @__PURE__ */ new Set();
+  return xs.filter((x) => {
+    const k = x.toLowerCase();
+    if (vistos.has(k)) return false;
+    vistos.add(k);
+    return true;
+  });
+};
+var minutos = (h) => {
+  const m = /^(\d{1,2}):(\d{2})/.exec(String(h ?? "").trim());
+  return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : null;
+};
+function construirResumenSesion(det) {
+  const fuente = "Registro oficial de la sesi\xF3n en senado.cl";
+  if (!det?.disponible) {
+    return { disponible: false, motivo: det?.motivo || "Detalle de la sesi\xF3n no disponible.", url: det?.url, asistentes: [], invitados: [], boletines: [], puntos: [], presentaciones: [], fuente };
+  }
+  const puntos = (det.puntos || []).map((p) => {
+    const acu = vacio(p.acuerdos);
+    return {
+      numero: vacio(p.numero) || "",
+      boletin: vacio(p.boletin),
+      tema: vacio(p.tema) || "Tema no informado",
+      aspectos: vacio(p.aspectos),
+      acuerdos: acu && !/^pendiente\.?$/i.test(acu) ? acu : null,
+      invitados: unicos(lista(p.invitados)),
+      asistentes: unicos(lista(p.asistentes))
+    };
+  });
+  const ini = minutos(det.inicio), fin = minutos(det.termino);
+  const duracionMin = ini !== null && fin !== null && fin >= ini ? fin - ini : null;
+  const asistentes = unicos(puntos.flatMap((p) => p.asistentes));
+  const invitados = unicos(puntos.flatMap((p) => p.invitados));
+  const boletines = unicos(puntos.map((p) => p.boletin || "").filter(Boolean));
+  const conAcuerdos = puntos.filter((p) => p.acuerdos).length;
+  return {
+    disponible: true,
+    url: det.url,
+    fuente,
+    encabezado: { comision: vacio(det.comision), fecha: vacio(det.fecha), inicio: vacio(det.inicio), termino: vacio(det.termino), duracionMin, lugar: vacio(det.lugar) },
+    asistentes,
+    invitados,
+    boletines,
+    puntos,
+    presentaciones: (det.presentaciones || []).filter((x) => x.url),
+    estadisticas: { puntos: puntos.length, conAcuerdos, sinAcuerdos: puntos.length - conAcuerdos, boletines: boletines.length, invitados: invitados.length, asistentes: asistentes.length }
+  };
+}
+
+// server/routes/apiRoutes.ts
+import { Router, text as expressText } from "express";
+
+// src/utils/searchEngine.ts
+function normalizeSearchString(str) {
+  if (!str) return "";
+  return str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9\s\.\-]/g, " ").trim();
+}
+function extractBoletinDigits(query) {
+  const clean = query.replace(/[\s\.]/g, "");
+  const match = clean.match(/(\d{4,6})(?:-(\d{1,2}))?/);
+  if (match) {
+    return match[1];
+  }
+  return null;
+}
+function performUnifiedSearch(rawQuery) {
+  const normQ = normalizeSearchString(rawQuery);
+  const boletinDigits = extractBoletinDigits(rawQuery);
+  if (!normQ) {
+    return {
+      proyectos: [],
+      comisiones: [],
+      autores: [],
+      fuentesDatos: [],
+      documentos: [],
+      comparada: [],
+      webLinks: []
+    };
+  }
+  const allProjects = getAllMasterProyectos();
+  const qClean = cleanBulletin(rawQuery);
+  const isDirectBulletin = boletinDigits && boletinDigits.length >= 3 || rawQuery.includes("-");
+  const matchedProjects = allProjects.filter((p) => {
+    const pClean = cleanBulletin(p.id);
+    const normId = normalizeSearchString(p.id);
+    const normTit = normalizeSearchString(p.titulo);
+    const normMat = normalizeSearchString(p.materia);
+    const normRes = normalizeSearchString(p.resumen);
+    const normAut = normalizeSearchString(p.autores || "");
+    if (qClean && qClean.length >= 3 && (pClean.includes(qClean) || qClean.includes(pClean))) {
+      return true;
+    }
+    if (boletinDigits && normId.replace(/[\.\-]/g, "").includes(boletinDigits)) {
+      return true;
+    }
+    return normId.includes(normQ) || normTit.includes(normQ) || normMat.includes(normQ) || normRes.includes(normQ) || normAut.includes(normQ);
+  });
+  if (isDirectBulletin) {
+    const resolved = findPreloadedProyecto(rawQuery);
+    if (resolved && !matchedProjects.some((p) => cleanBulletin(p.id) === cleanBulletin(resolved.id))) {
+      matchedProjects.unshift(resolved);
+    }
+  }
+  const matchedComisiones = TODAS_COMISIONES_DETALLE.filter((c) => {
+    const normId = normalizeSearchString(c.id);
+    const normNom = normalizeSearchString(c.nombre);
+    const normDesc = normalizeSearchString(c.descripcion);
+    const normTemas = (c.temas || []).map(normalizeSearchString).join(" ");
+    return normId.includes(normQ) || normNom.includes(normQ) || normDesc.includes(normQ) || normTemas.includes(normQ);
+  });
+  const authorsMap = /* @__PURE__ */ new Map();
+  for (const com of TODAS_COMISIONES_DETALLE) {
+    for (const i of com.integrantes) {
+      const normNombre = normalizeSearchString(i.nombre);
+      const normPartido = normalizeSearchString(i.partido);
+      if (normNombre.includes(normQ) || normPartido.includes(normQ)) {
+        if (!authorsMap.has(i.nombre)) {
+          authorsMap.set(i.nombre, {
+            ...i,
+            comisionNombre: com.nombre,
+            comisionId: `${com.prefix}${com.id}`
+          });
+        }
+      }
+    }
+  }
+  const matchedAuthors = Array.from(authorsMap.values());
+  const sampleDocs = [];
+  const sampleComparada = [];
+  const encodedQ = encodeURIComponent(rawQuery.trim());
+  const encodedBoletin = encodeURIComponent(rawQuery.split("-")[0].trim());
+  const qLower = normalizeSearchString(rawQuery);
+  let searchDisplayName = rawQuery;
+  if (isDirectBulletin && matchedProjects.length > 0) {
+    searchDisplayName = matchedProjects[0].titulo;
+  } else if (isDirectBulletin) {
+    searchDisplayName = `Bolet\xEDn ${rawQuery}`;
+  }
+  const fuentesDatos = [
+    {
+      id: "fuente-senado",
+      nombre: "Senado de la Rep\xFAblica de Chile",
+      institucion: "Congreso Nacional de Chile",
+      categoria: "Congreso & Normativa",
+      descripcion: "Sistema de Tramitaci\xF3n de Proyectos, boletines oficiales, actas de comisiones, transmisiones de Sala y Open Data parlamentario.",
+      url: `https://tramitacion.senado.cl/wspublico/tramitacion.php?boletin=${encodedBoletin}`,
+      queBuscar: `Boletines, estados de tramitaci\xF3n, qu\xF3rum de votaci\xF3n y proyectos de ley radicados en el Senado sobre "${searchDisplayName}".`,
+      cobertura: "Congreso Nacional (1990 - 2026)",
+      relevancia: "Alta"
+    },
+    {
+      id: "fuente-camara",
+      nombre: "C\xE1mara de Diputadas y Diputados",
+      institucion: "Congreso Nacional de Chile",
+      categoria: "Congreso & Normativa",
+      descripcion: "Buscador de labor parlamentaria, registros de votaciones electr\xF3nicas en sala, asistencia, oficios fiscalizadores y mociones.",
+      url: `https://www.camara.cl/legislacion/proyectos/busqueda.aspx?prmTexto=${encodedQ}`,
+      queBuscar: `Mociones, acuerdos, votaciones y trabajo de comisiones de la C\xE1mara de Diputadas y Diputados sobre "${searchDisplayName}".`,
+      cobertura: "C\xE1mara Baja (Hist\xF3rico & Vigente)",
+      relevancia: "Alta"
+    },
+    {
+      id: "fuente-bcn-leychile",
+      nombre: "LeyChile \u2014 Biblioteca del Congreso Nacional",
+      institucion: "Biblioteca del Congreso Nacional (BCN)",
+      categoria: "Congreso & Normativa",
+      descripcion: "Repositorio oficial de leyes promulgadas y normativa legal chilena. Texto completo, historia de la ley y jurisprudencia.",
+      url: `https://www.bcn.cl/leychile/consulta/busqueda_rapida?texto=${encodedQ}`,
+      queBuscar: `Textos oficiales de leyes publicadas, modificaciones a c\xF3digos y vigencia normativa de "${searchDisplayName}".`,
+      cobertura: "Toda la legislaci\xF3n de la Rep\xFAblica (1810 - 2026)",
+      relevancia: "Alta"
+    },
+    {
+      id: "fuente-bcn-asesoria",
+      nombre: "BCN Asesor\xEDa T\xE9cnica & SIIT Territorial",
+      institucion: "Biblioteca del Congreso Nacional (BCN)",
+      categoria: "Estad\xEDstica & Cifras",
+      descripcion: "Informes t\xE9cnicos, dosieres y visualizaci\xF3n de datos estad\xEDsticos territoriales para asesor\xEDa al legislador.",
+      url: `https://www.bcn.cl/observatorio/busqueda?q=${encodedQ}`,
+      queBuscar: `Informes t\xE9cnicos parlamentarios, comparativas de derecho internacional y estad\xEDsticas sectoriales sobre "${searchDisplayName}".`,
+      cobertura: "16 regiones y asesor\xEDa parlamentaria transversal",
+      relevancia: "Media"
+    },
+    {
+      id: "fuente-dipres",
+      nombre: "Direcci\xF3n de Presupuestos (DIPRES)",
+      institucion: "Ministerio de Hacienda",
+      categoria: "Presupuesto & Finanzas",
+      descripcion: "Informes financieros, evaluaci\xF3n de programas p\xFAblicos y documentos del presupuesto nacional de la Rep\xFAblica.",
+      url: `https://www.dipres.gob.cl/598/w3-propertyvalue-15439.html?_q=${encodedQ}`,
+      queBuscar: `Informes financieros que acompa\xF1an a proyectos de ley y evaluaci\xF3n de gasto p\xFAblico relacionados a "${searchDisplayName}".`,
+      cobertura: "Finanzas P\xFAblicas (Vigente & Archivo)",
+      relevancia: qLower.includes("presupuesto") || qLower.includes("gasto") || qLower.includes("hacienda") || qLower.includes("financier") || qLower.includes("tribut") ? "Alta" : "Media"
+    },
+    {
+      id: "fuente-datos-gob",
+      nombre: "Portal de Datos Abiertos del Estado",
+      institucion: "Gobierno Digital / Ministerio Secretar\xEDa General de la Presidencia",
+      categoria: "Jurisprudencia & Transparencia",
+      descripcion: "Cat\xE1logo centralizado de datos p\xFAblicos interoperables del Estado chileno (formatos CSV, JSON y API) provistos por ministerios y servicios p\xFAblicos.",
+      url: `https://datos.gob.cl/dataset?q=${encodedQ}`,
+      queBuscar: `Datasets oficiales, n\xF3minas p\xFAblicas, subsidios, contrataciones y registros sectoriales sobre "${rawQuery}".`,
+      cobertura: "Administraci\xF3n Central del Estado",
+      relevancia: "Alta"
+    },
+    {
+      id: "fuente-diario-oficial",
+      nombre: "Diario Oficial de la Rep\xFAblica de Chile",
+      institucion: "Ministerio del Interior y Seguridad P\xFAblica",
+      categoria: "Congreso & Normativa",
+      descripcion: "Publicaci\xF3n oficial indispensable para la entrada en vigencia de leyes, reglamentos, tratados internacionales y decretos de la Rep\xFAblica.",
+      url: `https://www.diariooficial.interior.gob.cl/`,
+      queBuscar: `Ediciones oficiales, fechas de promulgaci\xF3n y publicaciones de normas sobre "${rawQuery}".`,
+      cobertura: "Diario Oficial de Chile",
+      relevancia: "Media"
+    },
+    {
+      id: "fuente-ine",
+      nombre: "INE \u2014 Instituto Nacional de Estad\xEDsticas",
+      institucion: "Instituto Nacional de Estad\xEDsticas (Chile)",
+      categoria: "Estad\xEDstica & Cifras",
+      descripcion: "Censos de poblaci\xF3n, Encuesta Nacional de Empleo (ENE), \xCDndice de Precios al Consumidor (IPC) y estad\xEDsticas socioecon\xF3micas oficiales.",
+      url: `https://www.ine.gob.cl/estadisticas`,
+      queBuscar: `Cifras demogr\xE1ficas, estad\xEDsticas laborales, \xEDndices de precios y series hist\xF3ricas vinculadas a "${rawQuery}".`,
+      cobertura: "Nacional, regional y comunal",
+      relevancia: qLower.includes("empleo") || qLower.includes("trabajo") || qLower.includes("ipc") || qLower.includes("censo") || qLower.includes("poblacion") || qLower.includes("estadistic") ? "Alta" : "Media"
+    },
+    {
+      id: "fuente-infolobby",
+      nombre: "Plataforma InfoLobby & CPLT",
+      institucion: "Consejo para la Transparencia (CPLT)",
+      categoria: "Jurisprudencia & Transparencia",
+      descripcion: "Registro p\xFAblico de audiencias de lobby, gestores de intereses, viajes oficiales y donativos de diputados, senadores y autoridades de gobierno.",
+      url: `https://www.infolobby.gob.cl/`,
+      queBuscar: `Audiencias registradas entre parlamentarios y organizaciones de la sociedad civil o gremios en torno a "${rawQuery}".`,
+      cobertura: "Autoridades y sujetos pasivos Ley 20.730",
+      relevancia: "Media"
+    },
+    {
+      id: "fuente-ocde",
+      nombre: "OCDE Legal Instruments & Policy Database",
+      institucion: "Organizaci\xF3n para la Cooperaci\xF3n y el Desarrollo Econ\xF3micos (OCDE)",
+      categoria: "Internacional & OCDE",
+      descripcion: "Recomendaciones vinculantes, marcos de gobernanza y revisiones de pol\xEDticas regulatorias de los 38 pa\xEDses miembros de la OCDE.",
+      url: `https://legalinstruments.oecd.org/en/`,
+      queBuscar: `Est\xE1ndares internacionales, buenas pr\xE1cticas regulatorias y evaluaci\xF3n de impacto legislativo de la OCDE sobre "${rawQuery}".`,
+      cobertura: "38 Pa\xEDses Miembros de la OCDE (incluyendo Chile)",
+      relevancia: qLower.includes("comparad") || qLower.includes("internacional") || qLower.includes("ocde") || qLower.includes("europa") || qLower.includes("latam") ? "Alta" : "Complementaria"
+    }
+  ];
+  const webLinks = [
+    {
+      name: "C\xE1mara de Diputadas y Diputados",
+      url: `https://www.camara.cl/legislacion/proyectos/busqueda.aspx?prmTexto=${encodedQ}`,
+      description: `B\xFAsqueda en tiempo real en la base de datos de proyectos y comisiones de la C\xE1mara.`,
+      source: "camara"
+    },
+    {
+      name: "Senado de la Rep\xFAblica",
+      url: `https://www.senado.cl/actividad-legislativa/proyectos-de-ley?buscar=${encodedQ}`,
+      description: `Consulta directa en el repositorio oficial de tramitaci\xF3n del Senado de Chile.`,
+      source: "senado"
+    },
+    {
+      name: "Biblioteca del Congreso Nacional (BCN)",
+      url: `https://www.bcn.cl/obtienearchivo?id=recursoslegales/10221.3/${encodedQ}`,
+      description: `Estudios t\xE9cnicos, asesor\xEDa parlamentaria e informes jur\xEDdicos de la BCN.`,
+      source: "bcn"
+    },
+    {
+      name: "LeyChile \u2014 BCN",
+      url: `https://www.bcn.cl/leychile/consulta/buscador_resultado?texto=${encodedQ}`,
+      description: `Buscador oficial de legislaci\xF3n vigente y normas refundidas de la Rep\xFAblica de Chile.`,
+      source: "leychile"
+    }
+  ];
+  return {
+    proyectos: matchedProjects,
+    comisiones: matchedComisiones,
+    autores: matchedAuthors,
+    fuentesDatos,
+    documentos: sampleDocs,
+    comparada: sampleComparada,
+    webLinks
+  };
+}
+
+// src/utils/dateUtils.ts
+var MESES = {
+  enero: 0,
+  febrero: 1,
+  marzo: 2,
+  abril: 3,
+  mayo: 4,
+  junio: 5,
+  julio: 6,
+  agosto: 7,
+  septiembre: 8,
+  octubre: 9,
+  noviembre: 10,
+  diciembre: 11
+};
+function parseFechaSesion(fechaStr) {
+  if (!fechaStr) return null;
+  const isoMatch = fechaStr.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (isoMatch) {
+    return new Date(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3]), 23, 59, 59);
+  }
+  const dmy = fechaStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (dmy) {
+    return new Date(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]), 23, 59, 59);
+  }
+  const match = fechaStr.match(/(\d{1,2})\s+de\s+([a-zA-ZáéíóúÁÉÍÓÚ]+)\s+de\s+(\d{4})/i);
+  if (match) {
+    const day = Number(match[1]);
+    const monthStr = match[2].toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+    const year = Number(match[3]);
+    const month = MESES[monthStr] ?? 0;
+    return new Date(year, month, day, 23, 59, 59);
+  }
+  return null;
+}
+function isSessionDatePassed(fechaStr) {
+  const d = parseFechaSesion(fechaStr);
+  if (!d) return false;
+  const now = /* @__PURE__ */ new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+  return d.getTime() < today.getTime();
+}
+function compareSesionesDesc(a, b) {
+  const da = parseFechaSesion(a.fecha);
+  const db = parseFechaSesion(b.fecha);
+  if (da && db) return db.getTime() - da.getTime();
+  if (da && !db) return -1;
+  if (!da && db) return 1;
+  return (b.id || "").localeCompare(a.id || "");
+}
+function riquezaSesion(s) {
+  let score = 0;
+  if (s.completada) score += 4;
+  if (s.actaTexto) score += 3;
+  if (s.videoUrl) score += 3;
+  if (s.acuerdosTexto && s.acuerdosTexto.length > 0) score += 2;
+  if (s.tabla && s.tabla.length > 0) score += 1;
+  if (s.materia) score += Math.min(s.materia.length / 100, 2);
+  return score;
+}
+function mergeSesionesDuplicadas(sesiones) {
+  const grupos = /* @__PURE__ */ new Map();
+  const ordenGrupos = [];
+  sesiones.forEach((s, idx) => {
+    const d = parseFechaSesion(s.fecha);
+    const idOficial = s.senadoSesionId ? `-${s.senadoSesionId}` : "";
+    const key = d ? `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}${idOficial}` : `__sin_fecha_${s.id || idx}`;
+    if (!grupos.has(key)) {
+      grupos.set(key, []);
+      ordenGrupos.push(key);
+    }
+    grupos.get(key).push(s);
+  });
+  const resultado = [];
+  for (const key of ordenGrupos) {
+    const items = grupos.get(key);
+    if (items.length === 1) {
+      resultado.push(items[0]);
+      continue;
+    }
+    const [base, ...resto] = [...items].sort((a, b) => riquezaSesion(b) - riquezaSesion(a));
+    const merged = { ...base };
+    for (const otra of resto) {
+      if (!merged.hora && otra.hora) merged.hora = otra.hora;
+      if (!merged.lugar && otra.lugar) merged.lugar = otra.lugar;
+      if (!merged.invitados && otra.invitados) merged.invitados = otra.invitados;
+      if (!merged.citacionNumero && otra.citacionNumero) merged.citacionNumero = otra.citacionNumero;
+      if (!merged.actaTexto && otra.actaTexto) merged.actaTexto = otra.actaTexto;
+      if (!merged.videoUrl && otra.videoUrl) merged.videoUrl = otra.videoUrl;
+      if ((!merged.acuerdosTexto || merged.acuerdosTexto.length === 0) && otra.acuerdosTexto?.length) {
+        merged.acuerdosTexto = otra.acuerdosTexto;
+      }
+      if ((!merged.tabla || merged.tabla.length === 0) && otra.tabla?.length) {
+        merged.tabla = otra.tabla;
+      }
+      if (!merged.completada && otra.completada) merged.completada = true;
+      if ((merged.acuerdosCount || 0) < (otra.acuerdosCount || 0)) merged.acuerdosCount = otra.acuerdosCount;
+    }
+    resultado.push(merged);
+  }
+  return resultado;
 }
 
 // server/services/camaraService.ts
@@ -190097,7 +190197,7 @@ async function leyesCanada() {
   if (hit) return hit;
   if (!canadaEnVuelo) {
     canadaEnVuelo = (async () => {
-      const r = await descargar("https://laws-lois.justice.gc.ca/eng/XML/Legis.xml", { Accept: "application/xml" }, 3e4);
+      const r = await descargar("https://laws-lois.justice.gc.ca/eng/XML/Legis.xml", { Accept: "*/*" }, 3e4);
       if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
       const xml = r.buf.toString("utf8");
       const tag = (b, t) => decodificar((b.match(new RegExp(`<${t}>([\\s\\S]*?)</${t}>`)) || [])[1] || "").trim();
@@ -192780,7 +192880,7 @@ var CONFIG = [
     decimales: 1
   }
 ];
-var TTL_MS = 12 * 60 * 60 * 1e3;
+var TTL_MS2 = 12 * 60 * 60 * 1e3;
 var cache2 = null;
 async function traer(codigo) {
   const url = `https://api.worldbank.org/v2/country/CHL;OED;LCN/indicator/${codigo}?format=json&per_page=500&date=1990:${(/* @__PURE__ */ new Date()).getFullYear()}`;
@@ -192804,7 +192904,7 @@ async function traer(codigo) {
 }
 var redondear = (n, d) => Math.round(n * 10 ** d) / 10 ** d;
 async function getIndicadoresVivos() {
-  if (cache2 && Date.now() - cache2.en < TTL_MS) return cache2.datos;
+  if (cache2 && Date.now() - cache2.en < TTL_MS2) return cache2.datos;
   const datos = {};
   const hoy = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
   await Promise.all(
@@ -192840,7 +192940,7 @@ async function getIndicadoresVivos() {
 // server/services/ineVigenteService.ts
 var URL_EMPLEO = "https://www.ine.gob.cl/estadisticas-por-tema/mercado-laboral/ocupacion-y-desocupacion";
 var URL_IPC = "https://www.ine.gob.cl/estadisticas-por-tema/precios-e-inflacion/indice-de-precios-al-consumidor";
-var TTL_MS2 = 6 * 60 * 60 * 1e3;
+var TTL_MS3 = 6 * 60 * 60 * 1e3;
 var cache3 = null;
 function aTexto(html) {
   return html.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&ndash;|&#8211;/g, "\u2013").replace(/&aacute;/g, "\xE1").replace(/&eacute;/g, "\xE9").replace(/&iacute;/g, "\xED").replace(/&oacute;/g, "\xF3").replace(/&uacute;/g, "\xFA").replace(/&ntilde;/g, "\xF1").replace(/\s+/g, " ");
@@ -192861,7 +192961,7 @@ async function bajar(url) {
   return aTexto(await r.text());
 }
 async function getIneVigente() {
-  if (cache3 && Date.now() - cache3.en < TTL_MS2) return cache3.datos;
+  if (cache3 && Date.now() - cache3.en < TTL_MS3) return cache3.datos;
   const hoy = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
   const datos = { desocupacion: null, informalidad: null, ipcMensual: null };
   const PERIODO_TRIM = "([A-Za-z\xC1\xC9\xCD\xD3\xDA\xE1\xE9\xED\xF3\xFA\xF1]+\\s*[\u2013-]\\s*[A-Za-z\xC1\xC9\xCD\xD3\xDA\xE1\xE9\xED\xF3\xFA\xF1]+\\s+\\d{4})";
@@ -194426,6 +194526,13 @@ apiRouter.post("/camara/citaciones/importar", expressText({ type: "text/plain", 
     res.json({ ok: true, ...r });
   } catch (err) {
     res.status(422).json({ ok: false, error: err?.message || String(err) });
+  }
+});
+apiRouter.get("/proyecto/:id/discusion", async (req, res) => {
+  try {
+    res.json(await discusionDeProyecto(String(req.params.id).slice(0, 20)));
+  } catch (err) {
+    res.json({ disponible: false, motivo: err?.message || String(err), informes: [] });
   }
 });
 apiRouter.get("/proyecto/:id/comision-resumen", async (req, res) => {

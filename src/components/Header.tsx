@@ -38,7 +38,19 @@ interface HeaderProps {
   activeAlertsCount: number;
   setSelectedProyectoId?: (id: string) => void;
   setSelectedComisionId?: (id: string) => void;
+  /** Nombre de lo que se está viendo en una vista de detalle (boletín o comisión), para la ruta de navegación. */
+  detalleActual?: string;
 }
+
+/** Secciones de Legislación++: vista, dirección (para abrir en otra pestaña) y vistas que la marcan como activa. */
+const SECCIONES_LEGIS: { vista: string; href: string; etiqueta: string; activas: string[] }[] = [
+  { vista: "dashboard", href: "#/legislacion", etiqueta: "Inicio", activas: ["dashboard"] },
+  { vista: "proyectos", href: "#/proyectos", etiqueta: "Proyectos", activas: ["proyectos", "proyecto-detail"] },
+  { vista: "comisiones", href: "#/comisiones", etiqueta: "Comisiones", activas: ["comisiones", "comision-detail"] },
+  { vista: "sala", href: "#/sala", etiqueta: "Sala en Vivo", activas: ["sala"] },
+  { vista: "alertas", href: "#/alertas", etiqueta: "Alertas", activas: ["alertas"] },
+];
+const VISTAS_LEGIS = ["dashboard", "proyectos", "proyecto-detail", "comisiones", "comision-detail", "sala", "alertas", "search-results"];
 
 export default function Header({
   currentView,
@@ -48,7 +60,8 @@ export default function Header({
   onSearchSubmit,
   activeAlertsCount,
   setSelectedProyectoId,
-  setSelectedComisionId
+  setSelectedComisionId,
+  detalleActual
 }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -343,67 +356,65 @@ export default function Header({
         </div>
       )}
 
-      {/* Sub-Navbar for Legislación++ Module (Clean Action Tabs) */}
-      {["dashboard", "proyectos", "proyecto-detail", "comisiones", "comision-detail", "sala", "alertas"].includes(currentView) && (
+      {/* Sub-Navbar de Legislación++: enlaces reales (se pueden abrir en otra pestaña) y ruta de navegación */}
+      {VISTAS_LEGIS.includes(currentView) && (
         <div className="bg-slate-950 text-white px-3 sm:px-6 py-2 flex flex-col sm:flex-row sm:items-center gap-2 border-b border-slate-800 shadow-inner sticky top-16 z-40 transition-all">
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 overflow-x-auto no-scrollbar">
-            <button
-              onClick={() => handleNavigate("proyectos")}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                ["dashboard", "proyectos", "proyecto-detail"].includes(currentView)
-                  ? "bg-blue-600 text-white shadow-xs"
-                  : "text-slate-300 hover:text-white hover:bg-slate-800"
-              }`}
-              id="subnav-proyectos"
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span>Proyectos</span>
-            </button>
+          <nav aria-label="Secciones de Legislación++" className="flex items-center gap-1.5 sm:gap-2 shrink-0 overflow-x-auto no-scrollbar">
+            {SECCIONES_LEGIS.map((sec) => {
+              const activa = sec.activas.includes(currentView);
+              const Icono = sec.vista === "dashboard" ? Home : sec.vista === "proyectos" ? FileText : sec.vista === "comisiones" ? Building2 : sec.vista === "alertas" ? Bell : null;
+              return (
+                <a
+                  key={sec.vista}
+                  href={sec.href}
+                  onClick={(e) => {
+                    // Clic normal: navegación interna. Con Ctrl/Cmd/Shift o botón central se deja abrir en otra pestaña.
+                    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                    e.preventDefault();
+                    handleNavigate(sec.vista);
+                  }}
+                  aria-current={activa ? "page" : undefined}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 ${
+                    activa
+                      ? (sec.vista === "sala" ? "bg-rose-600 text-white shadow-xs" : "bg-blue-600 text-white shadow-xs")
+                      : "text-slate-300 hover:text-white hover:bg-slate-800"
+                  }`}
+                  id={`subnav-${sec.vista === "dashboard" ? "inicio" : sec.vista}`}
+                >
+                  {Icono ? <Icono className="w-3.5 h-3.5" /> : <span className="w-2 h-2 rounded-full bg-rose-400" />}
+                  <span>{sec.etiqueta}</span>
+                  {sec.vista === "alertas" && activeAlertsCount > 0 && (
+                    <span className="bg-blue-500 text-white text-2xs px-1.5 py-0.2 rounded-full font-bold" aria-label={`${activeAlertsCount} alertas activas`}>
+                      {activeAlertsCount}
+                    </span>
+                  )}
+                </a>
+              );
+            })}
+          </nav>
 
-            <button
-              onClick={() => handleNavigate("comisiones")}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                ["comisiones", "comision-detail"].includes(currentView)
-                  ? "bg-blue-600 text-white shadow-xs"
-                  : "text-slate-300 hover:text-white hover:bg-slate-800"
-              }`}
-              id="subnav-comisiones"
-            >
-              <Building2 className="w-3.5 h-3.5" />
-              <span>Comisiones</span>
-            </button>
-
-            <button
-              onClick={() => handleNavigate("sala")}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                currentView === "sala"
-                  ? "bg-rose-600 text-white shadow-xs font-extrabold"
-                  : "text-slate-300 hover:text-white hover:bg-slate-800"
-              }`}
-              id="subnav-sala"
-            >
-              <span className="w-2 h-2 rounded-full bg-rose-400 animate-ping" />
-              <span>Sala en Vivo</span>
-            </button>
-
-            <button
-              onClick={() => handleNavigate("alertas")}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                currentView === "alertas"
-                  ? "bg-blue-600 text-white shadow-xs"
-                  : "text-slate-300 hover:text-white hover:bg-slate-800"
-              }`}
-              id="subnav-alertas"
-            >
-              <Bell className="w-3.5 h-3.5" />
-              <span>Alertas</span>
-              {activeAlertsCount > 0 && (
-                <span className="bg-blue-500 text-white text-2xs px-1.5 py-0.2 rounded-full font-bold">
-                  {activeAlertsCount}
-                </span>
+          {/* Ruta de navegación en las vistas de detalle y en los resultados de búsqueda */}
+          {["proyecto-detail", "comision-detail", "search-results"].includes(currentView) && (
+            <nav aria-label="Ruta de navegación" className="flex items-center gap-1.5 text-[11px] text-slate-400 min-w-0">
+              <ChevronRight className="w-3.5 h-3.5 shrink-0 hidden sm:block" />
+              {currentView !== "search-results" && (
+                <>
+                  <button
+                    onClick={() => handleNavigate(currentView === "proyecto-detail" ? "proyectos" : "comisiones")}
+                    className="font-bold text-slate-300 hover:text-white hover:underline cursor-pointer shrink-0"
+                    id="subnav-volver"
+                  >
+                    ← {currentView === "proyecto-detail" ? "Todos los proyectos" : "Todas las comisiones"}
+                  </button>
+                  <span className="shrink-0">/</span>
+                </>
               )}
-            </button>
-          </div>
+              <span className="font-semibold text-white truncate" title={detalleActual || ""}>
+                {currentView === "search-results" ? `Resultados de búsqueda${searchFilter ? `: "${searchFilter}"` : ""}` : (detalleActual || "Detalle")}
+              </span>
+            </nav>
+          )}
+
           <div className="sm:ml-auto">
             <LegisSearchBar
               searchFilter={searchFilter}

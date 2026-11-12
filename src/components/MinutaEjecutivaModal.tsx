@@ -43,7 +43,7 @@ REPÚBLICA DE CHILE • CONGRESO NACIONAL
 MINUTA EJECUTIVA Y TÉCNICA DE PROYECTO DE LEY
 ================================================================================
 Fecha de Emisión: ${fechaHoy}
-Plataforma: LegisTrack CL (https://legistrack.cl)
+Plataforma: LegisTrack CL (https://legistrack-cl.vercel.app)
 
 I. IDENTIFICACIÓN DEL PROYECTO
 --------------------------------------------------------------------------------

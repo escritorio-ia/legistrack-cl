@@ -3,7 +3,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Landmark, Shield, Sparkles, ExternalLink, Heart } from "lucide-react";
 
 export default function Footer() {
   return (
@@ -17,43 +16,6 @@ export default function Footer() {
             Escritorio<span className="text-blue-600">++</span>
           </span>
         </div>
-      </div>
-
-      <div className="flex flex-wrap justify-center items-center gap-x-6 gap-y-2 text-xs text-slate-500 font-medium">
-        <a 
-          className="hover:text-blue-600 transition-colors" 
-          href="#" 
-          onClick={(e) => { e.preventDefault(); alert("Contacto: soporte@legistrack.cl"); }}
-          id="footer-link-privacy"
-        >
-          Privacidad
-        </a>
-        <a 
-          className="hover:text-blue-600 transition-colors" 
-          href="#" 
-          onClick={(e) => { e.preventDefault(); alert("Términos de uso LegisTrack CL 2026"); }}
-          id="footer-link-terms"
-        >
-          Términos
-        </a>
-        <a 
-          className="hover:text-blue-600 transition-colors" 
-          href="#" 
-          onClick={(e) => { e.preventDefault(); alert("Contacto: contacto@legistrack.cl"); }}
-          id="footer-link-contact"
-        >
-          Contacto
-        </a>
-        <a 
-          className="hover:text-blue-600 font-bold transition-colors text-blue-600 flex items-center gap-1" 
-          href="https://www.congreso.cl" 
-          target="_blank" 
-          rel="noopener noreferrer"
-          id="footer-link-congreso"
-        >
-          <span>Portal Congreso</span>
-          <ExternalLink className="w-3 h-3" />
-        </a>
       </div>
     </footer>
   );

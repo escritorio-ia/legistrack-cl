@@ -1,3 +1,4 @@
+import { normalizarBoletin } from "../utils/boletines";
 import { initializeApp, getApps, getApp } from "firebase/app";
 import {
   getFirestore,
@@ -413,6 +414,78 @@ export async function saveAnalisisVideoToFirestore(videoId: string, data: any): 
   } catch (err) {
     console.warn(`No se pudo guardar el análisis del video ${videoId}:`, err);
     return false;
+  }
+}
+
+export { normalizarBoletin, boletinesEnTexto } from "../utils/boletines";
+
+/**
+ * Transcripción automática del video de una sesión. Va en un documento propio (`<videoId>__t`) para no
+ * acercarse al límite de tamaño de Firestore cuando la sesión es larga.
+ */
+export async function getTranscripcionVideoFromFirestore(videoId: string): Promise<any | null> {
+  if (!db || !videoId) return null;
+  try {
+    const snap = await getDoc(doc(db, COLLECTIONS.ANALISIS_VIDEOS, `${videoId}__t`));
+    return snap.exists() ? snap.data() : null;
+  } catch (err) {
+    console.warn(`No se pudo leer la transcripción del video ${videoId}:`, err);
+    return null;
+  }
+}
+
+export async function saveTranscripcionVideoToFirestore(videoId: string, data: any): Promise<boolean> {
+  if (!db || !videoId) return false;
+  try {
+    await setDoc(doc(db, COLLECTIONS.ANALISIS_VIDEOS, `${videoId}__t`), { ...data, videoId, tipo: "transcripcion", updatedAt: new Date().toISOString() }, { merge: true });
+    return true;
+  } catch (err) {
+    console.warn(`No se pudo guardar la transcripción del video ${videoId}:`, err);
+    return false;
+  }
+}
+
+export interface RegistroVideoSesion {
+  videoId: string;
+  titulo?: string;
+  comision?: string;
+  fecha?: string;
+  tabla?: string[];
+  boletines: string[];
+  tieneAnalisis: boolean;
+  analisisCompleto: boolean;
+  tieneTranscripcion: boolean;
+  transcripcionCompleta: boolean;
+  actualizado?: string;
+}
+
+/**
+ * Sesiones de comisión con análisis o transcripción guardados que, según la tabla de su citación,
+ * trataron el boletín indicado. Une el documento de análisis y el de transcripción de cada video.
+ */
+export async function getRegistrosVideoPorBoletin(boletin: string): Promise<RegistroVideoSesion[]> {
+  const clave = normalizarBoletin(boletin);
+  if (!db || !clave) return [];
+  try {
+    const snap = await getDocs(query(collection(db, COLLECTIONS.ANALISIS_VIDEOS), where("boletines", "array-contains", clave)));
+    const porVideo = new Map<string, RegistroVideoSesion>();
+    snap.forEach((d) => {
+      const x: any = d.data();
+      const videoId = String(x.videoId || d.id.replace(/__t$/, ""));
+      const r = porVideo.get(videoId) || { videoId, boletines: [], tieneAnalisis: false, analisisCompleto: false, tieneTranscripcion: false, transcripcionCompleta: false };
+      const conPartes = Array.isArray(x.partes) && x.partes.some((p: any) => p?.disponible);
+      if (x.tipo === "transcripcion") { r.tieneTranscripcion = conPartes; r.transcripcionCompleta = !!x.completo; }
+      else { r.tieneAnalisis = conPartes; r.analisisCompleto = !!x.completo; }
+      r.titulo = r.titulo || x.titulo; r.comision = r.comision || x.comision; r.fecha = r.fecha || x.fecha;
+      r.tabla = r.tabla || (Array.isArray(x.tabla) ? x.tabla : undefined);
+      r.boletines = Array.from(new Set([...r.boletines, ...(Array.isArray(x.boletines) ? x.boletines : [])]));
+      r.actualizado = [r.actualizado, x.updatedAt].filter(Boolean).sort().slice(-1)[0];
+      porVideo.set(videoId, r);
+    });
+    return Array.from(porVideo.values()).filter((r) => r.tieneAnalisis || r.tieneTranscripcion);
+  } catch (err) {
+    console.warn(`No se pudieron leer las sesiones del boletín ${boletin}:`, err);
+    return [];
   }
 }
 

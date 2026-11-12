@@ -49,7 +49,7 @@ ${proyecto.fichaTecnica?.objeto || ""}
 ${proyecto.fichaTecnica?.mecanismos || ""}
 ${proyecto.fichaTecnica?.fiscalizacion || ""}
 
-GENERADO POR: Plataforma LegisTrack CL (https://legistrack.cl)
+GENERADO POR: Plataforma LegisTrack CL (https://legistrack-cl.vercel.app)
 ===================================================================`;
     navigator.clipboard.writeText(text);
     setCopied(true);

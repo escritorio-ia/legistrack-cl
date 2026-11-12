@@ -339,7 +339,7 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
       `DTEND:${formatIcsDate(dtEnd)}`,
       `SUMMARY:${ses.citacionNumero || "Citación"}: ${comision?.nombre || "Comisión"}`,
       `DESCRIPTION:${cleanDesc}`,
-      `LOCATION:${ses.lugar || "Congreso Nacional, Valparaíso"}`,
+      `LOCATION:${ses.lugar || "Lugar no informado en la citación"}`,
       "STATUS:CONFIRMED",
       "END:VEVENT",
       "END:VCALENDAR"
@@ -386,7 +386,7 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
 
     const title = encodeURIComponent(`${ses.citacionNumero || "Citación"}: ${comision?.nombre || "Comisión"}`);
     const details = encodeURIComponent(`${ses.materia}\n\nInvitados: ${ses.invitados || "N/A"}\n\nTabla:\n${(ses.tabla || []).join("\n")}`);
-    const location = encodeURIComponent(ses.lugar || "Congreso Nacional, Valparaíso");
+    const location = encodeURIComponent(ses.lugar || "Lugar no informado en la citación");
     const dates = `${formatGCalDate(dtStart)}/${formatGCalDate(dtEnd)}`;
 
     const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&details=${details}&location=${location}&dates=${dates}`;
@@ -1091,7 +1091,7 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
           sessionFecha: ses.fecha,
           sessionTipo: ses.tipo,
           comisionId: comisionId,
-          comisionNombre: comision?.nombre || "Comisión Técnica",
+          comisionNombre: comision?.nombre || "Comisión",
           summaryText: summaryTrimmed,
           timestamp: Date.now()
         });
@@ -2870,14 +2870,14 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
                                   ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                                   : "bg-slate-100 text-slate-700 border-slate-200"
                               }`}>
-                                {p.estado || "En tramitación"}
+                                {p.estado || "Estado no informado"}
                               </span>
                             </div>
                             <h4 className="text-xs font-bold text-slate-900 group-hover:text-emerald-700 transition-colors line-clamp-2 leading-snug">
                               {p.titulo}
                             </h4>
                             <p className="text-[10px] text-slate-500 mt-1 flex items-center justify-between">
-                              <span>{p.etapa || "Primer Trámite Constitucional"}</span>
+                              <span>{p.etapa || "Etapa no informada"}</span>
                               {p.fechaIngreso && <span className="text-slate-400">Ingreso: {p.fechaIngreso}</span>}
                             </p>
                           </div>
@@ -3068,7 +3068,7 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
                               </p>
                             </td>
                             <td className="py-3.5 px-3 text-slate-600 text-[11px] whitespace-nowrap">
-                              {p.etapa || "Primer Trámite Constitucional"}
+                              {p.etapa || "Etapa no informada"}
                             </td>
                             <td className="py-3.5 px-3 text-center whitespace-nowrap">
                               <span className={`px-2.5 py-0.5 border text-[9px] font-bold rounded-full uppercase ${
@@ -3076,7 +3076,7 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
                                   ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                                   : "bg-blue-50 text-blue-700 border-blue-200"
                               }`}>
-                                {p.estado || "En estudio"}
+                                {p.estado || "Estado no informado"}
                               </span>
                             </td>
                             <td className="py-3.5 px-3 text-slate-500 whitespace-nowrap text-[11px]">
@@ -3285,8 +3285,9 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
           {/* ========================================================================= */}
           {activeTab === "integrantes" && (() => {
             const allIntegrantes = comision.integrantes || [];
-            const presIntegrante = allIntegrantes.find(i => i.rol && i.rol.toLowerCase().includes("president")) || allIntegrantes[0];
-            const secretarioText = comision.proximaSesion?.secretario || (isSenado ? "Rodrigo Pineda Garfias (Abogado Secretario)" : "Patricio Velásquez Weitzel (Abogado Secretario)");
+            // Solo se destaca como presidente a quien la nómina oficial señala con ese rol (antes, si faltaba, se mostraba al primero de la lista).
+            const presIntegrante = allIntegrantes.find(i => i.rol && i.rol.toLowerCase().includes("president"));
+            const secretarioText = comision.proximaSesion?.secretario || "No informado";
 
             const partyCounts: Record<string, number> = {};
             allIntegrantes.forEach(i => {
@@ -4983,6 +4984,12 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
           comisionNombre={comision.nombre}
           sesionFecha={selectedSesionForTranscript.fecha}
           materia={selectedSesionForTranscript.materia}
+          tabla={selectedSesionForTranscript.tabla && selectedSesionForTranscript.tabla.length > 0
+            ? selectedSesionForTranscript.tabla
+            : (selectedSesionForTranscript.materia ? [selectedSesionForTranscript.materia] : undefined)}
+          senado={selectedSesionForTranscript.senadoComisionId && selectedSesionForTranscript.senadoSesionId
+            ? { comisionId: selectedSesionForTranscript.senadoComisionId, sesionId: selectedSesionForTranscript.senadoSesionId }
+            : undefined}
         />
       )}
 

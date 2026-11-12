@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
+import { arrayUnion } from "firebase/firestore";
 import {
   Quote,
   Copy,
@@ -14,7 +15,7 @@ import {
   Users,
   Gavel
 } from "lucide-react";
-import { getAnalisisVideoFromFirestore, saveAnalisisVideoToFirestore } from "../services/firebaseService";
+import { getAnalisisVideoFromFirestore, saveAnalisisVideoToFirestore, getTranscripcionVideoFromFirestore, saveTranscripcionVideoToFirestore, boletinesEnTexto, normalizarBoletin } from "../services/firebaseService";
 
 export interface TranscriptSnippet {
   seconds: number;
@@ -31,6 +32,20 @@ export interface YouTubeTranscriptModalProps {
   comisionNombre: string;
   sesionFecha: string;
   materia?: string;
+  /** Tabla oficial de la citación (puntos a tratar). De ella salen los boletines con que se ordena la sesión. */
+  tabla?: string[];
+  /** Boletines adicionales conocidos (p. ej. el del proyecto desde el que se abrió el video). */
+  boletines?: string[];
+  /** Sesión del Senado: permite leer la tabla oficial (puntos con su boletín) del registro de senado.cl. */
+  senado?: { comisionId: string; sesionId: string };
+}
+
+interface SegmentoT { segundos: number; orador: string; texto: string }
+interface ParteTranscripcion { disponible: boolean; motivo?: string; parte: number; desde: number; hasta: number | null; segmentos?: SegmentoT[]; aviso?: string }
+
+/** Texto plano de la transcripción (para copiar). */
+export function transcripcionATexto(partes: ParteTranscripcion[]): string {
+  return partes.filter(p => p.disponible).flatMap(p => p.segmentos || []).map(g => `[${formatoMinuto(g.segundos)}] ${g.orador || "Orador no identificado"}: ${g.texto}`).join("\n");
 }
 
 interface Intervencion { segundos: number; orador: string; cargo: string; resumen: string; cita?: string }
@@ -118,8 +133,38 @@ export default function YouTubeTranscriptModal({
   videoId,
   comisionNombre,
   sesionFecha,
-  materia
+  materia,
+  tabla,
+  boletines,
+  senado
 }: YouTubeTranscriptModalProps) {
+  // Tabla oficial del Senado (puntos con boletín), si la sesión es del Senado y su detalle está sincronizado.
+  const [tablaSenado, setTablaSenado] = useState<string[] | null>(null);
+  useEffect(() => {
+    setTablaSenado(null);
+    if (!isOpen || !senado?.comisionId || !senado?.sesionId) return;
+    let vigente = true;
+    fetch(`/api/senado/sesion/${encodeURIComponent(senado.comisionId)}/${encodeURIComponent(senado.sesionId)}/resumen`)
+      .then(r => r.json())
+      .then(d => {
+        if (!vigente || !d?.disponible || !Array.isArray(d.puntos) || d.puntos.length === 0) return;
+        setTablaSenado(d.puntos.map((p: any) => `${p.boletin ? `Boletín ${p.boletin}: ` : ""}${p.tema}`));
+      })
+      .catch(() => { /* se usa la tabla recibida */ });
+    return () => { vigente = false; };
+  }, [isOpen, senado?.comisionId, senado?.sesionId]);
+  // Relación sesión -> tabla -> boletines: los boletines se toman de la tabla oficial (y de la materia citada).
+  const puntosTabla = useMemo(() => (tablaSenado || tabla || []).map(t => String(t || "").trim()).filter(Boolean), [tablaSenado, tabla]);
+  const boletinesSesion = useMemo(
+    () => Array.from(new Set([...(boletines || []).map(normalizarBoletin), ...boletinesEnTexto(`${puntosTabla.join(" ")} ${materia || ""}`)].filter(Boolean))),
+    [boletines, puntosTabla, materia]
+  );
+  const indice = useMemo(() => ({ boletines: boletinesSesion, ...(puntosTabla.length ? { tabla: puntosTabla } : {}) }), [boletinesSesion, puntosTabla]);
+  const [vista, setVista] = useState<"analisis" | "transcripcion">("analisis");
+  const [partesT, setPartesT] = useState<ParteTranscripcion[]>([]);
+  const [totalPartesT, setTotalPartesT] = useState<number | null>(null);
+  const [estadoT, setEstadoT] = useState<"sin" | "transcribiendo" | "listo" | "error">("sin");
+  const [mensajeT, setMensajeT] = useState("");
   const [inicio, setInicio] = useState(0);
   const [filtro, setFiltro] = useState("");
   const [copiado, setCopiado] = useState<number | null>(null);
@@ -138,13 +183,19 @@ export default function YouTubeTranscriptModal({
     cancelado.current = false;
     setEstado("cargando");
     (async () => {
-      const [guardado, det] = await Promise.all([
+      const [guardado, det, guardadoT] = await Promise.all([
         getAnalisisVideoFromFirestore(id),
-        fetch(`/api/videos/${id}/detalle`).then(r => r.json()).catch(() => null)
+        fetch(`/api/videos/${id}/detalle`).then(r => r.json()).catch(() => null),
+        getTranscripcionVideoFromFirestore(id)
       ]);
       if (cancelado.current) return;
       if (det?.segundos) setDuracion(det.segundos);
       setTotalPartes(det?.partes ?? null);
+      setTotalPartesT(det?.partesTranscripcion ?? null);
+      const previasT: ParteTranscripcion[] = Array.isArray(guardadoT?.partes) ? guardadoT.partes : [];
+      setPartesT(previasT);
+      setEstadoT(previasT.some(p => p.disponible) ? "listo" : "sin");
+      setMensajeT(previasT.length && !guardadoT?.completo ? "La transcripción guardada está incompleta; puede continuarla." : "");
       const previas: ParteAnalisis[] = Array.isArray(guardado?.partes) ? guardado.partes : [];
       if (previas.length > 0) {
         setPartes(previas);
@@ -156,6 +207,18 @@ export default function YouTubeTranscriptModal({
     })();
     return () => { cancelado.current = true; };
   }, [isOpen, id]);
+
+  // Si hay análisis o transcripción guardados, se les agrega la relación con la tabla y sus boletines
+  // (cubre los guardados antiguos y la tabla del Senado, que llega después de abrir la ventana).
+  const claveIndice = `${indice.boletines.join(",")}|${puntosTabla.length}`;
+  const hayAnalisis = partes.some(p => p.disponible);
+  const hayTranscripcion = partesT.some(p => p.disponible);
+  useEffect(() => {
+    if (!isOpen || !id || indice.boletines.length === 0) return;
+    if (hayAnalisis) saveAnalisisVideoToFirestore(id, { ...indice, boletines: arrayUnion(...indice.boletines) });
+    if (hayTranscripcion) saveTranscripcionVideoToFirestore(id, { ...indice, boletines: arrayUnion(...indice.boletines) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, id, claveIndice, hayAnalisis, hayTranscripcion]);
 
   const analizar = async () => {
     if (!id) return;
@@ -184,7 +247,7 @@ export default function YouTubeTranscriptModal({
         setMensaje(r.motivo || "No se pudo analizar el video.");
         setEstado(acumuladas.length ? "listo" : "error");
         setPartes([...acumuladas]);
-        if (acumuladas.length) saveAnalisisVideoToFirestore(id, { partes: acumuladas, completo: false, titulo: videoTitle, comision: comisionNombre, fecha: sesionFecha });
+        if (acumuladas.length) saveAnalisisVideoToFirestore(id, { partes: acumuladas, completo: false, titulo: videoTitle, comision: comisionNombre, fecha: sesionFecha, ...indice, ...(indice.boletines.length ? { boletines: arrayUnion(...indice.boletines) } : {}) });
         return;
       }
       acumuladas.push(r);
@@ -193,8 +256,48 @@ export default function YouTubeTranscriptModal({
     }
     setEstado("listo");
     setMensaje("");
-    saveAnalisisVideoToFirestore(id, { partes: acumuladas, completo: true, titulo: videoTitle, comision: comisionNombre, fecha: sesionFecha, duracion });
+    saveAnalisisVideoToFirestore(id, { partes: acumuladas, completo: true, titulo: videoTitle, comision: comisionNombre, fecha: sesionFecha, duracion, ...indice, ...(indice.boletines.length ? { boletines: arrayUnion(...indice.boletines) } : {}) });
   };
+
+  // Transcripción automática por tramos de 10 minutos. Se guarda a medida que avanza para poder continuarla.
+  const transcribir = async () => {
+    if (!id) return;
+    setEstadoT("transcribiendo");
+    const total = totalPartesT || 1;
+    const acumuladas: ParteTranscripcion[] = partesT.filter(p => p.disponible);
+    const guardar = (completo: boolean) => saveTranscripcionVideoToFirestore(id, { partes: acumuladas, completo, titulo: videoTitle, comision: comisionNombre, fecha: sesionFecha, duracion, ...indice, ...(indice.boletines.length ? { boletines: arrayUnion(...indice.boletines) } : {}) });
+    for (let parte = 0; parte < total; parte++) {
+      if (cancelado.current) return;
+      if (acumuladas.some(p => p.parte === parte)) continue;
+      setMensajeT(`Transcribiendo tramo ${parte + 1} de ${total} (10 minutos de video cada uno)…`);
+      const qs = new URLSearchParams({ modo: "transcripcion", parte: String(parte), ...(duracion ? { duracion: String(duracion) } : {}), comision: comisionNombre || "", fecha: sesionFecha || "", materia: materia || "" });
+      let r: ParteTranscripcion;
+      try { r = await fetch(`/api/videos/${id}/analisis?${qs}`).then(x => x.json()); }
+      catch { r = { disponible: false, motivo: "No se pudo conectar con el servidor.", parte, desde: parte * 600, hasta: null }; }
+      if (cancelado.current) return;
+      if (!r.disponible) {
+        setMensajeT(r.motivo || "No se pudo transcribir este tramo.");
+        setEstadoT(acumuladas.length ? "listo" : "error");
+        setPartesT([...acumuladas]);
+        if (acumuladas.length) guardar(false);
+        return;
+      }
+      acumuladas.push(r);
+      acumuladas.sort((a, b) => a.parte - b.parte);
+      setPartesT([...acumuladas]);
+      if (acumuladas.length % 3 === 0) guardar(false);
+    }
+    setEstadoT("listo");
+    setMensajeT("");
+    guardar(true);
+  };
+
+  const segmentos = useMemo(() => {
+    const todos = partesT.filter(p => p.disponible).flatMap(p => p.segmentos || []);
+    const f = filtro.trim().toLowerCase();
+    return f ? todos.filter(g => `${g.orador} ${g.texto}`.toLowerCase().includes(f)) : todos;
+  }, [partesT, filtro]);
+  const transcripcionIncompleta = partesT.filter(p => p.disponible).length < (totalPartesT || 1);
 
   const intervenciones = useMemo(() => {
     const todas = partes.filter(p => p.disponible).flatMap(p => p.intervenciones || []);
@@ -271,6 +374,22 @@ export default function YouTubeTranscriptModal({
 
             {materia && <p className="text-xs text-slate-400 leading-relaxed"><span className="font-bold text-slate-300">Materia citada: </span>{materia}</p>}
 
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4" id="tabla-sesion">
+              <p className="text-[11px] font-black uppercase tracking-wider text-slate-400 mb-2">Tabla de la sesión</p>
+              {puntosTabla.length > 0 ? (
+                <ol className="list-decimal ml-4 space-y-1.5 text-xs text-slate-200">
+                  {puntosTabla.map((t, i) => <li key={i} className="leading-relaxed">{t}</li>)}
+                </ol>
+              ) : (
+                <p className="text-xs text-slate-500 italic">Tabla no informada para esta sesión.</p>
+              )}
+              <p className="text-[11px] text-slate-400 mt-2">
+                <span className="font-bold text-slate-300">Boletines de la tabla: </span>
+                {boletinesSesion.length ? boletinesSesion.join(", ") : "ninguno identificado"}
+              </p>
+              <p className="text-[10px] text-slate-500 mt-1">El análisis y la transcripción de esta sesión quedan guardados bajo estos boletines.</p>
+            </div>
+
             {expositores.length > 0 && (
               <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
                 <p className="text-[11px] font-black uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1.5"><Users className="w-3.5 h-3.5" /> Quiénes hablaron</p>
@@ -301,13 +420,27 @@ export default function YouTubeTranscriptModal({
 
           {/* Análisis */}
           <div className="lg:col-span-7 flex flex-col overflow-hidden">
+            <div className="px-4 pt-3 flex items-center gap-1.5" role="tablist" aria-label="Contenido de la sesión">
+              {(["analisis", "transcripcion"] as const).map(v => (
+                <button key={v} role="tab" aria-selected={vista === v} onClick={() => setVista(v)}
+                  className={`text-xs font-bold px-3 py-1.5 rounded-lg cursor-pointer ${vista === v ? "bg-rose-600 text-white" : "bg-slate-800 text-slate-300 hover:bg-slate-700"}`}>
+                  {v === "analisis" ? "Análisis" : `Transcripción${partesT.some(p => p.disponible) ? " ✓" : ""}`}
+                </button>
+              ))}
+            </div>
             <div className="p-4 border-b border-slate-800 flex items-center gap-2">
               <div className="relative flex-1">
                 <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input value={filtro} onChange={e => setFiltro(e.target.value)} placeholder="Filtrar por orador, tema o palabra…"
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 outline-none focus:border-rose-500" />
               </div>
-              {estado === "listo" && partes.some(p => p.disponible) && (
+              {vista === "transcripcion" && partesT.some(p => p.disponible) && (
+                <button onClick={() => { navigator.clipboard.writeText(`${transcripcionATexto(partesT)}\n\n(Transcripción automática, no oficial. ${comisionNombre}, ${sesionFecha}. Video: https://www.youtube.com/watch?v=${id})`).catch(() => {}); setCopiado(-2); setTimeout(() => setCopiado(null), 2000); }}
+                  className="text-xs font-bold bg-slate-800 hover:bg-slate-700 px-3 py-2 rounded-xl flex items-center gap-1.5 cursor-pointer">
+                  {copiado === -2 ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />} Copiar transcripción
+                </button>
+              )}
+              {vista === "analisis" && estado === "listo" && partes.some(p => p.disponible) && (
                 <button onClick={() => { navigator.clipboard.writeText(analisisATexto(partes)).catch(() => {}); setCopiado(-1); setTimeout(() => setCopiado(null), 2000); }}
                   className="text-xs font-bold bg-slate-800 hover:bg-slate-700 px-3 py-2 rounded-xl flex items-center gap-1.5 cursor-pointer">
                   {copiado === -1 ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />} Copiar todo
@@ -315,7 +448,45 @@ export default function YouTubeTranscriptModal({
               )}
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {vista === "transcripcion" && (
+              <div className="flex-1 overflow-y-auto p-4 space-y-3" id="panel-transcripcion">
+                {(estadoT === "sin" || estadoT === "error" || (estadoT === "listo" && transcripcionIncompleta)) && (
+                  <div className="bg-slate-950 border border-slate-800 rounded-2xl p-5 text-center space-y-3">
+                    <p className="text-sm font-bold">{partesT.some(p => p.disponible) ? "La transcripción está incompleta" : "Esta sesión aún no tiene transcripción"}</p>
+                    <p className="text-xs text-slate-400 max-w-md mx-auto">
+                      La IA (Gemini) escucha el video oficial y escribe lo que se dice, con el minuto y quién habla cuando se puede identificar.
+                      {totalPartesT && totalPartesT > 1 ? ` Se hace en ${totalPartesT} tramos de 10 minutos; puede tardar varios minutos.` : ""}
+                      {" "}Es una transcripción automática, no la versión oficial. Se guarda para todos los usuarios.
+                    </p>
+                    {mensajeT && <p className="text-xs text-amber-300 flex items-center justify-center gap-1.5"><AlertTriangle className="w-3.5 h-3.5" /> {mensajeT}</p>}
+                    <button onClick={transcribir} disabled={!id}
+                      className="bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white text-xs font-bold px-4 py-2 rounded-xl inline-flex items-center gap-1.5 cursor-pointer">
+                      <Sparkles className="w-3.5 h-3.5" /> {partesT.some(p => p.disponible) ? "Continuar transcripción" : "Transcribir sesión"}
+                    </button>
+                  </div>
+                )}
+                {estadoT === "transcribiendo" && (
+                  <div className="flex items-center gap-2 text-rose-300 text-xs font-bold bg-rose-500/10 border border-rose-500/30 rounded-xl p-3">
+                    <Loader2 className="w-4 h-4 animate-spin" /> {mensajeT}
+                  </div>
+                )}
+                {segmentos.map((g, idx) => (
+                  <div key={idx} className="flex items-start gap-2.5 text-xs">
+                    <button onClick={() => setInicio(g.segundos)} className="font-mono text-[11px] font-bold text-rose-300 hover:text-rose-200 cursor-pointer shrink-0 pt-0.5" title="Ir a este minuto del video">
+                      {formatoMinuto(g.segundos)}
+                    </button>
+                    <p className="text-slate-200 leading-relaxed"><span className="font-bold text-white">{g.orador || "Orador no identificado"}: </span>{g.texto}</p>
+                  </div>
+                ))}
+                {partesT.some(p => p.disponible) && (
+                  <p className="text-[10px] text-slate-500 leading-relaxed pt-2">
+                    Transcripción automática generada por IA a partir del video oficial. No es la versión taquigráfica oficial y puede contener errores en palabras, nombres o cifras: verifique en el video (cada minuto es un enlace).
+                  </p>
+                )}
+              </div>
+            )}
+
+            <div className={`flex-1 overflow-y-auto p-4 space-y-3 ${vista === "analisis" ? "" : "hidden"}`}>
               {estado === "cargando" && <div className="flex items-center gap-2 text-slate-400 text-sm"><Loader2 className="w-4 h-4 animate-spin" /> Buscando análisis guardado…</div>}
 
               {(estado === "sin-analisis" || estado === "error") && (

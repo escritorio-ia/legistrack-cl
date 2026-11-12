@@ -1,3 +1,4 @@
+import { discusionDeProyecto } from "../services/discusionService";
 import { construirResumenSesion } from "../services/resumenSesionService";
 import { Router, Request, Response, text as expressText } from "express";
 import { Proyecto, Comision, Alerta, SalaVivo } from "../../src/types";
@@ -777,6 +778,15 @@ apiRouter.post("/camara/citaciones/importar", expressText({ type: "text/plain", 
     res.json({ ok: true, ...r });
   } catch (err: any) {
     res.status(422).json({ ok: false, error: err?.message || String(err) });
+  }
+});
+
+// Discusión del proyecto según sus informes de comisión oficiales (secciones de debate, sin IA).
+apiRouter.get("/proyecto/:id/discusion", async (req: Request, res: Response) => {
+  try {
+    res.json(await discusionDeProyecto(String(req.params.id).slice(0, 20)));
+  } catch (err: any) {
+    res.json({ disponible: false, motivo: err?.message || String(err), informes: [] });
   }
 });
 

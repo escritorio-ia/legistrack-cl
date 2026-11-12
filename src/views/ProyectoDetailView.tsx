@@ -49,6 +49,8 @@ import {
 import { Proyecto, ActivityItem, VotacionItem } from "../types";
 import { resolveProyecto } from "../utils/proyectosResolver";
 import { fetchLiveSenateProject } from "../utils/senadoClientApi";
+import DiscusionInformes from "../components/DiscusionInformes";
+import TranscripcionesProyecto from "../components/TranscripcionesProyecto";
 import { parseFechaFlexible, diasEntre, detectTramite, etapaActual, ultimoMovimiento } from "../utils/tramitacion";
 import SimuladorQuorum from "../components/SimuladorQuorum";
 import { formatFechaCL, parseFechaSesion } from "../utils/dateUtils";
@@ -1816,6 +1818,8 @@ export default function ProyectoDetailView({
             {/* 3. Comisiones Tab */}
             {activeTab === "comisiones" && (
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-6" id="tabpanel-comisiones">
+                <DiscusionInformes proyectoId={proyecto.id} />
+                <TranscripcionesProyecto proyectoId={proyecto.id} />
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-1">Comisiones Designadas y Tránsito del Proyecto</h3>
                   <p className="text-xs text-slate-500">Detalle de todas las comisiones por las cuales ha pasado y se encuentra transitando esta iniciativa legal.</p>
@@ -2047,6 +2051,8 @@ export default function ProyectoDetailView({
                 comisionNombre={sesionVideo.comisionNombre}
                 sesionFecha={formatFechaCL(sesionVideo.fecha, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
                 materia={sesionVideo.temasVistos || `Boletín ${proyectoId}`}
+                tabla={sesionVideo.temasVistos ? [sesionVideo.temasVistos] : undefined}
+                boletines={[proyectoId]}
               />
             )}
 

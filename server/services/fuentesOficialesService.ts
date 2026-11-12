@@ -1010,7 +1010,7 @@ async function leyesCanada(): Promise<LeyCanada[]> {
   if (hit) return hit;
   if (!canadaEnVuelo) {
     canadaEnVuelo = (async () => {
-      const r = await descargar("https://laws-lois.justice.gc.ca/eng/XML/Legis.xml", { Accept: "application/xml" }, 30000);
+      const r = await descargar("https://laws-lois.justice.gc.ca/eng/XML/Legis.xml", { Accept: "*/*" }, 30000) // con Accept: application/xml el sitio responde 406;
       if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
       const xml = r.buf.toString("utf8");
       const tag = (b: string, t: string) => decodificar((b.match(new RegExp(`<${t}>([\\s\\S]*?)</${t}>`)) || [])[1] || "").trim();

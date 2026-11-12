@@ -186,7 +186,8 @@ function getLocalFilteredProyectos(params: {
         enSala: allList.filter(p => matchEstadoFilter(p.estado, "En sala")).length,
         enEstudio: allList.filter(p => matchEstadoFilter(p.estado, "En estudio")).length,
         aprobadoGeneral: allList.filter(p => matchEstadoFilter(p.estado, "Publicado")).length,
-        otros: 12,
+        // "Otros" = los que no caen en ninguna de las categorías anteriores (antes era un 12 fijo).
+        otros: allList.filter(p => !["En discusión", "En sala", "En estudio", "Publicado"].some(e => matchEstadoFilter(p.estado, e))).length,
         totalRepresentativo: allList.length
       },
       materiasPrincipales: [
@@ -224,13 +225,25 @@ export default function ProyectosView({
   const [loading, setLoading] = useState(false);
   const [isLiveSyncing, setIsLiveSyncing] = useState(false);
   const [totales, setTotales] = useState({
-    enDiscusion: 215,
-    enSala: 38,
-    enEstudio: 62,
-    aprobadoGeneral: 45,
-    otros: 12,
-    totalRepresentativo: 310
+    // Parte en cero y se llena con el conteo real (antes mostraba cifras fijas hasta que llegaban los datos).
+    enDiscusion: 0,
+    enSala: 0,
+    enEstudio: 0,
+    aprobadoGeneral: 0,
+    otros: 0,
+    totalRepresentativo: 0
   });
+  // Búsquedas guardadas en este navegador (texto + filtros).
+  type BusquedaGuardada = { nombre: string; q: string; estado: string; camara: string; materia: string; urgencia: string; origen: string; vigentes: boolean; conIF: boolean };
+  const [guardadas, setGuardadas] = useState<BusquedaGuardada[]>(() => {
+    try { const v = JSON.parse(localStorage.getItem("proyectos_busquedas_guardadas") || "[]"); return Array.isArray(v) ? v : []; } catch { return []; }
+  });
+  const persistirGuardadas = (lista: BusquedaGuardada[]) => {
+    setGuardadas(lista);
+    try { localStorage.setItem("proyectos_busquedas_guardadas", JSON.stringify(lista)); } catch { /* sin almacenamiento */ }
+  };
+  const [actualizando, setActualizando] = useState(false);
+  const [errorServidor, setErrorServidor] = useState(false);
   const [materias, setMaterias] = useState<{ nombre: string; cuenta: number }[]>([]);
 
   // Filter States
@@ -279,13 +292,13 @@ export default function ProyectosView({
     try {
       const liveList = await fetchLiveSenateProjectsList();
       if (liveList && liveList.length > 0) {
-        notify(`¡Sincronizado con éxito! ${liveList.length} proyectos actualizados del Congreso.`);
+        notify(`Sincronizado: ${liveList.length} proyectos leídos del Senado.`);
         setSearchExecution(prev => prev + 1);
       } else {
-        notify("Base de datos legislativa del Congreso actualizada.");
+        notify("El Senado no devolvió proyectos en esta consulta; se mantiene la lista anterior.");
       }
     } catch {
-      notify("Base de datos local actualizada.");
+      notify("No se pudo sincronizar con el Congreso. Se mantiene la lista anterior.");
     } finally {
       setIsLiveSyncing(false);
     }
@@ -342,9 +355,14 @@ export default function ProyectosView({
     if (origenFilter !== "Todos") url += `&origen=${encodeURIComponent(origenFilter)}`;
     if (soloConIF) url += `&con_if=true`;
 
+    // Si cambian los filtros antes de que llegue la respuesta, esa respuesta atrasada se descarta.
+    let vigente = true;
+    setActualizando(true);
     fetch(url)
-      .then(res => res.json())
+      .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); })
       .then(data => {
+        if (!vigente) return;
+        setErrorServidor(false);
         const resultadosList = data.resultados || (Array.isArray(data) ? data : []);
         if (resultadosList && resultadosList.length > 0) {
           setProyectos(resultadosList);
@@ -357,13 +375,18 @@ export default function ProyectosView({
         }
       })
       .catch(() => {
-        // Fallback already active and shown from master real database
-      });
+        // Queda a la vista la base precargada; se avisa que no está actualizada con el servidor.
+        if (vigente) setErrorServidor(true);
+      })
+      .finally(() => { if (vigente) setActualizando(false); });
+    return () => { vigente = false; };
   }, [searchExecution, searchFilter, estadoFilter, camaraFilter, materiaFilter, urgenciaFilter, origenFilter, soloVigentes, page, limit, soloConIF, ifPorBoletin]);
+
+  const filtrosActivos = [estadoFilter !== "Todos", camaraFilter !== "Todas", materiaFilter !== "Todas", urgenciaFilter !== "Todas", origenFilter !== "Todos", !soloVigentes, soloConIF, !!(searchFilter || "").trim()].filter(Boolean).length;
 
   const handleExportCSV = () => {
     if (proyectos.length === 0) return;
-    const headers = ["Boletín", "Título", "Estado", "Cámara de Origen", "Urgencia", "Comisión", "Fecha de Ingreso", "Iniciativa", "Autores", "Quórum Estimado"];
+    const headers = ["Boletín", "Título", "Estado", "Cámara de Origen", "Urgencia", "Comisión", "Fecha de Ingreso", "Iniciativa", "Autores", "Quórum"];
     const rows = proyectos.map(p => [
       `"${p.id}"`,
       `"${(p.titulo || '').replace(/"/g, '""')}"`,
@@ -374,7 +397,7 @@ export default function ProyectosView({
       `"${p.fechaIngreso}"`,
       `"${p.iniciativa}"`,
       `"${(p.autores || '').replace(/"/g, '""')}"`,
-      `"${p.quorum?.tipo || 'Ley Simple'}"`
+      `"${p.quorum?.tipo || 'No informado'}"`
     ].join(";"));
 
     const csvContent = "\ufeff" + [headers.join(";"), ...rows].join("\n");
@@ -387,7 +410,7 @@ export default function ProyectosView({
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    notify("Nómina de proyectos exportada a Excel / CSV exitosamente");
+    notify(`Exportados los ${proyectos.length} proyectos de esta página (CSV).`);
   };
 
   const handleExportJSON = () => {
@@ -402,7 +425,7 @@ export default function ProyectosView({
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    notify("Expediente consolidado en JSON descargado");
+    notify(`Exportados los ${proyectos.length} proyectos de esta página (JSON).`);
   };
 
   return (
@@ -447,7 +470,14 @@ export default function ProyectosView({
           </button>
 
           <button 
-            onClick={() => notify("Búsqueda guardada en sus preferencias")}
+            onClick={() => {
+              const q = (searchFilter || "").trim();
+              const partes = [q && `"${q}"`, estadoFilter !== "Todos" && estadoFilter, camaraFilter !== "Todas" && camaraFilter, materiaFilter !== "Todas" && materiaFilter, urgenciaFilter !== "Todas" && `Urgencia ${urgenciaFilter}`, origenFilter !== "Todos" && origenFilter, soloConIF && "Con informe financiero", !soloVigentes && "Incluye leyes"].filter(Boolean) as string[];
+              if (partes.length === 0) { notify("No hay búsqueda ni filtros que guardar."); return; }
+              const nombre = partes.join(" · ");
+              persistirGuardadas([{ nombre, q, estado: estadoFilter, camara: camaraFilter, materia: materiaFilter, urgencia: urgenciaFilter, origen: origenFilter, vigentes: soloVigentes, conIF: soloConIF }, ...guardadas.filter(g => g.nombre !== nombre)].slice(0, 8));
+              notify("Búsqueda guardada en este navegador.");
+            }}
             className="flex items-center gap-1.5 bg-white border border-slate-200 text-slate-700 font-bold text-xs px-3.5 py-2 rounded-xl hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
           >
             <Bookmark className="w-3.5 h-3.5 text-slate-500" />
@@ -540,6 +570,34 @@ export default function ProyectosView({
                 </button>
               ))}
             </div>
+
+            {/* Búsquedas guardadas en este navegador */}
+            {guardadas.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 text-xs" id="busquedas-guardadas">
+                <span className="text-[10.5px] font-extrabold uppercase tracking-wider text-slate-400 font-mono flex items-center gap-1 shrink-0 mr-1">
+                  <Bookmark className="w-3 h-3" /> Guardadas:
+                </span>
+                {guardadas.map((g) => (
+                  <span key={g.nombre} className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-lg pl-2.5 pr-1 py-1 font-semibold text-slate-700">
+                    <button
+                      type="button"
+                      className="hover:text-blue-700 cursor-pointer max-w-[260px] truncate"
+                      title={`Repetir: ${g.nombre}`}
+                      onClick={() => {
+                        setSearchFilter(g.q); setEstadoFilter(g.estado); setCamaraFilter(g.camara); setMateriaFilter(g.materia);
+                        setUrgenciaFilter(g.urgencia); setOrigenFilter(g.origen); setSoloVigentes(g.vigentes); setSoloConIF(g.conIF);
+                        setPage(1); setSearchExecution(prev => prev + 1);
+                      }}
+                    >
+                      {g.nombre}
+                    </button>
+                    <button type="button" title="Quitar" aria-label={`Quitar búsqueda guardada ${g.nombre}`} className="text-slate-400 hover:text-rose-600 cursor-pointer p-0.5" onClick={() => persistirGuardadas(guardadas.filter(x => x.nombre !== g.nombre))}>
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
 
             {/* Selects Row */}
             <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100" id="filter-selects-row">
@@ -680,6 +738,7 @@ export default function ProyectosView({
                   setUrgenciaFilter("Todas");
                   setOrigenFilter("Todos");
                   setSoloVigentes(true);
+                  setSoloConIF(false);
                   setSearchFilter("");
                   setPage(1);
                   setSearchExecution(prev => prev + 1);
@@ -687,7 +746,7 @@ export default function ProyectosView({
                 className="text-[11px] text-slate-400 hover:text-slate-700 font-bold uppercase ml-auto cursor-pointer"
                 id="reset-filters-btn"
               >
-                Limpiar filtros
+                Limpiar filtros{filtrosActivos > 0 ? ` (${filtrosActivos})` : ""}
               </button>
             </div>
 
@@ -699,8 +758,13 @@ export default function ProyectosView({
               Mostrando <strong className="text-slate-900 font-bold">{proyectos.length}</strong> de <strong className="text-slate-900 font-bold">{totalResultados}</strong> proyectos encontrados (Página {page} de {totalPages})
             </span>
             <div className="flex items-center gap-1.5 text-slate-500 text-xs">
-              <span>Orden:</span>
-              <span className="text-blue-700 font-bold">Más reciente</span>
+              {actualizando ? (
+                <span className="flex items-center gap-1 text-blue-700 font-semibold"><RefreshCw className="w-3 h-3 animate-spin" /> Actualizando…</span>
+              ) : errorServidor ? (
+                <span className="text-amber-700 font-semibold" title="No se pudo consultar el servidor; se muestra la base precargada en la aplicación.">Sin conexión con el servidor: lista precargada</span>
+              ) : (
+                <><span>Orden:</span><span className="text-blue-700 font-bold">Más reciente</span></>
+              )}
             </div>
           </div>
 
@@ -742,11 +806,23 @@ export default function ProyectosView({
               </div>
             ) : proyectos.length === 0 ? (
               <div className="bg-white p-12 text-center text-sm text-slate-500 rounded-2xl border border-slate-200 shadow-xs">
-                No se encontraron proyectos legislativos con los filtros seleccionados. Pruebe ampliando el criterio de búsqueda.
+                <p>No se encontraron proyectos con {filtrosActivos > 0 ? `los ${filtrosActivos} filtro(s) activos` : "ese criterio"}.</p>
+                {filtrosActivos > 0 && (
+                  <button
+                    className="mt-3 text-xs font-bold text-blue-700 hover:underline cursor-pointer"
+                    onClick={() => {
+                      setEstadoFilter("Todos"); setCamaraFilter("Todas"); setMateriaFilter("Todas"); setUrgenciaFilter("Todas"); setOrigenFilter("Todos");
+                      setSoloVigentes(true); setSoloConIF(false); setSearchFilter(""); setPage(1); setSearchExecution(prev => prev + 1);
+                    }}
+                  >
+                    Quitar todos los filtros
+                  </button>
+                )}
               </div>
             ) : (
               proyectos.map((proyecto, idx) => {
-                const quorum = proyecto.quorum || { tipo: "Ley Simple", descripcion: "Mayoría simple" };
+                // El quórum solo se muestra si viene informado; no se supone "Ley Simple".
+                const quorum = proyecto.quorum || null;
 
                 return (
                   <div
@@ -797,10 +873,12 @@ export default function ProyectosView({
                         </span>
 
                         {/* Quorum Badge */}
-                        <span className="bg-purple-50 text-purple-800 border border-purple-200 px-2 py-0.5 rounded-md font-mono font-bold flex items-center gap-1">
-                          <Scale className="w-3 h-3 text-purple-600" />
-                          {quorum.tipo}
-                        </span>
+                        {quorum && (
+                          <span className="bg-purple-50 text-purple-800 border border-purple-200 px-2 py-0.5 rounded-md font-mono font-bold flex items-center gap-1" title={quorum.descripcion || ""}>
+                            <Scale className="w-3 h-3 text-purple-600" />
+                            {quorum.tipo}
+                          </span>
+                        )}
 
                         {/* State badge */}
                         <span className={`px-2.5 py-0.5 rounded-full uppercase ml-auto text-[9.5px] font-extrabold border ${
@@ -997,7 +1075,7 @@ export default function ProyectosView({
           {/* Summary / Total breakdown Panel */}
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm" id="proyectos-summary-panel">
             <h3 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-2 mb-3 tracking-tight flex items-center justify-between">
-              <span>Estado del Congreso</span>
+              <span>Proyectos por estado</span>
               <span className="text-[10px] font-bold text-blue-700 font-mono">{totales.totalRepresentativo} Total</span>
             </h3>
             
@@ -1043,15 +1121,15 @@ export default function ProyectosView({
           {/* Comisiones Principales Panel */}
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm" id="proyectos-subjects-panel">
             <h3 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-2 mb-3 tracking-tight">
-              Comisiones Principales
+              Materias principales
             </h3>
 
             <div className="space-y-3.5" id="subjects-list">
               {materias.length === 0 ? (
-                <div className="text-center text-xs text-slate-400 py-3">Cargando comisiones...</div>
+                <div className="text-center text-xs text-slate-400 py-3">Cargando materias…</div>
               ) : (
                 materias.map((m) => {
-                  const maxVal = materias[0]?.cuenta || 1;
+                  const maxVal = Math.max(1, ...materias.map(x => x.cuenta));
                   const percent = Math.floor((m.cuenta / maxVal) * 100);
                   return (
                     <div 
@@ -1089,8 +1167,8 @@ export default function ProyectosView({
               Quórums Legislativos en Chile
             </h4>
             <p className="text-[11px] text-slate-300 leading-relaxed">
-              • <strong>4/7</strong>: Leyes Orgánicas y Reformas Constitucionales (89 Diputados / 29 Senadores).<br />
-              • <strong>Mayoría Absoluta</strong>: Quórum Calificado (78 Diputados / 26 Senadores).<br />
+              • <strong>4/7 en ejercicio</strong>: reformas constitucionales (89 diputados / 29 senadores).<br />
+              • <strong>Mayoría absoluta en ejercicio</strong>: leyes orgánicas constitucionales y de quórum calificado (78 diputados / 26 senadores).<br />
               • <strong>Mayoría Simple</strong>: Leyes ordinarias.
             </p>
           </div>
