@@ -6,7 +6,7 @@
 //    YouTube, para describir lo que se dijo: expositores, minutos, acuerdos y citas.
 // Nada se inventa: si falta una clave o el servicio falla, se informa el motivo.
 import { cache } from "./cacheService";
-import { safeJsonParse } from "./aiService";
+import { safeJsonParse, rescatarObjetosJson } from "./aiService";
 
 export const CANALES_YOUTUBE = {
   diputados: { id: "UCYd5k2TyOyOmUJNx0SH17KA", nombre: "Diputadas y Diputados de Chile" },
@@ -206,7 +206,7 @@ async function consultarGeminiVideo(p: {
   hasta: number | null;
   prompt: string;
   maxOutputTokens: number;
-}): Promise<{ ok: true; texto: string; model: string } | { ok: false; motivo: string }> {
+}): Promise<{ ok: true; texto: string; model: string; fin?: string } | { ok: false; motivo: string }> {
   const { apiKey, videoId, desde, hasta, prompt, maxOutputTokens } = p;
   const videoMetadata: any = { startOffset: `${desde}s` };
   if (hasta != null) videoMetadata.endOffset = `${hasta}s`;
@@ -271,7 +271,8 @@ async function consultarGeminiVideo(p: {
   }
   const data: any = await res.json();
   const texto = (data?.candidates?.[0]?.content?.parts || []).map((x: any) => x.text || "").join("");
-  return { ok: true, texto, model };
+  // "fin" = motivo de término informado por Gemini (STOP, MAX_TOKENS, SAFETY…), para diagnosticar respuestas vacías o cortadas.
+  return { ok: true, texto, model, fin: String(data?.candidates?.[0]?.finishReason || "") || undefined };
 }
 
 export async function analizarParteVideo(params: {
@@ -382,6 +383,24 @@ export interface TranscripcionParteVideo {
 
 export const AVISO_TRANSCRIPCION = "Transcripción automática generada con IA a partir del video: no es el texto oficial y puede contener errores. Contrástela con el video antes de citarla.";
 
+/**
+ * Segmentos de la respuesta del modelo, tolerando las variantes vistas: objeto con "segmentos", arreglo directo,
+ * otra clave para la lista, o JSON cortado por límite de tokens (se rescatan los segmentos completos).
+ */
+export function segmentosDeRespuesta(texto: string): { crudos: any[]; sinVoz: boolean } {
+  if (!texto || !texto.trim()) return { crudos: [], sinVoz: false };
+  let json: any = null;
+  try { json = safeJsonParse<any>(texto); } catch { json = null; }
+  if (Array.isArray(json)) return { crudos: json, sinVoz: false };
+  if (json && typeof json === "object") {
+    const lista = [json.segmentos, json.segments, json.transcripcion, json["transcripción"], json.transcript].find(Array.isArray)
+      ?? Object.values(json).find((v) => Array.isArray(v) && v.length > 0 && typeof v[0] === "object");
+    if (Array.isArray(lista)) return { crudos: lista, sinVoz: lista.length === 0 && json.sinVoz === true };
+    return { crudos: [], sinVoz: json.sinVoz === true };
+  }
+  return { crudos: rescatarObjetosJson<any>(texto), sinVoz: false };
+}
+
 export async function transcribirParteVideo(params: {
   videoId: string;
   parte: number;
@@ -415,20 +434,32 @@ Transcribe en español lo que se dice en el tramo indicado del video, lo más fi
 
 Responde ÚNICAMENTE con JSON válido:
 {"segmentos":[{"minuto":"H:MM:SS desde el inicio del video","orador":"nombre tal como se presenta o 'No identificado'","texto":"lo que dice, tal como lo dice"}]}
+Usa exactamente esas claves ("segmentos", "minuto", "orador", "texto"). Solo si en todo el tramo no habla nadie (pantalla de espera, receso, sin audio), responde {"segmentos":[],"sinVoz":true}.
 Un segmento por cambio de orador, o cada 60 segundos como máximo si habla la misma persona. Ordénalos cronológicamente.`;
 
-  const g = await consultarGeminiVideo({ apiKey, videoId, desde, hasta, prompt, maxOutputTokens: 12000 });
+  const g = await consultarGeminiVideo({ apiKey, videoId, desde, hasta, prompt, maxOutputTokens: 32000 });
   if (g.ok === false) return { disponible: false, motivo: g.motivo, parte, desde, hasta };
-  const json: any = g.texto ? (() => { try { return safeJsonParse<any>(g.texto); } catch { return null; } })() : null;
-  if (!json) return { disponible: false, motivo: "Gemini no devolvió una transcripción legible para este tramo.", parte, desde, hasta };
-
-  let segmentos: SegmentoTranscripcion[] = (Array.isArray(json.segmentos) ? json.segmentos : [])
+  const { crudos, sinVoz } = segmentosDeRespuesta(g.texto);
+  let segmentos: SegmentoTranscripcion[] = crudos
     .map((x: any) => ({
-      segundos: aSegundos(x?.minuto ?? x?.segundos),
-      orador: String(x?.orador || "No identificado").trim() || "No identificado",
-      texto: String(x?.texto || "").trim()
+      segundos: aSegundos(x?.minuto ?? x?.tiempo ?? x?.timestamp ?? x?.inicio ?? x?.segundos),
+      orador: String(x?.orador ?? x?.hablante ?? x?.speaker ?? "No identificado").trim() || "No identificado",
+      texto: String(x?.texto ?? x?.text ?? x?.transcripcion ?? x?.contenido ?? "").trim()
     }))
     .filter((x: SegmentoTranscripcion) => x.texto);
+  // Sin texto: solo se acepta como resultado si el modelo declaró que en el tramo no habla nadie. En cualquier otro
+  // caso es una falla (respuesta vacía, cortada o con otra forma): se informa y NO se guarda en caché.
+  if (segmentos.length === 0) {
+    if (sinVoz) {
+      const vacio: TranscripcionParteVideo = { disponible: true, parte, desde, hasta, segmentos: [], modelo: g.model, aviso: "En este tramo del video no se registran intervenciones habladas." };
+      cache.set(claveCache, vacio, 24 * 60 * 60 * 1000);
+      return vacio;
+    }
+    return {
+      disponible: false, parte, desde, hasta,
+      motivo: `Gemini no devolvió texto para este tramo (término: ${g.fin || "no informado"}; respuesta de ${g.texto.length} caracteres${g.texto ? `, comienza con: ${g.texto.slice(0, 80).replace(/\s+/g, " ")}` : ""}).`
+    };
+  }
   // Si el modelo entregó minutos relativos al tramo (todos antes de su inicio), se pasan a minutos del video completo.
   if (desde > 0 && segmentos.length > 0 && segmentos.every(x => x.segundos < desde)) {
     segmentos = segmentos.map(x => ({ ...x, segundos: x.segundos + desde }));

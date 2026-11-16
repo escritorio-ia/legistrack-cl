@@ -8,6 +8,9 @@ test("título de tramo: toma solo las palabras en mayúsculas del inicio", () =>
   assert.equal(tituloDeTramo("CONSTANCIAS - Normas de quórum especial: Sí tiene.").titulo, "CONSTANCIAS");
   assert.equal(tituloDeTramo("CONSULTA EXCMA. CORTE SUPREMA Se hace presente").titulo, "CONSULTA EXCMA. CORTE SUPREMA");
   assert.equal(tituloDeTramo("el señor Ministro señaló").titulo, "");
+  // Casos vistos en producción (boletín 16.621-05).
+  assert.equal(tituloDeTramo("DISCUSIÓN EN particular A.- Análisis previo").titulo, "DISCUSIÓN EN PARTICULAR");
+  assert.equal(tituloDeTramo("OBJETIVOS DEL PROYECTO DE LEY ESTABLECIDOS EN EL MENSAJE 1.-FINANCIAMIENTO DE PENSIONES El proyecto").titulo, "OBJETIVOS DEL PROYECTO DE LEY ESTABLECIDOS EN EL MENSAJE");
 });
 
 test("secciones del informe: separa por ' - - - ', marca las de debate y omite el índice", () => {

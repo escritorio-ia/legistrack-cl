@@ -95,7 +95,7 @@ test("transcripción: validaciones sin llamar a Gemini (ID inválido, tramo fuer
   assert.equal(llamadas.length, 0);
 
   reiniciar(() => gemini("esto no es JSON"));
-  assert.match((await transcribirParteVideo({ videoId: "trans_00006", parte: 0, duracion: 600 })).motivo!, /no devolvió una transcripción legible/);
+  assert.match((await transcribirParteVideo({ videoId: "trans_00006", parte: 0, duracion: 600 })).motivo!, /no devolvió texto para este tramo/);
 
   const clave = process.env.GEMINI_API_KEY;
   delete process.env.GEMINI_API_KEY;
@@ -108,12 +108,20 @@ test("transcripción: validaciones sin llamar a Gemini (ID inválido, tramo fuer
   }
 });
 
-test("transcripción: un tramo sin habla es un resultado válido y vacío (no se inventa texto)", async () => {
+test("transcripción: un tramo sin habla solo es válido si el modelo lo declara; una respuesta vacía es una falla", async () => {
   const { transcribirParteVideo } = await import("../server/services/youtubeService");
-  reiniciar(() => gemini({ segmentos: [] }));
+  reiniciar(() => gemini({ segmentos: [], sinVoz: true }));
   const r = await transcribirParteVideo({ videoId: "trans_00008", parte: 0, duracion: 600 });
   assert.equal(r.disponible, true);
   assert.deepEqual(r.segmentos, []);
+  // Vacío sin declarar "sinVoz" (lo observado en producción): no se presenta como transcripción completa ni se guarda.
+  reiniciar(() => gemini({ segmentos: [] }));
+  const v = await transcribirParteVideo({ videoId: "trans_00009", parte: 0, duracion: 600 });
+  assert.equal(v.disponible, false);
+  assert.match(v.motivo!, /no devolvió texto/);
+  const antes = llamadas.length;
+  await transcribirParteVideo({ videoId: "trans_00009", parte: 0, duracion: 600 });
+  assert.ok(llamadas.length > antes, "la falla no queda en caché: se reintenta");
 });
 
 test("análisis por tramos (refactor): intervenciones con minuto absoluto y tramo de 30 min", async () => {
@@ -150,3 +158,15 @@ test("análisis por tramos (refactor): errores y caché igual que antes", async 
 });
 
 after(() => { globalThis.fetch = realFetch; delete process.env.GEMINI_API_KEY; });
+
+test("transcripción: acepta las formas de respuesta del modelo y rescata JSON cortado", async () => {
+  const { segmentosDeRespuesta } = await import("../server/services/youtubeService");
+  const seg = { minuto: "0:10:05", orador: "Persona (ficticia)", texto: "Texto de prueba." };
+  assert.equal(segmentosDeRespuesta(JSON.stringify({ segmentos: [seg] })).crudos.length, 1);
+  assert.equal(segmentosDeRespuesta(JSON.stringify([seg, seg])).crudos.length, 2, "arreglo directo");
+  assert.equal(segmentosDeRespuesta(JSON.stringify({ transcripcion: [seg] })).crudos.length, 1, "otra clave");
+  assert.equal(segmentosDeRespuesta(`{"segmentos":[${JSON.stringify(seg)},{"minuto":"0:11:00","orador":"X","texto":"cortad`).crudos.length, 1, "JSON cortado: se rescata el segmento completo");
+  assert.deepEqual(segmentosDeRespuesta(JSON.stringify({ segmentos: [], sinVoz: true })), { crudos: [], sinVoz: true });
+  assert.deepEqual(segmentosDeRespuesta(JSON.stringify({ segmentos: [] })), { crudos: [], sinVoz: false });
+  assert.deepEqual(segmentosDeRespuesta(""), { crudos: [], sinVoz: false });
+});

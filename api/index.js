@@ -187650,11 +187650,20 @@ function tituloDeTramo(tramo) {
   let n = 0;
   for (let i = 0; i < palabras.length && i < 12; i++) {
     const w = palabras[i].t;
-    if (!SOLO_MAYUS.test(w)) break;
+    if (!SOLO_MAYUS.test(w) || /^\d{1,2}[.)]/.test(w)) break;
     if (LETRA_SUELTA.test(w) && w !== "H." && (/[.)-]/.test(w) || /^[a-záéíóúñ]/.test(palabras[i + 1]?.t || ""))) break;
     n = i + 1;
   }
   if (n === 0) return { titulo: "", largoTitulo: 0 };
+  let cola = "";
+  if (/^EN$/.test(palabras[n - 1].t) && /^(general|particular)\b/i.test(palabras[n]?.t || "")) {
+    cola = ` ${palabras[n].t.replace(/[^A-Za-z]/g, "").toUpperCase()}`;
+    n += 1;
+  }
+  if (cola) {
+    const t = `${palabras.slice(0, n - 1).map((p) => p.t).join(" ")}${cola}`;
+    return { titulo: t, largoTitulo: palabras[n - 1].fin };
+  }
   const titulo = palabras.slice(0, n).map((p) => p.t).join(" ").replace(/[\s.:,-]+$/, "");
   return titulo.replace(/[^A-ZÁÉÍÓÚÑÜ]/g, "").length < 4 ? { titulo: "", largoTitulo: 0 } : { titulo, largoTitulo: palabras[n - 1].fin };
 }
@@ -188739,7 +188748,7 @@ async function consultarGeminiVideo(p) {
   }
   const data = await res.json();
   const texto = (data?.candidates?.[0]?.content?.parts || []).map((x) => x.text || "").join("");
-  return { ok: true, texto, model };
+  return { ok: true, texto, model, fin: String(data?.candidates?.[0]?.finishReason || "") || void 0 };
 }
 async function analizarParteVideo(params) {
   const { videoId, parte } = params;
@@ -188817,6 +188826,22 @@ Ordena las intervenciones cronol\xF3gicamente y registra cada cambio relevante d
 }
 var SEGUNDOS_POR_PARTE_TRANSCRIPCION = 600;
 var AVISO_TRANSCRIPCION = "Transcripci\xF3n autom\xE1tica generada con IA a partir del video: no es el texto oficial y puede contener errores. Contr\xE1stela con el video antes de citarla.";
+function segmentosDeRespuesta(texto) {
+  if (!texto || !texto.trim()) return { crudos: [], sinVoz: false };
+  let json = null;
+  try {
+    json = safeJsonParse(texto);
+  } catch {
+    json = null;
+  }
+  if (Array.isArray(json)) return { crudos: json, sinVoz: false };
+  if (json && typeof json === "object") {
+    const lista3 = [json.segmentos, json.segments, json.transcripcion, json["transcripci\xF3n"], json.transcript].find(Array.isArray) ?? Object.values(json).find((v) => Array.isArray(v) && v.length > 0 && typeof v[0] === "object");
+    if (Array.isArray(lista3)) return { crudos: lista3, sinVoz: lista3.length === 0 && json.sinVoz === true };
+    return { crudos: [], sinVoz: json.sinVoz === true };
+  }
+  return { crudos: rescatarObjetosJson(texto), sinVoz: false };
+}
 async function transcribirParteVideo(params) {
   const { videoId, parte } = params;
   const apiKey = process.env.GEMINI_VIDEO_API_KEY || process.env.GEMINI_API_KEY;
@@ -188840,22 +188865,30 @@ Transcribe en espa\xF1ol lo que se dice en el tramo indicado del video, lo m\xE1
 
 Responde \xDANICAMENTE con JSON v\xE1lido:
 {"segmentos":[{"minuto":"H:MM:SS desde el inicio del video","orador":"nombre tal como se presenta o 'No identificado'","texto":"lo que dice, tal como lo dice"}]}
+Usa exactamente esas claves ("segmentos", "minuto", "orador", "texto"). Solo si en todo el tramo no habla nadie (pantalla de espera, receso, sin audio), responde {"segmentos":[],"sinVoz":true}.
 Un segmento por cambio de orador, o cada 60 segundos como m\xE1ximo si habla la misma persona. Ord\xE9nalos cronol\xF3gicamente.`;
-  const g = await consultarGeminiVideo({ apiKey, videoId, desde, hasta, prompt, maxOutputTokens: 12e3 });
+  const g = await consultarGeminiVideo({ apiKey, videoId, desde, hasta, prompt, maxOutputTokens: 32e3 });
   if (g.ok === false) return { disponible: false, motivo: g.motivo, parte, desde, hasta };
-  const json = g.texto ? (() => {
-    try {
-      return safeJsonParse(g.texto);
-    } catch {
-      return null;
-    }
-  })() : null;
-  if (!json) return { disponible: false, motivo: "Gemini no devolvi\xF3 una transcripci\xF3n legible para este tramo.", parte, desde, hasta };
-  let segmentos = (Array.isArray(json.segmentos) ? json.segmentos : []).map((x) => ({
-    segundos: aSegundos(x?.minuto ?? x?.segundos),
-    orador: String(x?.orador || "No identificado").trim() || "No identificado",
-    texto: String(x?.texto || "").trim()
+  const { crudos, sinVoz } = segmentosDeRespuesta(g.texto);
+  let segmentos = crudos.map((x) => ({
+    segundos: aSegundos(x?.minuto ?? x?.tiempo ?? x?.timestamp ?? x?.inicio ?? x?.segundos),
+    orador: String(x?.orador ?? x?.hablante ?? x?.speaker ?? "No identificado").trim() || "No identificado",
+    texto: String(x?.texto ?? x?.text ?? x?.transcripcion ?? x?.contenido ?? "").trim()
   })).filter((x) => x.texto);
+  if (segmentos.length === 0) {
+    if (sinVoz) {
+      const vacio2 = { disponible: true, parte, desde, hasta, segmentos: [], modelo: g.model, aviso: "En este tramo del video no se registran intervenciones habladas." };
+      cache.set(claveCache, vacio2, 24 * 60 * 60 * 1e3);
+      return vacio2;
+    }
+    return {
+      disponible: false,
+      parte,
+      desde,
+      hasta,
+      motivo: `Gemini no devolvi\xF3 texto para este tramo (t\xE9rmino: ${g.fin || "no informado"}; respuesta de ${g.texto.length} caracteres${g.texto ? `, comienza con: ${g.texto.slice(0, 80).replace(/\s+/g, " ")}` : ""}).`
+    };
+  }
   if (desde > 0 && segmentos.length > 0 && segmentos.every((x) => x.segundos < desde)) {
     segmentos = segmentos.map((x) => ({ ...x, segundos: x.segundos + desde }));
   }

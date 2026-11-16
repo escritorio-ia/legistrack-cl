@@ -48,12 +48,23 @@ export function tituloDeTramo(tramo: string): { titulo: string; largoTitulo: num
   let n = 0;
   for (let i = 0; i < palabras.length && i < 12; i++) {
     const w = palabras[i].t;
-    if (!SOLO_MAYUS.test(w)) break;
+    // "1.-FINANCIAMIENTO…" es un subtítulo numerado del contenido, no parte del título de la sección.
+    if (!SOLO_MAYUS.test(w) || /^\d{1,2}[.)]/.test(w)) break;
     // "A.-", "B)" o una letra suelta seguida de minúscula ("A continuación") ya son parte del texto, no del título.
     if (LETRA_SUELTA.test(w) && w !== "H." && (/[.)-]/.test(w) || /^[a-záéíóúñ]/.test(palabras[i + 1]?.t || ""))) break;
     n = i + 1;
   }
   if (n === 0) return { titulo: "", largoTitulo: 0 };
+  // Algunos informes escriben "DISCUSIÓN EN particular": la palabra en minúsculas completa el título.
+  let cola = "";
+  if (/^EN$/.test(palabras[n - 1].t) && /^(general|particular)\b/i.test(palabras[n]?.t || "")) {
+    cola = ` ${palabras[n].t.replace(/[^A-Za-z]/g, "").toUpperCase()}`;
+    n += 1;
+  }
+  if (cola) {
+    const t = `${palabras.slice(0, n - 1).map((p) => p.t).join(" ")}${cola}`;
+    return { titulo: t, largoTitulo: palabras[n - 1].fin };
+  }
   const titulo = palabras.slice(0, n).map((p) => p.t).join(" ").replace(/[\s.:,-]+$/, "");
   return titulo.replace(/[^A-ZÁÉÍÓÚÑÜ]/g, "").length < 4 ? { titulo: "", largoTitulo: 0 } : { titulo, largoTitulo: palabras[n - 1].fin };
 }
