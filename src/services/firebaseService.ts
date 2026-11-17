@@ -487,29 +487,47 @@ export interface RegistroVideoSesion {
  * Sesiones de comisión con análisis o transcripción guardados que, según la tabla de su citación,
  * trataron el boletín indicado. Une el documento de análisis y el de transcripción de cada video.
  */
+function agruparRegistrosVideo(docs: { id: string; data: any }[]): RegistroVideoSesion[] {
+  const porVideo = new Map<string, RegistroVideoSesion>();
+  for (const d of docs) {
+    const x: any = d.data;
+    const videoId = String(x.videoId || d.id.replace(/__(t|i)$/, ""));
+    const r = porVideo.get(videoId) || { videoId, boletines: [], tieneAnalisis: false, analisisCompleto: false, tieneTranscripcion: false, transcripcionCompleta: false };
+    const conPartes = Array.isArray(x.partes) && x.partes.some((p: any) => p?.disponible);
+    if (x.tipo === "informe") { r.tieneInforme = !!x.informe; }
+    else if (x.tipo === "transcripcion") { r.tieneTranscripcion = conPartes; r.transcripcionCompleta = !!x.completo; }
+    else { r.tieneAnalisis = conPartes; r.analisisCompleto = !!x.completo; }
+    r.titulo = r.titulo || x.titulo; r.comision = r.comision || x.comision; r.fecha = r.fecha || x.fecha;
+    r.tabla = r.tabla || (Array.isArray(x.tabla) ? x.tabla : undefined);
+    r.boletines = Array.from(new Set([...r.boletines, ...(Array.isArray(x.boletines) ? x.boletines : [])]));
+    r.actualizado = [r.actualizado, x.updatedAt].filter(Boolean).sort().slice(-1)[0];
+    porVideo.set(videoId, r);
+  }
+  return Array.from(porVideo.values()).filter((r) => r.tieneTranscripcion || r.tieneInforme || r.tieneAnalisis);
+}
+
 export async function getRegistrosVideoPorBoletin(boletin: string): Promise<RegistroVideoSesion[]> {
   const clave = normalizarBoletin(boletin);
   if (!db || !clave) return [];
   try {
     const snap = await getDocs(query(collection(db, COLLECTIONS.ANALISIS_VIDEOS), where("boletines", "array-contains", clave)));
-    const porVideo = new Map<string, RegistroVideoSesion>();
-    snap.forEach((d) => {
-      const x: any = d.data();
-      const videoId = String(x.videoId || d.id.replace(/__t$/, ""));
-      const r = porVideo.get(videoId) || { videoId, boletines: [], tieneAnalisis: false, analisisCompleto: false, tieneTranscripcion: false, transcripcionCompleta: false };
-      const conPartes = Array.isArray(x.partes) && x.partes.some((p: any) => p?.disponible);
-      if (x.tipo === "informe") { r.tieneInforme = !!x.informe; }
-      else if (x.tipo === "transcripcion") { r.tieneTranscripcion = conPartes; r.transcripcionCompleta = !!x.completo; }
-      else { r.tieneAnalisis = conPartes; r.analisisCompleto = !!x.completo; }
-      r.titulo = r.titulo || x.titulo; r.comision = r.comision || x.comision; r.fecha = r.fecha || x.fecha;
-      r.tabla = r.tabla || (Array.isArray(x.tabla) ? x.tabla : undefined);
-      r.boletines = Array.from(new Set([...r.boletines, ...(Array.isArray(x.boletines) ? x.boletines : [])]));
-      r.actualizado = [r.actualizado, x.updatedAt].filter(Boolean).sort().slice(-1)[0];
-      porVideo.set(videoId, r);
-    });
-    return Array.from(porVideo.values()).filter((r) => r.tieneAnalisis || r.tieneTranscripcion || r.tieneInforme);
+    const docs: { id: string; data: any }[] = []; snap.forEach((d) => docs.push({ id: d.id, data: d.data() }));
+    return agruparRegistrosVideo(docs);
   } catch (err) {
     console.warn(`No se pudieron leer las sesiones del boletín ${boletin}:`, err);
+    return [];
+  }
+}
+
+/** Sesiones de una comisión con transcripción o informe guardados (por el nombre con que se guardaron). */
+export async function getRegistrosVideoPorComision(nombre: string): Promise<RegistroVideoSesion[]> {
+  if (!db || !nombre) return [];
+  try {
+    const snap = await getDocs(query(collection(db, COLLECTIONS.ANALISIS_VIDEOS), where("comision", "==", nombre)));
+    const docs: { id: string; data: any }[] = []; snap.forEach((d) => docs.push({ id: d.id, data: d.data() }));
+    return agruparRegistrosVideo(docs);
+  } catch (err) {
+    console.warn(`No se pudieron leer las transcripciones de ${nombre}:`, err);
     return [];
   }
 }

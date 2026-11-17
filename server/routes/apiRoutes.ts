@@ -1,4 +1,5 @@
 import { sincronizarRegistroSesiones, sesionesRegistradasDeBoletin, sesionesRegistradasDeComision } from "../services/registroSesionesService";
+import { exigirSesion, credencialesValidas, fijarSesion, cerrarSesion, sesionActual, authConfigurada, demasiadosIntentos, registrarFallo, limpiarFallos } from "../services/authService";
 import { generarInformeSesion } from "../services/informeSesionService";
 import { salaSemana, importarTablaSenado, sincronizarSala, sesionesSalaDeBoletin } from "../services/salaService";
 import { discusionDeProyecto } from "../services/discusionService";
@@ -120,6 +121,32 @@ import {
 } from "../services/pizarraService";
 
 export const apiRouter = Router();
+
+// ----------------------------------------------------------------------------
+// Ingreso: toda la API exige sesión, salvo las rutas con protección propia (ver authService.rutaPublica).
+// ----------------------------------------------------------------------------
+apiRouter.get("/auth/estado", (req: Request, res: Response) => {
+  const s = sesionActual(req);
+  const conf = authConfigurada();
+  res.setHeader("Cache-Control", "no-store");
+  res.json({ autenticado: !!s, usuario: s?.u || null, configurado: conf.ok, falta: conf.falta });
+});
+apiRouter.post("/auth/ingresar", async (req: Request, res: Response) => {
+  const ip = String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "").split(",")[0].trim();
+  if (!authConfigurada().ok) return res.status(503).json({ ok: false, error: `Ingreso no configurado en el servidor (falta ${authConfigurada().falta.join(", ")} en Vercel).` });
+  if (demasiadosIntentos(ip)) return res.status(429).json({ ok: false, error: "Demasiados intentos. Espere 15 minutos." });
+  const { usuario, clave } = (req.body || {}) as { usuario?: string; clave?: string };
+  if (!credencialesValidas(String(usuario || ""), String(clave || ""))) {
+    registrarFallo(ip);
+    await new Promise((r) => setTimeout(r, 800));
+    return res.status(401).json({ ok: false, error: "Usuario o contraseña incorrectos." });
+  }
+  limpiarFallos(ip);
+  fijarSesion(req, res, String(usuario).trim().toLowerCase());
+  res.json({ ok: true });
+});
+apiRouter.post("/auth/salir", (req: Request, res: Response) => { cerrarSesion(req, res); res.json({ ok: true }); });
+apiRouter.use(exigirSesion);
 
 // Express 4 no captura las excepciones de handlers async: si safeJsonParse (u otra
 // cosa) lanza porque la IA respondió texto que no es JSON, la petición quedaba

@@ -39,6 +39,8 @@ export interface YouTubeTranscriptModalProps {
   boletines?: string[];
   /** Sesión del Senado: permite leer la tabla oficial (puntos con su boletín) del registro de senado.cl. */
   senado?: { comisionId: string; sesionId: string };
+  /** Pestaña con que se abre la ventana. */
+  vistaInicial?: "informe" | "transcripcion";
 }
 
 interface SegmentoT { segundos: number; orador: string; texto: string }
@@ -137,7 +139,8 @@ export default function YouTubeTranscriptModal({
   materia,
   tabla,
   boletines,
-  senado
+  senado,
+  vistaInicial = "informe"
 }: YouTubeTranscriptModalProps) {
   const cancelado = useRef(false);
 
@@ -164,7 +167,7 @@ export default function YouTubeTranscriptModal({
   );
   const indice = useMemo(() => ({ boletines: boletinesSesion, ...(puntosTabla.length ? { tabla: puntosTabla } : {}) }), [boletinesSesion, puntosTabla]);
 
-  const [vista, setVista] = useState<"informe" | "transcripcion">("informe");
+  const [vista, setVista] = useState<"informe" | "transcripcion">(vistaInicial);
   const [partesT, setPartesT] = useState<ParteTranscripcion[]>([]);
   const [totalPartesT, setTotalPartesT] = useState<number | null>(null);
   const [estadoT, setEstadoT] = useState<"cargando" | "sin" | "transcribiendo" | "listo" | "error">("cargando");
@@ -219,7 +222,13 @@ export default function YouTubeTranscriptModal({
     setEstadoT("transcribiendo");
     const total = totalPartesT || 1;
     const acumuladas: ParteTranscripcion[] = partesT.filter(p => p.disponible);
-    const guardar = (completo: boolean) => saveTranscripcionVideoToFirestore(id, { partes: acumuladas, completo, ...metaGuardado() });
+    // Además de los boletines de la tabla, se guardan los que se mencionan en lo dicho: así la transcripción
+    // aparece en todo proyecto del que se habló en la sesión.
+    const guardar = (completo: boolean) => {
+      const mencionados = boletinesEnTexto(acumuladas.flatMap(p => p.segmentos || []).map(g => g.texto).join(" "));
+      const todos = Array.from(new Set([...indice.boletines, ...mencionados]));
+      return saveTranscripcionVideoToFirestore(id, { partes: acumuladas, completo, ...metaGuardado(), ...(todos.length ? { boletines: arrayUnion(...todos) } : {}) });
+    };
     for (let parte = 0; parte < total; parte++) {
       if (cancelado.current) return null;
       if (acumuladas.some(p => p.parte === parte)) continue;

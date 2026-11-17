@@ -82,6 +82,8 @@ import {
 } from "../services/firebaseService";
 import YouTubeTranscriptModal, { analisisATexto, obtenerAnalisisVideo } from "../components/YouTubeTranscriptModal";
 import InformeComision from "../components/InformeComision";
+import TranscripcionesSesiones from "../components/TranscripcionesSesiones";
+import { getRegistrosVideoPorComision } from "../services/firebaseService";
 import ParlamentariosMatrix from "../components/ParlamentariosMatrix";
 import NotasColaborativasDrawer from "../components/NotasColaborativasDrawer";
 
@@ -1371,7 +1373,7 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
       });
   };
 
-  const [activeTab, setActiveTab] = useState<"resumen" | "proyectos" | "sesiones" | "integrantes" | "audiencias">("resumen");
+  const [activeTab, setActiveTab] = useState<"resumen" | "proyectos" | "sesiones" | "transcripciones" | "integrantes" | "audiencias">("resumen");
   // Registro automático de sesiones de esta comisión (todas las fuentes oficiales combinadas).
   const [registroComision, setRegistroComision] = useState<SesionRegistradaUI[] | null>(null);
   useEffect(() => {
@@ -2565,6 +2567,18 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
             </button>
 
             <button
+              onClick={() => setActiveTab("transcripciones")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                activeTab === "transcripciones"
+                  ? "bg-rose-600 text-white shadow-md border border-rose-500"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+              }`}
+            >
+              <Video className="w-3.5 h-3.5" />
+              <span>Transcripciones</span>
+            </button>
+
+            <button
               onClick={() => setActiveTab("audiencias")}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
                 activeTab === "audiencias"
@@ -3298,6 +3312,19 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
           {/* ========================================================================= */}
           {/* TAB 4: INTEGRANTES DE LA MESA                                             */}
           {/* ========================================================================= */}
+          {activeTab === "transcripciones" && (
+            <div className="flex flex-col gap-4 animate-fade-in">
+              <TranscripcionesSesiones
+                clave={comision.nombre}
+                cargar={() => getRegistrosVideoPorComision(comision.nombre)}
+                titulo="Transcripciones de sesiones"
+                descripcion="Sesiones de esta comisión con transcripción o informe guardados. Transcripción automática del video oficial (no es el acta oficial). Para transcribir una sesión nueva, use 'Video, transcripción e informe' en la pestaña Sesiones."
+                vacio="Aún no hay sesiones transcritas de esta comisión."
+                mostrarComision={false}
+              />
+            </div>
+          )}
+
           {activeTab === "integrantes" && (() => {
             const allIntegrantes = comision.integrantes || [];
             // Solo se destaca como presidente a quien la nómina oficial señala con ese rol (antes, si faltaba, se mostraba al primero de la lista).

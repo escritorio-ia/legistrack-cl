@@ -187373,10 +187373,10 @@ Reglas: usa solo el texto entregado; no inventes cifras, instituciones ni efecto
 
 Responde \xDANICAMENTE con JSON v\xE1lido: {"objeto":"..."}
 "objeto": 1-2 frases que expliquen en lenguaje claro lo que propone el proyecto seg\xFAn su t\xEDtulo. No agregues nada que el t\xEDtulo no diga.`;
-  const intentos = [];
-  const respuesta = await generarContenidoUniversalIA(prompt2, conTexto ? 3e3 : 1200, intentos);
+  const intentos2 = [];
+  const respuesta = await generarContenidoUniversalIA(prompt2, conTexto ? 3e3 : 1200, intentos2);
   if (!respuesta) {
-    diagnostico?.push("Ning\xFAn proveedor de IA respondi\xF3: " + intentos.filter((i) => i.configured).map((i) => `${i.provider}: ${(i.error || "sin respuesta").slice(0, 90)}`).join(" | "));
+    diagnostico?.push("Ning\xFAn proveedor de IA respondi\xF3: " + intentos2.filter((i) => i.configured).map((i) => `${i.provider}: ${(i.error || "sin respuesta").slice(0, 90)}`).join(" | "));
     return null;
   }
   try {
@@ -188111,10 +188111,10 @@ RESUMEN:
 150-250 palabras sobre el paso del proyecto por la comisi\xF3n.
 
 Reglas: usa SOLO lo que dicen los extractos; no inventes nombres, cargos, cifras ni votos; si algo no aparece, escribe "No informado". Usa guion normal. No menciones plazos de urgencia en el RESUMEN, salvo que el informe los destaque; y si lo haces, usa el tiempo verbal seg\xFAn la fecha de hoy (un plazo futuro no "venci\xF3").`;
-  const intentos = [];
+  const intentos2 = [];
   let resp = null;
   try {
-    resp = await generarContenidoUniversalIA(prompt2, 2500, intentos);
+    resp = await generarContenidoUniversalIA(prompt2, 2500, intentos2);
   } catch {
     resp = null;
   }
@@ -188127,7 +188127,7 @@ Reglas: usa SOLO lo que dicen los extractos; no inventes nombres, cargos, cifras
   const expositores = seccion("EXPOSITORES").split("\n").map((l) => l.split("|").map((x) => x.trim())).filter((x) => x.length >= 2 && x[0] && !/^nombre$/i.test(x[0])).map((x) => ({ nombre: x[0].replace(/^\s*[-•]\s*/, ""), cargo: x[1] || "", planteo: x.slice(2).join(" | ") }));
   const resumen = seccion("RESUMEN");
   if (!resumen && expositores.length === 0) {
-    const det = intentos.filter((i) => i.configured && i.error).map((i) => `${i.provider}: ${String(i.error).slice(0, 80)}`).join(" | ");
+    const det = intentos2.filter((i) => i.configured && i.error).map((i) => `${i.provider}: ${String(i.error).slice(0, 80)}`).join(" | ");
     return { disponible: false, comision, motivo: `No fue posible generar el resumen con IA en este momento.${det ? ` Detalle: ${det}` : ""}` };
   }
   const r = {
@@ -188667,6 +188667,84 @@ async function sesionesRegistradasDeComision(comisionId) {
   if (!r.ok) throw new Error(`Firestore respondi\xF3 HTTP ${r.status}`);
   const filas = await r.json();
   return unirSesionesLeidas(filas.filter((x) => x.document).map((x) => combinarSesion(idDoc(x.document), x.document.fields || {}))).sort((a, c) => c.fecha.localeCompare(a.fecha) || c.id.localeCompare(a.id));
+}
+
+// server/services/authService.ts
+import { createHmac, timingSafeEqual } from "crypto";
+var COOKIE = "lpp_sesion";
+var DURACION_S = 7 * 24 * 3600;
+function authConfigurada() {
+  const falta = ["ADMIN_CLAVE", "AUTH_SECRET"].filter((k) => !process.env[k]);
+  return { ok: falta.length === 0, falta };
+}
+var usuarioEsperado = () => (process.env.ADMIN_USUARIO || "admin").trim().toLowerCase();
+function igualSeguro(a, b) {
+  const x = createHmac("sha256", "cmp").update(a).digest();
+  const y = createHmac("sha256", "cmp").update(b).digest();
+  return timingSafeEqual(x, y);
+}
+var firma = (datos) => createHmac("sha256", process.env.AUTH_SECRET || "").update(datos).digest("base64url");
+function credencialesValidas(usuario, clave) {
+  if (!authConfigurada().ok) return false;
+  const u = igualSeguro(String(usuario || "").trim().toLowerCase(), usuarioEsperado());
+  const c = igualSeguro(String(clave || ""), process.env.ADMIN_CLAVE || "");
+  return u && c;
+}
+function crearToken(usuario, ahora = Date.now()) {
+  const datos = Buffer.from(JSON.stringify({ u: usuario, exp: Math.floor(ahora / 1e3) + DURACION_S })).toString("base64url");
+  return `${datos}.${firma(datos)}`;
+}
+function leerToken(token, ahora = Date.now()) {
+  if (!authConfigurada().ok) return null;
+  const [datos, f] = String(token || "").split(".");
+  if (!datos || !f || !igualSeguro(f, firma(datos))) return null;
+  try {
+    const p = JSON.parse(Buffer.from(datos, "base64url").toString());
+    return p?.exp > Math.floor(ahora / 1e3) ? { u: String(p.u) } : null;
+  } catch {
+    return null;
+  }
+}
+function cookieDe(req) {
+  const m = String(req.headers.cookie || "").match(new RegExp(`(?:^|;\\s*)${COOKIE}=([^;]+)`));
+  return m ? decodeURIComponent(m[1]) : "";
+}
+var esSeguro = (req) => req.secure || String(req.headers["x-forwarded-proto"] || "").includes("https");
+function fijarSesion(req, res, usuario) {
+  res.setHeader("Set-Cookie", `${COOKIE}=${encodeURIComponent(crearToken(usuario))}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${DURACION_S}${esSeguro(req) ? "; Secure" : ""}`);
+}
+function cerrarSesion(req, res) {
+  res.setHeader("Set-Cookie", `${COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${esSeguro(req) ? "; Secure" : ""}`);
+}
+function sesionActual(req) {
+  return leerToken(cookieDe(req));
+}
+function rutaPublica(metodo, ruta) {
+  if (ruta.startsWith("/auth/")) return true;
+  if (ruta === "/registro-sesiones/sincronizar") return true;
+  if (ruta === "/senado/comisiones-ids") return true;
+  if (metodo === "POST" && /\/importar$/.test(ruta)) return true;
+  return false;
+}
+function exigirSesion(req, res, next) {
+  if (req.method === "OPTIONS" || rutaPublica(req.method, req.path)) return next();
+  if (sesionActual(req)) return next();
+  const conf = authConfigurada();
+  return res.status(401).json({ error: conf.ok ? "Debe ingresar a la aplicaci\xF3n." : `Ingreso no configurado en el servidor (falta ${conf.falta.join(", ")}).`, ingreso: true });
+}
+var intentos = /* @__PURE__ */ new Map();
+function demasiadosIntentos(ip) {
+  const e = intentos.get(ip);
+  if (!e || Date.now() - e.desde > 15 * 60 * 1e3) return false;
+  return e.n >= 8;
+}
+function registrarFallo(ip) {
+  const e = intentos.get(ip);
+  if (!e || Date.now() - e.desde > 15 * 60 * 1e3) intentos.set(ip, { n: 1, desde: Date.now() });
+  else e.n++;
+}
+function limpiarFallos(ip) {
+  intentos.delete(ip);
 }
 
 // src/utils/informeSesion.ts
@@ -190199,10 +190277,10 @@ RESUMEN:
 TABLA:
 N\xB0 del IF | a qu\xE9 corresponde, breve | efecto fiscal en una frase con su monto si existe
 (una l\xEDnea por informe)`;
-  const intentos = [];
+  const intentos2 = [];
   let resp = null;
   try {
-    resp = await generarContenidoUniversalIA(prompt2, 6e3, intentos);
+    resp = await generarContenidoUniversalIA(prompt2, 6e3, intentos2);
   } catch {
     resp = null;
   }
@@ -190218,7 +190296,7 @@ N\xB0 del IF | a qu\xE9 corresponde, breve | efecto fiscal en una frase con su m
     }
   }
   if (!j.resumen) {
-    const det = intentos.filter((i) => i.configured && i.error).map((i) => `${i.provider}: ${String(i.error).slice(0, 80)}`).join(" | ");
+    const det = intentos2.filter((i) => i.configured && i.error).map((i) => `${i.provider}: ${String(i.error).slice(0, 80)}`).join(" | ");
     return { disponible: false, motivo: `No fue posible generar el resumen con IA en este momento.${det ? ` Detalle: ${det}` : texto ? " La respuesta de la IA vino incompleta." : ""}`, total: informes.length };
   }
   const filasIA = Array.isArray(j.filas) ? j.filas : [];
@@ -194932,6 +195010,31 @@ function enmascarar(inv) {
 
 // server/routes/apiRoutes.ts
 var apiRouter = Router();
+apiRouter.get("/auth/estado", (req, res) => {
+  const s = sesionActual(req);
+  const conf = authConfigurada();
+  res.setHeader("Cache-Control", "no-store");
+  res.json({ autenticado: !!s, usuario: s?.u || null, configurado: conf.ok, falta: conf.falta });
+});
+apiRouter.post("/auth/ingresar", async (req, res) => {
+  const ip = String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "").split(",")[0].trim();
+  if (!authConfigurada().ok) return res.status(503).json({ ok: false, error: `Ingreso no configurado en el servidor (falta ${authConfigurada().falta.join(", ")} en Vercel).` });
+  if (demasiadosIntentos(ip)) return res.status(429).json({ ok: false, error: "Demasiados intentos. Espere 15 minutos." });
+  const { usuario, clave } = req.body || {};
+  if (!credencialesValidas(String(usuario || ""), String(clave || ""))) {
+    registrarFallo(ip);
+    await new Promise((r) => setTimeout(r, 800));
+    return res.status(401).json({ ok: false, error: "Usuario o contrase\xF1a incorrectos." });
+  }
+  limpiarFallos(ip);
+  fijarSesion(req, res, String(usuario).trim().toLowerCase());
+  res.json({ ok: true });
+});
+apiRouter.post("/auth/salir", (req, res) => {
+  cerrarSesion(req, res);
+  res.json({ ok: true });
+});
+apiRouter.use(exigirSesion);
 for (const metodo of ["get", "post", "put", "delete", "patch"]) {
   const original = apiRouter[metodo].bind(apiRouter);
   apiRouter[metodo] = (ruta, ...handlers) => original(
