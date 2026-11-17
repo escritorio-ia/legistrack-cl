@@ -20,3 +20,17 @@ export function tiempoDeSesion(fecha?: string): number {
   const m = String(fecha || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").match(/(\d{1,2})\s+de\s+([a-z]+)\s+de\s+(\d{4})/);
   return m && m[2] in MESES ? new Date(Number(m[3]), MESES[m[2]], Number(m[1])).getTime() : 0;
 }
+
+/**
+ * Boletín citado en el texto de una sesión que tiene el mismo número que el proyecto pero OTRO sufijo de comisión
+ * (p. ej. la citación dice "18574-17" y el proyecto es "18.574-25"). Indica un posible error en la citación oficial:
+ * la sesión puede corresponder a otro proyecto. Devuelve "" si no hay discrepancia.
+ */
+export function boletinDiscrepante(textoSesion: string, proyectoId: string): string {
+  const proy = normalizarBoletin(proyectoId);
+  const [num, suf] = proy.split("-");
+  if (!num || !suf) return "";
+  const mismos = boletinesEnTexto(textoSesion).filter((b) => b.split("-")[0] === num);
+  if (mismos.length === 0 || mismos.includes(proy)) return "";
+  return mismos[0];
+}

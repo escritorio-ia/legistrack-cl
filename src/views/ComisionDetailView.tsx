@@ -3259,6 +3259,17 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
                           <span>{ses.completada || ses.actaTexto ? "Editar Acta" : "Acta Oficial"}</span>
                         </button>
 
+                        {ses.videoUrl && (
+                          <button
+                            onClick={() => setSelectedSesionForTranscript(ses)}
+                            className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs py-2 px-3 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
+                            title="Video oficial de la sesión, con análisis y transcripción automáticos"
+                          >
+                            <Video className="w-3.5 h-3.5" />
+                            <span>Video y transcripción</span>
+                          </button>
+                        )}
+
                         <button
                           onClick={() => handleOpenReportModal(ses)}
                           className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-2 px-3 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"

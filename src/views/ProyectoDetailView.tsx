@@ -49,6 +49,7 @@ import {
 import { Proyecto, ActivityItem, VotacionItem } from "../types";
 import { resolveProyecto } from "../utils/proyectosResolver";
 import { fetchLiveSenateProject } from "../utils/senadoClientApi";
+import { boletinDiscrepante } from "../utils/boletines";
 import DiscusionInformes from "../components/DiscusionInformes";
 import TranscripcionesProyecto from "../components/TranscripcionesProyecto";
 import { parseFechaFlexible, diasEntre, detectTramite, etapaActual, ultimoMovimiento } from "../utils/tramitacion";
@@ -2031,6 +2032,14 @@ export default function ProyectoDetailView({
                               <span className="text-[10.5px] text-amber-700">{videoBusqueda[s.sesionId]?.motivo}</span>
                             )}
                           </div>
+                          {(() => {
+                            const otro = boletinDiscrepante(`${s.temasVistos || ""}`, proyecto.id);
+                            return otro ? (
+                              <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
+                                Atención: la citación menciona el boletín {otro}, que tiene otro sufijo que este proyecto ({proyecto.id}). Puede ser un error de la citación oficial y la sesión corresponder a otro proyecto; verifique en la fuente.
+                              </p>
+                            ) : null;
+                          })()}
                           {s.fuente && (
                             <p className="text-[10px] text-slate-400">Fuente: {s.fuente}</p>
                           )}
