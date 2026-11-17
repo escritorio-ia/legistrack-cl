@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   puntosDeMateria, idSesion, fechaISO, horaInicio, huella,
   aportesCitacionesCamara, aportesCitacionesSenado, aportesHistoriaSenado, aporteDetalleSenado, combinarSesion,
+  aportesResultadosCamara, unirResultadosConCitaciones,
 } from "../server/services/registroSesionesService";
 
 test("pauta: separa [Parte N] (Cámara) y '1.-' (Senado), con los boletines de cada punto", () => {
@@ -68,4 +69,15 @@ test("pauta: urgencia y acción según el texto oficial de cada punto", async ()
   assert.equal(accionDelPunto("Continuar la discusión general del proyecto"), "Continúa discusión");
   // Caso visto en producción: discusión con votación anunciada no es solo "Votación".
   assert.equal(accionDelPunto("Continuar la discusión general del proyecto de ley (Boletín N° 18.576-06). Luego de audiencia se votará en general y en particular."), "Continúa discusión y votación");
+});
+
+test("resultado de la Cámara sin hora: se une a la única citación de ese día (caso visto en producción)", () => {
+  const cit = aportesCitacionesCamara([{ fecha: "MARTES, 3 DE NOVIEMBRE DE 2026", comisionNombre: "Gobierno Interior", comisionSlug: "gobierno-interior", hora: "15:00 a 17:00", materia: "[Parte 1] Boletín N° 18.576-06." }]);
+  const res = aportesResultadosCamara([{ fecha: "MARTES, 3 DE NOVIEMBRE DE 2026", comisionNombre: "Gobierno Interior", comisionSlug: "gobierno-interior", resultado: "Se aprobó (ficticio).", boletines: ["18576-06"] }]);
+  assert.notEqual(res[0].id, cit[0].id, "sin hora, el identificador no coincide");
+  const unidos = unirResultadosConCitaciones([...cit, ...res]);
+  assert.equal(unidos[1].id, cit[0].id);
+  // Con dos citaciones ese día no se adivina.
+  const cit2 = aportesCitacionesCamara([{ fecha: "MARTES, 3 DE NOVIEMBRE DE 2026", comisionNombre: "Gobierno Interior", comisionSlug: "gobierno-interior", hora: "18:00 a 19:00", materia: "x" }]);
+  assert.equal(unirResultadosConCitaciones([...cit, ...cit2, ...res])[2].id, res[0].id);
 });

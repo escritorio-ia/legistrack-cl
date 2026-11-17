@@ -174,6 +174,45 @@ export function aporteDetalleSenado(idComision: string, h: any, det: any): Aport
   };
 }
 
+/**
+ * El resultado oficial de la Cámara a veces no trae la hora (o la trae distinta), y quedaba en otro documento que la
+ * citación de la misma sesión. Si ese día la comisión tuvo UNA sola citación, el resultado se une a ella. Si tuvo varias,
+ * no se adivina: el resultado queda en su propio documento.
+ */
+export function unirResultadosConCitaciones(aportes: AporteSesion[]): AporteSesion[] {
+  const dia = (a: AporteSesion) => `${a.camara}|${a.comisionId || a.comisionNombre}|${a.fecha}`;
+  const citacionesPorDia = new Map<string, Set<string>>();
+  for (const a of aportes) if (a.fuente === "citacion") citacionesPorDia.set(dia(a), (citacionesPorDia.get(dia(a)) || new Set()).add(a.id));
+  return aportes.map((a) => {
+    if (a.fuente !== "resultado") return a;
+    const ids = citacionesPorDia.get(dia(a));
+    if (!ids || ids.has(a.id) || ids.size !== 1) return a;
+    return { ...a, id: [...ids][0] };
+  });
+}
+
+/** Lectura: une un documento con solo el resultado al de la citación del mismo día (una sola citación ese día). */
+export function unirSesionesLeidas(lista: SesionRegistrada[]): SesionRegistrada[] {
+  const clave = (x: SesionRegistrada) => `${x.camara}|${x.comisionId || x.comisionNombre}|${x.fecha}`;
+  const conCitacion = new Map<string, SesionRegistrada[]>();
+  for (const x of lista) if (x.fuentes.includes("citación oficial")) conCitacion.set(clave(x), [...(conCitacion.get(clave(x)) || []), x]);
+  const out: SesionRegistrada[] = [];
+  for (const x of lista) {
+    const soloResultado = x.resultado && !x.fuentes.includes("citación oficial") && x.fuentes.length === 1;
+    const destino = soloResultado ? conCitacion.get(clave(x)) : undefined;
+    if (destino && destino.length === 1) {
+      const d = destino[0];
+      if (!d.resultado) d.resultado = x.resultado;
+      d.fuentes = Array.from(new Set([...d.fuentes, ...x.fuentes]));
+      d.boletines = Array.from(new Set([...d.boletines, ...x.boletines]));
+      d.enlaces = Array.from(new Set([...d.enlaces, ...x.enlaces]));
+      continue;
+    }
+    out.push(x);
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------------------
 // Firestore (REST)
 // ---------------------------------------------------------------------------
@@ -304,7 +343,7 @@ export async function sincronizarRegistroSesiones(opciones: { forzar?: boolean }
     } catch (e: any) { errores.push(`Historial Senado: ${e?.message || e}`); }
 
     let r = { sesiones: 0, escrituras: 0 };
-    try { r = await escribirAportes(aportes.filter((a) => a.fecha)); }
+    try { r = await escribirAportes(unirResultadosConCitaciones(aportes.filter((a) => a.fecha))); }
     catch (e: any) { errores.push(`Escritura: ${e?.message || e}`); }
     ultima = Date.now();
     return { ok: errores.length === 0, ...r, porFuente, errores, duracionMs: Date.now() - t0 };
@@ -363,5 +402,5 @@ export async function sesionesRegistradasDeBoletin(boletin: string): Promise<Ses
   });
   if (!r.ok) throw new Error(`Firestore respondió HTTP ${r.status}`);
   const filas: any[] = await r.json();
-  return filas.filter((x) => x.document).map((x) => combinarSesion(idDoc(x.document), x.document.fields || {})).sort((a, c) => c.fecha.localeCompare(a.fecha));
+  return unirSesionesLeidas(filas.filter((x) => x.document).map((x) => combinarSesion(idDoc(x.document), x.document.fields || {}))).sort((a, c) => c.fecha.localeCompare(a.fecha));
 }

@@ -188422,6 +188422,37 @@ function aporteDetalleSenado(idComision, h, det) {
     datos: { puntos, inicio: det.inicio || null, termino: det.termino || null, lugar: det.lugar || null, presentaciones: det.presentaciones || [], url: det.url || null }
   };
 }
+function unirResultadosConCitaciones(aportes) {
+  const dia = (a) => `${a.camara}|${a.comisionId || a.comisionNombre}|${a.fecha}`;
+  const citacionesPorDia = /* @__PURE__ */ new Map();
+  for (const a of aportes) if (a.fuente === "citacion") citacionesPorDia.set(dia(a), (citacionesPorDia.get(dia(a)) || /* @__PURE__ */ new Set()).add(a.id));
+  return aportes.map((a) => {
+    if (a.fuente !== "resultado") return a;
+    const ids = citacionesPorDia.get(dia(a));
+    if (!ids || ids.has(a.id) || ids.size !== 1) return a;
+    return { ...a, id: [...ids][0] };
+  });
+}
+function unirSesionesLeidas(lista3) {
+  const clave = (x) => `${x.camara}|${x.comisionId || x.comisionNombre}|${x.fecha}`;
+  const conCitacion = /* @__PURE__ */ new Map();
+  for (const x of lista3) if (x.fuentes.includes("citaci\xF3n oficial")) conCitacion.set(clave(x), [...conCitacion.get(clave(x)) || [], x]);
+  const out = [];
+  for (const x of lista3) {
+    const soloResultado = x.resultado && !x.fuentes.includes("citaci\xF3n oficial") && x.fuentes.length === 1;
+    const destino = soloResultado ? conCitacion.get(clave(x)) : void 0;
+    if (destino && destino.length === 1) {
+      const d = destino[0];
+      if (!d.resultado) d.resultado = x.resultado;
+      d.fuentes = Array.from(/* @__PURE__ */ new Set([...d.fuentes, ...x.fuentes]));
+      d.boletines = Array.from(/* @__PURE__ */ new Set([...d.boletines, ...x.boletines]));
+      d.enlaces = Array.from(/* @__PURE__ */ new Set([...d.enlaces, ...x.enlaces]));
+      continue;
+    }
+    out.push(x);
+  }
+  return out;
+}
 async function listarDocs(coleccion, mascara) {
   const { base, key } = conexion();
   const docs = [];
@@ -188566,7 +188597,7 @@ async function sincronizarRegistroSesiones(opciones = {}) {
     }
     let r = { sesiones: 0, escrituras: 0 };
     try {
-      r = await escribirAportes(aportes.filter((a) => a.fecha));
+      r = await escribirAportes(unirResultadosConCitaciones(aportes.filter((a) => a.fecha)));
     } catch (e) {
       errores.push(`Escritura: ${e?.message || e}`);
     }
@@ -188620,7 +188651,7 @@ async function sesionesRegistradasDeBoletin(boletin) {
   });
   if (!r.ok) throw new Error(`Firestore respondi\xF3 HTTP ${r.status}`);
   const filas = await r.json();
-  return filas.filter((x) => x.document).map((x) => combinarSesion(idDoc(x.document), x.document.fields || {})).sort((a, c) => c.fecha.localeCompare(a.fecha));
+  return unirSesionesLeidas(filas.filter((x) => x.document).map((x) => combinarSesion(idDoc(x.document), x.document.fields || {}))).sort((a, c) => c.fecha.localeCompare(a.fecha));
 }
 
 // server/services/discusionService.ts
