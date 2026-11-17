@@ -29,10 +29,13 @@ export function urgenciaDelPunto(texto: string): string {
 
 /** Acción del punto según el texto oficial (para destacar si se vota o se discute). */
 export function accionDelPunto(texto: string): string {
-  const t = String(texto || "").toLowerCase();
-  if (/\bvotar\b|votaci[oó]n|se votar[aá]/.test(t)) return "Votación";
-  if (/iniciar la discusi[oó]n/.test(t)) return "Inicia discusión";
-  if (/continuar (con )?la discusi[oó]n|continuar (con )?el estudio/.test(t)) return "Continúa discusión";
-  if (/audiencia|recibir a|exposici[oó]n/.test(t)) return "Audiencias";
+  const t = String(texto || "").toLowerCase().trim();
+  // Lo que dice el inicio del punto manda: "Continuar la discusión… luego se votará" es discusión con votación anunciada.
+  const votaDespues = /se votar[aá]|para votar|y votar/.test(t);
+  if (/^votar\b|^votaci[oó]n/.test(t)) return "Votación";
+  if (/^iniciar (la )?discusi[oó]n|^iniciar (el )?estudio/.test(t)) return votaDespues ? "Inicia discusión y votación" : "Inicia discusión";
+  if (/^continuar (con )?(la discusi[oó]n|el estudio)/.test(t)) return votaDespues ? "Continúa discusión y votación" : "Continúa discusión";
+  if (/^(recibir|escuchar|audiencia)|exposici[oó]n de/.test(t)) return "Audiencias";
+  if (/\bvotar\b/.test(t)) return "Votación";
   return "";
 }

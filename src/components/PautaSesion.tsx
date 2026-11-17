@@ -30,7 +30,7 @@ export default function PautaSesion({
   return (
     <div className="flex flex-col gap-2">
       <p className={`text-[10px] font-bold uppercase tracking-wider ${c.sub}`}>
-        Pauta: {puntos.length} punto{puntos.length === 1 ? "" : "s"} · {boletines.length} boletín{boletines.length === 1 ? "" : "es"}
+        Pauta: {puntos.length} punto{puntos.length === 1 ? "" : "s"} · {boletines.length} {boletines.length === 1 ? "boletín" : "boletines"}
       </p>
       <ol className="flex flex-col gap-1.5">
         {visibles.map((p) => {

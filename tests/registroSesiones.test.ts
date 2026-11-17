@@ -66,4 +66,6 @@ test("pauta: urgencia y acción según el texto oficial de cada punto", async ()
   assert.equal(accionDelPunto("Votar en particular los siguientes proyectos"), "Votación");
   assert.equal(accionDelPunto("Iniciar la discusión general del proyecto"), "Inicia discusión");
   assert.equal(accionDelPunto("Continuar la discusión general del proyecto"), "Continúa discusión");
+  // Caso visto en producción: discusión con votación anunciada no es solo "Votación".
+  assert.equal(accionDelPunto("Continuar la discusión general del proyecto de ley (Boletín N° 18.576-06). Luego de audiencia se votará en general y en particular."), "Continúa discusión y votación");
 });
