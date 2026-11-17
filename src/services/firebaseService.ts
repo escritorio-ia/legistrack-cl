@@ -419,6 +419,20 @@ export async function saveAnalisisVideoToFirestore(videoId: string, data: any): 
 
 export { normalizarBoletin, boletinesEnTexto } from "../utils/boletines";
 
+/** Análisis de video guardados de una comisión (por el nombre con que se guardaron). Excluye las transcripciones. */
+export async function getAnalisisVideoPorComision(nombre: string): Promise<any[]> {
+  if (!db || !nombre) return [];
+  try {
+    const snap = await getDocs(query(collection(db, COLLECTIONS.ANALISIS_VIDEOS), where("comision", "==", nombre)));
+    const out: any[] = [];
+    snap.forEach((d) => { const x: any = d.data(); if (x.tipo !== "transcripcion" && !d.id.endsWith("__t")) out.push({ ...x, videoId: x.videoId || d.id }); });
+    return out;
+  } catch (err) {
+    console.warn(`No se pudieron leer los análisis de video de ${nombre}:`, err);
+    return [];
+  }
+}
+
 /**
  * Transcripción automática del video de una sesión. Va en un documento propio (`<videoId>__t`) para no
  * acercarse al límite de tamaño de Firestore cuando la sesión es larga.

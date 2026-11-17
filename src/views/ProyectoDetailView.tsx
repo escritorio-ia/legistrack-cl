@@ -52,6 +52,7 @@ import { fetchLiveSenateProject } from "../utils/senadoClientApi";
 import { boletinDiscrepante, normalizarBoletin } from "../utils/boletines";
 import DiscusionInformes from "../components/DiscusionInformes";
 import MetricasBoletin from "../components/MetricasBoletin";
+import SalaBoletin from "../components/SalaBoletin";
 import TranscripcionesProyecto from "../components/TranscripcionesProyecto";
 import { parseFechaFlexible, diasEntre, detectTramite, etapaActual, ultimoMovimiento } from "../utils/tramitacion";
 import SimuladorQuorum from "../components/SimuladorQuorum";
@@ -2188,6 +2189,7 @@ export default function ProyectoDetailView({
             {/* 5. Votaciones Tab */}
             {activeTab === "votaciones" && (
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6" id="tabpanel-votaciones">
+                <SalaBoletin proyectoId={proyecto.id} />
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
                   <div>
                     <h3 className="text-sm font-black text-slate-900 tracking-tight flex items-center gap-2">

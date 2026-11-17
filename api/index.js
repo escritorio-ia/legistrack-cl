@@ -167951,10 +167951,10 @@ async function ytGet(ruta, params) {
   return data;
 }
 async function detallesVideos(ids) {
-  const unicos2 = Array.from(new Set(ids.filter((id) => /^[\w-]{11}$/.test(id)))).slice(0, 50);
-  if (unicos2.length === 0) return {};
-  return cache.wrap(`yt_det_${unicos2.join(",")}`, 6 * 60 * 60 * 1e3, async () => {
-    const data = await ytGet("videos", { part: "snippet,contentDetails", id: unicos2.join(",") });
+  const unicos3 = Array.from(new Set(ids.filter((id) => /^[\w-]{11}$/.test(id)))).slice(0, 50);
+  if (unicos3.length === 0) return {};
+  return cache.wrap(`yt_det_${unicos3.join(",")}`, 6 * 60 * 60 * 1e3, async () => {
+    const data = await ytGet("videos", { part: "snippet,contentDetails", id: unicos3.join(",") });
     const out = {};
     for (const it of data.items || []) {
       out[it.id] = {
@@ -167968,16 +167968,16 @@ async function detallesVideos(ids) {
   });
 }
 async function buscarVideosSesion(comision, fecha, camara = "diputados") {
-  const limpio = String(comision || "").replace(/^(comisi[oó]n\s+(especial\s+)?(de\s+)?)/i, "").trim();
+  const limpio2 = String(comision || "").replace(/^(comisi[oó]n\s+(especial\s+)?(de\s+)?)/i, "").trim();
   const dia = fechaSesionADate(fecha);
   const canal = CANALES_YOUTUBE[camara];
-  const cacheKey = `yt_api_busqueda_${camara}_${norm(limpio)}_${dia ? dia.toISOString().slice(0, 10) : "sin-fecha"}`;
+  const cacheKey = `yt_api_busqueda_${camara}_${norm(limpio2)}_${dia ? dia.toISOString().slice(0, 10) : "sin-fecha"}`;
   return cache.wrap(cacheKey, 6 * 60 * 60 * 1e3, async () => {
     const params = {
       part: "snippet",
       channelId: canal.id,
       // Solo la primera parte del nombre: los títulos de YouTube dicen "Comisión de Agricultura - fecha".
-      q: `Comisi\xF3n ${limpio.split(/[,;]/)[0].trim()}`,
+      q: `Comisi\xF3n ${limpio2.split(/[,;]/)[0].trim()}`,
       type: "video",
       maxResults: "15",
       order: dia ? "relevance" : "date"
@@ -167990,7 +167990,7 @@ async function buscarVideosSesion(comision, fecha, camara = "diputados") {
     const items = (data.items || []).filter((it) => it.id?.videoId);
     if (items.length === 0) return [];
     const det = await detallesVideos(items.map((it) => it.id.videoId)).catch(() => ({}));
-    const clave = norm(limpio.split(/[,\s]+/)[0] || limpio);
+    const clave = norm(limpio2.split(/[,\s]+/)[0] || limpio2);
     const diaTxt = dia ? `${dia.getUTCDate()} ${MESES2[dia.getUTCMonth()]}` : "";
     const videos = items.map((it, idx) => {
       const id = it.id.videoId;
@@ -188669,6 +188669,310 @@ async function sesionesRegistradasDeComision(comisionId) {
   return unirSesionesLeidas(filas.filter((x) => x.document).map((x) => combinarSesion(idDoc(x.document), x.document.fields || {}))).sort((a, c) => c.fecha.localeCompare(a.fecha) || c.id.localeCompare(a.id));
 }
 
+// src/utils/sala.ts
+var MESES4 = { enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6, julio: 7, agosto: 8, septiembre: 9, setiembre: 9, octubre: 10, noviembre: 11, diciembre: 12 };
+var dos = (n) => String(n).padStart(2, "0");
+function fechaLargaAISO(texto) {
+  const m = String(texto || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").match(/(\d{1,2})\s+de\s+([a-z]+)\s+de\s+(\d{4})/);
+  return m && MESES4[m[2]] ? `${m[3]}-${dos(MESES4[m[2]])}-${dos(m[1])}` : "";
+}
+var hhmm = (s) => {
+  const m = String(s || "").match(/(\d{1,2}):(\d{2})/);
+  return m ? `${dos(m[1])}:${m[2]}` : "";
+};
+var limpio = (s) => String(s ?? "").replace(/\s+/g, " ").trim();
+var unicos = (xs) => Array.from(new Set(xs.filter(Boolean)));
+function boletinDeDescripcion(texto) {
+  const m = String(texto || "").match(/bol(?:et[ií]n|\.)?\s*(?:n[°º.]*\s*)?(\d{1,2}\.?\d{3}-\d{1,2})/i);
+  return m ? normalizarBoletin(m[1]) : "";
+}
+function parsearTablaSenado(raw) {
+  const data = Array.isArray(raw?.data) ? raw.data : [];
+  return data.map((s) => {
+    const puntos = (Array.isArray(s.TABLA) ? s.TABLA : []).map((p, i) => ({
+      posicion: Number(p.POSICION) || i + 1,
+      boletin: normalizarBoletin(limpio(p.BOLETIN)).includes("-") ? normalizarBoletin(limpio(p.BOLETIN)) : boletinDeDescripcion(p.MATERIA),
+      materia: limpio(p.MATERIA),
+      parte: limpio(p.PARTE_SESION),
+      quorum: limpio(p.ENCABEZADO || p.QUORUM),
+      enlace: /^https:\/\/tramitacion\.senado\.cl\//.test(String(p.LINK_PROYECTO || "")) ? String(p.LINK_PROYECTO) : ""
+    })).sort((a, b) => a.posicion - b.posicion);
+    return {
+      id: `sr-${limpio(s.ID_SESION)}`,
+      camara: "Senado",
+      numero: limpio(s.NUMERO_SESION),
+      fecha: fechaLargaAISO(s.FECHA),
+      horaInicio: hhmm(s.HORA_INICIO),
+      horaTermino: hhmm(s.HORA_TERMINO),
+      tipo: limpio(s.TIPO_SESION),
+      estado: "",
+      puntos,
+      votaciones: [],
+      boletines: unicos(puntos.map((p) => p.boletin))
+    };
+  }).filter((s) => s.id !== "sr-" && s.fecha);
+}
+function xmlTag(xml, tag) {
+  const m = xml.match(new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</${tag}>`, "i"));
+  return m ? m[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() : "";
+}
+function xmlBloques(xml, tag) {
+  return xml.match(new RegExp(`<${tag}(?:\\s[^>]*)?>[\\s\\S]*?</${tag}>`, "gi")) || [];
+}
+function parsearSesionesCamara(xml) {
+  return xmlBloques(xml, "Sesion").map((b) => {
+    const ini = xmlTag(b, "FechaInicio"), fin = xmlTag(b, "FechaTermino");
+    return {
+      id: `cd-${xmlTag(b, "Id")}`,
+      camara: "C\xE1mara",
+      numero: xmlTag(b, "Numero"),
+      fecha: ini.slice(0, 10),
+      horaInicio: hhmm(ini.slice(11)),
+      horaTermino: hhmm(fin.slice(11)),
+      tipo: xmlTag(b, "Tipo"),
+      estado: xmlTag(b, "Estado"),
+      puntos: [],
+      votaciones: [],
+      boletines: [],
+      _ini: ini,
+      _fin: fin
+    };
+  }).filter((s) => s.id !== "cd-" && /^\d{4}-\d{2}-\d{2}$/.test(s.fecha));
+}
+function parsearVotacionesCamara(xml) {
+  return xmlBloques(xml, "Votacion").map((b) => {
+    const descripcion = xmlTag(b, "Descripcion");
+    return {
+      id: xmlTag(b, "Id"),
+      fecha: xmlTag(b, "Fecha"),
+      descripcion,
+      boletin: boletinDeDescripcion(descripcion),
+      si: parseInt(xmlTag(b, "TotalSi")) || 0,
+      no: parseInt(xmlTag(b, "TotalNo")) || 0,
+      abstencion: parseInt(xmlTag(b, "TotalAbstencion")) || 0,
+      quorum: xmlTag(b, "Quorum"),
+      resultado: xmlTag(b, "Resultado"),
+      tipo: xmlTag(b, "Tipo")
+    };
+  }).filter((v) => v.id && v.fecha);
+}
+function contarAsistencia(xml) {
+  const filas = xmlBloques(xml, "Asistencia");
+  if (filas.length === 0) return void 0;
+  return { asisten: filas.filter((f) => /<TipoAsistencia[^>]*Valor="1"/i.test(f)).length, total: filas.length };
+}
+function asignarVotaciones(sesiones, votaciones) {
+  const t = (s) => new Date(s.length <= 10 ? `${s}T00:00:00` : s).getTime();
+  return sesiones.map((s) => {
+    const ini = t(s._ini || s.fecha) - 36e5;
+    const fin = t(s._fin || s._ini || s.fecha) + 3 * 36e5;
+    const propias = votaciones.filter((v) => {
+      const x = t(v.fecha);
+      return x >= ini && x <= fin;
+    }).sort((a, b) => a.fecha.localeCompare(b.fecha));
+    const { _ini, _fin, ...resto } = s;
+    return { ...resto, votaciones: propias, boletines: unicos([...s.boletines, ...propias.map((v) => v.boletin)]) };
+  });
+}
+
+// server/services/salaService.ts
+var OPENDATA = "https://opendata.camara.cl/camaradiputados/WServices";
+var SENADO_TABLA = "https://web-back.senado.cl/api/weekly_table?limit=100";
+var COLECCION2 = "sesiones_sala";
+function conexion2() {
+  const proy = process.env.VITE_FIREBASE_PROJECT_ID || "";
+  const key = process.env.VITE_FIREBASE_API_KEY || "";
+  if (!proy || !key) throw new Error("Faltan VITE_FIREBASE_PROJECT_ID o VITE_FIREBASE_API_KEY en el entorno del servidor.");
+  return { proy, key, base: `https://firestore.googleapis.com/v1/projects/${proy}/databases/(default)/documents` };
+}
+var sv2 = (v) => ({ stringValue: v });
+function hoyChile(d = /* @__PURE__ */ new Date()) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+}
+var sumarDias = (iso2, n) => {
+  const d = /* @__PURE__ */ new Date(`${iso2}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+async function opendata(path2, ms = 2e4) {
+  const r = await fetch(`${OPENDATA}/${path2}`, { headers: { "User-Agent": "LegisTrackCL/1.0 (datos abiertos)" }, signal: AbortSignal.timeout(ms) });
+  if (!r.ok) throw new Error(`opendata.camara.cl HTTP ${r.status}`);
+  return r.text();
+}
+async function sesionesSalaCamara(anio, conAsistenciaDesde) {
+  return cache.wrap(`sala_camara_${anio}_${conAsistenciaDesde || ""}`, 15 * 60 * 1e3, async () => {
+    const [xmlS, xmlV] = await Promise.all([
+      opendata(`WSSala.asmx/retornarSesionesXAnno?prmAnno=${anio}`),
+      opendata(`WSLegislativo.asmx/retornarVotacionesXAnno?prmAnno=${anio}`, 3e4).catch(() => "")
+    ]);
+    const sesiones = asignarVotaciones(parsearSesionesCamara(xmlS), xmlV ? parsearVotacionesCamara(xmlV) : []);
+    if (conAsistenciaDesde) {
+      await Promise.all(sesiones.filter((s) => s.estado === "Celebrada" && s.fecha >= conAsistenciaDesde).map(async (s) => {
+        const id = s.id.replace(/^cd-/, "");
+        try {
+          const xml = await cache.wrap(`sala_asistencia_${id}`, 12 * 3600 * 1e3, () => opendata(`WSSala.asmx/retornarSesionAsistencia?prmSesionId=${id}`, 12e3));
+          s.asistencia = contarAsistencia(xml);
+        } catch {
+        }
+      }));
+    }
+    return sesiones;
+  });
+}
+async function salaCamaraSemana(hoy) {
+  const fuente = "Datos Abiertos de la C\xE1mara (opendata.camara.cl): sesiones de Sala, votaciones y asistencia";
+  const transmision = "https://www.camara.cl/prensa/television.aspx";
+  const desde = sumarDias(hoy, -7), hasta = sumarDias(hoy, 7);
+  try {
+    const anios = Array.from(/* @__PURE__ */ new Set([desde.slice(0, 4), hasta.slice(0, 4)])).map(Number);
+    const todas = (await Promise.all(anios.map((a) => sesionesSalaCamara(a, desde)))).flat();
+    const sesiones = todas.filter((s) => s.fecha >= desde && s.fecha <= hasta).sort((a, b) => a.fecha.localeCompare(b.fecha) || a.horaInicio.localeCompare(b.horaInicio));
+    return { disponible: true, fuente, transmision, leidoEn: (/* @__PURE__ */ new Date()).toISOString(), sesiones };
+  } catch (err) {
+    return { disponible: false, motivo: `No se pudo consultar opendata.camara.cl: ${err?.message || err}`, fuente, transmision, sesiones: [] };
+  }
+}
+async function leerImportadoSenado() {
+  try {
+    const { base, key } = conexion2();
+    const r = await fetch(`${base}/sala_senado/actual?key=${key}`, { signal: AbortSignal.timeout(8e3) });
+    if (!r.ok) return null;
+    const d = await r.json();
+    const txt = d?.fields?.payload?.stringValue;
+    return txt ? JSON.parse(txt) : null;
+  } catch {
+    return null;
+  }
+}
+async function importarTablaSenado(raw) {
+  const sesiones = parsearTablaSenado(raw);
+  if (sesiones.length === 0) throw new Error("La respuesta del Senado no contiene sesiones de Sala.");
+  const { base, key } = conexion2();
+  const registro = { raw, importadoEn: (/* @__PURE__ */ new Date()).toISOString() };
+  const r = await fetch(`${base}/sala_senado/actual?key=${key}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fields: { payload: sv2(JSON.stringify(registro)), actualizado: sv2(registro.importadoEn) } }),
+    signal: AbortSignal.timeout(1e4)
+  });
+  if (!r.ok) throw new Error(`Firestore respondi\xF3 HTTP ${r.status}`);
+  cache.delete("sala_senado_semana");
+  await guardarSesionesSala(sesiones).catch(() => void 0);
+  return { sesiones: sesiones.length, puntos: sesiones.reduce((n, s) => n + s.puntos.length, 0) };
+}
+async function salaSenadoSemana() {
+  const transmision = "https://tv.senado.cl/";
+  const fuente = "Tabla semanal de la Sala del Senado (senado.cl)";
+  return cache.wrap("sala_senado_semana", 10 * 60 * 1e3, async () => {
+    let motivoDirecto = "";
+    try {
+      const r = await fetch(SENADO_TABLA, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(8e3) });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const sesiones = parsearTablaSenado(await r.json());
+      if (sesiones.length > 0) return { disponible: true, fuente, transmision, origen: "directo", leidoEn: (/* @__PURE__ */ new Date()).toISOString(), sesiones };
+      motivoDirecto = "la tabla vino vac\xEDa";
+    } catch (err) {
+      motivoDirecto = err?.message || String(err);
+    }
+    const imp = await leerImportadoSenado();
+    if (imp) {
+      const sesiones = parsearTablaSenado(imp.raw);
+      if (sesiones.length > 0) return { disponible: true, fuente: `${fuente}, le\xEDda con la extensi\xF3n de navegador`, transmision, origen: "extension", leidoEn: imp.importadoEn, sesiones };
+    }
+    return { disponible: false, motivo: `senado.cl no respondi\xF3 al servidor (${motivoDirecto}) y no hay lectura de la extensi\xF3n.`, fuente, transmision, sesiones: [] };
+  });
+}
+var ultimoGuardado = 0;
+async function salaSemana() {
+  const hoy = hoyChile();
+  const [camara, senado] = await Promise.all([salaCamaraSemana(hoy), salaSenadoSemana()]);
+  if (Date.now() - ultimoGuardado > 30 * 60 * 1e3) {
+    ultimoGuardado = Date.now();
+    const lote = [...camara.sesiones, ...senado.sesiones].filter((s) => s.fecha <= hoy || s.puntos.length > 0);
+    await Promise.race([guardarSesionesSala(lote).catch(() => void 0), new Promise((r) => setTimeout(r, 4e3))]);
+  }
+  return { camara, senado, hoy };
+}
+function huella2(o) {
+  const s = JSON.stringify(o);
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = (h << 5) + h + s.charCodeAt(i) | 0;
+  return (h >>> 0).toString(36);
+}
+async function guardarSesionesSala(sesiones) {
+  if (sesiones.length === 0) return { escritas: 0 };
+  const { base, proy, key } = conexion2();
+  const previas = /* @__PURE__ */ new Map();
+  let pageToken = "";
+  for (let i = 0; i < 20; i++) {
+    const qs = new URLSearchParams({ pageSize: "300", key, ...pageToken ? { pageToken } : {} });
+    qs.append("mask.fieldPaths", "h");
+    const r = await fetch(`${base}/${COLECCION2}?${qs}`, { signal: AbortSignal.timeout(15e3) });
+    if (!r.ok) break;
+    const d = await r.json();
+    for (const doc of d.documents || []) previas.set(String(doc.name).split("/").pop() || "", doc.fields?.h?.stringValue || "");
+    pageToken = d.nextPageToken || "";
+    if (!pageToken) break;
+  }
+  const ahora = (/* @__PURE__ */ new Date()).toISOString();
+  const writes = sesiones.flatMap((s) => {
+    const h = huella2(s);
+    if (previas.get(s.id) === h) return [];
+    return [{
+      update: {
+        name: `projects/${proy}/databases/(default)/documents/${COLECCION2}/${s.id}`,
+        fields: {
+          camara: sv2(s.camara),
+          fecha: sv2(s.fecha),
+          numero: sv2(s.numero),
+          datos: sv2(JSON.stringify(s)),
+          h: sv2(h),
+          actualizado: sv2(ahora),
+          boletines: { arrayValue: { values: s.boletines.map(sv2) } }
+        }
+      }
+    }];
+  });
+  for (let i = 0; i < writes.length; i += 400) {
+    const r = await fetch(`${base}:commit?key=${key}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ writes: writes.slice(i, i + 400) }),
+      signal: AbortSignal.timeout(3e4)
+    });
+    if (!r.ok) throw new Error(`Firestore no acept\xF3 la escritura (HTTP ${r.status})`);
+  }
+  return { escritas: writes.length };
+}
+async function sincronizarSala() {
+  const anio = Number(hoyChile().slice(0, 4));
+  const camara = (await sesionesSalaCamara(anio).catch(() => [])).filter((s) => s.estado === "Celebrada" || s.fecha <= hoyChile());
+  const senado = (await salaSenadoSemana()).sesiones;
+  const { escritas } = await guardarSesionesSala([...camara, ...senado]);
+  return { camara: camara.length, senado: senado.length, escritas };
+}
+async function sesionesSalaDeBoletin(boletin) {
+  const b = normalizarBoletin(boletin);
+  if (!b.includes("-")) return [];
+  const { base, key } = conexion2();
+  const r = await fetch(`${base}:runQuery?key=${key}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ structuredQuery: { from: [{ collectionId: COLECCION2 }], where: { fieldFilter: { field: { fieldPath: "boletines" }, op: "ARRAY_CONTAINS", value: sv2(b) } } } }),
+    signal: AbortSignal.timeout(15e3)
+  });
+  if (!r.ok) throw new Error(`Firestore respondi\xF3 HTTP ${r.status}`);
+  const filas = await r.json();
+  const guardadas = filas.filter((x) => x.document?.fields?.datos?.stringValue).map((x) => {
+    try {
+      return JSON.parse(x.document.fields.datos.stringValue);
+    } catch {
+      return null;
+    }
+  }).filter(Boolean);
+  return guardadas.sort((a, c) => c.fecha.localeCompare(a.fecha) || c.horaInicio.localeCompare(a.horaInicio));
+}
+
 // server/services/discusionService.ts
 var RE_DEBATE = /DISCUSI[ÓO]N|DEBATE|IDEA DE LEGISLAR|VOTACI[ÓO]N|ACUERDOS ADOPTADOS|S[ÍI]NTESIS/;
 var SOLO_MAYUS = /^[^a-záéíóúñü]*[A-ZÁÉÍÓÚÑÜ][^a-záéíóúñü]*$/;
@@ -188784,7 +189088,7 @@ var vacio = (s) => {
   return !t || /^(null|undefined|n\/?a|-+)$/i.test(t) ? null : t;
 };
 var lista = (s) => String(s ?? "").split(/[;\n]+/).map((x) => x.replace(/\s+/g, " ").trim()).filter((x) => x && !/^(null|undefined)$/i.test(x));
-var unicos = (xs) => {
+var unicos2 = (xs) => {
   const vistos = /* @__PURE__ */ new Set();
   return xs.filter((x) => {
     const k = x.toLowerCase();
@@ -188810,15 +189114,15 @@ function construirResumenSesion(det) {
       tema: vacio(p.tema) || "Tema no informado",
       aspectos: vacio(p.aspectos),
       acuerdos: acu && !/^pendiente\.?$/i.test(acu) ? acu : null,
-      invitados: unicos(lista(p.invitados)),
-      asistentes: unicos(lista(p.asistentes))
+      invitados: unicos2(lista(p.invitados)),
+      asistentes: unicos2(lista(p.asistentes))
     };
   });
   const ini = minutos(det.inicio), fin = minutos(det.termino);
   const duracionMin = ini !== null && fin !== null && fin >= ini ? fin - ini : null;
-  const asistentes = unicos(puntos.flatMap((p) => p.asistentes));
-  const invitados = unicos(puntos.flatMap((p) => p.invitados));
-  const boletines = unicos(puntos.map((p) => p.boletin || "").filter(Boolean));
+  const asistentes = unicos2(puntos.flatMap((p) => p.asistentes));
+  const invitados = unicos2(puntos.flatMap((p) => p.invitados));
+  const boletines = unicos2(puntos.map((p) => p.boletin || "").filter(Boolean));
   const conAcuerdos = puntos.filter((p) => p.acuerdos).length;
   return {
     disponible: true,
@@ -189073,7 +189377,7 @@ function performUnifiedSearch(rawQuery) {
 }
 
 // src/utils/dateUtils.ts
-var MESES4 = {
+var MESES5 = {
   enero: 0,
   febrero: 1,
   marzo: 2,
@@ -189102,7 +189406,7 @@ function parseFechaSesion(fechaStr) {
     const day = Number(match[1]);
     const monthStr = match[2].toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
     const year = Number(match[3]);
-    const month = MESES4[monthStr] ?? 0;
+    const month = MESES5[monthStr] ?? 0;
     return new Date(year, month, day, 23, 59, 59);
   }
   return null;
@@ -189477,11 +189781,11 @@ async function getTodasComisiones() {
   return Array.from(byId.values());
 }
 var OPENDATA_WS = "https://opendata.camara.cl/camaradiputados/WServices";
-function xmlTag(xml, tag) {
+function xmlTag2(xml, tag) {
   const m = xml.match(new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</${tag}>`, "i"));
   return m ? m[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() : "";
 }
-function xmlBloques(xml, tag) {
+function xmlBloques2(xml, tag) {
   return xml.match(new RegExp(`<${tag}(?:\\s[^>]*)?>[\\s\\S]*?</${tag}>`, "gi")) || [];
 }
 async function opendataGet(path2) {
@@ -189503,22 +189807,22 @@ async function fetchCamaraProyectoOficial(boletinRaw) {
         opendataGet(`WSLegislativo.asmx/retornarProyectoLey?prmNumeroBoletin=${boletin}`),
         opendataGet(`WSLegislativo.asmx/retornarVotacionesXProyectoLey?prmNumeroBoletin=${boletin}`).catch(() => "")
       ]);
-      const vacio2 = /xsi:nil="true"\s*\/?>\s*$/.test(xmlProy.trim()) || !xmlTag(xmlProy, "NumeroBoletin");
+      const vacio2 = /xsi:nil="true"\s*\/?>\s*$/.test(xmlProy.trim()) || !xmlTag2(xmlProy, "NumeroBoletin");
       const proyecto = vacio2 ? void 0 : {
-        id: xmlTag(xmlProy, "Id"),
-        boletin: xmlTag(xmlProy, "NumeroBoletin"),
-        nombre: xmlTag(xmlProy, "Nombre"),
-        fechaIngreso: xmlTag(xmlProy, "FechaIngreso").slice(0, 10),
-        iniciativa: xmlTag(xmlProy, "TipoIniciativa"),
-        camaraOrigen: xmlTag(xmlProy, "CamaraOrigen"),
-        ministerios: xmlBloques(xmlProy, "Ministerio").map((b) => xmlTag(b, "Nombre")).filter(Boolean),
-        autores: xmlBloques(xmlProy, "ParlamentarioAutor").map((b) => {
+        id: xmlTag2(xmlProy, "Id"),
+        boletin: xmlTag2(xmlProy, "NumeroBoletin"),
+        nombre: xmlTag2(xmlProy, "Nombre"),
+        fechaIngreso: xmlTag2(xmlProy, "FechaIngreso").slice(0, 10),
+        iniciativa: xmlTag2(xmlProy, "TipoIniciativa"),
+        camaraOrigen: xmlTag2(xmlProy, "CamaraOrigen"),
+        ministerios: xmlBloques2(xmlProy, "Ministerio").map((b) => xmlTag2(b, "Nombre")).filter(Boolean),
+        autores: xmlBloques2(xmlProy, "ParlamentarioAutor").map((b) => {
           const esSenador = /<Senador/i.test(b);
-          const nombre = [xmlTag(b, "Nombre"), xmlTag(b, "ApellidoPaterno"), xmlTag(b, "ApellidoMaterno")].filter(Boolean).join(" ");
+          const nombre = [xmlTag2(b, "Nombre"), xmlTag2(b, "ApellidoPaterno"), xmlTag2(b, "ApellidoMaterno")].filter(Boolean).join(" ");
           return nombre ? `${nombre}${esSenador ? " (senador/a)" : " (diputado/a)"}` : "";
         }).filter(Boolean)
       };
-      let bloquesVot = xmlBloques(xmlVot, "VotacionProyectoLey");
+      let bloquesVot = xmlBloques2(xmlVot, "VotacionProyectoLey");
       if (bloquesVot.length === 0) {
         const anioActual = (/* @__PURE__ */ new Date()).getFullYear();
         const digitos = m[1];
@@ -189529,8 +189833,8 @@ async function fetchCamaraProyectoOficial(boletinRaw) {
               30 * 60 * 1e3,
               () => opendataGet(`WSLegislativo.asmx/retornarVotacionesXAnno?prmAnno=${anio}`)
             );
-            bloquesVot.push(...xmlBloques(xmlAnio, "Votacion").filter((b) => {
-              const d = xmlTag(b, "Descripcion").replace(/\./g, "");
+            bloquesVot.push(...xmlBloques2(xmlAnio, "Votacion").filter((b) => {
+              const d = xmlTag2(b, "Descripcion").replace(/\./g, "");
               return new RegExp(`\\b${digitos}-\\d{1,2}\\b`).test(d);
             }));
           } catch {
@@ -189538,17 +189842,17 @@ async function fetchCamaraProyectoOficial(boletinRaw) {
         }
       }
       const votaciones = bloquesVot.map((b) => ({
-        id: xmlTag(b, "Id"),
-        fecha: xmlTag(b, "Fecha"),
-        descripcion: xmlTag(b, "Articulo") || xmlTag(b, "Descripcion") || "Votaci\xF3n",
-        si: parseInt(xmlTag(b, "TotalSi")) || 0,
-        no: parseInt(xmlTag(b, "TotalNo")) || 0,
-        abstencion: parseInt(xmlTag(b, "TotalAbstencion")) || 0,
-        dispensado: parseInt(xmlTag(b, "TotalDispensado")) || 0,
-        quorum: xmlTag(b, "Quorum"),
-        resultado: xmlTag(b, "Resultado") || "Resultado no informado",
-        tipo: xmlTag(b, "TipoVotacionProyectoLey") || xmlTag(b, "Tipo"),
-        tramite: [xmlTag(b, "TramiteConstitucional"), xmlTag(b, "TramiteReglamentario")].filter(Boolean).join(" \xB7 ")
+        id: xmlTag2(b, "Id"),
+        fecha: xmlTag2(b, "Fecha"),
+        descripcion: xmlTag2(b, "Articulo") || xmlTag2(b, "Descripcion") || "Votaci\xF3n",
+        si: parseInt(xmlTag2(b, "TotalSi")) || 0,
+        no: parseInt(xmlTag2(b, "TotalNo")) || 0,
+        abstencion: parseInt(xmlTag2(b, "TotalAbstencion")) || 0,
+        dispensado: parseInt(xmlTag2(b, "TotalDispensado")) || 0,
+        quorum: xmlTag2(b, "Quorum"),
+        resultado: xmlTag2(b, "Resultado") || "Resultado no informado",
+        tipo: xmlTag2(b, "TipoVotacionProyectoLey") || xmlTag2(b, "Tipo"),
+        tramite: [xmlTag2(b, "TramiteConstitucional"), xmlTag2(b, "TramiteReglamentario")].filter(Boolean).join(" \xB7 ")
       })).filter((v) => v.id);
       votaciones.sort((a, b) => b.fecha.localeCompare(a.fecha));
       if (!proyecto && votaciones.length === 0) {
@@ -189566,10 +189870,10 @@ async function fetchCamaraVotacionDetalle(votacionId) {
   return cache.wrap(`camara_opendata_votacion_${id}`, 6 * 60 * 60 * 1e3, async () => {
     try {
       const xml = await opendataGet(`WSLegislativo.asmx/retornarVotacionDetalle?prmVotacionId=${id}`);
-      const votos = xmlBloques(xml, "Voto").map((b) => {
-        const dip = xmlBloques(b, "Diputado")[0] || b;
-        const nombre = [xmlTag(dip, "Nombre"), xmlTag(dip, "ApellidoPaterno"), xmlTag(dip, "ApellidoMaterno")].filter(Boolean).join(" ");
-        return { nombre, opcion: xmlTag(b, "OpcionVoto") || xmlTag(b, "Opcion") || "No informado" };
+      const votos = xmlBloques2(xml, "Voto").map((b) => {
+        const dip = xmlBloques2(b, "Diputado")[0] || b;
+        const nombre = [xmlTag2(dip, "Nombre"), xmlTag2(dip, "ApellidoPaterno"), xmlTag2(dip, "ApellidoMaterno")].filter(Boolean).join(" ");
+        return { nombre, opcion: xmlTag2(b, "OpcionVoto") || xmlTag2(b, "Opcion") || "No informado" };
       }).filter((v) => v.nombre);
       if (votos.length === 0) return { disponible: false, motivo: "La API no trae el detalle nominal de esta votaci\xF3n", votos: [] };
       votos.sort((a, b) => a.opcion.localeCompare(b.opcion) || a.nombre.localeCompare(b.nombre));
@@ -190314,13 +190618,13 @@ async function buscarSuecia(q) {
   const ahora = (/* @__PURE__ */ new Date()).toISOString();
   const base = { jurisdiccion: "Suecia", fuente: "Riksdagen \u2014 datos abiertos (SFS)", consultadoEl: ahora };
   try {
-    const sv2 = (await traducirConsulta(q, "sueco")).toLowerCase().replace(/[^\p{L}\d]/gu, "").trim();
-    if (!sv2 || sv2.length < 3) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene t\xE9rminos \xFAtiles." } };
-    const url = `https://data.riksdagen.se/dokumentlista/?doktyp=sfs&sok=${encodeURIComponent(sv2)}&utformat=json&sz=40`;
+    const sv3 = (await traducirConsulta(q, "sueco")).toLowerCase().replace(/[^\p{L}\d]/gu, "").trim();
+    if (!sv3 || sv3.length < 3) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene t\xE9rminos \xFAtiles." } };
+    const url = `https://data.riksdagen.se/dokumentlista/?doktyp=sfs&sok=${encodeURIComponent(sv3)}&utformat=json&sz=40`;
     const r = await descargar(url, { Accept: "application/json" }, 2e4);
     if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
     const docs = JSON.parse(r.buf.toString("utf8"))?.dokumentlista?.dokument || [];
-    const normas = docs.filter((d) => d?.dok_id && d?.titel && String(d.titel).toLowerCase().includes(sv2) && /^(lag|balk)\b/i.test(String(d.titel))).sort((a, b) => String(b.datum || "").localeCompare(String(a.datum || ""))).slice(0, 4).map((d) => ({
+    const normas = docs.filter((d) => d?.dok_id && d?.titel && String(d.titel).toLowerCase().includes(sv3) && /^(lag|balk)\b/i.test(String(d.titel))).sort((a, b) => String(b.datum || "").localeCompare(String(a.datum || ""))).slice(0, 4).map((d) => ({
       pais: "Suecia",
       fuente: "Sveriges riksdag \u2014 Svensk f\xF6rfattningssamling (oficial)",
       titulo: String(d.titel),
@@ -190332,7 +190636,7 @@ async function buscarSuecia(q) {
       origen: "oficial",
       consultadoEl: ahora
     }));
-    return { normas, estado: { ...base, estado: normas.length ? "ok" : "sin_resultados", consultaUsada: `doktyp=sfs, "${sv2}" en el t\xEDtulo (palabra de consulta traducida por IA)`, motivo: normas.length ? void 0 : "Riksdagen no devolvi\xF3 leyes para esa consulta." } };
+    return { normas, estado: { ...base, estado: normas.length ? "ok" : "sin_resultados", consultaUsada: `doktyp=sfs, "${sv3}" en el t\xEDtulo (palabra de consulta traducida por IA)`, motivo: normas.length ? void 0 : "Riksdagen no devolvi\xF3 leyes para esa consulta." } };
   } catch (e) {
     return { normas: [], estado: { ...base, estado: "no_disponible", motivo: `Riksdagen no respondi\xF3: ${e?.message || e}` } };
   }
@@ -194099,12 +194403,12 @@ function inicioDeSemana(ref) {
   d.setDate(d.getDate() - dow);
   return d;
 }
-var MESES5 = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+var MESES6 = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 function semanaActual(ref = /* @__PURE__ */ new Date()) {
   const desde = inicioDeSemana(ref);
   const hasta = new Date(desde);
   hasta.setDate(hasta.getDate() + 6);
-  const f = (d) => `${d.getDate()} ${MESES5[d.getMonth()].toUpperCase()}`;
+  const f = (d) => `${d.getDate()} ${MESES6[d.getMonth()].toUpperCase()}`;
   return { desde, hasta, etiqueta: `${f(desde)} \u2013 ${f(hasta)}` };
 }
 function iso(base, diasOffset) {
@@ -194995,7 +195299,9 @@ apiRouter.get("/registro-sesiones/sincronizar", async (req, res) => {
   const autorizado = !!secreto && req.headers.authorization === `Bearer ${secreto}`;
   if (secreto && !autorizado) return res.status(401).json({ ok: false, error: "No autorizado." });
   try {
-    res.json(await sincronizarRegistroSesiones({ forzar: autorizado }));
+    const registro = await sincronizarRegistroSesiones({ forzar: autorizado });
+    const sala = await sincronizarSala().catch((e) => ({ error: e?.message || String(e) }));
+    res.json({ ...registro, sala });
   } catch (err) {
     res.status(500).json({ ok: false, errores: [err?.message || String(err)] });
   }
@@ -195696,26 +196002,37 @@ Si no hay ninguna coincidencia real, responde exactamente: []`;
     res.status(500).json({ error: "Error al evaluar t\xF3picos de alerta" });
   }
 });
-apiRouter.get("/sala", (req, res) => {
-  const sala = [
-    {
-      camaraName: "C\xE1mara de Diputadas y Diputados",
-      enVivo: false,
-      temaDiscusion: "Sin informaci\xF3n de sesi\xF3n en vivo disponible en este momento.",
-      estadoSesion: "Estado no disponible",
-      representantesPresentes: 0,
-      verStreamingUrl: "https://www.camara.cl/transmision/canalTv.aspx"
-    },
-    {
-      camaraName: "Senado de la Rep\xFAblica",
-      enVivo: false,
-      temaDiscusion: "Sin informaci\xF3n de sesi\xF3n en vivo disponible en este momento.",
-      estadoSesion: "Estado no disponible",
-      representantesPresentes: 0,
-      verStreamingUrl: "https://tv.senado.cl/"
+apiRouter.get("/sala", async (_req, res) => {
+  try {
+    res.json(await salaSemana());
+  } catch (err) {
+    res.status(500).json({ error: err?.message || String(err) });
+  }
+});
+apiRouter.post("/senado/sala/importar", expressText({ type: "text/plain", limit: "5mb" }), async (req, res) => {
+  let body = req.body;
+  if (typeof body === "string") {
+    try {
+      body = JSON.parse(body);
+    } catch {
+      return res.status(400).json({ ok: false, error: "Cuerpo no es JSON v\xE1lido." });
     }
-  ];
-  res.json(sala);
+  }
+  const token = process.env.CITACIONES_IMPORT_TOKEN;
+  if (token && body?.token !== token) return res.status(401).json({ ok: false, error: "Token de importaci\xF3n inv\xE1lido." });
+  if (!body?.raw || !Array.isArray(body.raw.data)) return res.status(400).json({ ok: false, error: "Falta la tabla semanal de web-back.senado.cl." });
+  try {
+    res.json({ ok: true, ...await importarTablaSenado(body.raw) });
+  } catch (err) {
+    res.status(422).json({ ok: false, error: err?.message || String(err) });
+  }
+});
+apiRouter.get("/proyecto/:id/sala", async (req, res) => {
+  try {
+    res.json({ disponible: true, sesiones: await sesionesSalaDeBoletin(String(req.params.id).slice(0, 20)) });
+  } catch (err) {
+    res.json({ disponible: false, motivo: err?.message || String(err), sesiones: [] });
+  }
 });
 apiRouter.get("/global-search", async (req, res) => {
   const rawQ = req.query.q ? String(req.query.q).trim() : "";

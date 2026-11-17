@@ -1,8 +1,9 @@
 import { sincronizarRegistroSesiones, sesionesRegistradasDeBoletin, sesionesRegistradasDeComision } from "../services/registroSesionesService";
+import { salaSemana, importarTablaSenado, sincronizarSala, sesionesSalaDeBoletin } from "../services/salaService";
 import { discusionDeProyecto } from "../services/discusionService";
 import { construirResumenSesion } from "../services/resumenSesionService";
 import { Router, Request, Response, text as expressText } from "express";
-import { Proyecto, Comision, Alerta, SalaVivo } from "../../src/types";
+import { Proyecto, Comision, Alerta } from "../../src/types";
 import { 
   TODAS_COMISIONES_DETALLE, 
   DIPUTADOS_COMISIONES_DETALLE, 
@@ -768,7 +769,9 @@ apiRouter.get("/registro-sesiones/sincronizar", async (req: Request, res: Respon
   const autorizado = !!secreto && req.headers.authorization === `Bearer ${secreto}`;
   if (secreto && !autorizado) return res.status(401).json({ ok: false, error: "No autorizado." });
   try {
-    res.json(await sincronizarRegistroSesiones({ forzar: autorizado }));
+    const registro = await sincronizarRegistroSesiones({ forzar: autorizado });
+    const sala = await sincronizarSala().catch((e: any) => ({ error: e?.message || String(e) }));
+    res.json({ ...registro, sala });
   } catch (err: any) {
     res.status(500).json({ ok: false, errores: [err?.message || String(err)] });
   }
@@ -1546,26 +1549,27 @@ Si no hay ninguna coincidencia real, responde exactamente: []`;
   }
 });
 
-apiRouter.get("/sala", (req: Request, res: Response) => {
-  const sala: SalaVivo[] = [
-    {
-      camaraName: "Cámara de Diputadas y Diputados",
-      enVivo: false,
-      temaDiscusion: "Sin información de sesión en vivo disponible en este momento.",
-      estadoSesion: "Estado no disponible",
-      representantesPresentes: 0,
-      verStreamingUrl: "https://www.camara.cl/transmision/canalTv.aspx"
-    },
-    {
-      camaraName: "Senado de la República",
-      enVivo: false,
-      temaDiscusion: "Sin información de sesión en vivo disponible en este momento.",
-      estadoSesion: "Estado no disponible",
-      representantesPresentes: 0,
-      verStreamingUrl: "https://tv.senado.cl/"
-    }
-  ];
-  res.json(sala);
+// Sala de sesiones de la semana (Cámara: opendata; Senado: tabla semanal), cada punto ligado a su boletín.
+apiRouter.get("/sala", async (_req: Request, res: Response) => {
+  try { res.json(await salaSemana()); }
+  catch (err: any) { res.status(500).json({ error: err?.message || String(err) }); }
+});
+
+// Tabla semanal de la Sala del Senado enviada por la extensión (web-back.senado.cl/api/weekly_table).
+apiRouter.post("/senado/sala/importar", expressText({ type: "text/plain", limit: "5mb" }), async (req: Request, res: Response) => {
+  let body: any = req.body;
+  if (typeof body === "string") { try { body = JSON.parse(body); } catch { return res.status(400).json({ ok: false, error: "Cuerpo no es JSON válido." }); } }
+  const token = process.env.CITACIONES_IMPORT_TOKEN;
+  if (token && body?.token !== token) return res.status(401).json({ ok: false, error: "Token de importación inválido." });
+  if (!body?.raw || !Array.isArray(body.raw.data)) return res.status(400).json({ ok: false, error: "Falta la tabla semanal de web-back.senado.cl." });
+  try { res.json({ ok: true, ...(await importarTablaSenado(body.raw)) }); }
+  catch (err: any) { res.status(422).json({ ok: false, error: err?.message || String(err) }); }
+});
+
+// Paso de un boletín por la Sala de ambas cámaras (tablas del Senado y votaciones de la Cámara registradas).
+apiRouter.get("/proyecto/:id/sala", async (req: Request, res: Response) => {
+  try { res.json({ disponible: true, sesiones: await sesionesSalaDeBoletin(String(req.params.id).slice(0, 20)) }); }
+  catch (err: any) { res.json({ disponible: false, motivo: err?.message || String(err), sesiones: [] }); }
 });
 
 // ============================================================================

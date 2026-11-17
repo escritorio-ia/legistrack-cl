@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Legislación++ · Citaciones",
-  "version": "1.4.0",
-  "description": "Envía a Legislación++ las citaciones y resultados de comisiones de la Cámara (al abrir sus páginas) y las del Senado (automáticamente).",
+  "version": "1.5.0",
+  "description": "Envía a Legislación++ las citaciones y resultados de comisiones de la Cámara (al abrir sus páginas) y las del Senado y la tabla de su Sala (automáticamente).",
   "permissions": [
     "alarms",
     "storage",

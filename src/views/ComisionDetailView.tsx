@@ -81,6 +81,7 @@ import {
   saveSesionVinculadaAProyecto
 } from "../services/firebaseService";
 import YouTubeTranscriptModal, { analisisATexto, obtenerAnalisisVideo } from "../components/YouTubeTranscriptModal";
+import InformeComision from "../components/InformeComision";
 import ParlamentariosMatrix from "../components/ParlamentariosMatrix";
 import NotasColaborativasDrawer from "../components/NotasColaborativasDrawer";
 
@@ -1897,6 +1898,19 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
 
   const isSenado = comisionId.startsWith("senado") || (comision?.periodo ? comision.periodo.toLowerCase().includes("senado") : false);
 
+  // Un solo punto de entrada por sesión: video oficial, análisis, transcripción e informe. Si la sesión aún
+  // no tiene video asociado, se busca en el canal oficial antes de abrir.
+  const abrirVideoSesion = async (ses: SesionItem) => {
+    setSelectedSesionForTranscript(ses);
+    if (ses.videoUrl) return;
+    try {
+      const ytRes = await fetch(`/api/comisiones/sesion/youtube-search?query=${encodeURIComponent(comision?.nombre || "Comisión")}&fecha=${encodeURIComponent(ses.fecha)}&camara=${isSenado ? "senado" : "diputados"}`);
+      const ytData = await ytRes.json();
+      const video = ytData?.videos?.[0];
+      if (video?.id) setSelectedSesionForTranscript({ ...ses, videoUrl: `https://www.youtube.com/watch?v=${video.id}` });
+    } catch { /* sin video: el modal lo informa */ }
+  };
+
   if (loading && !comision) {
     return (
       <div className="max-w-[1440px] mx-auto w-full px-4 sm:px-6 py-16 text-center">
@@ -2371,11 +2385,11 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
 
                       <div className="flex gap-1.5">
                         <button
-                          onClick={() => handleOpenReportModal(ses)}
+                          onClick={() => abrirVideoSesion(ses)}
                           className="inline-flex items-center gap-1 bg-[#003366] hover:bg-blue-800 text-white text-[9px] font-bold px-2.5 py-1.5 rounded-md cursor-pointer transition-colors"
                         >
                           <FileText className="w-2.5 h-2.5 text-blue-300" />
-                          <span>Informe</span>
+                          <span>Video e informe</span>
                         </button>
 
                         <button
@@ -2718,23 +2732,9 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
                             title="Ver el video oficial de la sesión y su análisis con IA"
                           >
                             <Tv className="w-3.5 h-3.5 text-rose-200" />
-                            <span>Video y análisis IA</span>
+                            <span>Video, transcripción e informe</span>
                           </button>
-                          {/* La "próxima citación" es solo el nombre de este bloque de la UI --
-                              si el usuario le puso una fecha que ya pasó (p. ej. corrigió la
-                              citación con la fecha real en que se realizó la sesión), sí debe
-                              poder generar el Informe IA como cualquier otra sesión realizada.
-                              handleOpenReportModal ya valida isSesionRealizada internamente. */}
-                          {comision.proximaSesion && isSesionRealizada(comision.proximaSesion) && (
-                            <button
-                              onClick={() => handleOpenReportModal(comision.proximaSesion!)}
-                              className="bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 px-3 rounded-xl text-xs transition-all cursor-pointer text-center shadow-md flex items-center justify-center gap-1.5"
-                              title="Informe generado por IA con transmisión YouTube"
-                            >
-                              <Tv className="w-3.5 h-3.5 text-blue-300" />
-                              <span>Informe IA</span>
-                            </button>
-                          )}
+
                         </div>
                       </div>
                     </div>
@@ -2962,6 +2962,7 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
                   ))}
                 </div>
               </div>
+              <InformeComision nombre={comision.nombre} camara={isSenado ? "Senado" : "Cámara"} registro={registroComision} onAbrirBoletin={(b) => setSelectedProyectoId(b)} />
             </div>
           )}
 
@@ -3273,24 +3274,13 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
                           <span>{ses.completada || ses.actaTexto ? "Editar Acta" : "Acta Oficial"}</span>
                         </button>
 
-                        {ses.videoUrl && (
-                          <button
-                            onClick={() => setSelectedSesionForTranscript(ses)}
-                            className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs py-2 px-3 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
-                            title="Video oficial de la sesión, con análisis y transcripción automáticos"
-                          >
-                            <Video className="w-3.5 h-3.5" />
-                            <span>Video y transcripción</span>
-                          </button>
-                        )}
-
                         <button
-                          onClick={() => handleOpenReportModal(ses)}
-                          className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-2 px-3 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
-                          title="Informe generado por IA con transmisión YouTube"
+                          onClick={() => abrirVideoSesion(ses)}
+                          className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs py-2 px-3 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
+                          title="Video oficial de la sesión: análisis, transcripción e informe en un solo lugar"
                         >
-                          <Tv className="w-3.5 h-3.5 text-blue-300" />
-                          <span>Informe IA</span>
+                          <Video className="w-3.5 h-3.5" />
+                          <span>Video, transcripción e informe</span>
                         </button>
                       </div>
                     </div>

@@ -34,10 +34,23 @@ async function sincronizarSenado() {
     const raw = await r.json();
     const j = await enviar("/api/senado/citaciones/importar", { raw });
     await registrar("senado", { ok: true, detalle: `${j.citaciones} citaciones (${j.dias} días)` });
+    await sincronizarSalaSenado();
     return { ok: true, ...j };
   } catch (e) {
     await registrar("senado", { ok: false, detalle: e.message });
     return { ok: false, error: e.message };
+  }
+}
+
+// Tabla semanal de la Sala del Senado (misma API pública que usa senado.cl).
+async function sincronizarSalaSenado() {
+  try {
+    const r = await fetch("https://web-back.senado.cl/api/weekly_table?limit=100", { headers: { Accept: "application/json" } });
+    if (!r.ok) throw new Error(`web-back.senado.cl respondió HTTP ${r.status}`);
+    const j = await enviar("/api/senado/sala/importar", { raw: await r.json() });
+    await registrar("sala", { ok: true, detalle: `${j.sesiones} sesiones de Sala (${j.puntos} puntos de tabla)` });
+  } catch (e) {
+    await registrar("sala", { ok: false, detalle: e.message });
   }
 }
 

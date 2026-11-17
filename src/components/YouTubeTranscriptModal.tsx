@@ -424,7 +424,7 @@ export default function YouTubeTranscriptModal({
               {(["analisis", "transcripcion"] as const).map(v => (
                 <button key={v} role="tab" aria-selected={vista === v} onClick={() => setVista(v)}
                   className={`text-xs font-bold px-3 py-1.5 rounded-lg cursor-pointer ${vista === v ? "bg-rose-600 text-white" : "bg-slate-800 text-slate-300 hover:bg-slate-700"}`}>
-                  {v === "analisis" ? "Análisis" : `Transcripción${partesT.some(p => p.disponible) ? " ✓" : ""}`}
+                  {v === "analisis" ? "Informe de la sesión" : `Transcripción${partesT.some(p => p.disponible) ? " ✓" : ""}`}
                 </button>
               ))}
             </div>
