@@ -188653,6 +188653,21 @@ async function sesionesRegistradasDeBoletin(boletin) {
   const filas = await r.json();
   return unirSesionesLeidas(filas.filter((x) => x.document).map((x) => combinarSesion(idDoc(x.document), x.document.fields || {}))).sort((a, c) => c.fecha.localeCompare(a.fecha));
 }
+async function sesionesRegistradasDeComision(comisionId) {
+  const id = String(comisionId || "").trim();
+  if (!/^(cd|senado)-[a-z0-9-]+$/.test(id)) return [];
+  const { base, key } = conexion();
+  const r = await fetch(`${base}:runQuery?key=${key}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    // Sin orderBy: combinado con el filtro exigiría un índice compuesto; se ordena en memoria.
+    body: JSON.stringify({ structuredQuery: { from: [{ collectionId: COLECCION }], where: { fieldFilter: { field: { fieldPath: "comisionId" }, op: "EQUAL", value: sv(id) } } } }),
+    signal: AbortSignal.timeout(2e4)
+  });
+  if (!r.ok) throw new Error(`Firestore respondi\xF3 HTTP ${r.status}`);
+  const filas = await r.json();
+  return unirSesionesLeidas(filas.filter((x) => x.document).map((x) => combinarSesion(idDoc(x.document), x.document.fields || {}))).sort((a, c) => c.fecha.localeCompare(a.fecha) || c.id.localeCompare(a.id));
+}
 
 // server/services/discusionService.ts
 var RE_DEBATE = /DISCUSI[ÓO]N|DEBATE|IDEA DE LEGISLAR|VOTACI[ÓO]N|ACUERDOS ADOPTADOS|S[ÍI]NTESIS/;
@@ -194983,6 +194998,14 @@ apiRouter.get("/registro-sesiones/sincronizar", async (req, res) => {
     res.json(await sincronizarRegistroSesiones({ forzar: autorizado }));
   } catch (err) {
     res.status(500).json({ ok: false, errores: [err?.message || String(err)] });
+  }
+});
+apiRouter.get("/comision/:id/registro-sesiones", async (req, res) => {
+  try {
+    const sesiones = await sesionesRegistradasDeComision(String(req.params.id).slice(0, 80));
+    res.json({ disponible: true, sesiones });
+  } catch (err) {
+    res.json({ disponible: false, motivo: err?.message || String(err), sesiones: [] });
   }
 });
 apiRouter.get("/proyecto/:id/registro-sesiones", async (req, res) => {

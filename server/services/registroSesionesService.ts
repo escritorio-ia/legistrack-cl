@@ -374,6 +374,7 @@ export interface SesionRegistrada {
 }
 
 export function combinarSesion(id: string, f: Record<string, any>): SesionRegistrada {
+  // id = "<cámara>-<comisión>-<aaaa-mm-dd>-<hhmm>": la hora de inicio permite distinguir dos sesiones del mismo día.
   const leer = (k: string) => { try { return JSON.parse(f[k]?.stringValue || "null"); } catch { return null; } };
   const cit = leer("citacion"), his = leer("historia"), det = leer("detalle"), res = leer("resultado");
   const fuentes = [cit && "citación oficial", his && "registro de sesiones del Senado", det && "detalle oficial de la sesión", res && "resultado oficial"].filter(Boolean) as string[];
@@ -403,4 +404,20 @@ export async function sesionesRegistradasDeBoletin(boletin: string): Promise<Ses
   if (!r.ok) throw new Error(`Firestore respondió HTTP ${r.status}`);
   const filas: any[] = await r.json();
   return unirSesionesLeidas(filas.filter((x) => x.document).map((x) => combinarSesion(idDoc(x.document), x.document.fields || {}))).sort((a, c) => c.fecha.localeCompare(a.fecha));
+}
+
+/** Sesiones registradas de una comisión (identificador de la app: "cd-<slug>" o "senado-<id>"), la más reciente primero. */
+export async function sesionesRegistradasDeComision(comisionId: string): Promise<SesionRegistrada[]> {
+  const id = String(comisionId || "").trim();
+  if (!/^(cd|senado)-[a-z0-9-]+$/.test(id)) return [];
+  const { base, key } = conexion();
+  const r = await fetch(`${base}:runQuery?key=${key}`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    // Sin orderBy: combinado con el filtro exigiría un índice compuesto; se ordena en memoria.
+    body: JSON.stringify({ structuredQuery: { from: [{ collectionId: COLECCION }], where: { fieldFilter: { field: { fieldPath: "comisionId" }, op: "EQUAL", value: sv(id) } } } }),
+    signal: AbortSignal.timeout(20000),
+  });
+  if (!r.ok) throw new Error(`Firestore respondió HTTP ${r.status}`);
+  const filas: any[] = await r.json();
+  return unirSesionesLeidas(filas.filter((x) => x.document).map((x) => combinarSesion(idDoc(x.document), x.document.fields || {}))).sort((a, c) => c.fecha.localeCompare(a.fecha) || c.id.localeCompare(a.id));
 }

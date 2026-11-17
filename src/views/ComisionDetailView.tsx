@@ -5,6 +5,8 @@
 
 import { ultimoMovimiento } from "../utils/tramitacion";
 import PautaSesion from "../components/PautaSesion";
+import RegistroSesionDetalle from "../components/RegistroSesionDetalle";
+import { registroDeSesion, type SesionRegistradaUI } from "../utils/metricasBoletin";
 import ResumenSesionCamara from "../components/ResumenSesionCamara";
 import ResumenSesionOficial from "../components/ResumenSesionOficial";
 import { getAnalisisVideoFromFirestore } from "../services/firebaseService";
@@ -1369,6 +1371,17 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
   };
 
   const [activeTab, setActiveTab] = useState<"resumen" | "proyectos" | "sesiones" | "integrantes" | "audiencias">("resumen");
+  // Registro automático de sesiones de esta comisión (todas las fuentes oficiales combinadas).
+  const [registroComision, setRegistroComision] = useState<SesionRegistradaUI[] | null>(null);
+  useEffect(() => {
+    let vigente = true;
+    setRegistroComision(null);
+    fetch(`/api/comision/${encodeURIComponent(comisionId)}/registro-sesiones`)
+      .then((r) => r.json())
+      .then((d) => { if (vigente) setRegistroComision(d?.disponible ? d.sesiones || [] : []); })
+      .catch(() => { if (vigente) setRegistroComision([]); });
+    return () => { vigente = false; };
+  }, [comisionId]);
   const [projectSearch, setProjectSearch] = useState("");
   const [projectStatusFilter, setProjectStatusFilter] = useState<string>("todos");
   const [sessionSearch, setSessionSearch] = useState("");
@@ -3231,6 +3244,10 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
                         )}
                       </div>
 
+                      {registroComision && (() => {
+                        const reg = registroDeSesion(registroComision, ses.fecha, ses.hora);
+                        return reg ? <RegistroSesionDetalle registro={reg} onAbrirBoletin={(b) => setSelectedProyectoId(b)} /> : null;
+                      })()}
                       {ses.senadoComisionId && ses.senadoSesionId && (
                         <ResumenSesionOficial comisionId={ses.senadoComisionId} sesionId={ses.senadoSesionId} />
                       )}

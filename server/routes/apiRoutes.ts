@@ -1,4 +1,4 @@
-import { sincronizarRegistroSesiones, sesionesRegistradasDeBoletin } from "../services/registroSesionesService";
+import { sincronizarRegistroSesiones, sesionesRegistradasDeBoletin, sesionesRegistradasDeComision } from "../services/registroSesionesService";
 import { discusionDeProyecto } from "../services/discusionService";
 import { construirResumenSesion } from "../services/resumenSesionService";
 import { Router, Request, Response, text as expressText } from "express";
@@ -771,6 +771,16 @@ apiRouter.get("/registro-sesiones/sincronizar", async (req: Request, res: Respon
     res.json(await sincronizarRegistroSesiones({ forzar: autorizado }));
   } catch (err: any) {
     res.status(500).json({ ok: false, errores: [err?.message || String(err)] });
+  }
+});
+
+// Sesiones registradas de una comisión (todas las fuentes combinadas), la más reciente primero.
+apiRouter.get("/comision/:id/registro-sesiones", async (req: Request, res: Response) => {
+  try {
+    const sesiones = await sesionesRegistradasDeComision(String(req.params.id).slice(0, 80));
+    res.json({ disponible: true, sesiones });
+  } catch (err: any) {
+    res.json({ disponible: false, motivo: err?.message || String(err), sesiones: [] });
   }
 });
 

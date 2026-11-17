@@ -51,6 +51,7 @@ import { resolveProyecto } from "../utils/proyectosResolver";
 import { fetchLiveSenateProject } from "../utils/senadoClientApi";
 import { boletinDiscrepante } from "../utils/boletines";
 import DiscusionInformes from "../components/DiscusionInformes";
+import MetricasBoletin from "../components/MetricasBoletin";
 import TranscripcionesProyecto from "../components/TranscripcionesProyecto";
 import { parseFechaFlexible, diasEntre, detectTramite, etapaActual, ultimoMovimiento } from "../utils/tramitacion";
 import SimuladorQuorum from "../components/SimuladorQuorum";
@@ -1819,6 +1820,7 @@ export default function ProyectoDetailView({
             {/* 3. Comisiones Tab */}
             {activeTab === "comisiones" && (
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-6" id="tabpanel-comisiones">
+                <MetricasBoletin proyectoId={proyecto.id} />
                 <DiscusionInformes proyectoId={proyecto.id} />
                 <TranscripcionesProyecto proyectoId={proyecto.id} />
                 <div>
