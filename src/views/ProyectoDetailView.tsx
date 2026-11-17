@@ -49,7 +49,7 @@ import {
 import { Proyecto, ActivityItem, VotacionItem } from "../types";
 import { resolveProyecto } from "../utils/proyectosResolver";
 import { fetchLiveSenateProject } from "../utils/senadoClientApi";
-import { boletinDiscrepante } from "../utils/boletines";
+import { boletinDiscrepante, normalizarBoletin } from "../utils/boletines";
 import DiscusionInformes from "../components/DiscusionInformes";
 import MetricasBoletin from "../components/MetricasBoletin";
 import TranscripcionesProyecto from "../components/TranscripcionesProyecto";
@@ -273,6 +273,9 @@ export default function ProyectoDetailView({
   const [showAutoresPopover, setShowAutoresPopover] = useState(false);
   const [selectedComisionComparador, setSelectedComisionComparador] = useState<string>("");
   const [sesionesVinculadas, setSesionesVinculadas] = useState<SesionVinculadaProyecto[]>([]);
+  // El servidor empareja sesiones por número de boletín; las que citan el mismo número con otro sufijo se separan.
+  const sesionesOtroSufijo = sesionesVinculadas.filter((s) => !!boletinDiscrepante(`${s.temasVistos || ""}`, proyecto?.id || proyectoId));
+  const sesionesExactas = sesionesVinculadas.filter((s) => !sesionesOtroSufijo.includes(s));
   // Video oficial (YouTube) de cada sesión y panel de análisis con IA.
   const [videoBusqueda, setVideoBusqueda] = useState<Record<string, { estado: "buscando" | "sin-resultado" | "error"; motivo?: string }>>({});
   const [sesionVideo, setSesionVideo] = useState<SesionVinculadaProyecto | null>(null);
@@ -887,6 +890,18 @@ export default function ProyectoDetailView({
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight leading-snug mt-1" id="project-title-heading">
             {proyecto.titulo}
           </h1>
+          {(() => {
+            // En Chile el número de boletín es único; el sufijo indica la comisión. Si se llegó con un sufijo que no es
+            // el de la ficha oficial (p. ej. desde una citación con un error), se avisa en vez de mostrarlo en silencio.
+            const pedido = normalizarBoletin(proyectoId), oficial = normalizarBoletin(proyecto.id);
+            if (!pedido.includes("-") || !oficial.includes("-") || pedido === oficial || pedido.split("-")[0] !== oficial.split("-")[0]) return null;
+            return (
+              <p className="mt-2 text-xs text-amber-900 bg-amber-50 border border-amber-300 rounded-xl px-3 py-2" role="alert">
+                Se buscó el boletín <strong>{pedido}</strong>, pero la ficha oficial del N° {oficial.split("-")[0]} corresponde al <strong>{proyecto.id}</strong>.
+                Como el número de boletín es único, el sufijo -{pedido.split("-")[1]} probablemente viene de un error en la fuente que lo citó (por ejemplo, una citación). Verifique antes de usar esta información.
+              </p>
+            );
+          })()}
         </div>
         <div className="flex flex-wrap gap-2">
           <button 
@@ -1967,13 +1982,13 @@ export default function ProyectoDetailView({
                       <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-1">Sesiones Donde se Trató este Proyecto</h3>
                       <p className="text-xs text-slate-500">Sesiones de comisión con este boletín en tabla, según las citaciones oficiales de la Cámara y el Senado. El registro se acumula desde que la app empezó a guardarlas; las sesiones anteriores no aparecen.</p>
                     </div>
-                    {sesionesVinculadas.length === 0 && (
+                    {sesionesExactas.length === 0 && (
                       <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-xl p-4">
                         Todavía no hay sesiones registradas para este boletín.
                       </p>
                     )}
                     <div className="space-y-3">
-                      {[...sesionesVinculadas]
+                      {[...sesionesExactas]
                         .sort((a, b) => (parseFechaSesion(b.fecha)?.getTime() || 0) - (parseFechaSesion(a.fecha)?.getTime() || 0))
                         .map((s) => (
                         <div key={s.sesionId} className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs space-y-2">
@@ -2048,6 +2063,18 @@ export default function ProyectoDetailView({
                         </div>
                       ))}
                     </div>
+                    {sesionesOtroSufijo.length > 0 && (
+                      <details className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-xl p-3">
+                        <summary className="cursor-pointer font-semibold">
+                          {sesionesOtroSufijo.length} sesión(es) citan el N° {normalizarBoletin(proyecto.id).split("-")[0]} con otro sufijo (posible error de la citación oficial; no se cuentan para este proyecto)
+                        </summary>
+                        <ul className="mt-2 space-y-1">
+                          {sesionesOtroSufijo.map((s) => (
+                            <li key={s.sesionId}>{formatFechaCL(s.fecha)} · {s.comisionNombre} · cita el boletín {boletinDiscrepante(`${s.temasVistos || ""}`, proyecto.id)}{s.fuente ? ` (${s.fuente})` : ""}</li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
                   </div>
               </div>
             )}
