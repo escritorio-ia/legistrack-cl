@@ -167499,13 +167499,13 @@ function rescatarObjetosJson(text) {
   }
   return out;
 }
-async function generarConGeminiUnaVez(prompt, maxTokens, apiKey, model, timeoutMs) {
+async function generarConGeminiUnaVez(prompt2, maxTokens, apiKey, model, timeoutMs) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
+      contents: [{ parts: [{ text: prompt2 }] }],
       // Temperatura baja (no 0 -- algunos modelos rechazan temperatura
       // exactamente 0) para tareas de búsqueda/extracción factual: reduce
       // la variabilidad entre llamadas idénticas, que antes hacía que la
@@ -167523,14 +167523,14 @@ async function generarConGeminiUnaVez(prompt, maxTokens, apiKey, model, timeoutM
   if (!text) throw new Error("Gemini no devolvi\xF3 texto");
   return String(text).trim();
 }
-async function generarConGemini(prompt, maxTokens = 2e3) {
+async function generarConGemini(prompt2, maxTokens = 2e3) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey || apiKey === "MY_GEMINI_API_KEY") throw new Error("GEMINI_API_KEY no configurada");
   const model = process.env.GEMINI_MODEL || "gemini-3.6-flash";
   let lastErr;
   for (let intento = 1; intento <= 2; intento++) {
     try {
-      return await generarConGeminiUnaVez(prompt, maxTokens, apiKey, model, 25e3);
+      return await generarConGeminiUnaVez(prompt2, maxTokens, apiKey, model, 25e3);
     } catch (err) {
       lastErr = err;
       const esSaturacion = /HTTP 503|HTTP 429/.test(err?.message || "");
@@ -167548,7 +167548,7 @@ var GROQ_MODELOS_CANDIDATOS = [
   "llama-3.3-70b-versatile",
   "llama-3.1-8b-instant"
 ];
-async function llamarGroqConModelo(prompt, maxTokens, apiKey, model) {
+async function llamarGroqConModelo(prompt2, maxTokens, apiKey, model) {
   const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -167557,7 +167557,7 @@ async function llamarGroqConModelo(prompt, maxTokens, apiKey, model) {
     },
     body: JSON.stringify({
       model,
-      messages: [{ role: "user", content: prompt }],
+      messages: [{ role: "user", content: prompt2 }],
       // Temperatura baja para tareas de búsqueda/extracción factual -- ver
       // nota en generarConGeminiUnaVez.
       temperature: 0.15,
@@ -167581,15 +167581,15 @@ async function llamarGroqConModelo(prompt, maxTokens, apiKey, model) {
   if (!text) throw new Error("Groq no devolvi\xF3 texto");
   return String(text).trim();
 }
-async function generarConGroq(prompt, maxTokens = 2e3) {
+async function generarConGroq(prompt2, maxTokens = 2e3) {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey || apiKey === "MY_GROQ_API_KEY") throw new Error("GROQ_API_KEY no configurada");
   const modeloFijado = process.env.GROQ_MODEL;
-  if (modeloFijado) return llamarGroqConModelo(prompt, maxTokens, apiKey, modeloFijado);
+  if (modeloFijado) return llamarGroqConModelo(prompt2, maxTokens, apiKey, modeloFijado);
   let lastErr;
   for (const model of GROQ_MODELOS_CANDIDATOS) {
     try {
-      return await llamarGroqConModelo(prompt, maxTokens, apiKey, model);
+      return await llamarGroqConModelo(prompt2, maxTokens, apiKey, model);
     } catch (e) {
       lastErr = e;
       if (!/model.*(not exist|does not exist|no access|invalid_request_error|decommissioned)|HTTP 429/i.test(e.message)) {
@@ -167599,7 +167599,7 @@ async function generarConGroq(prompt, maxTokens = 2e3) {
   }
   throw lastErr;
 }
-async function generarConOpenRouter(prompt, maxTokens = 1500) {
+async function generarConOpenRouter(prompt2, maxTokens = 1500) {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey || apiKey === "MY_OPENROUTER_API_KEY") throw new Error("OPENROUTER_API_KEY no configurada");
   const configuredModel = process.env.OPENROUTER_MODEL;
@@ -167625,12 +167625,12 @@ async function generarConOpenRouter(prompt, maxTokens = 1500) {
         },
         body: JSON.stringify({
           model,
-          messages: [{ role: "user", content: prompt }],
+          messages: [{ role: "user", content: prompt2 }],
           max_tokens: maxTokens,
           temperature: 0.15
         }),
         // Tareas largas (leer varios documentos y redactar cientos de palabras) necesitan más tiempo.
-        signal: AbortSignal.timeout(maxTokens > 2e3 || prompt.length > 12e3 ? 7e4 : 15e3)
+        signal: AbortSignal.timeout(maxTokens > 2e3 || prompt2.length > 12e3 ? 7e4 : 15e3)
       });
       if (!resp.ok) {
         const errText = await resp.text().catch(() => "");
@@ -167647,7 +167647,7 @@ async function generarConOpenRouter(prompt, maxTokens = 1500) {
   throw new Error(lastError || "OpenRouter no devolvi\xF3 contenido");
 }
 var CEREBRAS_MODELOS_CANDIDATOS = ["llama-3.3-70b", "llama3.1-8b", "qwen-3-32b"];
-async function llamarCerebrasConModelo(prompt, maxTokens, apiKey, model) {
+async function llamarCerebrasConModelo(prompt2, maxTokens, apiKey, model) {
   const res = await fetch("https://api.cerebras.ai/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -167656,7 +167656,7 @@ async function llamarCerebrasConModelo(prompt, maxTokens, apiKey, model) {
     },
     body: JSON.stringify({
       model,
-      messages: [{ role: "user", content: prompt }],
+      messages: [{ role: "user", content: prompt2 }],
       temperature: 0.15,
       max_tokens: maxTokens
     }),
@@ -167671,15 +167671,15 @@ async function llamarCerebrasConModelo(prompt, maxTokens, apiKey, model) {
   if (!text) throw new Error("Cerebras no devolvi\xF3 texto");
   return String(text).trim();
 }
-async function generarConCerebras(prompt, maxTokens = 2e3) {
+async function generarConCerebras(prompt2, maxTokens = 2e3) {
   const apiKey = process.env.CEREBRAS_API_KEY;
   if (!apiKey || apiKey === "MY_CEREBRAS_API_KEY") throw new Error("CEREBRAS_API_KEY no configurada");
   const modeloFijado = process.env.CEREBRAS_MODEL;
-  if (modeloFijado) return llamarCerebrasConModelo(prompt, maxTokens, apiKey, modeloFijado);
+  if (modeloFijado) return llamarCerebrasConModelo(prompt2, maxTokens, apiKey, modeloFijado);
   let lastErr;
   for (const model of CEREBRAS_MODELOS_CANDIDATOS) {
     try {
-      return await llamarCerebrasConModelo(prompt, maxTokens, apiKey, model);
+      return await llamarCerebrasConModelo(prompt2, maxTokens, apiKey, model);
     } catch (e) {
       lastErr = e;
       if (!/model.*(not exist|does not exist|no access|invalid_request_error|decommissioned)/i.test(e.message)) {
@@ -167689,51 +167689,51 @@ async function generarConCerebras(prompt, maxTokens = 2e3) {
   }
   throw lastErr;
 }
-async function intentarGemini(prompt, maxTokens) {
+async function intentarGemini(prompt2, maxTokens) {
   const configured = !!(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY");
   if (!configured) return { provider: "gemini", configured };
   try {
-    const text = await generarConGemini(prompt, maxTokens);
+    const text = await generarConGemini(prompt2, maxTokens);
     return text ? { provider: "gemini", configured, text } : { provider: "gemini", configured, error: "respuesta vac\xEDa" };
   } catch (e) {
     console.log(`[Gemini Free Info]: ${e?.message || e}`);
     return { provider: "gemini", configured, error: e?.message || String(e) };
   }
 }
-async function intentarOpenRouter(prompt, maxTokens) {
+async function intentarOpenRouter(prompt2, maxTokens) {
   const configured = !!(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY !== "MY_OPENROUTER_API_KEY");
   if (!configured) return { provider: "openrouter", configured };
   try {
-    const text = await generarConOpenRouter(prompt, maxTokens);
+    const text = await generarConOpenRouter(prompt2, maxTokens);
     return text ? { provider: "openrouter", configured, text } : { provider: "openrouter", configured, error: "respuesta vac\xEDa" };
   } catch (e) {
     console.log(`[OpenRouter Info]: ${e?.message || e}`);
     return { provider: "openrouter", configured, error: e?.message || String(e) };
   }
 }
-async function intentarCerebras(prompt, maxTokens) {
+async function intentarCerebras(prompt2, maxTokens) {
   const configured = !!(process.env.CEREBRAS_API_KEY && process.env.CEREBRAS_API_KEY !== "MY_CEREBRAS_API_KEY");
   if (!configured) return { provider: "cerebras", configured };
   try {
-    const text = await generarConCerebras(prompt, maxTokens);
+    const text = await generarConCerebras(prompt2, maxTokens);
     return text ? { provider: "cerebras", configured, text } : { provider: "cerebras", configured, error: "respuesta vac\xEDa" };
   } catch (e) {
     console.log(`[Cerebras Free Info]: ${e?.message || e}`);
     return { provider: "cerebras", configured, error: e?.message || String(e) };
   }
 }
-async function intentarGroq(prompt, maxTokens) {
+async function intentarGroq(prompt2, maxTokens) {
   const configured = !!(process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== "MY_GROQ_API_KEY");
   if (!configured) return { provider: "groq", configured };
   try {
-    const text = await generarConGroq(prompt, maxTokens);
+    const text = await generarConGroq(prompt2, maxTokens);
     return text ? { provider: "groq", configured, text } : { provider: "groq", configured, error: "respuesta vac\xEDa" };
   } catch (e) {
     console.log(`[Groq Free Info]: ${e?.message || e}`);
     return { provider: "groq", configured, error: e?.message || String(e) };
   }
 }
-async function intentarClaude(prompt, maxTokens) {
+async function intentarClaude(prompt2, maxTokens) {
   const claude = getClaudeClient();
   if (!claude) return { provider: "claude", configured: !!process.env.ANTHROPIC_API_KEY };
   const modelos = Array.from(new Set([process.env.ANTHROPIC_MODEL, "claude-haiku-5-5", "claude-haiku-4-5"].filter(Boolean)));
@@ -167743,7 +167743,7 @@ async function intentarClaude(prompt, maxTokens) {
       const resp = await claude.messages.create({
         model,
         max_tokens: maxTokens,
-        messages: [{ role: "user", content: prompt }]
+        messages: [{ role: "user", content: prompt2 }]
       });
       const bloque = resp.content.find((c) => c.type === "text");
       const text = bloque?.text || "";
@@ -167760,11 +167760,11 @@ async function intentarClaude(prompt, maxTokens) {
   return { provider: "claude", configured: true, error: ultimoError };
 }
 var LIMITE_TOTAL_IA_MS = 16e4;
-async function generarContenidoUniversalIA(prompt, maxTokens = 2e3, attempts) {
+async function generarContenidoUniversalIA(prompt2, maxTokens = 2e3, attempts) {
   let temporizador;
   try {
     return await Promise.race([
-      generarContenidoUniversalIAInterno(prompt, maxTokens, attempts),
+      generarContenidoUniversalIAInterno(prompt2, maxTokens, attempts),
       new Promise((resolve) => {
         temporizador = setTimeout(() => resolve(null), LIMITE_TOTAL_IA_MS);
       })
@@ -167773,11 +167773,11 @@ async function generarContenidoUniversalIA(prompt, maxTokens = 2e3, attempts) {
     clearTimeout(temporizador);
   }
 }
-async function generarContenidoUniversalIAInterno(prompt, maxTokens, attempts) {
+async function generarContenidoUniversalIAInterno(prompt2, maxTokens, attempts) {
   const [geminiRes, openrouterRes, cerebrasRes] = await Promise.all([
-    intentarGemini(prompt, maxTokens),
-    intentarOpenRouter(prompt, maxTokens),
-    intentarCerebras(prompt, maxTokens)
+    intentarGemini(prompt2, maxTokens),
+    intentarOpenRouter(prompt2, maxTokens),
+    intentarCerebras(prompt2, maxTokens)
   ]);
   const primeraRonda = [geminiRes, openrouterRes, cerebrasRes];
   for (const r of primeraRonda) {
@@ -167785,18 +167785,18 @@ async function generarContenidoUniversalIAInterno(prompt, maxTokens, attempts) {
   }
   const exitoPrimeraRonda = primeraRonda.find((r) => r.text);
   if (exitoPrimeraRonda) return exitoPrimeraRonda.text;
-  const groqRes = await intentarGroq(prompt, maxTokens);
+  const groqRes = await intentarGroq(prompt2, maxTokens);
   attempts?.push({ provider: groqRes.provider, configured: groqRes.configured, error: groqRes.error });
   if (groqRes.text) return groqRes.text;
-  const claudeRes = await intentarClaude(prompt, maxTokens);
+  const claudeRes = await intentarClaude(prompt2, maxTokens);
   attempts?.push({ provider: claudeRes.provider, configured: claudeRes.configured, error: claudeRes.error });
   if (claudeRes.text) return claudeRes.text;
-  const respaldo = await intentarGeminiRespaldo(prompt, maxTokens);
+  const respaldo = await intentarGeminiRespaldo(prompt2, maxTokens);
   attempts?.push({ provider: "gemini-respaldo", configured: respaldo.configured, error: respaldo.error });
   if (respaldo.text) return respaldo.text;
   return null;
 }
-async function intentarGeminiRespaldo(prompt, maxTokens) {
+async function intentarGeminiRespaldo(prompt2, maxTokens) {
   const key = process.env.GEMINI_VIDEO_API_KEY;
   if (!key || key === process.env.GEMINI_API_KEY) return { configured: false };
   let ultimo = "";
@@ -167806,7 +167806,7 @@ async function intentarGeminiRespaldo(prompt, maxTokens) {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-goog-api-key": key },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
+          contents: [{ parts: [{ text: prompt2 }] }],
           generationConfig: { maxOutputTokens: Math.max(maxTokens, 2048), temperature: 0.15 }
         }),
         signal: AbortSignal.timeout(6e4)
@@ -167827,7 +167827,7 @@ async function intentarGeminiRespaldo(prompt, maxTokens) {
 }
 async function responderCopilotoLegislativo(params) {
   const { mensaje, contextoBoletin, contextoComision, historial = [] } = params;
-  const prompt = `Eres el "Copiloto Legislativo", un asistente experto en t\xE9cnica legislativa, derecho parlamentario y transparencia del Congreso Nacional de Chile.
+  const prompt2 = `Eres el "Copiloto Legislativo", un asistente experto en t\xE9cnica legislativa, derecho parlamentario y transparencia del Congreso Nacional de Chile.
 Tu misi\xF3n es explicar con claridad t\xE9cnica, objetiva y sobria el proceso legislativo, el estado de los proyectos de ley (boletines), el rol de las comisiones, qu\xF3rums requeridos y antecedentes comparados.
 
 Contexto actual del usuario:
@@ -167844,7 +167844,7 @@ Instrucciones:
 4. No inventes art\xEDculos ni resultados de votaciones inexistentes.
 
 Responde \xFAnicamente con el texto de la respuesta.`;
-  const textoIA = await generarContenidoUniversalIA(prompt, 800);
+  const textoIA = await generarContenidoUniversalIA(prompt2, 800);
   if (textoIA) {
     return {
       respuesta: textoIA,
@@ -168032,7 +168032,7 @@ function aSegundos(v) {
   return p.reduce((acc, n) => acc * 60 + n, 0);
 }
 async function consultarGeminiVideo(p) {
-  const { apiKey, videoId, desde, hasta, prompt, maxOutputTokens } = p;
+  const { apiKey, videoId, desde, hasta, prompt: prompt2, maxOutputTokens } = p;
   const videoMetadata = { startOffset: `${desde}s` };
   if (hasta != null) videoMetadata.endOffset = `${hasta}s`;
   const candidatos = Array.from(new Set([
@@ -168062,7 +168062,7 @@ async function consultarGeminiVideo(p) {
           contents: [{
             parts: [
               { fileData: { fileUri: `https://www.youtube.com/watch?v=${videoId}` }, videoMetadata },
-              { text: prompt }
+              { text: prompt2 }
             ]
           }],
           generationConfig: {
@@ -168122,7 +168122,7 @@ async function analizarParteVideo(params) {
       params.fecha ? `Fecha de la sesi\xF3n: ${params.fecha}` : "",
       params.materia ? `Materia citada: ${params.materia}` : ""
     ].filter(Boolean).join("\n");
-    const prompt = `Este video es la transmisi\xF3n oficial de una sesi\xF3n de comisi\xF3n del Congreso de Chile.
+    const prompt2 = `Este video es la transmisi\xF3n oficial de una sesi\xF3n de comisi\xF3n del Congreso de Chile.
 ${contexto}
 
 Analiza SOLO lo que efectivamente se ve y se escucha en el tramo indicado del video. No inventes nombres, cargos, cifras ni acuerdos: si no se identifica a quien habla, usa "No identificado". Si el tramo no contiene la sesi\xF3n (pantalla en espera, receso), ind\xEDcalo en "resumen" y deja las listas vac\xEDas.
@@ -168138,7 +168138,7 @@ Responde \xDANICAMENTE con JSON v\xE1lido:
   "votaciones": ["votaciones realizadas y su resultado, si las hay"]
 }
 Ordena las intervenciones cronol\xF3gicamente y registra cada cambio relevante de orador.`;
-    const g = await consultarGeminiVideo({ apiKey, videoId, desde, hasta, prompt, maxOutputTokens: 16e3 });
+    const g = await consultarGeminiVideo({ apiKey, videoId, desde, hasta, prompt: prompt2, maxOutputTokens: 16e3 });
     if (g.ok === false) return { disponible: false, motivo: g.motivo, parte, desde, hasta };
     const { texto, model } = g;
     const json = texto ? (() => {
@@ -168212,7 +168212,7 @@ async function transcribirParteVideo(params) {
     params.fecha ? `Fecha de la sesi\xF3n: ${params.fecha}` : "",
     params.materia ? `Materia citada: ${params.materia}` : ""
   ].filter(Boolean).join("\n");
-  const prompt = `Este video es la transmisi\xF3n oficial de una sesi\xF3n de comisi\xF3n del Congreso de Chile.
+  const prompt2 = `Este video es la transmisi\xF3n oficial de una sesi\xF3n de comisi\xF3n del Congreso de Chile.
 ${contexto}
 
 Transcribe en espa\xF1ol lo que se dice en el tramo indicado del video, lo m\xE1s fielmente posible y sin resumir. No inventes palabras, nombres, cargos ni cifras: si algo no se entiende escribe "[inaudible]"; si no se identifica a quien habla, usa "No identificado". Si en el tramo no se habla (silencio, pausa, solo imagen), devuelve una lista vac\xEDa.
@@ -168221,7 +168221,7 @@ Responde \xDANICAMENTE con JSON v\xE1lido:
 {"segmentos":[{"minuto":"H:MM:SS desde el inicio del video","orador":"nombre tal como se presenta o 'No identificado'","texto":"lo que dice, tal como lo dice"}]}
 Usa exactamente esas claves ("segmentos", "minuto", "orador", "texto"). Solo si en todo el tramo no habla nadie (pantalla de espera, receso, sin audio), responde {"segmentos":[],"sinVoz":true}.
 Un segmento por cambio de orador, o cada 60 segundos como m\xE1ximo si habla la misma persona. Ord\xE9nalos cronol\xF3gicamente.`;
-  const g = await consultarGeminiVideo({ apiKey, videoId, desde, hasta, prompt, maxOutputTokens: 32e3 });
+  const g = await consultarGeminiVideo({ apiKey, videoId, desde, hasta, prompt: prompt2, maxOutputTokens: 32e3 });
   if (g.ok === false) return { disponible: false, motivo: g.motivo, parte, desde, hasta };
   const { crudos, sinVoz } = segmentosDeRespuesta(g.texto);
   let segmentos = crudos.map((x) => ({
@@ -187351,7 +187351,7 @@ async function fichaEjecutivaProyecto(boletinId) {
 }
 async function generarFichaTecnicaIA(titulo, _resumen, textoProyecto = "", diagnostico) {
   const conTexto = textoProyecto.length > 300;
-  const prompt = conTexto ? `Eres analista de Asesor\xEDa T\xE9cnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile. Abajo est\xE1 el t\xEDtulo y el TEXTO OFICIAL (mensaje o moci\xF3n) de un proyecto de ley chileno.
+  const prompt2 = conTexto ? `Eres analista de Asesor\xEDa T\xE9cnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile. Abajo est\xE1 el t\xEDtulo y el TEXTO OFICIAL (mensaje o moci\xF3n) de un proyecto de ley chileno.
 
 T\xEDtulo: "${titulo}"
 
@@ -187374,7 +187374,7 @@ Reglas: usa solo el texto entregado; no inventes cifras, instituciones ni efecto
 Responde \xDANICAMENTE con JSON v\xE1lido: {"objeto":"..."}
 "objeto": 1-2 frases que expliquen en lenguaje claro lo que propone el proyecto seg\xFAn su t\xEDtulo. No agregues nada que el t\xEDtulo no diga.`;
   const intentos = [];
-  const respuesta = await generarContenidoUniversalIA(prompt, conTexto ? 3e3 : 1200, intentos);
+  const respuesta = await generarContenidoUniversalIA(prompt2, conTexto ? 3e3 : 1200, intentos);
   if (!respuesta) {
     diagnostico?.push("Ning\xFAn proveedor de IA respondi\xF3: " + intentos.filter((i) => i.configured).map((i) => `${i.provider}: ${(i.error || "sin respuesta").slice(0, 90)}`).join(" | "));
     return null;
@@ -188004,7 +188004,7 @@ async function determinarQuorumProyecto(boletinId) {
     if (!texto) continue;
     const ex = extractosQuorum(texto);
     if (!ex) continue;
-    const prompt = `Eres abogado de la Biblioteca del Congreso Nacional de Chile. Abajo hay extractos de "${f.titulo}" del proyecto "${p.titulo}" (Bolet\xEDn ${p.id}) donde se califican las normas seg\xFAn su qu\xF3rum.
+    const prompt2 = `Eres abogado de la Biblioteca del Congreso Nacional de Chile. Abajo hay extractos de "${f.titulo}" del proyecto "${p.titulo}" (Bolet\xEDn ${p.id}) donde se califican las normas seg\xFAn su qu\xF3rum.
 
 Tipos posibles:
 - "interpretativa": ley interpretativa de la Constituci\xF3n (4/7 en ejercicio).
@@ -188024,7 +188024,7 @@ Usa solo lo que dicen los extractos. Si los extractos no califican las normas de
     let k = null;
     let extra = {};
     try {
-      const resp = await generarContenidoUniversalIA(prompt, 2500);
+      const resp = await generarContenidoUniversalIA(prompt2, 2500);
       const j = resp ? safeJsonParse(resp) : null;
       if (j && ["loc", "qc", "interpretativa", "comun"].includes(j.tipo)) {
         k = j.tipo;
@@ -188065,14 +188065,14 @@ function ventanas(texto, marcadores, ancho, max) {
 async function resumenPasoComision(boletinId, comision) {
   const digits = String(boletinId || "").replace(/\./g, "").match(/\d{3,6}/)?.[0] || "";
   if (!digits || !comision) return { disponible: false, motivo: "Faltan el bolet\xEDn o la comisi\xF3n." };
-  const norm4 = (x) => x.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
-  const clave = `resumen_comision_v3_${digits}_${norm4(comision)}`;
+  const norm5 = (x) => x.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const clave = `resumen_comision_v3_${digits}_${norm5(comision)}`;
   const previo = cache.get(clave);
   if (previo) return previo;
   const p = await fetchProyectoFromSenado(digits);
   if (!p) return { disponible: false, motivo: "No se encontr\xF3 el proyecto en la ficha oficial del Senado." };
-  const nucleo = norm4(comision).replace(/^comision\s+(especial\s+)?(de\s+)?/, "").split(/[^a-z0-9]+/).filter((w) => w.length > 3).slice(0, 2);
-  const informes = (p.documentos || []).filter((d) => d.tipo === "Informe" && d.url && nucleo.every((w) => norm4(d.titulo).includes(w))).sort((a, b) => (a.fecha || "").localeCompare(b.fecha || "")).slice(0, 2);
+  const nucleo = norm5(comision).replace(/^comision\s+(especial\s+)?(de\s+)?/, "").split(/[^a-z0-9]+/).filter((w) => w.length > 3).slice(0, 2);
+  const informes = (p.documentos || []).filter((d) => d.tipo === "Informe" && d.url && nucleo.every((w) => norm5(d.titulo).includes(w))).sort((a, b) => (a.fecha || "").localeCompare(b.fecha || "")).slice(0, 2);
   if (informes.length === 0) {
     return { disponible: false, comision, motivo: "Esta comisi\xF3n a\xFAn no ha emitido un informe en el expediente; el resumen estar\xE1 disponible cuando lo publique." };
   }
@@ -188093,7 +188093,7 @@ ${exposiciones.slice(0, Math.round(7e3 * factor))}
 ${votos.slice(0, Math.round(2e3 * factor))}`);
   }
   if (bloques.length === 0) return { disponible: false, comision, motivo: "No se pudo leer el texto de los informes de esta comisi\xF3n." };
-  const prompt = `Eres analista de la Biblioteca del Congreso Nacional de Chile. Abajo hay extractos de los informes oficiales de la ${comision} sobre el proyecto "${p.titulo}" (Bolet\xEDn ${p.id}).
+  const prompt2 = `Eres analista de la Biblioteca del Congreso Nacional de Chile. Abajo hay extractos de los informes oficiales de la ${comision} sobre el proyecto "${p.titulo}" (Bolet\xEDn ${p.id}).
 
 ${bloques.join("\n\n")}
 
@@ -188114,7 +188114,7 @@ Reglas: usa SOLO lo que dicen los extractos; no inventes nombres, cargos, cifras
   const intentos = [];
   let resp = null;
   try {
-    resp = await generarContenidoUniversalIA(prompt, 2500, intentos);
+    resp = await generarContenidoUniversalIA(prompt2, 2500, intentos);
   } catch {
     resp = null;
   }
@@ -188667,6 +188667,162 @@ async function sesionesRegistradasDeComision(comisionId) {
   if (!r.ok) throw new Error(`Firestore respondi\xF3 HTTP ${r.status}`);
   const filas = await r.json();
   return unirSesionesLeidas(filas.filter((x) => x.document).map((x) => combinarSesion(idDoc(x.document), x.document.fields || {}))).sort((a, c) => c.fecha.localeCompare(a.fecha) || c.id.localeCompare(a.id));
+}
+
+// src/utils/informeSesion.ts
+function formatoMinutoInforme(seg) {
+  const s = Math.max(0, Math.round(seg));
+  const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), r = s % 60;
+  return h ? `${h}:${String(m).padStart(2, "0")}:${String(r).padStart(2, "0")}` : `${m}:${String(r).padStart(2, "0")}`;
+}
+function minutoASegundos(v) {
+  if (typeof v === "number" && isFinite(v)) return v;
+  const p = String(v ?? "").trim().split(":").map(Number);
+  if (p.length < 2 || p.some((x) => !isFinite(x))) return NaN;
+  return p.length === 3 ? p[0] * 3600 + p[1] * 60 + p[2] : p[0] * 60 + p[1];
+}
+function transcripcionParaPrompt(segmentos) {
+  return [...segmentos].sort((a, b) => a.segundos - b.segundos).map((g) => `[${formatoMinutoInforme(g.segundos)}] ${String(g.orador || "Orador no identificado").trim()}: ${String(g.texto || "").replace(/\s+/g, " ").trim()}`).join("\n");
+}
+var norm3 = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+var TOLERANCIA = 90;
+function validarInforme(raw, segmentos, boletinesTabla, parcial) {
+  const tiempos = segmentos.map((g) => g.segundos).sort((a, b) => a - b);
+  const oradores = Array.from(new Set(segmentos.map((g) => norm3(g.orador)).filter((o) => o && !/no identificad/.test(o))));
+  const permitidos = new Set([...boletinesTabla.map(normalizarBoletin), ...boletinesEnTexto(segmentos.map((g) => g.texto).join(" "))].filter(Boolean));
+  let descartados = 0;
+  const minutoValido = (v) => {
+    const s = minutoASegundos(v);
+    if (!isFinite(s)) return null;
+    return tiempos.some((t) => Math.abs(t - s) <= TOLERANCIA) ? s : null;
+  };
+  const oradorValido = (o) => {
+    const n = norm3(o);
+    if (!n) return false;
+    return oradores.some((x) => x === n || x.includes(n) || n.includes(x));
+  };
+  const txt = (v) => String(v ?? "").replace(/\s+/g, " ").trim();
+  const lista3 = (v) => Array.isArray(v) ? v : [];
+  const filtrar = (items, f) => items.map((x) => {
+    const r = f(x);
+    if (!r) descartados++;
+    return r;
+  }).filter(Boolean);
+  const puntos = lista3(raw?.puntos).map((p) => ({
+    numero: Number.isFinite(Number(p?.numero)) ? Number(p.numero) : 0,
+    titulo: txt(p?.titulo) || "Punto sin t\xEDtulo",
+    boletines: Array.from(new Set(lista3(p?.boletines).map((b) => normalizarBoletin(String(b))).filter((b) => b.includes("-") && permitidos.has(b)))),
+    sintesis: txt(p?.sintesis),
+    intervenciones: filtrar(lista3(p?.intervenciones), (i) => {
+      const s = minutoValido(i?.minuto ?? i?.segundos);
+      return s !== null && oradorValido(i?.orador) && txt(i?.postura) ? { orador: txt(i.orador), cargo: txt(i?.cargo), segundos: s, postura: txt(i.postura) } : null;
+    }),
+    acuerdos: filtrar(lista3(p?.acuerdos), (a) => {
+      const s = minutoValido(a?.minuto ?? a?.segundos);
+      return s !== null && txt(a?.texto) ? { texto: txt(a.texto), segundos: s } : null;
+    }),
+    votaciones: filtrar(lista3(p?.votaciones), (v) => {
+      const s = minutoValido(v?.minuto ?? v?.segundos);
+      return s !== null && txt(v?.texto) ? { texto: txt(v.texto), resultado: txt(v?.resultado) || "No informado", segundos: s } : null;
+    })
+  })).filter((p) => p.sintesis || p.intervenciones.length || p.acuerdos.length || p.votaciones.length).sort((a, b) => (a.numero || 999) - (b.numero || 999));
+  return {
+    version: 1,
+    resumen: txt(raw?.resumen),
+    puntos,
+    compromisos: filtrar(lista3(raw?.compromisos), (c) => {
+      const s = minutoValido(c?.minuto ?? c?.segundos);
+      return s !== null && txt(c?.texto) ? { texto: txt(c.texto), responsable: txt(c?.responsable) || "No informado", segundos: s } : null;
+    }),
+    pendientes: lista3(raw?.pendientes).map(txt).filter(Boolean),
+    parcial,
+    descartados
+  };
+}
+
+// server/services/informeSesionService.ts
+var MAX_CARACTERES = 7e5;
+function prompt(p) {
+  return `Eres asesor parlamentario de la Biblioteca del Congreso Nacional de Chile. Redacta el informe de una sesi\xF3n de comisi\xF3n
+usando EXCLUSIVAMENTE la transcripci\xF3n que sigue. No agregues nada que no est\xE9 dicho en ella: ni antecedentes, ni cifras, ni nombres externos.
+
+Comisi\xF3n: ${p.comision || "No informada"}
+Fecha: ${p.fecha || "No informada"}
+Tabla oficial de la sesi\xF3n:
+${p.tabla.length ? p.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n") : "No informada"}
+Boletines de la tabla: ${p.boletines.join(", ") || "ninguno"}
+
+Reglas:
+- Ordena el informe por los puntos de la tabla (usa su n\xFAmero). Lo que no corresponda a la tabla va con "numero": 0.
+- "minuto" es el minuto EXACTO de la l\xEDnea de la transcripci\xF3n que respalda el dato, copiado tal cual aparece entre corchetes (ej. "1:02:15").
+- "orador" se copia tal cual aparece en la transcripci\xF3n. Si es "Orador no identificado", no lo incluyas como intervenci\xF3n.
+- "postura": qu\xE9 plante\xF3 o pidi\xF3 el orador, en una o dos oraciones, en tercera persona.
+- Acuerdos y votaciones: solo si se dicen expl\xEDcitamente en la transcripci\xF3n (incluye el resultado si se dice).
+- Compromisos: tareas o env\xEDos de informaci\xF3n comprometidos (qui\xE9n y qu\xE9).
+- Pendientes: temas que quedaron para otra sesi\xF3n, si se dice.
+- Si algo no est\xE1 en la transcripci\xF3n, deja la lista vac\xEDa. Espa\xF1ol formal y conciso.
+
+Responde solo JSON con esta forma:
+{"resumen":"3 a 5 oraciones","puntos":[{"numero":1,"titulo":"","boletines":["00000-00"],"sintesis":"","intervenciones":[{"orador":"","cargo":"","minuto":"","postura":""}],"acuerdos":[{"texto":"","minuto":""}],"votaciones":[{"texto":"","resultado":"","minuto":""}]}],"compromisos":[{"texto":"","responsable":"","minuto":""}],"pendientes":[""]}
+
+TRANSCRIPCI\xD3N:
+${p.transcripcion}`;
+}
+function extraerJSON(texto) {
+  const t = String(texto || "").replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+  try {
+    return JSON.parse(t);
+  } catch {
+  }
+  const i = t.indexOf("{"), j = t.lastIndexOf("}");
+  if (i >= 0 && j > i) return JSON.parse(t.slice(i, j + 1));
+  throw new Error("La respuesta del modelo no es JSON v\xE1lido.");
+}
+async function generarInformeSesion(p) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return { disponible: false, motivo: "GEMINI_API_KEY no est\xE1 configurada en el servidor." };
+  const segmentos = (p.segmentos || []).filter((g) => g && Number.isFinite(Number(g.segundos)) && String(g.texto || "").trim()).map((g) => ({ segundos: Number(g.segundos), orador: String(g.orador || ""), texto: String(g.texto) }));
+  if (segmentos.length < 5) return { disponible: false, motivo: "La transcripci\xF3n tiene muy poco texto para redactar un informe." };
+  let transcripcion = transcripcionParaPrompt(segmentos);
+  if (transcripcion.length > MAX_CARACTERES) return { disponible: false, motivo: "La transcripci\xF3n excede el tama\xF1o que se puede procesar en una sola consulta." };
+  const candidatos = Array.from(new Set([process.env.GEMINI_MODEL, "gemini-3.6-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite"].filter(Boolean)));
+  const errores = [];
+  const limite = Date.now() + 27e4;
+  for (const model of candidatos) {
+    const restante = limite - Date.now();
+    if (restante < 2e4) break;
+    try {
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt({ comision: p.comision, fecha: p.fecha, tabla: p.tabla || [], boletines: p.boletines || [], transcripcion }) }] }],
+          generationConfig: { temperature: 0.15, maxOutputTokens: 16e3, responseMimeType: "application/json" }
+        }),
+        signal: AbortSignal.timeout(Math.min(15e4, restante))
+      });
+      if (!r.ok) {
+        errores.push(`${model}: HTTP ${r.status}`);
+        if ([429, 404, 500, 502, 503, 504].includes(r.status)) continue;
+        break;
+      }
+      const data = await r.json();
+      const texto = (data?.candidates?.[0]?.content?.parts || []).map((x) => x.text || "").join("");
+      if (!texto) {
+        errores.push(`${model}: respuesta vac\xEDa (${data?.candidates?.[0]?.finishReason || "sin motivo"})`);
+        continue;
+      }
+      const informe = validarInforme(extraerJSON(texto), segmentos, p.boletines || [], !!p.parcial);
+      if (!informe.resumen && informe.puntos.length === 0) {
+        errores.push(`${model}: informe sin contenido verificable`);
+        continue;
+      }
+      return { disponible: true, informe: { ...informe, modelo: model, generado: (/* @__PURE__ */ new Date()).toISOString() } };
+    } catch (err) {
+      errores.push(`${model}: ${err?.name === "TimeoutError" ? "sin respuesta a tiempo" : err?.message || err}`);
+    }
+  }
+  return { disponible: false, motivo: `No se pudo generar el informe. ${errores.join(" | ")}` };
 }
 
 // src/utils/sala.ts
@@ -189964,7 +190120,7 @@ async function resumirInformeFinanciero(pdfUrl) {
     if (texto.length < 80) {
       return { disponible: false, motivo: "El PDF no tiene texto legible (posiblemente escaneado).", fuente: url.toString() };
     }
-    const prompt = `Eres analista de finanzas p\xFAblicas. Abajo est\xE1 el TEXTO COMPLETO de un Informe Financiero oficial de la DIPRES (Chile).
+    const prompt2 = `Eres analista de finanzas p\xFAblicas. Abajo est\xE1 el TEXTO COMPLETO de un Informe Financiero oficial de la DIPRES (Chile).
 Resume SOLO lo que dice el texto; no agregues cifras, supuestos ni conclusiones que no est\xE9n escritas.
 
 Responde \xDANICAMENTE con JSON v\xE1lido con este esquema:
@@ -189973,7 +190129,7 @@ Responde \xDANICAMENTE con JSON v\xE1lido con este esquema:
 TEXTO:
 ${texto.slice(0, 14e3)}`;
     try {
-      const salida = await generarContenidoUniversalIA(prompt, 900);
+      const salida = await generarContenidoUniversalIA(prompt2, 900);
       const json = salida ? safeJsonParse(salida) : null;
       if (json && (json.descripcion || json.efectoFiscal)) {
         return {
@@ -190020,7 +190176,7 @@ async function resumenConsolidadoInformesFinancieros(boletin) {
 Materia: ${inf.materia}
 ${texto2 ? `Texto: ${texto2.slice(0, porInforme)}` : "(No se pudo leer el PDF; usa solo la materia.)"}`);
   }
-  const prompt = `Eres analista de finanzas p\xFAblicas de la Biblioteca del Congreso Nacional de Chile. Abajo est\xE1n, en orden cronol\xF3gico, los ${informes.length} Informes Financieros (IF) oficiales de la DIPRES asociados al proyecto de ley Bolet\xEDn ${boletin}.
+  const prompt2 = `Eres analista de finanzas p\xFAblicas de la Biblioteca del Congreso Nacional de Chile. Abajo est\xE1n, en orden cronol\xF3gico, los ${informes.length} Informes Financieros (IF) oficiales de la DIPRES asociados al proyecto de ley Bolet\xEDn ${boletin}.
 
 ${bloques.join("\n\n")}
 
@@ -190046,7 +190202,7 @@ N\xB0 del IF | a qu\xE9 corresponde, breve | efecto fiscal en una frase con su m
   const intentos = [];
   let resp = null;
   try {
-    resp = await generarContenidoUniversalIA(prompt, 6e3, intentos);
+    resp = await generarContenidoUniversalIA(prompt2, 6e3, intentos);
   } catch {
     resp = null;
   }
@@ -190164,7 +190320,7 @@ async function cruzarBoletin(e) {
 Mecanismos: ${e.fichaTecnica.mecanismos || "\u2014"}
 Fiscalizaci\xF3n: ${e.fichaTecnica.fiscalizacion || "\u2014"}
 Sanciones: ${e.fichaTecnica.sanciones || "\u2014"}` : "(sin ficha t\xE9cnica)";
-  const prompt = `Eres analista de Asesor\xEDa T\xE9cnica Parlamentaria. Cruza el proyecto de ley chileno (Bolet\xEDn ${e.boletin}) con las normas de otros pa\xEDses listadas, usando EXCLUSIVAMENTE los datos de abajo.
+  const prompt2 = `Eres analista de Asesor\xEDa T\xE9cnica Parlamentaria. Cruza el proyecto de ley chileno (Bolet\xEDn ${e.boletin}) con las normas de otros pa\xEDses listadas, usando EXCLUSIVAMENTE los datos de abajo.
 
 PROYECTO (${e.iniciativa || "iniciativa no informada"}${e.autores ? `, autores: ${e.autores}` : ""}):
 T\xEDtulo: ${e.titulo}
@@ -190182,7 +190338,7 @@ Entrega SOLO un objeto JSON compacto, sin texto adicional:
  "porPais": [{"n": numeroDeFuente, "pais": "Nombre", "funcion": "Funci\xF3n jur\xEDdica de esa norma (1-2 oraciones)", "jurisdiccion": "Jurisdicci\xF3n y \xF3rgano competente (1-2 oraciones o 'No informado en las fuentes.')"}]
 }
 Reglas estrictas: afirma solo lo que la DESCRIPCI\xD3N de cada fuente dice expresamente (si la descripci\xF3n no indica que la norma tipifica un delito, fija una sanci\xF3n o asigna una competencia, NO lo afirmes; escribe "la descripci\xF3n disponible no lo precisa"); no extrapoles a partir del t\xEDtulo o del nombre de la norma ni de lo que conozcas sobre ella; para el proyecto chileno usa solo el t\xEDtulo, el resumen y la ficha entregados. Entre 5 y 7 dimensiones en "comparador"; una entrada de "porPais" por cada fuente extranjera; no inventes art\xEDculos, plazos, cifras ni \xF3rganos que no aparezcan en los datos; si un pa\xEDs no permite llenar una dimensi\xF3n, om\xEDtelo de esa dimensi\xF3n; "n" debe ser el n\xFAmero exacto de la fuente.`;
-  const texto = await generarContenidoUniversalIA(prompt, 8e3);
+  const texto = await generarContenidoUniversalIA(prompt2, 8e3);
   if (!texto) return { disponible: false, motivo: "No se pudo generar el cruce con IA en este momento. Reintenta en un minuto." };
   try {
     const j = safeJsonParse(texto);
@@ -191761,11 +191917,11 @@ async function buscarComparadoConIA(query, attempts) {
     return resuelto;
   };
   const resolverLoteSinCache = async (lote) => {
-    const prompt = construirPromptLoteComparado(query, lote);
+    const prompt2 = construirPromptLoteComparado(query, lote);
     try {
-      const primerIntento = await intentarUnaVez(prompt, 2200);
+      const primerIntento = await intentarUnaVez(prompt2, 2200);
       if (primerIntento) return primerIntento;
-      const promptEstricto = `${prompt}
+      const promptEstricto = `${prompt2}
 
 IMPORTANTE: tu respuesta anterior no cumpli\xF3 el formato. Responde EXCLUSIVAMENTE con el arreglo JSON solicitado, empezando en "[" y terminando en "]", sin ning\xFAn texto, explicaci\xF3n ni markdown antes o despu\xE9s.`;
       const segundoIntento = await intentarUnaVez(promptEstricto, 2200);
@@ -194333,12 +194489,12 @@ import fs from "fs";
 import path from "path";
 import Papa from "papaparse";
 var sinAcentos = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "");
-var norm3 = (s) => sinAcentos(s).toLowerCase().trim();
+var norm4 = (s) => sinAcentos(s).toLowerCase().trim();
 function normalizarBoletin2(b) {
   return b.replace(/\./g, "").replace(/\s+/g, "").replace(/-0+(\d)/, "-$1").trim();
 }
 function normalizarNorma(n) {
-  return norm3(n).replace(/\./g, "").replace(/\s+/g, " ");
+  return norm4(n).replace(/\./g, "").replace(/\s+/g, " ");
 }
 var STOPWORDS = /* @__PURE__ */ new Set([
   "sobre",
@@ -194382,7 +194538,7 @@ function terminos(inv) {
   const out = /* @__PURE__ */ new Set();
   const fuentes = [...inv.palabrasClave, inv.materia];
   for (const f of fuentes) {
-    for (const w of norm3(f).split(/[^a-z0-9ñ]+/)) {
+    for (const w of norm4(f).split(/[^a-z0-9ñ]+/)) {
       if (w.length >= 5 && !STOPWORDS.has(w)) out.add(raiz(w));
     }
   }
@@ -194452,7 +194608,7 @@ function datosDemo() {
 }
 var lista2 = (v) => String(v ?? "").split(/[;|]/).map((x) => x.trim()).filter(Boolean);
 function aEstado(v) {
-  const s = norm3(String(v ?? ""));
+  const s = norm4(String(v ?? ""));
   if (s.startsWith("entreg") || s === "cerrada" || s === "finalizada") return "entregada";
   if (s.startsWith("archiv")) return "archivada";
   return "en_curso";
@@ -194469,7 +194625,7 @@ function parsearInvestigacionesCsv(texto) {
   const parsed = Papa.parse(texto.replace(/^﻿/, ""), {
     header: true,
     skipEmptyLines: true,
-    transformHeader: (h) => norm3(h).replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")
+    transformHeader: (h) => norm4(h).replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")
   });
   const registros = [];
   const rechazados = [];
@@ -194486,7 +194642,7 @@ function parsearInvestigacionesCsv(texto) {
       id,
       area,
       investigador: (r.investigador || "").trim() || "(sin asignar)",
-      tipo: norm3(r.tipo || "").startsWith("parl") ? "parlamentario" : "comision",
+      tipo: norm4(r.tipo || "").startsWith("parl") ? "parlamentario" : "comision",
       solicitante: (r.solicitante || r.comision || "").trim(),
       comision: (r.comision || "").trim() || void 0,
       boletines: lista2(r.boletines || r.boletin).map(normalizarBoletin2),
@@ -194506,7 +194662,7 @@ function parsearAsignacionesCsv(texto) {
   const parsed = Papa.parse(texto.replace(/^﻿/, ""), {
     header: true,
     skipEmptyLines: true,
-    transformHeader: (h) => norm3(h).replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")
+    transformHeader: (h) => norm4(h).replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")
   });
   const registros = [];
   const rechazados = [];
@@ -194674,11 +194830,11 @@ function detectarConexiones(datos, agenda) {
   for (const inv of activas) {
     if (!inv.comision) continue;
     const seguidores = datos.asignaciones.filter(
-      (s) => norm3(s.comision) === norm3(inv.comision) && norm3(s.investigador) !== norm3(inv.investigador)
+      (s) => norm4(s.comision) === norm4(inv.comision) && norm4(s.investigador) !== norm4(inv.investigador)
     );
     for (const s of seguidores) {
       coordinacion.push({
-        id: `com-${inv.id}-${norm3(s.investigador).replace(/\s+/g, "-")}`,
+        id: `com-${inv.id}-${norm4(s.investigador).replace(/\s+/g, "-")}`,
         tipo: "coordinacion",
         titulo: `Informe para ${inv.comision}`,
         mensaje: `${s.investigador} (${s.area || "ATP"}) acompa\xF1a esta comisi\xF3n y quiz\xE1 no sabe que se est\xE1 elaborando este trabajo.`,
@@ -194711,8 +194867,8 @@ function detectarConexiones(datos, agenda) {
     if (!previas || previas.length === 0) continue;
     const comisionesAgenda = agenda.porBoletin.get(bol) || [];
     const yaCubierto = continuidad.some((c) => c.id.startsWith(`cont-${bol}-`));
-    const comisionesATP = new Set(previas.map((p) => norm3(p.comision || "")));
-    const nuevaComision = comisionesAgenda.find((c) => !comisionesATP.has(norm3(c)));
+    const comisionesATP = new Set(previas.map((p) => norm4(p.comision || "")));
+    const nuevaComision = comisionesAgenda.find((c) => !comisionesATP.has(norm4(c)));
     if (yaCubierto || !nuevaComision) continue;
     continuidad.push({
       id: `cont-agenda-${bol}`,
@@ -195034,7 +195190,7 @@ apiRouter.get("/proyecto/:id/comparado", async (req, res) => {
 ${i.texto.slice(0, 5e3)}`).join("\n\n");
   const modificaMatch = proyecto.titulo.match(/\b(?:modifica|introduce modificaciones a|deroga|sustituye|incorpora)\s+(?:la\s+|el\s+)?((?:ley\b|código\b|d\.?f\.?l\.?\b|decreto\s+ley\b)[^,.;]*)/i);
   const leyModificada = modificaMatch ? modificaMatch[1].trim().replace(/\s+/g, " ") : void 0;
-  const prompt = `Eres analista legislativo de la Biblioteca del Congreso Nacional de Chile. Arma un COMPARADO del proyecto Bolet\xEDn N\xB0 ${proyecto.id} ("${proyecto.titulo}") usando SOLO los textos oficiales entregados.
+  const prompt2 = `Eres analista legislativo de la Biblioteca del Congreso Nacional de Chile. Arma un COMPARADO del proyecto Bolet\xEDn N\xB0 ${proyecto.id} ("${proyecto.titulo}") usando SOLO los textos oficiales entregados.
 
 [A] TEXTO DEL MENSAJE/MOCI\xD3N (texto original del proyecto):
 """
@@ -195057,7 +195213,7 @@ No inventes texto. Si un art\xEDculo no aparece en alguna fuente, deja ese campo
   const aiAttempts = [];
   let filas = [];
   try {
-    const aiResponse = await generarContenidoUniversalIA(prompt, 6e3, aiAttempts);
+    const aiResponse = await generarContenidoUniversalIA(prompt2, 6e3, aiAttempts);
     if (aiResponse) {
       const parsed = safeJsonParse(aiResponse);
       if (Array.isArray(parsed)) {
@@ -195118,7 +195274,7 @@ apiRouter.get("/proyecto/:id/indicaciones", async (req, res) => {
   const marcador = ["indicaciones formuladas", "an\xE1lisis de las indicaciones", "analisis de las indicaciones", "discusi\xF3n particular", "discusion particular"].map((m) => textoLower.indexOf(m)).find((idx) => idx !== -1);
   const inicio = marcador !== void 0 ? Math.max(0, marcador - 500) : 0;
   const textoTruncado = texto.length > maxChars ? (inicio > 0 ? "[...inicio del documento omitido...] " : "") + texto.slice(inicio, inicio + maxChars) + " [...documento truncado por extensi\xF3n...]" : texto;
-  const prompt = `Act\xFAa como un analista de sistematizaci\xF3n de indicaciones de la Biblioteca del Congreso Nacional de Chile (BCN). A continuaci\xF3n se entrega el TEXTO REAL del informe de comisi\xF3n "${informe.titulo}" del proyecto de ley Bolet\xEDn N\xB0 ${proyecto.id} ("${proyecto.titulo}"), que contiene las indicaciones (enmiendas) formuladas por parlamentarios y su discusi\xF3n.
+  const prompt2 = `Act\xFAa como un analista de sistematizaci\xF3n de indicaciones de la Biblioteca del Congreso Nacional de Chile (BCN). A continuaci\xF3n se entrega el TEXTO REAL del informe de comisi\xF3n "${informe.titulo}" del proyecto de ley Bolet\xEDn N\xB0 ${proyecto.id} ("${proyecto.titulo}"), que contiene las indicaciones (enmiendas) formuladas por parlamentarios y su discusi\xF3n.
 
 Texto del informe:
 """
@@ -195132,7 +195288,7 @@ Usa EXCLUSIVAMENTE informaci\xF3n que est\xE9 efectivamente en el texto entregad
   const aiAttempts = [];
   let grupos = [];
   try {
-    const aiResponse = await generarContenidoUniversalIA(prompt, 3500, aiAttempts);
+    const aiResponse = await generarContenidoUniversalIA(prompt2, 3500, aiAttempts);
     if (aiResponse) {
       const parsed = safeJsonParse(aiResponse);
       if (Array.isArray(parsed)) grupos = parsed;
@@ -195963,7 +196119,7 @@ apiRouter.post("/alertas/evaluar-topicos", async (req, res) => {
     const listado = candidatos.map((c, i) => `${i + 1}. [${c.chamber}] ${c.comision} \u2014 ${c.fecha}
 Materia: ${c.materia}
 Boletines: ${c.boletines.join(", ") || "ninguno"}`).join("\n\n");
-    const prompt = `Eres un analista legislativo del Congreso de Chile. A continuaci\xF3n hay una lista numerada de citaciones REALES de comisiones de esta semana (C\xE1mara de Diputados y Senado), y una lista de t\xF3picos que un equipo de asuntos p\xFAblicos quiere monitorear.
+    const prompt2 = `Eres un analista legislativo del Congreso de Chile. A continuaci\xF3n hay una lista numerada de citaciones REALES de comisiones de esta semana (C\xE1mara de Diputados y Senado), y una lista de t\xF3picos que un equipo de asuntos p\xFAblicos quiere monitorear.
 
 T\xD3PICOS A MONITOREAR:
 ${keywords.map((k) => `- ${k}`).join("\n")}
@@ -195977,7 +196133,7 @@ Responde \xDANICAMENTE con un array JSON v\xE1lido, sin texto adicional, con est
 [{"numero": 3, "topico": "ciberseguridad", "razon": "La materia trata sobre infraestructura cr\xEDtica de telecomunicaciones."}]
 
 Si no hay ninguna coincidencia real, responde exactamente: []`;
-    const texto = await generarContenidoUniversalIA(prompt, 1800);
+    const texto = await generarContenidoUniversalIA(prompt2, 1800);
     const matches = texto ? safeJsonParse(texto) : null;
     if (!Array.isArray(matches)) {
       return res.json({ alertas: [], aiDisponible: false, totalCitacionesRevisadas: candidatos.length });
@@ -196001,6 +196157,19 @@ Si no hay ninguna coincidencia real, responde exactamente: []`;
     console.error("Error evaluando t\xF3picos de alerta:", error);
     res.status(500).json({ error: "Error al evaluar t\xF3picos de alerta" });
   }
+});
+apiRouter.post("/sesion/informe", async (req, res) => {
+  const b = req.body || {};
+  if (!Array.isArray(b.segmentos)) return res.status(400).json({ disponible: false, motivo: "Falta la transcripci\xF3n." });
+  const str = (v, n) => String(v ?? "").slice(0, n);
+  res.json(await generarInformeSesion({
+    segmentos: b.segmentos.slice(0, 2e4),
+    tabla: (Array.isArray(b.tabla) ? b.tabla : []).map((t) => str(t, 1500)).slice(0, 40),
+    boletines: (Array.isArray(b.boletines) ? b.boletines : []).map((t) => str(t, 20)).slice(0, 40),
+    comision: str(b.comision, 200),
+    fecha: str(b.fecha, 80),
+    parcial: !!b.parcial
+  }));
 });
 apiRouter.get("/sala", async (_req, res) => {
   try {
@@ -196109,7 +196278,7 @@ apiRouter.post("/derecho-comparado/informe-punto", async (req, res) => {
   const bloque = paises.filter((p) => p.texto && !/^(—|No especificado|Aún no analizado|No disponible)/i.test(p.texto)).map((p) => `[${p.pais}] ${p.norma || ""}
 ${p.texto}`).join("\n\n");
   if (!bloque) return res.json({ texto: null, error: "A\xFAn no hay disposiciones analizadas para este punto. Presiona 'Comparar y Generar Todo' primero." });
-  const prompt = `Act\xFAa como analista de Asesor\xEDa T\xE9cnica Parlamentaria. Redacta el informe del siguiente punto de una matriz de derecho comparado sobre "${query}".
+  const prompt2 = `Act\xFAa como analista de Asesor\xEDa T\xE9cnica Parlamentaria. Redacta el informe del siguiente punto de una matriz de derecho comparado sobre "${query}".
 
 PUNTO: ${dimension}
 
@@ -196130,7 +196299,7 @@ Estructura obligatoria en Markdown, con subt\xEDtulos de nivel 3:
 
 Reglas: formal y objetivo; usa SOLO el material entregado; no inventes art\xEDculos, plazos, cifras ni \xF3rganos; si algo no consta, di "el material analizado no lo detalla" (nunca afirmes que una norma carece de algo). Entre 300 y 450 palabras. Responde solo con el informe.`;
   const attempts = [];
-  const texto = await generarContenidoUniversalIA(prompt, 1800, attempts);
+  const texto = await generarContenidoUniversalIA(prompt2, 1800, attempts);
   if (texto && texto.trim().length > 80) return res.json({ texto: texto.trim() });
   res.json({ texto: null, error: "No se pudo redactar el informe.", aiDiagnostics: attempts });
 });
@@ -196152,7 +196321,7 @@ apiRouter.post("/derecho-comparado/redactar", async (req, res) => {
     return res.status(400).json({ error: "Se requiere 'query' y una lista de 'resultados' no vac\xEDa." });
   }
   const listado = resultados.map((r, i) => `${i + 1}. [${r.pais}] ${r.titulo} \u2014 Fuente: ${r.fuente}${r.fecha ? `, ${r.fecha}` : ""}${r.url ? ` (${r.url})` : ""}`).join("\n");
-  const prompt = `Act\xFAa como un analista de Asesor\xEDa T\xE9cnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile (BCN), redactando secciones de un informe de legislaci\xF3n comparada sobre "${query}". A continuaci\xF3n se listan resultados REALES obtenidos de bases legislativas oficiales de distintos pa\xEDses.
+  const prompt2 = `Act\xFAa como un analista de Asesor\xEDa T\xE9cnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile (BCN), redactando secciones de un informe de legislaci\xF3n comparada sobre "${query}". A continuaci\xF3n se listan resultados REALES obtenidos de bases legislativas oficiales de distintos pa\xEDses.
 
 Resultados:
 ${listado}
@@ -196165,7 +196334,7 @@ Donde:
 - "analisis": uno o dos p\xE1rrafos (m\xE1x. 200 palabras en total) en prosa formal, tercera persona, sin emojis ni vi\xF1etas -- el mismo registro que usan los informes de Asesor\xEDa T\xE9cnica Parlamentaria de la BCN: comparando brevemente los enfoques regulatorios identificados entre las jurisdicciones listadas y se\xF1alando, de forma prudente y sin sobre-afirmar, qu\xE9 aspectos podr\xEDan ser de inter\xE9s para la discusi\xF3n legislativa en Chile.
 
 En ambos campos usa EXCLUSIVAMENTE los t\xEDtulos, pa\xEDses y fuentes entregados arriba; no inventes contenido normativo, cifras, sanciones, jurisprudencia ni disposiciones que no est\xE9n respaldadas por lo listado.`;
-  const respuestaIA = await generarContenidoUniversalIA(prompt, 900);
+  const respuestaIA = await generarContenidoUniversalIA(prompt2, 900);
   if (respuestaIA) {
     const parsed = safeJsonParse(respuestaIA);
     if (parsed && parsed.analisis) {
@@ -196187,13 +196356,13 @@ apiRouter.post("/derecho-comparado/informe-seccion", async (req, res) => {
 Estilo: formal, acad\xE9mico, objetivo e institucional. Escribe p\xE1rrafos completos y bien desarrollados (nada de listas de vi\xF1etas ni frases sueltas): cada p\xE1rrafo de 4 a 7 oraciones, con una idea central, conectores l\xF3gicos y terminolog\xEDa jur\xEDdica precisa.
 Precisi\xF3n: basa TODO \xFAnicamente en el material entregado; no inventes art\xEDculos, cifras, plazos, organismos ni sanciones. Cita el art\xEDculo o secci\xF3n cuando aparezca en el material e incorpora literalmente, entre comillas, las citas textuales que ah\xED figuren. Si un dato no est\xE1 disponible, dilo en una frase expl\xEDcita (por ejemplo "El texto analizado no precisa los plazos...") en vez de rellenar con generalidades. No agregues atribuciones, \xE1mbitos, efectos ni funciones que no consten en el material, aunque sean habituales en este tipo de normas o los conozcas por otras fuentes: si el material no lo dice, no lo afirmes. Adem\xE1s, el material es un extracto parcial de la norma: que un dato NO figure en el material NO significa que la norma no lo establezca. Nunca afirmes que una norma "carece de", "no regula" o "no define" algo; di \xFAnicamente que "el material analizado no lo detalla".
 Formato: Markdown. Responde \xDANICAMENTE con la secci\xF3n pedida, sin pre\xE1mbulo ni cierre, y usa exactamente los subt\xEDtulos de nivel 3 ("###") indicados.`;
-  let prompt = "";
+  let prompt2 = "";
   let maxTokens = 2e3;
   if (tipo === "pais") {
     if (!item || !item.pais) return res.status(400).json({ error: "Se requiere 'item'." });
     const puntos = (item.puntos || []).map((p) => `- ${p}`).join("\n") || "(no se pudo extraer texto sustantivo de la fuente oficial)";
     const matriz = (matrizPais || []).filter((m) => m.valor && !/^No especificado/i.test(m.valor)).map((m) => `- ${m.dimension}: ${m.valor}`).join("\n");
-    prompt = `${ESTILO}
+    prompt2 = `${ESTILO}
 
 SECCI\xD3N A REDACTAR: el r\xE9gimen de ${item.pais} (${item.titulo}).
 
@@ -196221,7 +196390,7 @@ Extensi\xF3n total de la secci\xF3n: entre 450 y 650 palabras.`;
     if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ error: "Se requiere 'items'." });
     const bloque = items.map((it) => `- ${it.pais} \u2014 ${it.titulo}: ${it.descripcion || "(sin descripci\xF3n)"}${it.puntos && it.puntos.length > 0 ? `
   Disposiciones destacadas: ${it.puntos.slice(0, 3).join(" | ")}` : ""}`).join("\n");
-    prompt = `${ESTILO}
+    prompt2 = `${ESTILO}
 
 SECCI\xD3N A REDACTAR: resumen e introducci\xF3n del informe, que compara los reg\xEDmenes de ${items.map((i) => i.pais).join(", ")}.
 
@@ -196241,7 +196410,7 @@ Extensi\xF3n total: entre 350 y 450 palabras.`;
     const bloque = seccionesPrevias.map((s) => `[${s.pais}]
 ${s.texto.slice(0, 2600)}`).join("\n\n");
     const hayChile = seccionesPrevias.some((s) => /chile/i.test(s.pais));
-    prompt = `${ESTILO}
+    prompt2 = `${ESTILO}
 
 SECCI\xD3N A REDACTAR: conclusiones y an\xE1lisis comparado, a partir EXCLUSIVAMENTE de las secciones ya redactadas de cada pa\xEDs:
 
@@ -196263,7 +196432,7 @@ Extensi\xF3n total: entre 550 y 750 palabras.`;
     return res.status(400).json({ error: "'tipo' inv\xE1lido." });
   }
   const attempts = [];
-  const texto = await generarContenidoUniversalIA(prompt, maxTokens, attempts);
+  const texto = await generarContenidoUniversalIA(prompt2, maxTokens, attempts);
   if (texto && texto.trim().length > 80) {
     return res.json({ texto: texto.trim() });
   }
@@ -196280,7 +196449,7 @@ apiRouter.post("/derecho-comparado/analizar", async (req, res) => {
   const proveniencia = lecturaGenerica?.proveniencia;
   const diagnosticoIA = [];
   if (textoFuente) {
-    const prompt = `Eres un analista de Asesor\xEDa T\xE9cnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile, redactando la secci\xF3n de un pa\xEDs en un informe de legislaci\xF3n comparada. A continuaci\xF3n se entrega el TEXTO REAL extra\xEDdo de la fuente oficial "${resultado.titulo}" (${resultado.pais}), en relaci\xF3n a la materia "${query}".
+    const prompt2 = `Eres un analista de Asesor\xEDa T\xE9cnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile, redactando la secci\xF3n de un pa\xEDs en un informe de legislaci\xF3n comparada. A continuaci\xF3n se entrega el TEXTO REAL extra\xEDdo de la fuente oficial "${resultado.titulo}" (${resultado.pais}), en relaci\xF3n a la materia "${query}".
 
 Texto de la fuente:
 """
@@ -196299,7 +196468,7 @@ Redacta SIEMPRE en espa\xF1ol, incluso si el texto de la fuente original est\xE1
 
 No inventes disposiciones que no est\xE9n en el texto entregado bajo ninguna circunstancia.`;
     for (let intento = 1; intento <= 2; intento++) {
-      const textoIA = await generarContenidoUniversalIA(prompt, 3500, diagnosticoIA);
+      const textoIA = await generarContenidoUniversalIA(prompt2, 3500, diagnosticoIA);
       if (!textoIA) continue;
       let parsed = null;
       try {
@@ -196342,7 +196511,7 @@ apiRouter.post("/derecho-comparado/sintetizar-comparacion", async (req, res) => 
   }
   const bloque = items.map((it, i) => `${i + 1}. [${it.pais}] ${it.titulo}
 ${(it.puntos || []).map((p) => `   - ${p}`).join("\n")}`).join("\n\n");
-  const prompt = `Act\xFAa como un analista de Asesor\xEDa T\xE9cnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile, redactando un an\xE1lisis comparado sobre "${query}". A continuaci\xF3n se entregan los puntos REALES ya extra\xEDdos del texto de cada norma seleccionada por el usuario para comparar:
+  const prompt2 = `Act\xFAa como un analista de Asesor\xEDa T\xE9cnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile, redactando un an\xE1lisis comparado sobre "${query}". A continuaci\xF3n se entregan los puntos REALES ya extra\xEDdos del texto de cada norma seleccionada por el usuario para comparar:
 
 ${bloque}
 
@@ -196351,7 +196520,7 @@ Redacta un an\xE1lisis comparativo en prosa formal (entre 500 y 700 palabras -- 
 USA EXCLUSIVAMENTE los puntos entregados arriba; no inventes disposiciones, cifras, citas ni mecanismos que no est\xE9n respaldados por ellos. No menciones sentencias, fallos judiciales ni jurisprudencia de ning\xFAn tribunal salvo que aparezcan expl\xEDcitamente citados en los puntos entregados -- no tienes acceso a bases de jurisprudencia y no debes inventar casos ni referencias judiciales. Si los puntos no permiten comparar alg\xFAn aspecto, om\xEDtelo en vez de inventarlo.
 
 Responde solo con el an\xE1lisis, sin encabezados ni markdown.`;
-  const texto = await generarContenidoUniversalIA(prompt, 2e3);
+  const texto = await generarContenidoUniversalIA(prompt2, 2e3);
   if (texto) {
     return res.json({ analisis: texto });
   }
@@ -196365,7 +196534,7 @@ apiRouter.post("/derecho-comparado/lectura-matriz", async (req, res) => {
   }
   const bloqueObjeto = items.map((it) => `- [${it.pais}] ${it.descripcion || "(sin descripci\xF3n disponible)"}`).join("\n");
   const bloquePuntos = items.map((it) => `- [${it.pais}] ${it.puntos && it.puntos.length > 0 ? it.puntos.join(" | ") : "(sin puntos extra\xEDdos del texto de esta norma todav\xEDa)"}`).join("\n");
-  const prompt = `Act\xFAa como un analista de Asesor\xEDa T\xE9cnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile, redactando la "lectura jur\xEDdica" al pie de dos filas de una matriz comparada sobre "${query}".
+  const prompt2 = `Act\xFAa como un analista de Asesor\xEDa T\xE9cnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile, redactando la "lectura jur\xEDdica" al pie de dos filas de una matriz comparada sobre "${query}".
 
 Descripciones oficiales del objeto y \xE1mbito de cada norma:
 ${bloqueObjeto}
@@ -196380,7 +196549,7 @@ Responde \xDANICAMENTE con un objeto JSON v\xE1lido, compacto, sin texto adicion
 - "lecturaDisposiciones": una oraci\xF3n (m\xE1x. 35 palabras) que sintetice, a partir de los puntos/disposiciones entregados, qu\xE9 mecanismo, obligaci\xF3n o diferencia sustantiva m\xE1s relevante surge al comparar esas disposiciones entre pa\xEDses. Si para la mayor\xEDa de los pa\xEDses no hay puntos extra\xEDdos todav\xEDa, responde exactamente: "A\xFAn no hay suficientes disposiciones extra\xEDdas de los pa\xEDses seleccionados para una lectura jur\xEDdica comparativa; genera el an\xE1lisis por pa\xEDs primero."
 
 USA EXCLUSIVAMENTE lo entregado arriba; no inventes mecanismos, cifras, \xF3rganos fiscalizadores ni disposiciones que no est\xE9n respaldados por ese contenido.`;
-  const texto = await generarContenidoUniversalIA(prompt, 800);
+  const texto = await generarContenidoUniversalIA(prompt2, 800);
   if (texto) {
     const parsed = safeJsonParse(texto);
     if (parsed && (parsed.lecturaObjeto || parsed.lecturaDisposiciones)) {
@@ -196405,7 +196574,7 @@ apiRouter.post("/derecho-comparado/matriz-tematica", async (req, res) => {
 Descripci\xF3n: ${it.descripcion || "(sin descripci\xF3n)"}
 Disposiciones reales:
 ${(it.puntos || []).map((p) => `  - ${p}`).join("\n")}`).join("\n\n");
-  const prompt = `Act\xFAa como un analista de Asesor\xEDa T\xE9cnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile, construyendo una MATRIZ COMPARADA TEM\xC1TICA sobre "${query}" entre las siguientes jurisdicciones, a partir de las disposiciones REALES ya extra\xEDdas del texto de cada norma:
+  const prompt2 = `Act\xFAa como un analista de Asesor\xEDa T\xE9cnica Parlamentaria de la Biblioteca del Congreso Nacional de Chile, construyendo una MATRIZ COMPARADA TEM\xC1TICA sobre "${query}" entre las siguientes jurisdicciones, a partir de las disposiciones REALES ya extra\xEDdas del texto de cada norma:
 
 ${bloque}
 
@@ -196425,7 +196594,7 @@ Reglas estrictas:
 - Si para un pa\xEDs no hay disposici\xF3n real que permita llenar una dimensi\xF3n, escribe exactamente "No especificado en las disposiciones disponibles." en su celda -- nunca inventes contenido de relleno.
 - Los nombres de pa\xEDs en "valores" deben ser EXACTAMENTE iguales a los nombres de pa\xEDs entregados arriba (mismo texto).
 - No repitas como dimensi\xF3n el tipo de norma, la fecha ni la fuente (esos datos ya se muestran aparte).`;
-  const texto = await generarContenidoUniversalIA(prompt, 8e3);
+  const texto = await generarContenidoUniversalIA(prompt2, 8e3);
   if (texto) {
     let parsed = null;
     try {
@@ -196601,7 +196770,7 @@ Puede revisar la transmisi\xF3n oficial: "${videoTitle}".` : ""}${fuenteOficialS
 Registro oficial: ${fuenteOficialSesion}` : ""}`;
     return res.json({ success: true, sinFuentes: true, documento: { reportContent: [ficha], boletinId, sesionFecha, comisionNombre, videoTitle, videoId, transcriptAvailable: false }, reportContent: [ficha], transcriptAvailable: false });
   }
-  const prompt = `Act\xFAa como un analista legislativo experto de la Biblioteca del Congreso Nacional de Chile.
+  const prompt2 = `Act\xFAa como un analista legislativo experto de la Biblioteca del Congreso Nacional de Chile.
 Redacta un informe t\xE9cnico de 3 secciones/p\xE1ginas de la sesi\xF3n parlamentaria para ser publicado en el expediente del proyecto de ley.
 
 Informaci\xF3n de la Sesi\xF3n:
@@ -196653,7 +196822,7 @@ P\xC1GINA 3:
   let reportPages = [];
   const aiAttempts = [];
   try {
-    const reportText = await generarContenidoUniversalIA(prompt, 3500, aiAttempts);
+    const reportText = await generarContenidoUniversalIA(prompt2, 3500, aiAttempts);
     if (reportText) {
       if (reportText.includes("===PAGINA===")) {
         reportPages = reportText.split("===PAGINA===").map((p) => p.trim()).filter(Boolean);
@@ -196797,7 +196966,7 @@ apiRouter.post("/statistics/analizar-dataset", async (req, res) => {
     const top = (c.topValores || []).map((t) => `${t.valor} (${t.conteo})`).join(", ");
     return `- ${c.nombre} (categ\xF3rico): ${c.valoresUnicos} valores \xFAnicos, m\xE1s frecuentes: ${top || "N/D"}, valores nulos=${c.nulos}`;
   }).join("\n");
-  const prompt = `Act\xFAa como un analista de datos legislativos. A continuaci\xF3n se entregan las estad\xEDsticas REALES, YA CALCULADAS, de un dataset llamado "${nombre}" con ${totalFilas} filas y ${columnas.length} columnas, subido por un analista parlamentario.
+  const prompt2 = `Act\xFAa como un analista de datos legislativos. A continuaci\xF3n se entregan las estad\xEDsticas REALES, YA CALCULADAS, de un dataset llamado "${nombre}" con ${totalFilas} filas y ${columnas.length} columnas, subido por un analista parlamentario.
 
 Estad\xEDsticas por columna:
 ${columnasTexto}
@@ -196807,7 +196976,7 @@ Redacta un informe breve (m\xE1x. 220 palabras) en prosa formal, en tercera pers
 USA EXCLUSIVAMENTE las cifras entregadas arriba. No inventes valores, columnas ni conclusiones que no se desprendan directamente de esas estad\xEDsticas. Si el prop\xF3sito del dataset no es evidente a partir de los nombres de columna, dilo expl\xEDcitamente en vez de adivinar.
 
 Responde solo con el informe, sin encabezados ni markdown.`;
-  const texto = await generarContenidoUniversalIA(prompt, 600);
+  const texto = await generarContenidoUniversalIA(prompt2, 600);
   if (texto) {
     return res.json({ informe: texto });
   }

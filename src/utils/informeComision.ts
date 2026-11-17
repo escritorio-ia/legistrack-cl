@@ -13,6 +13,8 @@ export interface AnalisisVideoUI {
   acuerdos: string[];
   votaciones: string[];
   oradores: string[];      // un elemento por intervención
+  /** Intervenciones del informe de la sesión ligadas a un boletín (para las posturas por boletín). */
+  intervenciones?: { boletines: string[]; orador: string; cargo: string; postura: string; segundos: number }[];
 }
 
 export interface InformeComision {
@@ -30,6 +32,8 @@ export interface InformeComision {
   }[];
   oradores: { nombre: string; intervenciones: number }[];
   sesionesConVideo: number;
+  /** Posturas por boletín, desde los informes de sesión (transcripciones). */
+  posturas: { boletin: string; items: { fecha: string; videoId: string; orador: string; cargo: string; postura: string; segundos: number }[] }[];
 }
 
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -73,7 +77,14 @@ export function calcularInformeComision(sesiones: SesionRegistradaUI[], videos: 
     const e = oradores.get(k) || { nombre: n, intervenciones: 0 }; e.intervenciones++; oradores.set(k, e);
   }
 
+  const posturas = new Map<string, InformeComision["posturas"][number]["items"]>();
+  for (const v of usados) for (const i of v.intervenciones || []) for (const b of i.boletines) {
+    posturas.set(b, [...(posturas.get(b) || []), { fecha: v.fechaISO!, videoId: v.videoId, orador: i.orador, cargo: i.cargo, postura: i.postura, segundos: i.segundos }]);
+  }
+
   return {
+    posturas: [...posturas.entries()].map(([boletin, items]) => ({ boletin, items: items.sort((a, b) => b.fecha.localeCompare(a.fecha) || a.segundos - b.segundos) }))
+      .sort((a, b) => b.items.length - a.items.length),
     desde, hasta: hoyIso,
     realizadas: realizadas.length, programadas: programadas.length,
     ultima: realizadas.at(-1)?.fecha || null, proxima: programadas[0]?.fecha || null,
@@ -90,7 +101,7 @@ export function informeATexto(nombre: string, camara: string, inf: InformeComisi
   const L: string[] = [];
   L.push(`INFORME RESUMEN · ${nombre} (${camara})`);
   L.push(`Período: ${inf.desde || "todo el registro"} a ${inf.hasta}`);
-  L.push(`Sesiones realizadas: ${inf.realizadas} · Programadas: ${inf.programadas} · Boletines tratados: ${inf.boletines.length} · Sesiones con video analizado: ${inf.sesionesConVideo}`);
+  L.push(`Sesiones realizadas: ${inf.realizadas} · Programadas: ${inf.programadas} · Boletines tratados: ${inf.boletines.length} · Sesiones con informe (transcripción): ${inf.sesionesConVideo}`);
   L.push("", "BOLETINES TRATADOS");
   for (const b of inf.boletines) L.push(`- ${b.boletin}: ${b.sesiones} sesión(es), última ${b.ultima}${b.accion ? `, ${b.accion.toLowerCase()}` : ""}`);
   L.push("", "CRONOLOGÍA DE SESIONES");
@@ -99,9 +110,14 @@ export function informeATexto(nombre: string, camara: string, inf: InformeComisi
     s.puntos.forEach((p, i) => { L.push(`  ${i + 1}. ${p.texto}`); if (p.acuerdos) L.push(`     Acuerdos: ${p.acuerdos}`); });
     if (s.resultado) L.push(`  Resultado oficial: ${s.resultado}`);
     if (s.invitados) L.push(`  Invitados: ${s.invitados}`);
-    if (s.video?.resumenes.length) L.push(`  Resumen del video (IA): ${s.video.resumenes.join(" ")}`);
+    if (s.video?.resumenes.length) L.push(`  Resumen (informe desde la transcripción): ${s.video.resumenes.join(" ")}`);
+    for (const a of s.video?.acuerdos || []) L.push(`  Acuerdo (transcripción): ${a}`);
   }
-  if (inf.oradores.length) { L.push("", "ORADORES (análisis de video)"); for (const o of inf.oradores.slice(0, 20)) L.push(`- ${o.nombre}: ${o.intervenciones} intervención(es)`); }
-  L.push("", "Fuentes: registro automático de sesiones (citaciones, registro, detalle y resultados oficiales) y análisis de video con IA de las transmisiones oficiales.");
+  if (inf.posturas.length) {
+    L.push("", "POSTURAS POR BOLETÍN (desde las transcripciones)");
+    for (const p of inf.posturas) { L.push(`Boletín ${p.boletin}`); for (const i of p.items) L.push(`  - ${i.fecha} · ${i.orador}${i.cargo ? ` (${i.cargo})` : ""}: ${i.postura}`); }
+  }
+  if (inf.oradores.length) { L.push("", "ORADORES (transcripciones)"); for (const o of inf.oradores.slice(0, 20)) L.push(`- ${o.nombre}: ${o.intervenciones} intervención(es)`); }
+  L.push("", "Fuentes: registro automático de sesiones (citaciones, registro, detalle y resultados oficiales) e informes de sesión generados con IA desde la transcripción automática de las transmisiones oficiales (no oficiales).");
   return L.join("\n");
 }

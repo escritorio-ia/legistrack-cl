@@ -419,19 +419,28 @@ export async function saveAnalisisVideoToFirestore(videoId: string, data: any): 
 
 export { normalizarBoletin, boletinesEnTexto } from "../utils/boletines";
 
-/** Análisis de video guardados de una comisión (por el nombre con que se guardaron). Excluye las transcripciones. */
-export async function getAnalisisVideoPorComision(nombre: string): Promise<any[]> {
+/** Informe de sesión generado desde la transcripción (documento `<videoId>__i`). */
+export async function getInformeSesion(videoId: string): Promise<any | null> {
+  if (!db || !videoId) return null;
+  try { const snap = await getDoc(doc(db, COLLECTIONS.ANALISIS_VIDEOS, `${videoId}__i`)); return snap.exists() ? snap.data() : null; }
+  catch (err) { console.warn(`No se pudo leer el informe de ${videoId}:`, err); return null; }
+}
+export async function saveInformeSesion(videoId: string, data: any): Promise<boolean> {
+  if (!db || !videoId) return false;
+  try { await setDoc(doc(db, COLLECTIONS.ANALISIS_VIDEOS, `${videoId}__i`), { ...data, tipo: "informe", videoId, updatedAt: new Date().toISOString() }, { merge: true }); return true; }
+  catch (err) { console.warn(`No se pudo guardar el informe de ${videoId}:`, err); return false; }
+}
+/** Informes de sesión de una comisión (por el nombre con que se guardaron). */
+export async function getInformesSesionPorComision(nombre: string): Promise<any[]> {
   if (!db || !nombre) return [];
   try {
     const snap = await getDocs(query(collection(db, COLLECTIONS.ANALISIS_VIDEOS), where("comision", "==", nombre)));
     const out: any[] = [];
-    snap.forEach((d) => { const x: any = d.data(); if (x.tipo !== "transcripcion" && !d.id.endsWith("__t")) out.push({ ...x, videoId: x.videoId || d.id }); });
+    snap.forEach((d) => { const x: any = d.data(); if (x.tipo === "informe") out.push(x); });
     return out;
-  } catch (err) {
-    console.warn(`No se pudieron leer los análisis de video de ${nombre}:`, err);
-    return [];
-  }
+  } catch (err) { console.warn(`No se pudieron leer los informes de ${nombre}:`, err); return []; }
 }
+
 
 /**
  * Transcripción automática del video de una sesión. Va en un documento propio (`<videoId>__t`) para no
@@ -466,6 +475,7 @@ export interface RegistroVideoSesion {
   fecha?: string;
   tabla?: string[];
   boletines: string[];
+  tieneInforme?: boolean;
   tieneAnalisis: boolean;
   analisisCompleto: boolean;
   tieneTranscripcion: boolean;
@@ -488,7 +498,8 @@ export async function getRegistrosVideoPorBoletin(boletin: string): Promise<Regi
       const videoId = String(x.videoId || d.id.replace(/__t$/, ""));
       const r = porVideo.get(videoId) || { videoId, boletines: [], tieneAnalisis: false, analisisCompleto: false, tieneTranscripcion: false, transcripcionCompleta: false };
       const conPartes = Array.isArray(x.partes) && x.partes.some((p: any) => p?.disponible);
-      if (x.tipo === "transcripcion") { r.tieneTranscripcion = conPartes; r.transcripcionCompleta = !!x.completo; }
+      if (x.tipo === "informe") { r.tieneInforme = !!x.informe; }
+      else if (x.tipo === "transcripcion") { r.tieneTranscripcion = conPartes; r.transcripcionCompleta = !!x.completo; }
       else { r.tieneAnalisis = conPartes; r.analisisCompleto = !!x.completo; }
       r.titulo = r.titulo || x.titulo; r.comision = r.comision || x.comision; r.fecha = r.fecha || x.fecha;
       r.tabla = r.tabla || (Array.isArray(x.tabla) ? x.tabla : undefined);
@@ -496,7 +507,7 @@ export async function getRegistrosVideoPorBoletin(boletin: string): Promise<Regi
       r.actualizado = [r.actualizado, x.updatedAt].filter(Boolean).sort().slice(-1)[0];
       porVideo.set(videoId, r);
     });
-    return Array.from(porVideo.values()).filter((r) => r.tieneAnalisis || r.tieneTranscripcion);
+    return Array.from(porVideo.values()).filter((r) => r.tieneAnalisis || r.tieneTranscripcion || r.tieneInforme);
   } catch (err) {
     console.warn(`No se pudieron leer las sesiones del boletín ${boletin}:`, err);
     return [];

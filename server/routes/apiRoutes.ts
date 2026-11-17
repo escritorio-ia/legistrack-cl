@@ -1,4 +1,5 @@
 import { sincronizarRegistroSesiones, sesionesRegistradasDeBoletin, sesionesRegistradasDeComision } from "../services/registroSesionesService";
+import { generarInformeSesion } from "../services/informeSesionService";
 import { salaSemana, importarTablaSenado, sincronizarSala, sesionesSalaDeBoletin } from "../services/salaService";
 import { discusionDeProyecto } from "../services/discusionService";
 import { construirResumenSesion } from "../services/resumenSesionService";
@@ -1547,6 +1548,19 @@ Si no hay ninguna coincidencia real, responde exactamente: []`;
     console.error("Error evaluando tópicos de alerta:", error);
     res.status(500).json({ error: "Error al evaluar tópicos de alerta" });
   }
+});
+
+// Informe de una sesión de comisión redactado solo a partir de su transcripción (validado contra ella).
+apiRouter.post("/sesion/informe", async (req: Request, res: Response) => {
+  const b: any = req.body || {};
+  if (!Array.isArray(b.segmentos)) return res.status(400).json({ disponible: false, motivo: "Falta la transcripción." });
+  const str = (v: any, n: number) => String(v ?? "").slice(0, n);
+  res.json(await generarInformeSesion({
+    segmentos: b.segmentos.slice(0, 20000),
+    tabla: (Array.isArray(b.tabla) ? b.tabla : []).map((t: any) => str(t, 1500)).slice(0, 40),
+    boletines: (Array.isArray(b.boletines) ? b.boletines : []).map((t: any) => str(t, 20)).slice(0, 40),
+    comision: str(b.comision, 200), fecha: str(b.fecha, 80), parcial: !!b.parcial,
+  }));
 });
 
 // Sala de sesiones de la semana (Cámara: opendata; Senado: tabla semanal), cada punto ligado a su boletín.

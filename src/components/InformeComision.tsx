@@ -2,7 +2,9 @@ import React, { useEffect, useMemo, useState } from "react";
 import { FileText, Copy, Printer, Video } from "lucide-react";
 import type { SesionRegistradaUI } from "../utils/metricasBoletin";
 import { calcularInformeComision, informeATexto, type AnalisisVideoUI } from "../utils/informeComision";
-import { getAnalisisVideoPorComision } from "../services/firebaseService";
+import { getInformesSesionPorComision } from "../services/firebaseService";
+import type { InformeSesion } from "../utils/informeSesion";
+import { formatoMinutoInforme } from "../utils/informeSesion";
 import { tiempoDeSesion } from "../utils/boletines";
 
 const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
@@ -28,18 +30,20 @@ export default function InformeComision({ nombre, camara, registro, onAbrirBolet
 
   useEffect(() => {
     let vigente = true;
-    getAnalisisVideoPorComision(nombre).then((docs) => {
+    getInformesSesionPorComision(nombre).then((docs) => {
       if (!vigente) return;
       setVideos(docs.map((x: any) => {
-        const partes = (Array.isArray(x.partes) ? x.partes : []).filter((p: any) => p?.disponible);
+        const inf: InformeSesion = x.informe;
+        const intervenciones = inf.puntos.flatMap((p) => p.intervenciones.map((i) => ({ ...i, boletines: p.boletines })));
         return {
           videoId: x.videoId, fecha: x.fecha, fechaISO: isoDe(tiempoDeSesion(x.fecha)),
-          resumenes: partes.map((p: any) => p.resumen).filter(Boolean),
-          acuerdos: partes.flatMap((p: any) => p.acuerdos || []),
-          votaciones: partes.flatMap((p: any) => p.votaciones || []),
-          oradores: partes.flatMap((p: any) => (p.intervenciones || []).map((i: any) => String(i.orador || ""))),
+          resumenes: inf.resumen ? [inf.resumen] : [],
+          acuerdos: inf.puntos.flatMap((p) => [...p.acuerdos.map((a) => a.texto), ...p.votaciones.map((v) => `${v.texto} · ${v.resultado}`)]),
+          votaciones: [],
+          oradores: intervenciones.map((i) => i.orador),
+          intervenciones,
         };
-      }).filter((v) => v.resumenes.length || v.oradores.length));
+      }));
     });
     return () => { vigente = false; };
   }, [nombre]);
@@ -66,7 +70,7 @@ export default function InformeComision({ nombre, camara, registro, onAbrirBolet
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="text-sm font-black text-slate-900 flex items-center gap-2"><FileText className="w-4 h-4 text-blue-600" />Informe resumen de la comisión</h3>
-          <p className="text-[11px] text-slate-500">Compilado del registro automático de sesiones (fuentes oficiales) y de los análisis de video guardados. Se actualiza solo.</p>
+          <p className="text-[11px] text-slate-500">Compilado del registro automático de sesiones (fuentes oficiales) y de los informes de sesión hechos desde las transcripciones. Se actualiza solo.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <select value={periodo} onChange={(e) => setPeriodo(e.target.value)} className="text-xs border border-slate-300 rounded-lg px-2 py-1.5 bg-white">
@@ -85,7 +89,7 @@ export default function InformeComision({ nombre, camara, registro, onAbrirBolet
               <Kpi t="Sesiones realizadas" v={inf.realizadas} s={inf.programadas ? `${inf.programadas} programada(s)` : undefined} />
               <Kpi t="Boletines tratados" v={inf.boletines.length} />
               <Kpi t="Última sesión" v={fmt(inf.ultima)} s={inf.proxima ? `próxima: ${fmt(inf.proxima)}` : undefined} />
-              <Kpi t="Con video analizado" v={`${inf.sesionesConVideo} de ${inf.realizadas}`} />
+              <Kpi t="Con informe de sesión" v={`${inf.sesionesConVideo} de ${inf.realizadas}`} />
             </div>
 
             {inf.boletines.length > 0 && (
@@ -124,7 +128,10 @@ export default function InformeComision({ nombre, camara, registro, onAbrirBolet
                     {s.resultado && <p className="mt-1 text-emerald-800"><b>Resultado oficial:</b> {s.resultado}</p>}
                     {s.invitados && <p className="mt-1 text-slate-600"><b>Invitados:</b> {s.invitados}</p>}
                     {s.video && s.video.resumenes.length > 0 && (
-                      <p className="mt-1.5 text-slate-700 bg-rose-50/60 border border-rose-100 rounded-lg p-2"><Video className="w-3 h-3 inline mr-1 text-rose-600" /><b>Resumen del video (IA):</b> {s.video.resumenes.join(" ")}</p>
+                      <div className="mt-1.5 text-slate-700 bg-rose-50/60 border border-rose-100 rounded-lg p-2">
+                        <p><Video className="w-3 h-3 inline mr-1 text-rose-600" /><b>Informe de la sesión (desde la transcripción):</b> {s.video.resumenes.join(" ")}</p>
+                        {s.video.acuerdos.map((a, j) => <p key={j} className="text-emerald-800 mt-0.5">• {a}</p>)}
+                      </div>
                     )}
                   </li>
                 ))}
@@ -132,9 +139,30 @@ export default function InformeComision({ nombre, camara, registro, onAbrirBolet
               {inf.cronologia.length > 6 && <button onClick={() => setVerTodas(!verTodas)} className="mt-2 text-xs font-bold text-blue-600 hover:underline cursor-pointer">{verTodas ? "Ver menos" : `Ver las ${inf.cronologia.length} sesiones`}</button>}
             </div>
 
+            {inf.posturas.length > 0 && (
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">Posturas por boletín (desde las transcripciones)</p>
+                <div className="flex flex-col gap-2">
+                  {inf.posturas.map((p) => (
+                    <details key={p.boletin} className="border border-slate-200 rounded-xl p-3 text-xs">
+                      <summary className="cursor-pointer flex items-center gap-2">{chip(p.boletin)}<span className="text-slate-600">{p.items.length} {p.items.length === 1 ? "intervención" : "intervenciones"}</span></summary>
+                      <ul className="mt-2 flex flex-col gap-1.5">
+                        {p.items.map((i, j) => (
+                          <li key={j} className="text-slate-700">
+                            <a href={`https://www.youtube.com/watch?v=${i.videoId}&t=${Math.round(i.segundos)}s`} target="_blank" rel="noopener noreferrer" className="font-mono text-rose-700 hover:underline mr-1">{fmt(i.fecha)} {formatoMinutoInforme(i.segundos)}</a>
+                            <b>{i.orador}</b>{i.cargo ? ` (${i.cargo})` : ""}: {i.postura}
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {inf.oradores.length > 0 && (
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">Quiénes intervinieron (análisis de video)</p>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">Quiénes intervinieron (transcripciones)</p>
                 <div className="flex flex-wrap gap-1.5">{inf.oradores.slice(0, 24).map((o) => <span key={o.nombre} className="text-[11px] bg-slate-100 text-slate-700 rounded-md px-2 py-0.5">{o.nombre} · {o.intervenciones}</span>)}</div>
               </div>
             )}
