@@ -54,7 +54,7 @@ ESTILO del desarrollo (como los informes de comisión del Senado de Chile):
 - Cada intervención se presenta con cargo e institución y nombre, si se dicen en la transcripción: "El Subsecretario de Agricultura, señor ...,";
   para parlamentarios: "El Honorable Senador señor ..." / "La Honorable Diputada señora ...". Si no se dice el cargo, déjalo vacío.
 - Verbos de relato variados: explicó, señaló, precisó, sostuvo, agregó, consultó, respondió, manifestó, propuso, concluyó.
-- Cada intervención en 1 a 5 párrafos de 2 a 4 oraciones, con las ideas, cifras y argumentos que se dicen (solo los dichos).
+- Cada intervención en 1 a 4 párrafos de 2 a 4 oraciones, con las ideas, cifras y argumentos que se dicen (solo los dichos).
 - Si una misma persona habla varias veces separadas por otras intervenciones, son intervenciones distintas, cada una con su minuto.
 - Votaciones como se informan: "Puesto en votación el proyecto, en general, fue aprobado por ..." con el resultado y los votos si se dicen.
 
@@ -84,6 +84,31 @@ Responde solo JSON con esta forma:
 TRANSCRIPCIÓN:
 ${p.transcripcion}`;
 }
+
+/**
+ * Esquema de salida para Gemini (salida estructurada): obliga a entregar JSON válido con esta forma,
+ * evitando respuestas mal formadas (comillas sin escapar, comas faltantes).
+ */
+const S = (type: string, extra: any = {}) => ({ type, ...extra });
+const ESQUEMA = S("OBJECT", {
+  properties: {
+    resumen: S("STRING"),
+    sintesis: S("ARRAY", { items: S("STRING") }),
+    puntos: S("ARRAY", { items: S("OBJECT", { properties: {
+      numero: S("INTEGER"), titulo: S("STRING"), boletines: S("ARRAY", { items: S("STRING") }), estado: S("STRING"), sintesis: S("STRING"),
+      intervenciones: S("ARRAY", { items: S("OBJECT", { properties: {
+        orador: S("STRING"), cargo: S("STRING"), institucion: S("STRING"),
+        categoria: S("STRING", { enum: ["PARL", "ESP", "ESC", "EEA", "SEC"] }), minuto: S("STRING"),
+        parrafos: S("ARRAY", { items: S("STRING") }),
+      }, required: ["orador", "categoria", "minuto", "parrafos"] }) }),
+      acuerdos: S("ARRAY", { items: S("OBJECT", { properties: { texto: S("STRING"), minuto: S("STRING"), fuente: S("STRING", { enum: ["transcripcion", "oficial"] }) }, required: ["texto", "fuente"] }) }),
+      votaciones: S("ARRAY", { items: S("OBJECT", { properties: { texto: S("STRING"), resultado: S("STRING"), minuto: S("STRING"), fuente: S("STRING", { enum: ["transcripcion", "oficial"] }) }, required: ["texto", "fuente"] }) }),
+    }, required: ["numero", "titulo", "intervenciones"] }) }),
+    compromisos: S("ARRAY", { items: S("OBJECT", { properties: { texto: S("STRING"), responsable: S("STRING"), minuto: S("STRING") }, required: ["texto"] }) }),
+    pendientes: S("ARRAY", { items: S("STRING") }),
+  },
+  required: ["resumen", "puntos"],
+});
 
 function extraerJSON(texto: string): any {
   const t = String(texto || "").replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
@@ -136,7 +161,7 @@ export async function generarInformeSesion(p: {
   const limite = Date.now() + 270_000;
   const cuerpo = JSON.stringify({
     contents: [{ parts: [{ text: prompt({ comision: p.comision, fecha: p.fecha, tabla: p.tabla || [], boletines: p.boletines || [], transcripcion, oficial }) }] }],
-    generationConfig: { temperature: 0.15, maxOutputTokens: 32000, responseMimeType: "application/json" },
+    generationConfig: { temperature: 0.15, maxOutputTokens: 32000, responseMimeType: "application/json", responseSchema: ESQUEMA },
   });
   for (const model of candidatos) {
     // Saturación temporal (503/429/500): hasta 3 intentos con espera creciente antes de pasar al siguiente modelo.
@@ -149,7 +174,7 @@ export async function generarInformeSesion(p: {
           method: "POST",
           headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
           body: cuerpo,
-          signal: AbortSignal.timeout(Math.min(150_000, limite - Date.now())),
+          signal: AbortSignal.timeout(Math.min(230_000, limite - Date.now())),
         });
         if (!r.ok) {
           errores.push(`${model}: HTTP ${r.status}${intento ? ` (intento ${intento + 1})` : ""}`);
@@ -159,7 +184,14 @@ export async function generarInformeSesion(p: {
         const data: any = await r.json();
         const texto = (data?.candidates?.[0]?.content?.parts || []).map((x: any) => x.text || "").join("");
         if (!texto) { errores.push(`${model}: respuesta vacía (${data?.candidates?.[0]?.finishReason || "sin motivo"})`); break; }
-        const informe = validarInforme(extraerJSON(texto), segmentos, p.boletines || [], !!p.parcial, oficial);
+        let crudo: any;
+        try { crudo = extraerJSON(texto); }
+        catch (e: any) {
+          const fin = data?.candidates?.[0]?.finishReason;
+          errores.push(`${model}: JSON no válido${fin && fin !== "STOP" ? ` (${fin})` : ""}`);
+          continue; // reintenta el mismo modelo
+        }
+        const informe = validarInforme(crudo, segmentos, p.boletines || [], !!p.parcial, oficial);
         if (!informe.resumen && informe.puntos.length === 0) { errores.push(`${model}: informe sin contenido verificable`); break; }
         return { disponible: true, informe: { ...informe, modelo: model, generado: new Date().toISOString() } };
       } catch (err: any) {

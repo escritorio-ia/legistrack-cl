@@ -188940,7 +188940,7 @@ ESTILO del desarrollo (como los informes de comisi\xF3n del Senado de Chile):
 - Cada intervenci\xF3n se presenta con cargo e instituci\xF3n y nombre, si se dicen en la transcripci\xF3n: "El Subsecretario de Agricultura, se\xF1or ...,";
   para parlamentarios: "El Honorable Senador se\xF1or ..." / "La Honorable Diputada se\xF1ora ...". Si no se dice el cargo, d\xE9jalo vac\xEDo.
 - Verbos de relato variados: explic\xF3, se\xF1al\xF3, precis\xF3, sostuvo, agreg\xF3, consult\xF3, respondi\xF3, manifest\xF3, propuso, concluy\xF3.
-- Cada intervenci\xF3n en 1 a 5 p\xE1rrafos de 2 a 4 oraciones, con las ideas, cifras y argumentos que se dicen (solo los dichos).
+- Cada intervenci\xF3n en 1 a 4 p\xE1rrafos de 2 a 4 oraciones, con las ideas, cifras y argumentos que se dicen (solo los dichos).
 - Si una misma persona habla varias veces separadas por otras intervenciones, son intervenciones distintas, cada una con su minuto.
 - Votaciones como se informan: "Puesto en votaci\xF3n el proyecto, en general, fue aprobado por ..." con el resultado y los votos si se dicen.
 
@@ -188970,6 +188970,33 @@ Responde solo JSON con esta forma:
 TRANSCRIPCI\xD3N:
 ${p.transcripcion}`;
 }
+var S = (type, extra = {}) => ({ type, ...extra });
+var ESQUEMA = S("OBJECT", {
+  properties: {
+    resumen: S("STRING"),
+    sintesis: S("ARRAY", { items: S("STRING") }),
+    puntos: S("ARRAY", { items: S("OBJECT", { properties: {
+      numero: S("INTEGER"),
+      titulo: S("STRING"),
+      boletines: S("ARRAY", { items: S("STRING") }),
+      estado: S("STRING"),
+      sintesis: S("STRING"),
+      intervenciones: S("ARRAY", { items: S("OBJECT", { properties: {
+        orador: S("STRING"),
+        cargo: S("STRING"),
+        institucion: S("STRING"),
+        categoria: S("STRING", { enum: ["PARL", "ESP", "ESC", "EEA", "SEC"] }),
+        minuto: S("STRING"),
+        parrafos: S("ARRAY", { items: S("STRING") })
+      }, required: ["orador", "categoria", "minuto", "parrafos"] }) }),
+      acuerdos: S("ARRAY", { items: S("OBJECT", { properties: { texto: S("STRING"), minuto: S("STRING"), fuente: S("STRING", { enum: ["transcripcion", "oficial"] }) }, required: ["texto", "fuente"] }) }),
+      votaciones: S("ARRAY", { items: S("OBJECT", { properties: { texto: S("STRING"), resultado: S("STRING"), minuto: S("STRING"), fuente: S("STRING", { enum: ["transcripcion", "oficial"] }) }, required: ["texto", "fuente"] }) })
+    }, required: ["numero", "titulo", "intervenciones"] }) }),
+    compromisos: S("ARRAY", { items: S("OBJECT", { properties: { texto: S("STRING"), responsable: S("STRING"), minuto: S("STRING") }, required: ["texto"] }) }),
+    pendientes: S("ARRAY", { items: S("STRING") })
+  },
+  required: ["resumen", "puntos"]
+});
 function extraerJSON(texto) {
   const t = String(texto || "").replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
   try {
@@ -189011,7 +189038,7 @@ async function generarInformeSesion(p) {
   const limite = Date.now() + 27e4;
   const cuerpo = JSON.stringify({
     contents: [{ parts: [{ text: prompt({ comision: p.comision, fecha: p.fecha, tabla: p.tabla || [], boletines: p.boletines || [], transcripcion, oficial }) }] }],
-    generationConfig: { temperature: 0.15, maxOutputTokens: 32e3, responseMimeType: "application/json" }
+    generationConfig: { temperature: 0.15, maxOutputTokens: 32e3, responseMimeType: "application/json", responseSchema: ESQUEMA }
   });
   for (const model of candidatos) {
     for (let intento = 0; intento < 3; intento++) {
@@ -189023,7 +189050,7 @@ async function generarInformeSesion(p) {
           method: "POST",
           headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
           body: cuerpo,
-          signal: AbortSignal.timeout(Math.min(15e4, limite - Date.now()))
+          signal: AbortSignal.timeout(Math.min(23e4, limite - Date.now()))
         });
         if (!r.ok) {
           errores.push(`${model}: HTTP ${r.status}${intento ? ` (intento ${intento + 1})` : ""}`);
@@ -189036,7 +189063,15 @@ async function generarInformeSesion(p) {
           errores.push(`${model}: respuesta vac\xEDa (${data?.candidates?.[0]?.finishReason || "sin motivo"})`);
           break;
         }
-        const informe = validarInforme(extraerJSON(texto), segmentos, p.boletines || [], !!p.parcial, oficial);
+        let crudo;
+        try {
+          crudo = extraerJSON(texto);
+        } catch (e) {
+          const fin = data?.candidates?.[0]?.finishReason;
+          errores.push(`${model}: JSON no v\xE1lido${fin && fin !== "STOP" ? ` (${fin})` : ""}`);
+          continue;
+        }
+        const informe = validarInforme(crudo, segmentos, p.boletines || [], !!p.parcial, oficial);
         if (!informe.resumen && informe.puntos.length === 0) {
           errores.push(`${model}: informe sin contenido verificable`);
           break;
