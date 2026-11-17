@@ -16,7 +16,8 @@ import {
   Gavel
 } from "lucide-react";
 import { getAnalisisVideoFromFirestore, saveAnalisisVideoToFirestore, getTranscripcionVideoFromFirestore, saveTranscripcionVideoToFirestore, getInformeSesion, saveInformeSesion, boletinesEnTexto, normalizarBoletin } from "../services/firebaseService";
-import { type InformeSesion, informeSesionATexto } from "../utils/informeSesion";
+import { type InformeSesion, informeSesionATexto, normalizarInforme } from "../utils/informeSesion";
+import InformeSesionHoja from "./InformeSesionHoja";
 
 export interface TranscriptSnippet {
   seconds: number;
@@ -175,6 +176,15 @@ export default function YouTubeTranscriptModal({
   const [informe, setInforme] = useState<InformeSesion | null>(null);
   const [estadoI, setEstadoI] = useState<"sin" | "generando" | "listo" | "error">("sin");
   const [mensajeI, setMensajeI] = useState("");
+  // Avance del informe: Gemini no informa progreso, así que se estima por el tiempo transcurrido frente al
+  // tiempo esperado según el largo de la transcripción. Nunca pasa de 95 % hasta que llega la respuesta.
+  const [avanceI, setAvanceI] = useState<{ inicio: number; esperado: number } | null>(null);
+  const [, setTic] = useState(0);
+  useEffect(() => {
+    if (!avanceI) return;
+    const t = setInterval(() => setTic(x => x + 1), 1000);
+    return () => clearInterval(t);
+  }, [avanceI]);
   const [duracion, setDuracion] = useState<number | null>(null);
   const [inicio, setInicio] = useState(0);
   const [filtro, setFiltro] = useState("");
@@ -200,7 +210,7 @@ export default function YouTubeTranscriptModal({
       setPartesT(previasT);
       setEstadoT(previasT.some(p => p.disponible) ? "listo" : "sin");
       setMensajeT(previasT.length && !guardadoT?.completo ? "La transcripción guardada está incompleta; puede continuarla." : "");
-      if (guardadoI?.informe) { setInforme(guardadoI.informe); setEstadoI("listo"); }
+      if (guardadoI?.informe) { setInforme(normalizarInforme(guardadoI.informe)); setEstadoI("listo"); }
       else { setInforme(null); setEstadoI("sin"); }
     })();
     return () => { cancelado.current = true; };
@@ -261,7 +271,9 @@ export default function YouTubeTranscriptModal({
     const segs = partes.filter(p => p.disponible).flatMap(p => p.segmentos || []);
     if (segs.length === 0) { setEstadoI("error"); setMensajeI("No hay transcripción con texto para redactar el informe."); return; }
     setEstadoI("generando");
-    setMensajeI("Redactando el informe a partir de la transcripción… (1 a 3 minutos)");
+    setMensajeI("Redactando el informe a partir de la transcripción…");
+    const caracteres = segs.reduce((n, g) => n + String(g.texto || "").length, 0);
+    setAvanceI({ inicio: Date.now(), esperado: Math.min(200, Math.max(35, 25 + caracteres / 2500)) * 1000 });
     try {
       const r = await fetch("/api/sesion/informe", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -269,10 +281,12 @@ export default function YouTubeTranscriptModal({
       }).then(x => x.json());
       if (cancelado.current) return;
       if (!r?.disponible) { setEstadoI("error"); setMensajeI(r?.motivo || "No se pudo generar el informe."); return; }
-      setInforme(r.informe); setEstadoI("listo"); setMensajeI("");
+      setInforme(normalizarInforme(r.informe)); setEstadoI("listo"); setMensajeI("");
       saveInformeSesion(id, { informe: r.informe, ...metaGuardado() });
     } catch {
       if (!cancelado.current) { setEstadoI("error"); setMensajeI("No se pudo conectar con el servidor."); }
+    } finally {
+      setAvanceI(null);
     }
   };
 
@@ -311,6 +325,11 @@ export default function YouTubeTranscriptModal({
     <button onClick={() => setInicio(s)} className="font-mono text-[11px] font-bold text-rose-300 hover:text-rose-200 cursor-pointer shrink-0" title="Ir a este minuto del video">{formatoMinuto(s)}</button>
   );
   const ocupado = estadoT === "transcribiendo" || estadoI === "generando";
+  const pctT = Math.round((partesT.filter(p => p.disponible).length / Math.max(1, totalPartesT || 1)) * 100);
+  const pctI = avanceI ? Math.min(95, Math.round(95 * (1 - Math.exp(-2.2 * (Date.now() - avanceI.inicio) / avanceI.esperado)))) : 0;
+  const Barra = ({ pct, color }: { pct: number; color: string }) => (
+    <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden mt-1"><div className={`h-full ${color} rounded-full transition-all duration-700`} style={{ width: `${pct}%` }} /></div>
+  );
 
   if (!isOpen) return null;
 
@@ -400,11 +419,15 @@ export default function YouTubeTranscriptModal({
                 <ol className="text-xs space-y-1.5">
                   <li className="flex items-center gap-2">
                     {estadoT === "transcribiendo" ? <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-300" /> : hayTranscripcion && !transcripcionIncompleta ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <span className="w-3.5 text-center text-slate-500">1</span>}
-                    <span><b>Transcripción</b> del video oficial: {partesT.filter(p => p.disponible).length} de {totalPartesT || "?"} tramos de 10 min.</span>
+                    <span className="flex-1"><b>Transcripción</b> del video oficial: {partesT.filter(p => p.disponible).length} de {totalPartesT || "?"} tramos de 10 min{totalPartesT ? <b className="text-rose-300"> · {pctT} %</b> : null}
+                      {estadoT === "transcribiendo" && totalPartesT ? <Barra pct={pctT} color="bg-rose-500" /> : null}
+                    </span>
                   </li>
                   <li className="flex items-center gap-2">
                     {estadoI === "generando" ? <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-300" /> : informe ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <span className="w-3.5 text-center text-slate-500">2</span>}
-                    <span><b>Informe</b> redactado solo con la transcripción, ordenado por la tabla y con el minuto de cada dato.</span>
+                    <span className="flex-1"><b>Informe</b> redactado solo con la transcripción, ordenado por la tabla y con el minuto de cada dato.
+                      {estadoI === "generando" && <><b className="text-rose-300"> · {pctI} % (aprox.)</b><Barra pct={pctI} color="bg-blue-500" /></>}
+                    </span>
                   </li>
                 </ol>
                 {(mensajeT || mensajeI) && <p className="text-xs text-amber-300 flex items-center gap-1.5"><AlertTriangle className="w-3.5 h-3.5 shrink-0" /> {estadoI === "generando" || estadoI === "error" ? mensajeI : mensajeT}</p>}
@@ -425,53 +448,13 @@ export default function YouTubeTranscriptModal({
 
             {vista === "informe" && informe && (
               <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-3" id="panel-informe">
-                {informe.parcial && <p className="text-xs text-amber-300 flex items-center gap-1.5"><AlertTriangle className="w-3.5 h-3.5" /> Informe hecho con una transcripción incompleta.</p>}
-                <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4">
-                  <p className="text-[11px] font-black uppercase tracking-wider text-slate-400 mb-1">Resumen</p>
-                  <p className="text-xs text-slate-200 leading-relaxed">{informe.resumen || "No informado"}</p>
-                </div>
-                {informe.puntos.map((p, k) => (
-                  <div key={k} className="bg-slate-950/60 border border-slate-800 rounded-2xl p-4 space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-[11px] font-black text-rose-300">{p.numero ? `Punto ${p.numero}` : "Fuera de tabla"}</span>
-                      <span className="text-xs font-bold text-white">{p.titulo}</span>
-                      {p.boletines.map(b => <span key={b} className="text-[10px] font-mono font-bold bg-blue-500/20 text-blue-200 border border-blue-500/40 px-1.5 rounded">Boletín {b}</span>)}
-                    </div>
-                    {p.sintesis && <p className="text-xs text-slate-300 leading-relaxed">{p.sintesis}</p>}
-                    {p.intervenciones.length > 0 && (
-                      <ul className="space-y-1.5">
-                        {p.intervenciones.map((i, j) => (
-                          <li key={j} className="text-xs flex items-start gap-2"><Minuto s={i.segundos} /><span className="text-slate-200"><b className="text-white">{i.orador}</b>{i.cargo && <span className="text-slate-400"> ({i.cargo})</span>}: {i.postura}</span></li>
-                        ))}
-                      </ul>
-                    )}
-                    {(p.acuerdos.length > 0 || p.votaciones.length > 0) && (
-                      <div className="border-t border-slate-800 pt-2 space-y-1">
-                        {p.acuerdos.map((a, j) => <p key={`a${j}`} className="text-xs text-emerald-300 flex gap-2"><Gavel className="w-3.5 h-3.5 shrink-0" /><Minuto s={a.segundos} /><span><b>Acuerdo:</b> {a.texto}</span></p>)}
-                        {p.votaciones.map((v, j) => <p key={`v${j}`} className="text-xs text-emerald-300 flex gap-2"><Gavel className="w-3.5 h-3.5 shrink-0" /><Minuto s={v.segundos} /><span><b>Votación:</b> {v.texto} · {v.resultado}</span></p>)}
-                      </div>
-                    )}
-                  </div>
-                ))}
-                {informe.compromisos.length > 0 && (
-                  <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-1.5">
-                    <p className="text-[11px] font-black uppercase tracking-wider text-slate-400">Compromisos</p>
-                    {informe.compromisos.map((c, j) => <p key={j} className="text-xs text-slate-200 flex gap-2"><Minuto s={c.segundos} /><span>{c.texto} <span className="text-slate-400">· {c.responsable}</span></span></p>)}
+                <InformeSesionHoja informe={informe} comision={comisionNombre} fecha={sesionFecha} videoId={id} duracion={duracion}
+                  tramos={{ hechos: partesT.filter(p => p.disponible).length, total: totalPartesT }} onMinuto={setInicio} />
+                {!ocupado && (
+                  <div className="flex justify-end">
+                    <button onClick={crearInforme} className="text-[11px] font-bold text-slate-300 hover:text-white flex items-center gap-1 cursor-pointer"><RefreshCw className="w-3 h-3" /> Regenerar informe</button>
                   </div>
                 )}
-                {informe.pendientes.length > 0 && (
-                  <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4">
-                    <p className="text-[11px] font-black uppercase tracking-wider text-slate-400 mb-1">Temas pendientes</p>
-                    {informe.pendientes.map((t, j) => <p key={j} className="text-xs text-slate-200">• {t}</p>)}
-                  </div>
-                )}
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                  <p className="text-[10px] text-slate-500 leading-relaxed max-w-md">
-                    Generado con IA solo a partir de la transcripción automática del video oficial. No es un documento oficial. Cada minuto es un enlace al video.
-                    {informe.descartados > 0 ? ` Se descartaron ${informe.descartados} elemento(s) que no se pudieron ubicar en la transcripción.` : ""}
-                  </p>
-                  {!ocupado && <button onClick={crearInforme} className="text-[11px] font-bold text-slate-300 hover:text-white flex items-center gap-1 cursor-pointer"><RefreshCw className="w-3 h-3" /> Regenerar</button>}
-                </div>
               </div>
             )}
             {vista === "informe" && !informe && estadoT !== "cargando" && !ocupado && (

@@ -188748,6 +188748,15 @@ function limpiarFallos(ip) {
 }
 
 // src/utils/informeSesion.ts
+var CATEGORIAS = {
+  PARL: { corto: "Parlamentarios", largo: "Parlamentarios" },
+  ESP: { corto: "ESP", largo: "Expositores del Sector P\xFAblico" },
+  ESC: { corto: "ESC", largo: "Expositores de organizaciones de la sociedad civil" },
+  EEA: { corto: "EEA", largo: "Expositores expertos y acad\xE9micos" },
+  SEC: { corto: "Secretar\xEDa", largo: "Secretar\xEDa de la comisi\xF3n" },
+  ND: { corto: "Sin clasificar", largo: "Sin clasificar (no se identifica en la transcripci\xF3n)" }
+};
+var CAT_VALIDAS = new Set(Object.keys(CATEGORIAS));
 function formatoMinutoInforme(seg) {
   const s = Math.max(0, Math.round(seg));
   const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), r = s % 60;
@@ -188764,6 +188773,13 @@ function transcripcionParaPrompt(segmentos) {
 }
 var norm3 = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
 var TOLERANCIA = 90;
+function categoriaFinal(cat, orador, cargo, institucion) {
+  const todo = norm3(`${orador} ${cargo} ${institucion}`);
+  if (/biblioteca del congreso|\bbcn\b/.test(todo)) return "EEA";
+  if (/\b(senador|senadora|diputado|diputada|honorable|sen|dip|h senador|h diputad)\b/.test(todo) && !/asesor/.test(todo)) return "PARL";
+  const c = String(cat || "").toUpperCase().trim();
+  return CAT_VALIDAS.has(c) ? c : "ND";
+}
 function validarInforme(raw, segmentos, boletinesTabla, parcial) {
   const tiempos = segmentos.map((g) => g.segundos).sort((a, b) => a - b);
   const oradores = Array.from(new Set(segmentos.map((g) => norm3(g.orador)).filter((o) => o && !/no identificad/.test(o))));
@@ -188790,11 +188806,15 @@ function validarInforme(raw, segmentos, boletinesTabla, parcial) {
     numero: Number.isFinite(Number(p?.numero)) ? Number(p.numero) : 0,
     titulo: txt(p?.titulo) || "Punto sin t\xEDtulo",
     boletines: Array.from(new Set(lista3(p?.boletines).map((b) => normalizarBoletin(String(b))).filter((b) => b.includes("-") && permitidos.has(b)))),
+    estado: txt(p?.estado),
     sintesis: txt(p?.sintesis),
     intervenciones: filtrar(lista3(p?.intervenciones), (i) => {
       const s = minutoValido(i?.minuto ?? i?.segundos);
-      return s !== null && oradorValido(i?.orador) && txt(i?.postura) ? { orador: txt(i.orador), cargo: txt(i?.cargo), segundos: s, postura: txt(i.postura) } : null;
-    }),
+      const parrafos = (lista3(i?.parrafos).length ? lista3(i.parrafos) : [i?.postura]).map(txt).filter(Boolean);
+      if (s === null || !oradorValido(i?.orador) || parrafos.length === 0) return null;
+      const orador = txt(i.orador), cargo = txt(i?.cargo), institucion = txt(i?.institucion);
+      return { orador, cargo, institucion, categoria: categoriaFinal(i?.categoria, orador, cargo, institucion), segundos: s, parrafos };
+    }).sort((a, b) => a.segundos - b.segundos),
     acuerdos: filtrar(lista3(p?.acuerdos), (a) => {
       const s = minutoValido(a?.minuto ?? a?.segundos);
       return s !== null && txt(a?.texto) ? { texto: txt(a.texto), segundos: s } : null;
@@ -188805,8 +188825,9 @@ function validarInforme(raw, segmentos, boletinesTabla, parcial) {
     })
   })).filter((p) => p.sintesis || p.intervenciones.length || p.acuerdos.length || p.votaciones.length).sort((a, b) => (a.numero || 999) - (b.numero || 999));
   return {
-    version: 1,
+    version: 2,
     resumen: txt(raw?.resumen),
+    sintesis: lista3(raw?.sintesis).map(txt).filter(Boolean).slice(0, 6),
     puntos,
     compromisos: filtrar(lista3(raw?.compromisos), (c) => {
       const s = minutoValido(c?.minuto ?? c?.segundos);
@@ -188822,7 +188843,7 @@ function validarInforme(raw, segmentos, boletinesTabla, parcial) {
 var MAX_CARACTERES = 7e5;
 function prompt(p) {
   return `Eres asesor parlamentario de la Biblioteca del Congreso Nacional de Chile. Redacta el informe de una sesi\xF3n de comisi\xF3n
-usando EXCLUSIVAMENTE la transcripci\xF3n que sigue. No agregues nada que no est\xE9 dicho en ella: ni antecedentes, ni cifras, ni nombres externos.
+usando EXCLUSIVAMENTE la transcripci\xF3n que sigue. No agregues nada que no est\xE9 dicho en ella: ni antecedentes, ni cifras, ni nombres, ni cargos externos.
 
 Comisi\xF3n: ${p.comision || "No informada"}
 Fecha: ${p.fecha || "No informada"}
@@ -188830,18 +188851,36 @@ Tabla oficial de la sesi\xF3n:
 ${p.tabla.length ? p.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n") : "No informada"}
 Boletines de la tabla: ${p.boletines.join(", ") || "ninguno"}
 
+ESTILO del desarrollo (como los informes de comisi\xF3n del Senado de Chile):
+- Relato en tercera persona y en pret\xE9rito, en orden cronol\xF3gico dentro de cada punto de la tabla.
+- Cada intervenci\xF3n se presenta con cargo e instituci\xF3n y nombre, si se dicen en la transcripci\xF3n: "El Subsecretario de Agricultura, se\xF1or ...,";
+  para parlamentarios: "El Honorable Senador se\xF1or ..." / "La Honorable Diputada se\xF1ora ...". Si no se dice el cargo, d\xE9jalo vac\xEDo.
+- Verbos de relato variados: explic\xF3, se\xF1al\xF3, precis\xF3, sostuvo, agreg\xF3, consult\xF3, respondi\xF3, manifest\xF3, propuso, concluy\xF3.
+- Cada intervenci\xF3n en 1 a 5 p\xE1rrafos de 2 a 4 oraciones, con las ideas, cifras y argumentos que se dicen (solo los dichos).
+- Si una misma persona habla varias veces separadas por otras intervenciones, son intervenciones distintas, cada una con su minuto.
+- Votaciones como se informan: "Puesto en votaci\xF3n el proyecto, en general, fue aprobado por ..." con el resultado y los votos si se dicen.
+
+CLASIFICACI\xD3N de cada interviniente ("categoria"):
+- "PARL": senadores y diputados.
+- "ESP": Expositores del Sector P\xFAblico: exponen en funci\xF3n de un cargo en representaci\xF3n del Estado (ministerios, servicios, Ejecutivo) o de una misi\xF3n diplom\xE1tica; no parlamentarios.
+- "ESC": Expositores de organizaciones de la sociedad civil: representan una ONG, partido pol\xEDtico, fundaci\xF3n, agrupaci\xF3n, sindicato, asociaci\xF3n gremial, empresa o sociedad.
+- "EEA": Expositores expertos y acad\xE9micos: por su experiencia o trayectoria profesional o acad\xE9mica, o una opini\xF3n t\xE9cnica; acad\xE9micos, especialistas, think tanks, organismos internacionales t\xE9cnicos. La Biblioteca del Congreso Nacional (BCN) es siempre "EEA".
+- "SEC": secretar\xEDa o abogado(a) secretario(a) de la comisi\xF3n.
+
 Reglas:
-- Ordena el informe por los puntos de la tabla (usa su n\xFAmero). Lo que no corresponda a la tabla va con "numero": 0.
-- "minuto" es el minuto EXACTO de la l\xEDnea de la transcripci\xF3n que respalda el dato, copiado tal cual aparece entre corchetes (ej. "1:02:15").
-- "orador" se copia tal cual aparece en la transcripci\xF3n. Si es "Orador no identificado", no lo incluyas como intervenci\xF3n.
-- "postura": qu\xE9 plante\xF3 o pidi\xF3 el orador, en una o dos oraciones, en tercera persona.
-- Acuerdos y votaciones: solo si se dicen expl\xEDcitamente en la transcripci\xF3n (incluye el resultado si se dice).
-- Compromisos: tareas o env\xEDos de informaci\xF3n comprometidos (qui\xE9n y qu\xE9).
-- Pendientes: temas que quedaron para otra sesi\xF3n, si se dice.
-- Si algo no est\xE1 en la transcripci\xF3n, deja la lista vac\xEDa. Espa\xF1ol formal y conciso.
+- Ordena por los puntos de la tabla (usa su n\xFAmero). Lo que no corresponda a la tabla va con "numero": 0.
+- "minuto": el minuto EXACTO de la l\xEDnea de la transcripci\xF3n donde empieza esa intervenci\xF3n o dato, copiado tal cual aparece entre corchetes (ej. "1:02:15").
+- "orador": tal cual aparece en la transcripci\xF3n. No incluyas intervenciones de "Orador no identificado".
+- "estado" del punto: "Votado", "En discusi\xF3n", "Solo exposici\xF3n" o "Pendiente", seg\xFAn lo dicho.
+- Acuerdos y votaciones: solo si se dicen expl\xEDcitamente. Compromisos: tareas o env\xEDos de informaci\xF3n comprometidos (qui\xE9n y qu\xE9).
+- Si algo no est\xE1 en la transcripci\xF3n, deja el campo vac\xEDo o la lista vac\xEDa. Espa\xF1ol formal.
 
 Responde solo JSON con esta forma:
-{"resumen":"3 a 5 oraciones","puntos":[{"numero":1,"titulo":"","boletines":["00000-00"],"sintesis":"","intervenciones":[{"orador":"","cargo":"","minuto":"","postura":""}],"acuerdos":[{"texto":"","minuto":""}],"votaciones":[{"texto":"","resultado":"","minuto":""}]}],"compromisos":[{"texto":"","responsable":"","minuto":""}],"pendientes":[""]}
+{"resumen":"un p\xE1rrafo de 3 a 5 oraciones","sintesis":["3 a 5 ideas clave, una oraci\xF3n cada una"],
+"puntos":[{"numero":1,"titulo":"","boletines":["00000-00"],"estado":"","sintesis":"qu\xE9 se discuti\xF3, 2 a 3 oraciones",
+"intervenciones":[{"orador":"","cargo":"","institucion":"","categoria":"PARL|ESP|ESC|EEA|SEC","minuto":"","parrafos":["",""]}],
+"acuerdos":[{"texto":"","minuto":""}],"votaciones":[{"texto":"","resultado":"","minuto":""}]}],
+"compromisos":[{"texto":"","responsable":"","minuto":""}],"pendientes":[""]}
 
 TRANSCRIPCI\xD3N:
 ${p.transcripcion}`;
@@ -188886,7 +188925,7 @@ async function generarInformeSesion(p) {
   const limite = Date.now() + 27e4;
   const cuerpo = JSON.stringify({
     contents: [{ parts: [{ text: prompt({ comision: p.comision, fecha: p.fecha, tabla: p.tabla || [], boletines: p.boletines || [], transcripcion }) }] }],
-    generationConfig: { temperature: 0.15, maxOutputTokens: 16e3, responseMimeType: "application/json" }
+    generationConfig: { temperature: 0.15, maxOutputTokens: 32e3, responseMimeType: "application/json" }
   });
   for (const model of candidatos) {
     for (let intento = 0; intento < 3; intento++) {

@@ -4,7 +4,7 @@ import type { SesionRegistradaUI } from "../utils/metricasBoletin";
 import { calcularInformeComision, informeATexto, type AnalisisVideoUI } from "../utils/informeComision";
 import { getInformesSesionPorComision } from "../services/firebaseService";
 import type { InformeSesion } from "../utils/informeSesion";
-import { formatoMinutoInforme } from "../utils/informeSesion";
+import { formatoMinutoInforme, normalizarInforme } from "../utils/informeSesion";
 import { tiempoDeSesion } from "../utils/boletines";
 
 const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
@@ -33,8 +33,8 @@ export default function InformeComision({ nombre, camara, registro, onAbrirBolet
     getInformesSesionPorComision(nombre).then((docs) => {
       if (!vigente) return;
       setVideos(docs.map((x: any) => {
-        const inf: InformeSesion = x.informe;
-        const intervenciones = inf.puntos.flatMap((p) => p.intervenciones.map((i) => ({ ...i, boletines: p.boletines })));
+        const inf: InformeSesion = normalizarInforme(x.informe);
+        const intervenciones = inf.puntos.flatMap((p) => p.intervenciones.map((i) => ({ orador: i.orador, cargo: [i.cargo, i.institucion].filter(Boolean).join(", "), postura: i.parrafos.join(" "), segundos: i.segundos, boletines: p.boletines })));
         return {
           videoId: x.videoId, fecha: x.fecha, fechaISO: isoDe(tiempoDeSesion(x.fecha)),
           resumenes: inf.resumen ? [inf.resumen] : [],

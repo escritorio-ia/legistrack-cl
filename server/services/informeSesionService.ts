@@ -8,7 +8,7 @@ const MAX_CARACTERES = 700_000;
 
 function prompt(p: { comision: string; fecha: string; tabla: string[]; boletines: string[]; transcripcion: string }): string {
   return `Eres asesor parlamentario de la Biblioteca del Congreso Nacional de Chile. Redacta el informe de una sesión de comisión
-usando EXCLUSIVAMENTE la transcripción que sigue. No agregues nada que no esté dicho en ella: ni antecedentes, ni cifras, ni nombres externos.
+usando EXCLUSIVAMENTE la transcripción que sigue. No agregues nada que no esté dicho en ella: ni antecedentes, ni cifras, ni nombres, ni cargos externos.
 
 Comisión: ${p.comision || "No informada"}
 Fecha: ${p.fecha || "No informada"}
@@ -16,18 +16,36 @@ Tabla oficial de la sesión:
 ${p.tabla.length ? p.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n") : "No informada"}
 Boletines de la tabla: ${p.boletines.join(", ") || "ninguno"}
 
+ESTILO del desarrollo (como los informes de comisión del Senado de Chile):
+- Relato en tercera persona y en pretérito, en orden cronológico dentro de cada punto de la tabla.
+- Cada intervención se presenta con cargo e institución y nombre, si se dicen en la transcripción: "El Subsecretario de Agricultura, señor ...,";
+  para parlamentarios: "El Honorable Senador señor ..." / "La Honorable Diputada señora ...". Si no se dice el cargo, déjalo vacío.
+- Verbos de relato variados: explicó, señaló, precisó, sostuvo, agregó, consultó, respondió, manifestó, propuso, concluyó.
+- Cada intervención en 1 a 5 párrafos de 2 a 4 oraciones, con las ideas, cifras y argumentos que se dicen (solo los dichos).
+- Si una misma persona habla varias veces separadas por otras intervenciones, son intervenciones distintas, cada una con su minuto.
+- Votaciones como se informan: "Puesto en votación el proyecto, en general, fue aprobado por ..." con el resultado y los votos si se dicen.
+
+CLASIFICACIÓN de cada interviniente ("categoria"):
+- "PARL": senadores y diputados.
+- "ESP": Expositores del Sector Público: exponen en función de un cargo en representación del Estado (ministerios, servicios, Ejecutivo) o de una misión diplomática; no parlamentarios.
+- "ESC": Expositores de organizaciones de la sociedad civil: representan una ONG, partido político, fundación, agrupación, sindicato, asociación gremial, empresa o sociedad.
+- "EEA": Expositores expertos y académicos: por su experiencia o trayectoria profesional o académica, o una opinión técnica; académicos, especialistas, think tanks, organismos internacionales técnicos. La Biblioteca del Congreso Nacional (BCN) es siempre "EEA".
+- "SEC": secretaría o abogado(a) secretario(a) de la comisión.
+
 Reglas:
-- Ordena el informe por los puntos de la tabla (usa su número). Lo que no corresponda a la tabla va con "numero": 0.
-- "minuto" es el minuto EXACTO de la línea de la transcripción que respalda el dato, copiado tal cual aparece entre corchetes (ej. "1:02:15").
-- "orador" se copia tal cual aparece en la transcripción. Si es "Orador no identificado", no lo incluyas como intervención.
-- "postura": qué planteó o pidió el orador, en una o dos oraciones, en tercera persona.
-- Acuerdos y votaciones: solo si se dicen explícitamente en la transcripción (incluye el resultado si se dice).
-- Compromisos: tareas o envíos de información comprometidos (quién y qué).
-- Pendientes: temas que quedaron para otra sesión, si se dice.
-- Si algo no está en la transcripción, deja la lista vacía. Español formal y conciso.
+- Ordena por los puntos de la tabla (usa su número). Lo que no corresponda a la tabla va con "numero": 0.
+- "minuto": el minuto EXACTO de la línea de la transcripción donde empieza esa intervención o dato, copiado tal cual aparece entre corchetes (ej. "1:02:15").
+- "orador": tal cual aparece en la transcripción. No incluyas intervenciones de "Orador no identificado".
+- "estado" del punto: "Votado", "En discusión", "Solo exposición" o "Pendiente", según lo dicho.
+- Acuerdos y votaciones: solo si se dicen explícitamente. Compromisos: tareas o envíos de información comprometidos (quién y qué).
+- Si algo no está en la transcripción, deja el campo vacío o la lista vacía. Español formal.
 
 Responde solo JSON con esta forma:
-{"resumen":"3 a 5 oraciones","puntos":[{"numero":1,"titulo":"","boletines":["00000-00"],"sintesis":"","intervenciones":[{"orador":"","cargo":"","minuto":"","postura":""}],"acuerdos":[{"texto":"","minuto":""}],"votaciones":[{"texto":"","resultado":"","minuto":""}]}],"compromisos":[{"texto":"","responsable":"","minuto":""}],"pendientes":[""]}
+{"resumen":"un párrafo de 3 a 5 oraciones","sintesis":["3 a 5 ideas clave, una oración cada una"],
+"puntos":[{"numero":1,"titulo":"","boletines":["00000-00"],"estado":"","sintesis":"qué se discutió, 2 a 3 oraciones",
+"intervenciones":[{"orador":"","cargo":"","institucion":"","categoria":"PARL|ESP|ESC|EEA|SEC","minuto":"","parrafos":["",""]}],
+"acuerdos":[{"texto":"","minuto":""}],"votaciones":[{"texto":"","resultado":"","minuto":""}]}],
+"compromisos":[{"texto":"","responsable":"","minuto":""}],"pendientes":[""]}
 
 TRANSCRIPCIÓN:
 ${p.transcripcion}`;
@@ -83,7 +101,7 @@ export async function generarInformeSesion(p: {
   const limite = Date.now() + 270_000;
   const cuerpo = JSON.stringify({
     contents: [{ parts: [{ text: prompt({ comision: p.comision, fecha: p.fecha, tabla: p.tabla || [], boletines: p.boletines || [], transcripcion }) }] }],
-    generationConfig: { temperature: 0.15, maxOutputTokens: 16000, responseMimeType: "application/json" },
+    generationConfig: { temperature: 0.15, maxOutputTokens: 32000, responseMimeType: "application/json" },
   });
   for (const model of candidatos) {
     // Saturación temporal (503/429/500): hasta 3 intentos con espera creciente antes de pasar al siguiente modelo.
