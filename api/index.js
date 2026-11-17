@@ -188856,6 +188856,24 @@ function extraerJSON(texto) {
   if (i >= 0 && j > i) return JSON.parse(t.slice(i, j + 1));
   throw new Error("La respuesta del modelo no es JSON v\xE1lido.");
 }
+var modelosCache = null;
+async function modelosGemini(apiKey) {
+  const fijos = [process.env.GEMINI_MODEL, "gemini-3.6-flash"].filter(Boolean);
+  if (modelosCache && Date.now() - modelosCache.en < 6 * 36e5) return Array.from(/* @__PURE__ */ new Set([...fijos, ...modelosCache.lista]));
+  try {
+    const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200", { headers: { "x-goog-api-key": apiKey }, signal: AbortSignal.timeout(8e3) });
+    if (r.ok) {
+      const d = await r.json();
+      const version = (n) => parseFloat((n.match(/gemini-(\d+(?:\.\d+)?)/) || [])[1] || "0");
+      const lista3 = (d.models || []).filter((m) => (m.supportedGenerationMethods || []).includes("generateContent")).map((m) => String(m.name || "").replace(/^models\//, "")).filter((n) => /^gemini-\d/.test(n) && /(flash|pro)/.test(n) && !/(image|tts|audio|live|embedding|thinking-exp|preview-tts)/.test(n)).sort((a, b) => Number(/flash/.test(b)) - Number(/flash/.test(a)) || version(b) - version(a) || Number(/lite/.test(a)) - Number(/lite/.test(b)));
+      modelosCache = { lista: lista3, en: Date.now() };
+      return Array.from(/* @__PURE__ */ new Set([...fijos, ...lista3])).slice(0, 6);
+    }
+  } catch {
+  }
+  return fijos;
+}
+var esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 async function generarInformeSesion(p) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return { disponible: false, motivo: "GEMINI_API_KEY no est\xE1 configurada en el servidor." };
@@ -188863,44 +188881,50 @@ async function generarInformeSesion(p) {
   if (segmentos.length < 5) return { disponible: false, motivo: "La transcripci\xF3n tiene muy poco texto para redactar un informe." };
   let transcripcion = transcripcionParaPrompt(segmentos);
   if (transcripcion.length > MAX_CARACTERES) return { disponible: false, motivo: "La transcripci\xF3n excede el tama\xF1o que se puede procesar en una sola consulta." };
-  const candidatos = Array.from(new Set([process.env.GEMINI_MODEL, "gemini-3.6-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite"].filter(Boolean)));
+  const candidatos = await modelosGemini(apiKey);
   const errores = [];
   const limite = Date.now() + 27e4;
+  const cuerpo = JSON.stringify({
+    contents: [{ parts: [{ text: prompt({ comision: p.comision, fecha: p.fecha, tabla: p.tabla || [], boletines: p.boletines || [], transcripcion }) }] }],
+    generationConfig: { temperature: 0.15, maxOutputTokens: 16e3, responseMimeType: "application/json" }
+  });
   for (const model of candidatos) {
-    const restante = limite - Date.now();
-    if (restante < 2e4) break;
-    try {
-      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt({ comision: p.comision, fecha: p.fecha, tabla: p.tabla || [], boletines: p.boletines || [], transcripcion }) }] }],
-          generationConfig: { temperature: 0.15, maxOutputTokens: 16e3, responseMimeType: "application/json" }
-        }),
-        signal: AbortSignal.timeout(Math.min(15e4, restante))
-      });
-      if (!r.ok) {
-        errores.push(`${model}: HTTP ${r.status}`);
-        if ([429, 404, 500, 502, 503, 504].includes(r.status)) continue;
+    for (let intento = 0; intento < 3; intento++) {
+      const restante = limite - Date.now();
+      if (restante < 2e4) break;
+      if (intento > 0) await esperar(intento * 6e3);
+      try {
+        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+          body: cuerpo,
+          signal: AbortSignal.timeout(Math.min(15e4, limite - Date.now()))
+        });
+        if (!r.ok) {
+          errores.push(`${model}: HTTP ${r.status}${intento ? ` (intento ${intento + 1})` : ""}`);
+          if ([503, 429, 500, 502, 504].includes(r.status)) continue;
+          break;
+        }
+        const data = await r.json();
+        const texto = (data?.candidates?.[0]?.content?.parts || []).map((x) => x.text || "").join("");
+        if (!texto) {
+          errores.push(`${model}: respuesta vac\xEDa (${data?.candidates?.[0]?.finishReason || "sin motivo"})`);
+          break;
+        }
+        const informe = validarInforme(extraerJSON(texto), segmentos, p.boletines || [], !!p.parcial);
+        if (!informe.resumen && informe.puntos.length === 0) {
+          errores.push(`${model}: informe sin contenido verificable`);
+          break;
+        }
+        return { disponible: true, informe: { ...informe, modelo: model, generado: (/* @__PURE__ */ new Date()).toISOString() } };
+      } catch (err) {
+        errores.push(`${model}: ${err?.name === "TimeoutError" ? "sin respuesta a tiempo" : err?.message || err}`);
         break;
       }
-      const data = await r.json();
-      const texto = (data?.candidates?.[0]?.content?.parts || []).map((x) => x.text || "").join("");
-      if (!texto) {
-        errores.push(`${model}: respuesta vac\xEDa (${data?.candidates?.[0]?.finishReason || "sin motivo"})`);
-        continue;
-      }
-      const informe = validarInforme(extraerJSON(texto), segmentos, p.boletines || [], !!p.parcial);
-      if (!informe.resumen && informe.puntos.length === 0) {
-        errores.push(`${model}: informe sin contenido verificable`);
-        continue;
-      }
-      return { disponible: true, informe: { ...informe, modelo: model, generado: (/* @__PURE__ */ new Date()).toISOString() } };
-    } catch (err) {
-      errores.push(`${model}: ${err?.name === "TimeoutError" ? "sin respuesta a tiempo" : err?.message || err}`);
     }
   }
-  return { disponible: false, motivo: `No se pudo generar el informe. ${errores.join(" | ")}` };
+  const saturado = errores.some((e) => /HTTP (503|429)/.test(e));
+  return { disponible: false, motivo: `${saturado ? "Gemini est\xE1 saturado en este momento; intente de nuevo en unos minutos (la transcripci\xF3n ya est\xE1 guardada). " : "No se pudo generar el informe. "}Detalle: ${errores.join(" | ")}` };
 }
 
 // src/utils/sala.ts
