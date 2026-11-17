@@ -188773,6 +188773,10 @@ function transcripcionParaPrompt(segmentos) {
 }
 var norm3 = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
 var TOLERANCIA = 90;
+function esProrroga(texto) {
+  const t = norm3(texto);
+  return /\bprorrog/.test(t) || /\b(extender|ampliar|alargar|extension|ampliacion)\b.*\b(sesion|hora|horario|tiempo|minutos)\b/.test(t);
+}
 function categoriaFinal(cat, orador, cargo, institucion) {
   const todo = norm3(`${orador} ${cargo} ${institucion}`);
   if (/biblioteca del congreso|\bbcn\b/.test(todo)) return "EEA";
@@ -188815,11 +188819,11 @@ function validarInforme(raw, segmentos, boletinesTabla, parcial) {
       const orador = txt(i.orador), cargo = txt(i?.cargo), institucion = txt(i?.institucion);
       return { orador, cargo, institucion, categoria: categoriaFinal(i?.categoria, orador, cargo, institucion), segundos: s, parrafos };
     }).sort((a, b) => a.segundos - b.segundos),
-    acuerdos: filtrar(lista3(p?.acuerdos), (a) => {
+    acuerdos: filtrar(lista3(p?.acuerdos).filter((a) => !esProrroga(`${a?.texto ?? ""}`)), (a) => {
       const s = minutoValido(a?.minuto ?? a?.segundos);
       return s !== null && txt(a?.texto) ? { texto: txt(a.texto), segundos: s } : null;
     }),
-    votaciones: filtrar(lista3(p?.votaciones), (v) => {
+    votaciones: filtrar(lista3(p?.votaciones).filter((v) => !esProrroga(`${v?.texto ?? ""}`)), (v) => {
       const s = minutoValido(v?.minuto ?? v?.segundos);
       return s !== null && txt(v?.texto) ? { texto: txt(v.texto), resultado: txt(v?.resultado) || "No informado", segundos: s } : null;
     })
@@ -188868,11 +188872,12 @@ CLASIFICACI\xD3N de cada interviniente ("categoria"):
 - "SEC": secretar\xEDa o abogado(a) secretario(a) de la comisi\xF3n.
 
 Reglas:
+- En cada punto se presentan primero las exposiciones de los expositores y al final lo que se\xF1alaron los parlamentarios (la app las ordena por categor\xEDa; t\xFA solo clasifica bien a cada uno).
 - Ordena por los puntos de la tabla (usa su n\xFAmero). Lo que no corresponda a la tabla va con "numero": 0.
 - "minuto": el minuto EXACTO de la l\xEDnea de la transcripci\xF3n donde empieza esa intervenci\xF3n o dato, copiado tal cual aparece entre corchetes (ej. "1:02:15").
 - "orador": tal cual aparece en la transcripci\xF3n. No incluyas intervenciones de "Orador no identificado".
 - "estado" del punto: "Votado", "En discusi\xF3n", "Solo exposici\xF3n" o "Pendiente", seg\xFAn lo dicho.
-- Acuerdos y votaciones: solo si se dicen expl\xEDcitamente. Compromisos: tareas o env\xEDos de informaci\xF3n comprometidos (qui\xE9n y qu\xE9).
+- Acuerdos y votaciones: solo si se dicen expl\xEDcitamente y son de fondo. NO son acuerdos las pr\xF3rrogas o extensiones del tiempo de la sesi\xF3n: no las incluyas. Compromisos: tareas o env\xEDos de informaci\xF3n comprometidos (qui\xE9n y qu\xE9).
 - Si algo no est\xE1 en la transcripci\xF3n, deja el campo vac\xEDo o la lista vac\xEDa. Espa\xF1ol formal.
 
 Responde solo JSON con esta forma:

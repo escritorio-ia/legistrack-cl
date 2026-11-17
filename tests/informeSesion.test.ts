@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { validarInforme, transcripcionParaPrompt, minutoASegundos, informeSesionATexto, categoriaFinal, intervinientes, normalizarInforme, presentacion } from "../src/utils/informeSesion";
+import { esProrroga, validarInforme, transcripcionParaPrompt, minutoASegundos, informeSesionATexto, categoriaFinal, intervinientes, normalizarInforme, presentacion } from "../src/utils/informeSesion";
 
 const segs = [
   { segundos: 60, orador: "Presidente Sen. Macaya", texto: "Iniciamos el boletín 18702-05." },
@@ -65,4 +65,16 @@ test("informes guardados de la versión 1 se leen en el formato nuevo", () => {
   assert.deepEqual(n.puntos[0].intervenciones[0].parrafos, ["Pidió oficiar."]);
   assert.equal(n.puntos[0].intervenciones[0].categoria, "PARL");
   assert.equal(intervinientes(n).length, 1);
+});
+
+test("las prórrogas de la sesión no son acuerdos", () => {
+  assert.ok(esProrroga("Se acordó prorrogar la sesión por 15 minutos"));
+  assert.ok(esProrroga("Prórroga de la sesión hasta las 18:00"));
+  assert.ok(esProrroga("Extender la sesión 30 minutos"));
+  assert.ok(!esProrroga("Aprobado en general por unanimidad"));
+  assert.ok(!esProrroga("Fijar plazo de indicaciones hasta el lunes"));
+  const segs = [{ segundos: 60, orador: "Presidente", texto: "¿Habría acuerdo para prorrogar la sesión?" }, { segundos: 120, orador: "Presidente", texto: "Se aprueba en general." }];
+  const inf = validarInforme({ puntos: [{ numero: 1, titulo: "t", sintesis: "s", acuerdos: [{ texto: "Prorrogar la sesión por 15 minutos", minuto: "1:00" }, { texto: "Aprobado en general", minuto: "2:00" }], votaciones: [{ texto: "Votación de prórroga", resultado: "Aprobado", minuto: "1:00" }] }] }, segs, [], false);
+  assert.deepEqual(inf.puntos[0].acuerdos.map((a) => a.texto), ["Aprobado en general"]);
+  assert.equal(inf.puntos[0].votaciones.length, 0);
 });

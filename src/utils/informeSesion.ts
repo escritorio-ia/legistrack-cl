@@ -84,6 +84,12 @@ export function transcripcionParaPrompt(segmentos: SegmentoInforme[]): string {
 const norm = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
 const TOLERANCIA = 90;
 
+/** Acuerdos de trámite interno de la sesión que no son acuerdos sustantivos: prórrogas del tiempo de la sesión. */
+export function esProrroga(texto: string): boolean {
+  const t = norm(texto);
+  return /\bprorrog/.test(t) || /\b(extender|ampliar|alargar|extension|ampliacion)\b.*\b(sesion|hora|horario|tiempo|minutos)\b/.test(t);
+}
+
 /** Clasificación final: la BCN siempre es EEA; un parlamentario reconocible por su tratamiento es PARL. */
 export function categoriaFinal(cat: unknown, orador: string, cargo: string, institucion: string): CategoriaInterviniente {
   const todo = norm(`${orador} ${cargo} ${institucion}`);
@@ -125,8 +131,8 @@ export function validarInforme(raw: any, segmentos: SegmentoInforme[], boletines
       const orador = txt(i.orador), cargo = txt(i?.cargo), institucion = txt(i?.institucion);
       return { orador, cargo, institucion, categoria: categoriaFinal(i?.categoria, orador, cargo, institucion), segundos: s, parrafos };
     }).sort((a, b) => a.segundos - b.segundos),
-    acuerdos: filtrar(lista(p?.acuerdos), (a) => { const s = minutoValido(a?.minuto ?? a?.segundos); return s !== null && txt(a?.texto) ? { texto: txt(a.texto), segundos: s } : null; }),
-    votaciones: filtrar(lista(p?.votaciones), (v) => { const s = minutoValido(v?.minuto ?? v?.segundos); return s !== null && txt(v?.texto) ? { texto: txt(v.texto), resultado: txt(v?.resultado) || "No informado", segundos: s } : null; }),
+    acuerdos: filtrar(lista(p?.acuerdos).filter((a) => !esProrroga(`${a?.texto ?? ""}`)), (a) => { const s = minutoValido(a?.minuto ?? a?.segundos); return s !== null && txt(a?.texto) ? { texto: txt(a.texto), segundos: s } : null; }),
+    votaciones: filtrar(lista(p?.votaciones).filter((v) => !esProrroga(`${v?.texto ?? ""}`)), (v) => { const s = minutoValido(v?.minuto ?? v?.segundos); return s !== null && txt(v?.texto) ? { texto: txt(v.texto), resultado: txt(v?.resultado) || "No informado", segundos: s } : null; }),
   })).filter((p) => p.sintesis || p.intervenciones.length || p.acuerdos.length || p.votaciones.length)
     .sort((a, b) => (a.numero || 999) - (b.numero || 999));
 
@@ -156,7 +162,8 @@ export function normalizarInforme(inf: any): InformeSesion {
         categoria: categoriaFinal(i?.categoria, String(i?.orador || ""), String(i?.cargo || ""), String(i?.institucion || "")),
         segundos: Number(i?.segundos) || 0, parrafos: lista(i?.parrafos).length ? lista(i.parrafos) : [String(i?.postura || "")].filter(Boolean),
       })),
-      acuerdos: lista(p?.acuerdos), votaciones: lista(p?.votaciones),
+      acuerdos: lista(p?.acuerdos).filter((a: any) => !esProrroga(String(a?.texto || ""))),
+      votaciones: lista(p?.votaciones).filter((v: any) => !esProrroga(String(v?.texto || ""))),
     })),
     compromisos: lista(inf?.compromisos), pendientes: lista(inf?.pendientes),
     parcial: !!inf?.parcial, descartados: Number(inf?.descartados) || 0, modelo: inf?.modelo, generado: inf?.generado,
@@ -194,15 +201,17 @@ export function informeSesionATexto(inf: InformeSesion, meta: { comision: string
   for (const p of inf.puntos) {
     L.push("", `${p.numero ? `PUNTO ${p.numero}. ` : "FUERA DE TABLA. "}${p.titulo}${p.boletines.length ? ` (Boletín N° ${p.boletines.join(", ")})` : ""}`);
     if (p.sintesis) L.push(p.sintesis);
-    const eventos = [
-      ...p.intervenciones.map((i) => ({ s: i.segundos, t: `${presentacion(i)} ${i.parrafos.join("\n")} [${formatoMinutoInforme(i.segundos)}]` })),
-      ...p.votaciones.map((v) => ({ s: v.segundos, t: `- ${v.texto}: ${v.resultado}. [${formatoMinutoInforme(v.segundos)}]` })),
-    ].sort((a, b) => a.s - b.s);
-    for (const e of eventos) L.push("", e.t);
+    const bloque = (lista: IntervencionInforme[]) => lista.sort((a, b) => a.segundos - b.segundos).forEach((i) => L.push("", `${presentacion(i)} ${i.parrafos.join("\n")} [${formatoMinutoInforme(i.segundos)}]`));
+    const expos = p.intervenciones.filter((i) => i.categoria !== "PARL" && i.categoria !== "SEC");
+    const parls = p.intervenciones.filter((i) => i.categoria === "PARL" || i.categoria === "SEC");
+    if (expos.length) { L.push("", "Exposiciones"); bloque([...expos]); }
+    if (parls.length) { L.push("", "Lo que señalaron los parlamentarios"); bloque([...parls]); }
+    for (const v of p.votaciones) L.push("", `- ${v.texto}: ${v.resultado}. [${formatoMinutoInforme(v.segundos)}]`);
+    for (const a of p.acuerdos) L.push("", `- ${a.texto}. [${formatoMinutoInforme(a.segundos)}]`);
   }
   const ints = intervinientes(inf).filter((i) => i.categoria !== "PARL" && i.categoria !== "SEC");
   if (ints.length) {
-    L.push("", "IV. EXPOSITORES");
+    L.push("", "EXPOSITORES");
     for (const c of ["ESP", "ESC", "EEA", "ND"] as CategoriaInterviniente[]) {
       const g = ints.filter((i) => i.categoria === c);
       if (!g.length) continue;

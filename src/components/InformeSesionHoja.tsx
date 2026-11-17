@@ -1,5 +1,5 @@
 import React from "react";
-import { type InformeSesion, type CategoriaInterviniente, CATEGORIAS, formatoMinutoInforme, intervinientes, presentacion } from "../utils/informeSesion";
+import { type InformeSesion, type IntervencionInforme, type CategoriaInterviniente, CATEGORIAS, formatoMinutoInforme, intervinientes, presentacion } from "../utils/informeSesion";
 
 /**
  * Informe de sesión en formato de documento (estilo informe de comisión): ficha, síntesis, acuerdos y votaciones,
@@ -10,6 +10,7 @@ export default function InformeSesionHoja({ informe, comision, fecha, videoId, d
   tramos?: { hechos: number; total: number | null }; onMinuto?: (s: number) => void;
 }) {
   const ints = intervinientes(informe);
+  const EXPO: CategoriaInterviniente[] = ["ESP", "ESC", "EEA", "ND"];
   const cuenta = (c: CategoriaInterviniente) => ints.filter((i) => i.categoria === c).length;
   const boletines = Array.from(new Set(informe.puntos.flatMap((p) => p.boletines)));
   const votos = informe.puntos.flatMap((p) => [
@@ -38,7 +39,22 @@ export default function InformeSesionHoja({ informe, comision, fecha, videoId, d
       <table className="w-full text-[13px]"><tbody>
         <tr className="border-b border-slate-100"><td className="py-1.5 pr-3 w-40 text-slate-500 font-semibold align-top">Boletines tratados</td><td className="py-1.5 flex flex-wrap gap-1">{boletines.length ? boletines.map((b) => <Chip key={b} b={b} />) : "No informado"}</td></tr>
         <tr className="border-b border-slate-100"><td className="py-1.5 pr-3 text-slate-500 font-semibold">Video</td><td className="py-1.5">{duracion ? `${formatoMinutoInforme(duracion)} · ` : ""}{tramos ? `transcripción ${tramos.total && tramos.hechos >= tramos.total ? "completa" : "parcial"} (${tramos.hechos} de ${tramos.total ?? "?"} tramos)` : ""}</td></tr>
-        <tr className="border-b border-slate-100"><td className="py-1.5 pr-3 text-slate-500 font-semibold align-top">Intervinieron</td><td className="py-1.5">{cuenta("PARL")} parlamentarios · {cuenta("ESP")} ESP · {cuenta("ESC")} ESC · {cuenta("EEA")} EEA{cuenta("ND") ? ` · ${cuenta("ND")} sin clasificar` : ""}</td></tr>
+        <tr className="border-b border-slate-100">
+          <td className="py-1.5 pr-3 text-slate-500 font-semibold align-top">Expositores</td>
+          <td className="py-1.5">
+            {EXPO.every((c) => cuenta(c) === 0) ? "No hubo expositores; solo intervinieron parlamentarios." : EXPO.filter((c) => cuenta(c) > 0).map((c) => (
+              <div key={c} className="mb-1.5">
+                <p className="text-[11px] font-bold uppercase tracking-wide text-[#0b3a6e]">{CATEGORIAS[c].largo}{c !== "ND" ? ` (${c})` : ""}</p>
+                <ul className="list-none">
+                  {ints.filter((i) => i.categoria === c).map((i) => (
+                    <li key={i.orador}><b>{i.orador}</b>{i.cargo ? ` · ${i.cargo}` : ""}{i.institucion ? ` · ${i.institucion}` : ""}{!i.cargo && !i.institucion ? <span className="text-slate-400"> · cargo e institución no mencionados en la sesión</span> : null}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+            {!EXPO.every((c) => cuenta(c) === 0) && <p className="text-[10.5px] text-slate-500 mt-1">ESP: cargo en representación del Estado o misión diplomática (no parlamentarios). ESC: organizaciones de la sociedad civil. EEA: expertos y académicos, incluida la BCN.</p>}
+          </td>
+        </tr>
         <tr><td className="py-1.5 pr-3 text-slate-500 font-semibold">Fuente</td><td className="py-1.5">{videoId ? <a className="text-[#0b3a6e] underline" href={`https://www.youtube.com/watch?v=${videoId}`} target="_blank" rel="noopener noreferrer">Video oficial de la sesión</a> : "Video oficial"} · tabla oficial de la citación</td></tr>
       </tbody></table>
 
@@ -60,10 +76,22 @@ export default function InformeSesionHoja({ informe, comision, fecha, videoId, d
       <H2 n="IV." t="Desarrollo por punto de la tabla" />
       {informe.puntos.length === 0 && <p className="text-slate-500">No informado.</p>}
       {informe.puntos.map((p, k) => {
-        const eventos = [
-          ...p.intervenciones.map((i) => ({ s: i.segundos, tipo: "i" as const, i })),
-          ...p.votaciones.map((v) => ({ s: v.segundos, tipo: "v" as const, v })),
-        ].sort((a, b) => a.s - b.s);
+        // Orden de cada tema: primero lo que expusieron los expositores; al final, lo que señalaron los parlamentarios;
+        // y cierra con los acuerdos y votaciones del punto.
+        const expos = p.intervenciones.filter((i) => i.categoria !== "PARL" && i.categoria !== "SEC").sort((a, b) => a.segundos - b.segundos);
+        const parls = p.intervenciones.filter((i) => i.categoria === "PARL" || i.categoria === "SEC").sort((a, b) => a.segundos - b.segundos);
+        const Interv = ({ i }: { i: IntervencionInforme }) => (
+          <div className="mb-3">
+            {i.parrafos.map((par, n) => (
+              <p key={n} className="indent-10 text-justify mb-2">
+                {n === 0 && <b>{presentacion(i)} </b>}
+                {par}
+                {n === i.parrafos.length - 1 && <> <Min s={i.segundos} /></>}
+              </p>
+            ))}
+          </div>
+        );
+        const Sub = ({ t }: { t: string }) => <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mt-4 mb-2">{t}</p>;
         return (
           <section key={k} className="mb-6">
             <h3 className="text-center font-bold text-[#0b3a6e] underline underline-offset-4 decoration-1 mb-1">
@@ -72,40 +100,17 @@ export default function InformeSesionHoja({ informe, comision, fecha, videoId, d
             <p className="text-center text-[13px] font-semibold mb-1">{p.titulo}</p>
             {p.estado && <p className="text-center text-[11px] text-slate-500 mb-3">Estado: {p.estado}</p>}
             {p.sintesis && <p className="indent-10 text-justify mb-3 italic text-slate-700">{p.sintesis}</p>}
-            {eventos.map((e, j) => e.tipo === "i" ? (
-              <div key={j} className="mb-3">
-                {e.i.parrafos.map((par, n) => (
-                  <p key={n} className="indent-10 text-justify mb-2">
-                    {n === 0 && <b>{presentacion(e.i)} </b>}
-                    {par}
-                    {n === e.i.parrafos.length - 1 && <> <Min s={e.i.segundos} /></>}
-                  </p>
-                ))}
-              </div>
-            ) : (
-              <p key={j} className="indent-10 text-justify font-bold mb-3">- {e.v.texto}{e.v.resultado ? `: ${e.v.resultado}` : ""}. <Min s={e.v.segundos} /></p>
-            ))}
+            {expos.length > 0 && <><Sub t="Exposiciones" />{expos.map((i, j) => <Interv key={`e${j}`} i={i} />)}</>}
+            {parls.length > 0 && <><Sub t="Lo que señalaron los parlamentarios" />{parls.map((i, j) => <Interv key={`p${j}`} i={i} />)}</>}
+            {(p.votaciones.length > 0 || p.acuerdos.length > 0) && <Sub t="Acuerdos y votaciones" />}
+            {p.votaciones.map((v, j) => <p key={`v${j}`} className="indent-10 text-justify font-bold mb-2">- {v.texto}{v.resultado ? `: ${v.resultado}` : ""}. <Min s={v.segundos} /></p>)}
+            {p.acuerdos.map((a, j) => <p key={`a${j}`} className="indent-10 text-justify font-bold mb-2">- {a.texto}. <Min s={a.segundos} /></p>)}
             <p className="text-center text-slate-400">- - -</p>
           </section>
         );
       })}
 
-      <H2 n="V." t="Expositores" />
-      {(["ESP", "ESC", "EEA", "ND"] as CategoriaInterviniente[]).every((c) => cuenta(c) === 0) ? <p className="text-slate-500">No intervinieron expositores externos (solo parlamentarios o secretaría).</p> : (
-        <div className="space-y-3">
-          {(["ESP", "ESC", "EEA", "ND"] as CategoriaInterviniente[]).filter((c) => cuenta(c) > 0).map((c) => (
-            <div key={c}>
-              <p className="text-[12px] font-bold text-[#0b3a6e]">{CATEGORIAS[c].largo} ({c}) · {cuenta(c)}</p>
-              <ul className="list-disc pl-5">
-                {ints.filter((i) => i.categoria === c).map((i) => <li key={i.orador}>{i.orador}{i.cargo ? `, ${i.cargo}` : ""}{i.institucion ? `, ${i.institucion}` : ""} <Min s={i.primera} /></li>)}
-              </ul>
-            </div>
-          ))}
-          <p className="text-[11px] text-slate-500">ESP: cargo en representación del Estado o misión diplomática (no parlamentarios). ESC: organizaciones de la sociedad civil (ONG, partido, fundación, gremio, sindicato, empresa). EEA: expertos y académicos, incluida la BCN.</p>
-        </div>
-      )}
-
-      {(informe.compromisos.length > 0 || informe.pendientes.length > 0) && <H2 n="VI." t="Compromisos y próximos pasos" />}
+      {(informe.compromisos.length > 0 || informe.pendientes.length > 0) && <H2 n="V." t="Compromisos y próximos pasos" />}
       {informe.compromisos.length > 0 && (
         <table className="w-full text-[13px] mb-3">
           <thead><tr className="bg-[#f3f6fa] text-slate-500 text-[11px] uppercase tracking-wide"><th className="text-left p-2">Compromiso</th><th className="text-left p-2">Responsable</th><th className="text-left p-2">Min.</th></tr></thead>

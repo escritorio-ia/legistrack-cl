@@ -33,11 +33,12 @@ CLASIFICACIÓN de cada interviniente ("categoria"):
 - "SEC": secretaría o abogado(a) secretario(a) de la comisión.
 
 Reglas:
+- En cada punto se presentan primero las exposiciones de los expositores y al final lo que señalaron los parlamentarios (la app las ordena por categoría; tú solo clasifica bien a cada uno).
 - Ordena por los puntos de la tabla (usa su número). Lo que no corresponda a la tabla va con "numero": 0.
 - "minuto": el minuto EXACTO de la línea de la transcripción donde empieza esa intervención o dato, copiado tal cual aparece entre corchetes (ej. "1:02:15").
 - "orador": tal cual aparece en la transcripción. No incluyas intervenciones de "Orador no identificado".
 - "estado" del punto: "Votado", "En discusión", "Solo exposición" o "Pendiente", según lo dicho.
-- Acuerdos y votaciones: solo si se dicen explícitamente. Compromisos: tareas o envíos de información comprometidos (quién y qué).
+- Acuerdos y votaciones: solo si se dicen explícitamente y son de fondo. NO son acuerdos las prórrogas o extensiones del tiempo de la sesión: no las incluyas. Compromisos: tareas o envíos de información comprometidos (quién y qué).
 - Si algo no está en la transcripción, deja el campo vacío o la lista vacía. Español formal.
 
 Responde solo JSON con esta forma:
