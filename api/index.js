@@ -188668,6 +188668,33 @@ async function sesionesRegistradasDeComision(comisionId) {
   const filas = await r.json();
   return unirSesionesLeidas(filas.filter((x) => x.document).map((x) => combinarSesion(idDoc(x.document), x.document.fields || {}))).sort((a, c) => c.fecha.localeCompare(a.fecha) || c.id.localeCompare(a.id));
 }
+var nombreComisionNorm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\b(comision|especial|permanente|mixta|unida|unidas|de|del|la|las|el|los|y|e)\b/g, " ").replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+async function sesionRegistradaPorFecha(comision, fechaTexto, hora) {
+  const iso2 = /^\d{4}-\d{2}-\d{2}$/.test(fechaTexto) ? fechaTexto : fechaISO2(fechaTexto);
+  const objetivo = nombreComisionNorm(comision);
+  if (!iso2 || !objetivo) return null;
+  const { base, key } = conexion();
+  const r = await fetch(`${base}:runQuery?key=${key}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ structuredQuery: { from: [{ collectionId: COLECCION }], where: { fieldFilter: { field: { fieldPath: "fecha" }, op: "EQUAL", value: sv(iso2) } } } }),
+    signal: AbortSignal.timeout(12e3)
+  });
+  if (!r.ok) return null;
+  const filas = await r.json();
+  const candidatas = unirSesionesLeidas(filas.filter((x) => x.document).map((x) => combinarSesion(idDoc(x.document), x.document.fields || {}))).filter((s) => {
+    const n = nombreComisionNorm(s.comisionNombre);
+    return n && (n === objetivo || n.includes(objetivo) || objetivo.includes(n));
+  });
+  if (candidatas.length === 0) return null;
+  const hh = String(hora || "").match(/(\d{1,2}):(\d{2})/);
+  if (hh && candidatas.length > 1) {
+    const h = `${hh[1].padStart(2, "0")}:${hh[2]}`;
+    const exacta = candidatas.find((s) => String(s.hora || "").includes(h));
+    if (exacta) return exacta;
+  }
+  return candidatas.sort((a, b) => b.fuentes.length - a.fuentes.length)[0];
+}
 
 // server/services/authService.ts
 import { createHmac, timingSafeEqual } from "crypto";
@@ -188784,7 +188811,19 @@ function categoriaFinal(cat, orador, cargo, institucion) {
   const c = String(cat || "").toUpperCase().trim();
   return CAT_VALIDAS.has(c) ? c : "ND";
 }
-function validarInforme(raw, segmentos, boletinesTabla, parcial) {
+function textoOficial(o) {
+  if (!o) return "";
+  return [o.resultado, o.invitados, ...o.puntos.flatMap((p) => [p.texto, p.acuerdos, p.invitados, p.asistentes])].filter(Boolean).join(" \n ");
+}
+function respaldadoPorOficial(texto, corpus) {
+  if (!corpus) return false;
+  const c = new Set(norm3(corpus).split(" "));
+  const palabras = norm3(texto).split(" ").filter((w) => w.length > 3);
+  if (palabras.length === 0) return false;
+  return palabras.filter((w) => c.has(w)).length / palabras.length >= 0.5;
+}
+function validarInforme(raw, segmentos, boletinesTabla, parcial, oficial) {
+  const corpus = textoOficial(oficial);
   const tiempos = segmentos.map((g) => g.segundos).sort((a, b) => a - b);
   const oradores = Array.from(new Set(segmentos.map((g) => norm3(g.orador)).filter((o) => o && !/no identificad/.test(o))));
   const permitidos = new Set([...boletinesTabla.map(normalizarBoletin), ...boletinesEnTexto(segmentos.map((g) => g.texto).join(" "))].filter(Boolean));
@@ -188819,17 +188858,27 @@ function validarInforme(raw, segmentos, boletinesTabla, parcial) {
       const orador = txt(i.orador), cargo = txt(i?.cargo), institucion = txt(i?.institucion);
       return { orador, cargo, institucion, categoria: categoriaFinal(i?.categoria, orador, cargo, institucion), segundos: s, parrafos };
     }).sort((a, b) => a.segundos - b.segundos),
+    // Acuerdos y votaciones: de la transcripción (con minuto que exista) o del registro oficial de la comisión
+    // (sin minuto, solo si su texto está en ese registro).
     acuerdos: filtrar(lista3(p?.acuerdos).filter((a) => !esProrroga(`${a?.texto ?? ""}`)), (a) => {
+      const t = txt(a?.texto);
+      if (!t) return null;
+      if (String(a?.fuente) === "oficial") return respaldadoPorOficial(t, corpus) ? { texto: t, segundos: null, fuente: "oficial" } : null;
       const s = minutoValido(a?.minuto ?? a?.segundos);
-      return s !== null && txt(a?.texto) ? { texto: txt(a.texto), segundos: s } : null;
+      return s !== null ? { texto: t, segundos: s, fuente: "transcripcion" } : null;
     }),
     votaciones: filtrar(lista3(p?.votaciones).filter((v) => !esProrroga(`${v?.texto ?? ""}`)), (v) => {
+      const t = txt(v?.texto);
+      if (!t) return null;
+      const resultado = txt(v?.resultado) || "No informado";
+      if (String(v?.fuente) === "oficial") return respaldadoPorOficial(`${t} ${resultado}`, corpus) ? { texto: t, resultado, segundos: null, fuente: "oficial" } : null;
       const s = minutoValido(v?.minuto ?? v?.segundos);
-      return s !== null && txt(v?.texto) ? { texto: txt(v.texto), resultado: txt(v?.resultado) || "No informado", segundos: s } : null;
+      return s !== null ? { texto: t, resultado, segundos: s, fuente: "transcripcion" } : null;
     })
   })).filter((p) => p.sintesis || p.intervenciones.length || p.acuerdos.length || p.votaciones.length).sort((a, b) => (a.numero || 999) - (b.numero || 999));
   return {
     version: 2,
+    oficial: oficial || null,
     resumen: txt(raw?.resumen),
     sintesis: lista3(raw?.sintesis).map(txt).filter(Boolean).slice(0, 6),
     puntos,
@@ -188845,15 +188894,46 @@ function validarInforme(raw, segmentos, boletinesTabla, parcial) {
 
 // server/services/informeSesionService.ts
 var MAX_CARACTERES = 7e5;
+async function resultadoOficial(comision, fecha, hora) {
+  try {
+    const s = await sesionRegistradaPorFecha(comision, fecha, hora);
+    if (!s) return null;
+    const puntos = s.puntos.map((p) => ({ numero: p.numero, texto: p.texto, acuerdos: p.acuerdos || null, invitados: p.invitados || null, asistentes: p.asistentes || null }));
+    if (!s.resultado && !s.invitados && !puntos.some((p) => p.acuerdos || p.invitados || p.asistentes)) return null;
+    return { fuentes: s.fuentes, resultado: s.resultado, invitados: s.invitados, puntos, enlaces: s.enlaces };
+  } catch {
+    return null;
+  }
+}
+function bloqueOficial(o) {
+  if (!o) return "No hay registro oficial de esta sesi\xF3n.";
+  const L = [`Fuentes: ${o.fuentes.join(", ")}`];
+  if (o.resultado) L.push(`Resultado oficial: ${o.resultado}`);
+  if (o.invitados) L.push(`Invitados citados: ${o.invitados}`);
+  for (const p of o.puntos) {
+    const extra = [p.acuerdos && `Acuerdos: ${p.acuerdos}`, p.invitados && `Invitados: ${p.invitados}`, p.asistentes && `Asistentes: ${p.asistentes}`].filter(Boolean).join(" | ");
+    if (extra) L.push(`Punto ${p.numero}: ${p.texto} | ${extra}`);
+  }
+  return L.join("\n").slice(0, 3e4);
+}
 function prompt(p) {
   return `Eres asesor parlamentario de la Biblioteca del Congreso Nacional de Chile. Redacta el informe de una sesi\xF3n de comisi\xF3n
-usando EXCLUSIVAMENTE la transcripci\xF3n que sigue. No agregues nada que no est\xE9 dicho en ella: ni antecedentes, ni cifras, ni nombres, ni cargos externos.
+usando EXCLUSIVAMENTE dos fuentes: la transcripci\xF3n de la sesi\xF3n y el registro oficial de la comisi\xF3n (resultado, acuerdos e invitados).
+No agregues nada que no est\xE9 en ellas: ni antecedentes, ni cifras, ni nombres, ni cargos externos.
 
 Comisi\xF3n: ${p.comision || "No informada"}
 Fecha: ${p.fecha || "No informada"}
 Tabla oficial de la sesi\xF3n:
 ${p.tabla.length ? p.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n") : "No informada"}
 Boletines de la tabla: ${p.boletines.join(", ") || "ninguno"}
+
+REGISTRO OFICIAL DE LA COMISI\xD3N (resultado de la sesi\xF3n):
+${bloqueOficial(p.oficial)}
+
+USO DEL REGISTRO OFICIAL:
+- Acuerdos y votaciones: incl\xFAyelos aunque no se escuchen en la transcripci\xF3n, con "fuente":"oficial" y "minuto":"" (copia el texto del acuerdo tal como est\xE1 en el registro). Si tambi\xE9n se escuchan en la transcripci\xF3n, usa "fuente":"transcripcion" con su minuto. No repitas el mismo acuerdo dos veces.
+- Nombre completo, cargo e instituci\xF3n de los expositores: t\xF3malos de los invitados del registro cuando correspondan a quien habla en la transcripci\xF3n.
+- Si el registro oficial y la transcripci\xF3n se contradicen en un resultado, prevalece el registro oficial.
 
 ESTILO del desarrollo (como los informes de comisi\xF3n del Senado de Chile):
 - Relato en tercera persona y en pret\xE9rito, en orden cronol\xF3gico dentro de cada punto de la tabla.
@@ -188884,7 +188964,7 @@ Responde solo JSON con esta forma:
 {"resumen":"un p\xE1rrafo de 3 a 5 oraciones","sintesis":["3 a 5 ideas clave, una oraci\xF3n cada una"],
 "puntos":[{"numero":1,"titulo":"","boletines":["00000-00"],"estado":"","sintesis":"qu\xE9 se discuti\xF3, 2 a 3 oraciones",
 "intervenciones":[{"orador":"","cargo":"","institucion":"","categoria":"PARL|ESP|ESC|EEA|SEC","minuto":"","parrafos":["",""]}],
-"acuerdos":[{"texto":"","minuto":""}],"votaciones":[{"texto":"","resultado":"","minuto":""}]}],
+"acuerdos":[{"texto":"","minuto":"","fuente":"transcripcion|oficial"}],"votaciones":[{"texto":"","resultado":"","minuto":"","fuente":"transcripcion|oficial"}]}],
 "compromisos":[{"texto":"","responsable":"","minuto":""}],"pendientes":[""]}
 
 TRANSCRIPCI\xD3N:
@@ -188925,11 +189005,12 @@ async function generarInformeSesion(p) {
   if (segmentos.length < 5) return { disponible: false, motivo: "La transcripci\xF3n tiene muy poco texto para redactar un informe." };
   let transcripcion = transcripcionParaPrompt(segmentos);
   if (transcripcion.length > MAX_CARACTERES) return { disponible: false, motivo: "La transcripci\xF3n excede el tama\xF1o que se puede procesar en una sola consulta." };
+  const oficial = await resultadoOficial(p.comision, p.fecha);
   const candidatos = await modelosGemini(apiKey);
   const errores = [];
   const limite = Date.now() + 27e4;
   const cuerpo = JSON.stringify({
-    contents: [{ parts: [{ text: prompt({ comision: p.comision, fecha: p.fecha, tabla: p.tabla || [], boletines: p.boletines || [], transcripcion }) }] }],
+    contents: [{ parts: [{ text: prompt({ comision: p.comision, fecha: p.fecha, tabla: p.tabla || [], boletines: p.boletines || [], transcripcion, oficial }) }] }],
     generationConfig: { temperature: 0.15, maxOutputTokens: 32e3, responseMimeType: "application/json" }
   });
   for (const model of candidatos) {
@@ -188955,7 +189036,7 @@ async function generarInformeSesion(p) {
           errores.push(`${model}: respuesta vac\xEDa (${data?.candidates?.[0]?.finishReason || "sin motivo"})`);
           break;
         }
-        const informe = validarInforme(extraerJSON(texto), segmentos, p.boletines || [], !!p.parcial);
+        const informe = validarInforme(extraerJSON(texto), segmentos, p.boletines || [], !!p.parcial, oficial);
         if (!informe.resumen && informe.puntos.length === 0) {
           errores.push(`${model}: informe sin contenido verificable`);
           break;

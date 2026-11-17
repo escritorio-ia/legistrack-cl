@@ -38,8 +38,20 @@ export interface IntervencionInforme {
   parrafos: string[];   // relato en tercera persona, estilo informe de comisión
 }
 
+/** Registro oficial de la sesión (citación, detalle o resultado de la comisión) usado como segunda fuente. */
+export interface ResultadoOficialSesion {
+  fuentes: string[];          // "citación oficial", "detalle oficial de la sesión", "resultado oficial", ...
+  resultado: string | null;   // texto del resultado oficial (Cámara)
+  invitados: string | null;   // invitados según la citación
+  puntos: { numero: number; texto: string; acuerdos?: string | null; invitados?: string | null; asistentes?: string | null }[];
+  enlaces: string[];
+}
+
+export type FuenteDato = "transcripcion" | "oficial";
+
 export interface InformeSesion {
   version: 1 | 2;
+  oficial?: ResultadoOficialSesion | null;
   resumen: string;
   sintesis: string[];
   puntos: {
@@ -49,8 +61,8 @@ export interface InformeSesion {
     estado: string;            // "Votado", "En discusión", "Solo exposición", "Pendiente", ...
     sintesis: string;
     intervenciones: IntervencionInforme[];
-    acuerdos: { texto: string; segundos: number }[];
-    votaciones: { texto: string; resultado: string; segundos: number }[];
+    acuerdos: { texto: string; segundos: number | null; fuente?: FuenteDato }[];
+    votaciones: { texto: string; resultado: string; segundos: number | null; fuente?: FuenteDato }[];
   }[];
   compromisos: { texto: string; responsable: string; segundos: number }[];
   pendientes: string[];
@@ -99,7 +111,22 @@ export function categoriaFinal(cat: unknown, orador: string, cargo: string, inst
   return (CAT_VALIDAS.has(c) ? c : "ND") as CategoriaInterviniente;
 }
 
-export function validarInforme(raw: any, segmentos: SegmentoInforme[], boletinesTabla: string[], parcial: boolean): InformeSesion {
+/** Texto completo del registro oficial (para comprobar que lo que se atribuye a él está ahí). */
+export function textoOficial(o: ResultadoOficialSesion | null | undefined): string {
+  if (!o) return "";
+  return [o.resultado, o.invitados, ...o.puntos.flatMap((p) => [p.texto, p.acuerdos, p.invitados, p.asistentes])].filter(Boolean).join(" \n ");
+}
+/** ¿El texto está respaldado por el registro oficial? (al menos la mitad de sus palabras significativas aparecen en él). */
+export function respaldadoPorOficial(texto: string, corpus: string): boolean {
+  if (!corpus) return false;
+  const c = new Set(norm(corpus).split(" "));
+  const palabras = norm(texto).split(" ").filter((w) => w.length > 3);
+  if (palabras.length === 0) return false;
+  return palabras.filter((w) => c.has(w)).length / palabras.length >= 0.5;
+}
+
+export function validarInforme(raw: any, segmentos: SegmentoInforme[], boletinesTabla: string[], parcial: boolean, oficial?: ResultadoOficialSesion | null): InformeSesion {
+  const corpus = textoOficial(oficial);
   const tiempos = segmentos.map((g) => g.segundos).sort((a, b) => a - b);
   const oradores = Array.from(new Set(segmentos.map((g) => norm(g.orador)).filter((o) => o && !/no identificad/.test(o))));
   const permitidos = new Set([...boletinesTabla.map(normalizarBoletin), ...boletinesEnTexto(segmentos.map((g) => g.texto).join(" "))].filter(Boolean));
@@ -131,13 +158,25 @@ export function validarInforme(raw: any, segmentos: SegmentoInforme[], boletines
       const orador = txt(i.orador), cargo = txt(i?.cargo), institucion = txt(i?.institucion);
       return { orador, cargo, institucion, categoria: categoriaFinal(i?.categoria, orador, cargo, institucion), segundos: s, parrafos };
     }).sort((a, b) => a.segundos - b.segundos),
-    acuerdos: filtrar(lista(p?.acuerdos).filter((a) => !esProrroga(`${a?.texto ?? ""}`)), (a) => { const s = minutoValido(a?.minuto ?? a?.segundos); return s !== null && txt(a?.texto) ? { texto: txt(a.texto), segundos: s } : null; }),
-    votaciones: filtrar(lista(p?.votaciones).filter((v) => !esProrroga(`${v?.texto ?? ""}`)), (v) => { const s = minutoValido(v?.minuto ?? v?.segundos); return s !== null && txt(v?.texto) ? { texto: txt(v.texto), resultado: txt(v?.resultado) || "No informado", segundos: s } : null; }),
+    // Acuerdos y votaciones: de la transcripción (con minuto que exista) o del registro oficial de la comisión
+    // (sin minuto, solo si su texto está en ese registro).
+    acuerdos: filtrar(lista(p?.acuerdos).filter((a) => !esProrroga(`${a?.texto ?? ""}`)), (a) => {
+      const t = txt(a?.texto); if (!t) return null;
+      if (String(a?.fuente) === "oficial") return respaldadoPorOficial(t, corpus) ? { texto: t, segundos: null, fuente: "oficial" as const } : null;
+      const s = minutoValido(a?.minuto ?? a?.segundos); return s !== null ? { texto: t, segundos: s, fuente: "transcripcion" as const } : null;
+    }),
+    votaciones: filtrar(lista(p?.votaciones).filter((v) => !esProrroga(`${v?.texto ?? ""}`)), (v) => {
+      const t = txt(v?.texto); if (!t) return null;
+      const resultado = txt(v?.resultado) || "No informado";
+      if (String(v?.fuente) === "oficial") return respaldadoPorOficial(`${t} ${resultado}`, corpus) ? { texto: t, resultado, segundos: null, fuente: "oficial" as const } : null;
+      const s = minutoValido(v?.minuto ?? v?.segundos); return s !== null ? { texto: t, resultado, segundos: s, fuente: "transcripcion" as const } : null;
+    }),
   })).filter((p) => p.sintesis || p.intervenciones.length || p.acuerdos.length || p.votaciones.length)
     .sort((a, b) => (a.numero || 999) - (b.numero || 999));
 
   return {
     version: 2,
+    oficial: oficial || null,
     resumen: txt(raw?.resumen),
     sintesis: lista(raw?.sintesis).map(txt).filter(Boolean).slice(0, 6),
     puntos,
@@ -153,6 +192,7 @@ export function normalizarInforme(inf: any): InformeSesion {
   const lista = (v: unknown): any[] => (Array.isArray(v) ? v : []);
   return {
     version: 2,
+    oficial: inf?.oficial || null,
     resumen: String(inf?.resumen || ""),
     sintesis: lista(inf?.sintesis),
     puntos: lista(inf?.puntos).map((p: any) => ({
@@ -193,10 +233,11 @@ export function informeSesionATexto(inf: InformeSesion, meta: { comision: string
   const L: string[] = [`INFORME DE SESIÓN · ${meta.comision} · ${meta.fecha}`, ""];
   L.push("I. SÍNTESIS", inf.resumen || "No informado");
   for (const s of inf.sintesis) L.push(`- ${s}`);
+  const ref = (s: number | null) => (s === null ? "[resultado oficial]" : `[${formatoMinutoInforme(s)}]`);
   const votos = inf.puntos.flatMap((p) => [...p.votaciones.map((v) => ({ p, t: `${v.texto}: ${v.resultado}`, s: v.segundos })), ...p.acuerdos.map((a) => ({ p, t: a.texto, s: a.segundos }))]);
   L.push("", "II. ACUERDOS Y VOTACIONES");
   if (!votos.length) L.push("No se registran acuerdos ni votaciones en la transcripción.");
-  for (const v of votos) L.push(`- Punto ${v.p.numero || "s/n"}${v.p.boletines.length ? ` (Boletín ${v.p.boletines.join(", ")})` : ""}: ${v.t} [${formatoMinutoInforme(v.s)}]`);
+  for (const v of votos) L.push(`- Punto ${v.p.numero || "s/n"}${v.p.boletines.length ? ` (Boletín ${v.p.boletines.join(", ")})` : ""}: ${v.t} ${ref(v.s)}`);
   L.push("", "III. DESARROLLO POR PUNTO DE LA TABLA");
   for (const p of inf.puntos) {
     L.push("", `${p.numero ? `PUNTO ${p.numero}. ` : "FUERA DE TABLA. "}${p.titulo}${p.boletines.length ? ` (Boletín N° ${p.boletines.join(", ")})` : ""}`);
@@ -206,8 +247,8 @@ export function informeSesionATexto(inf: InformeSesion, meta: { comision: string
     const parls = p.intervenciones.filter((i) => i.categoria === "PARL" || i.categoria === "SEC");
     if (expos.length) { L.push("", "Exposiciones"); bloque([...expos]); }
     if (parls.length) { L.push("", "Lo que señalaron los parlamentarios"); bloque([...parls]); }
-    for (const v of p.votaciones) L.push("", `- ${v.texto}: ${v.resultado}. [${formatoMinutoInforme(v.segundos)}]`);
-    for (const a of p.acuerdos) L.push("", `- ${a.texto}. [${formatoMinutoInforme(a.segundos)}]`);
+    for (const v of p.votaciones) L.push("", `- ${v.texto}: ${v.resultado}. ${ref(v.segundos)}`);
+    for (const a of p.acuerdos) L.push("", `- ${a.texto}. ${ref(a.segundos)}`);
   }
   const ints = intervinientes(inf).filter((i) => i.categoria !== "PARL" && i.categoria !== "SEC");
   if (ints.length) {
@@ -221,6 +262,7 @@ export function informeSesionATexto(inf: InformeSesion, meta: { comision: string
   }
   if (inf.compromisos.length) { L.push("", "V. COMPROMISOS"); for (const c of inf.compromisos) L.push(`- ${c.texto} (responsable: ${c.responsable}) [${formatoMinutoInforme(c.segundos)}]`); }
   if (inf.pendientes.length) { L.push("", "TEMAS PENDIENTES"); for (const t of inf.pendientes) L.push(`- ${t}`); }
-  L.push("", `Informe generado con IA a partir de la transcripción automática del video oficial${inf.parcial ? " (transcripción incompleta)" : ""}. No es un documento oficial; verifique cada minuto en el video${meta.videoId ? `: https://www.youtube.com/watch?v=${meta.videoId}` : ""}.`);
+  if (inf.oficial?.resultado) L.push("", "RESULTADO OFICIAL DE LA COMISIÓN", inf.oficial.resultado);
+  L.push("", `Informe generado con IA a partir de la transcripción automática del video oficial${inf.oficial ? ` y del registro oficial de la comisión (${inf.oficial.fuentes.join(", ")})` : ""}${inf.parcial ? " (transcripción incompleta)" : ""}. No es un documento oficial; verifique cada minuto en el video${meta.videoId ? `: https://www.youtube.com/watch?v=${meta.videoId}` : ""}.`);
   return L.join("\n");
 }

@@ -421,3 +421,35 @@ export async function sesionesRegistradasDeComision(comisionId: string): Promise
   const filas: any[] = await r.json();
   return unirSesionesLeidas(filas.filter((x) => x.document).map((x) => combinarSesion(idDoc(x.document), x.document.fields || {}))).sort((a, c) => c.fecha.localeCompare(a.fecha) || c.id.localeCompare(a.id));
 }
+
+const nombreComisionNorm = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+  .replace(/\b(comision|especial|permanente|mixta|unida|unidas|de|del|la|las|el|los|y|e)\b/g, " ").replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+
+/**
+ * Registro oficial de una sesión a partir del nombre de la comisión y la fecha (texto como lo muestra la app).
+ * Si hay más de una sesión ese día, usa la hora de inicio para elegir. null si no hay registro.
+ */
+export async function sesionRegistradaPorFecha(comision: string, fechaTexto: string, hora?: string): Promise<SesionRegistrada | null> {
+  const iso = /^\d{4}-\d{2}-\d{2}$/.test(fechaTexto) ? fechaTexto : fechaISO(fechaTexto);
+  const objetivo = nombreComisionNorm(comision);
+  if (!iso || !objetivo) return null;
+  const { base, key } = conexion();
+  const r = await fetch(`${base}:runQuery?key=${key}`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ structuredQuery: { from: [{ collectionId: COLECCION }], where: { fieldFilter: { field: { fieldPath: "fecha" }, op: "EQUAL", value: sv(iso) } } } }),
+    signal: AbortSignal.timeout(12000),
+  });
+  if (!r.ok) return null;
+  const filas: any[] = await r.json();
+  const candidatas = unirSesionesLeidas(filas.filter((x) => x.document).map((x) => combinarSesion(idDoc(x.document), x.document.fields || {})))
+    .filter((s) => { const n = nombreComisionNorm(s.comisionNombre); return n && (n === objetivo || n.includes(objetivo) || objetivo.includes(n)); });
+  if (candidatas.length === 0) return null;
+  const hh = String(hora || "").match(/(\d{1,2}):(\d{2})/);
+  if (hh && candidatas.length > 1) {
+    const h = `${hh[1].padStart(2, "0")}:${hh[2]}`;
+    const exacta = candidatas.find((s) => String(s.hora || "").includes(h));
+    if (exacta) return exacta;
+  }
+  // La más completa (con detalle o resultado oficial) primero.
+  return candidatas.sort((a, b) => (b.fuentes.length - a.fuentes.length))[0];
+}

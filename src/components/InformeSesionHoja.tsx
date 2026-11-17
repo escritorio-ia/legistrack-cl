@@ -16,10 +16,10 @@ export default function InformeSesionHoja({ informe, comision, fecha, videoId, d
   const votos = informe.puntos.flatMap((p) => [
     ...p.votaciones.map((v) => ({ p, texto: v.texto, resultado: v.resultado, s: v.segundos })),
     ...p.acuerdos.map((a) => ({ p, texto: a.texto, resultado: "Acordado", s: a.segundos })),
-  ]).sort((a, b) => a.s - b.s);
-  const Min = ({ s }: { s: number }) => (
-    <button type="button" onClick={() => onMinuto?.(s)} className="font-mono text-[11px] font-semibold text-[#a4243b] hover:underline cursor-pointer whitespace-nowrap" title="Ver en el video">{formatoMinutoInforme(s)}</button>
-  );
+  ]).sort((a, b) => (a.s ?? 1e9) - (b.s ?? 1e9));
+  const Min = ({ s }: { s: number | null }) => s === null
+    ? <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded px-1 whitespace-nowrap" title="Tomado del registro oficial de la comisión">Resultado oficial</span>
+    : <button type="button" onClick={() => onMinuto?.(s)} className="font-mono text-[11px] font-semibold text-[#a4243b] hover:underline cursor-pointer whitespace-nowrap" title="Ver en el video">{formatoMinutoInforme(s)}</button>;
   const Chip = ({ b }: { b: string }) => <span className="inline-block font-mono text-[11px] font-bold text-[#0b3a6e] bg-[#e8f0fb] border border-[#c7d8f0] rounded px-1.5">{b}</span>;
   const H2 = ({ n, t }: { n: string; t: string }) => <h2 className="font-serif text-[15px] font-bold text-[#0b3a6e] mt-7 mb-2.5 pb-1 border-b border-slate-200"><span className="font-sans text-xs text-slate-500 mr-1.5">{n}</span>{t}</h2>;
   const colorRes = (r: string) => /aprob|acord/i.test(r) ? "text-emerald-700" : /rechaz/i.test(r) ? "text-red-700" : "text-slate-700";
@@ -55,7 +55,18 @@ export default function InformeSesionHoja({ informe, comision, fecha, videoId, d
             {!EXPO.every((c) => cuenta(c) === 0) && <p className="text-[10.5px] text-slate-500 mt-1">ESP: cargo en representación del Estado o misión diplomática (no parlamentarios). ESC: organizaciones de la sociedad civil. EEA: expertos y académicos, incluida la BCN.</p>}
           </td>
         </tr>
-        <tr><td className="py-1.5 pr-3 text-slate-500 font-semibold">Fuente</td><td className="py-1.5">{videoId ? <a className="text-[#0b3a6e] underline" href={`https://www.youtube.com/watch?v=${videoId}`} target="_blank" rel="noopener noreferrer">Video oficial de la sesión</a> : "Video oficial"} · tabla oficial de la citación</td></tr>
+        {informe.oficial && (
+          <tr className="border-b border-slate-100">
+            <td className="py-1.5 pr-3 text-slate-500 font-semibold align-top">Resultado oficial</td>
+            <td className="py-1.5">
+              {informe.oficial.resultado ? <p className="whitespace-pre-line">{informe.oficial.resultado}</p> : null}
+              {informe.oficial.puntos.filter((p) => p.acuerdos).map((p, i) => <p key={i}><b>Punto {p.numero}:</b> {p.acuerdos}</p>)}
+              {!informe.oficial.resultado && !informe.oficial.puntos.some((p) => p.acuerdos) && <span className="text-slate-500">Sin acuerdos registrados.</span>}
+              <p className="text-[10.5px] text-slate-500 mt-1">Fuente: {informe.oficial.fuentes.join(", ")}{informe.oficial.enlaces[0] ? <> · <a className="underline" href={informe.oficial.enlaces[0]} target="_blank" rel="noopener noreferrer">ver registro</a></> : null}</p>
+            </td>
+          </tr>
+        )}
+        <tr><td className="py-1.5 pr-3 text-slate-500 font-semibold">Fuente</td><td className="py-1.5">{videoId ? <a className="text-[#0b3a6e] underline" href={`https://www.youtube.com/watch?v=${videoId}`} target="_blank" rel="noopener noreferrer">Video oficial de la sesión</a> : "Video oficial"} · tabla oficial de la citación{informe.oficial ? " · registro oficial de la comisión" : " · sin registro oficial de la comisión para esta sesión"}</td></tr>
       </tbody></table>
 
       <H2 n="II." t="Síntesis" />
@@ -120,7 +131,7 @@ export default function InformeSesionHoja({ informe, comision, fecha, videoId, d
       {informe.pendientes.length > 0 && <><p className="font-semibold text-[13px]">Temas pendientes</p><ul className="list-disc pl-5">{informe.pendientes.map((t, i) => <li key={i}>{t}</li>)}</ul></>}
 
       <footer className="mt-7 pt-2.5 border-t border-slate-200 text-[11px] text-slate-500">
-        Informe generado con IA solo a partir de la transcripción automática del video oficial{informe.parcial ? " (transcripción incompleta)" : ""}. No es un acta ni un documento oficial. Cada minuto lleva al video para verificar.
+        Informe generado con IA a partir de la transcripción automática del video oficial{informe.oficial ? " y del registro oficial de la comisión" : ""}{informe.parcial ? " (transcripción incompleta)" : ""}. No es un acta ni un documento oficial. Cada minuto lleva al video para verificar.
         {informe.descartados > 0 ? ` Se descartaron ${informe.descartados} elemento(s) que no se pudieron ubicar en la transcripción.` : ""}
       </footer>
     </article>

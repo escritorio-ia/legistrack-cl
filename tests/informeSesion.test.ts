@@ -78,3 +78,17 @@ test("las prórrogas de la sesión no son acuerdos", () => {
   assert.deepEqual(inf.puntos[0].acuerdos.map((a) => a.texto), ["Aprobado en general"]);
   assert.equal(inf.puntos[0].votaciones.length, 0);
 });
+
+test("acuerdos del registro oficial de la comisión: se aceptan sin minuto solo si están en ese registro", () => {
+  const segs = [{ segundos: 60, orador: "Presidente", texto: "Iniciamos." }, { segundos: 120, orador: "Presidente", texto: "Seguimos." }];
+  const oficial = { fuentes: ["resultado oficial"], resultado: "Se aprobó en general el proyecto por la unanimidad de los presentes (4x0).", invitados: null, puntos: [{ numero: 1, texto: "Proyecto", acuerdos: "Se acordó oficiar a la Dirección de Presupuestos." }], enlaces: [] };
+  const inf = validarInforme({ puntos: [{ numero: 1, titulo: "t", sintesis: "s",
+    acuerdos: [{ texto: "Oficiar a la Dirección de Presupuestos", fuente: "oficial", minuto: "" }, { texto: "Crear una comisión investigadora", fuente: "oficial", minuto: "" }],
+    votaciones: [{ texto: "Votación en general del proyecto", resultado: "Aprobado por unanimidad de los presentes (4x0)", fuente: "oficial", minuto: "" }] }] }, segs, [], false, oficial);
+  assert.deepEqual(inf.puntos[0].acuerdos.map((a) => [a.texto, a.segundos, a.fuente]), [["Oficiar a la Dirección de Presupuestos", null, "oficial"]]);
+  assert.equal(inf.puntos[0].votaciones.length, 1);
+  assert.equal(inf.puntos[0].votaciones[0].segundos, null);
+  assert.equal(inf.descartados, 1, "el acuerdo que no está en el registro se descarta");
+  assert.equal(inf.oficial?.resultado, oficial.resultado);
+  assert.match(informeSesionATexto(inf, { comision: "c", fecha: "f" }), /\[resultado oficial\]/);
+});

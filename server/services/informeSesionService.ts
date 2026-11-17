@@ -2,19 +2,52 @@
  * Informe de sesión generado con Gemini SOLO a partir de la transcripción guardada de la sesión.
  * El resultado se valida contra la transcripción (minutos, oradores, boletines) antes de entregarlo.
  */
-import { InformeSesion, SegmentoInforme, transcripcionParaPrompt, validarInforme } from "../../src/utils/informeSesion";
+import { InformeSesion, SegmentoInforme, ResultadoOficialSesion, transcripcionParaPrompt, validarInforme } from "../../src/utils/informeSesion";
+import { sesionRegistradaPorFecha } from "./registroSesionesService";
 
 const MAX_CARACTERES = 700_000;
 
-function prompt(p: { comision: string; fecha: string; tabla: string[]; boletines: string[]; transcripcion: string }): string {
+/** Registro oficial de la sesión (resultado de la comisión, detalle por punto, invitados), si existe. */
+async function resultadoOficial(comision: string, fecha: string, hora?: string): Promise<ResultadoOficialSesion | null> {
+  try {
+    const s = await sesionRegistradaPorFecha(comision, fecha, hora);
+    if (!s) return null;
+    const puntos = s.puntos.map((p: any) => ({ numero: p.numero, texto: p.texto, acuerdos: p.acuerdos || null, invitados: p.invitados || null, asistentes: p.asistentes || null }));
+    if (!s.resultado && !s.invitados && !puntos.some((p) => p.acuerdos || p.invitados || p.asistentes)) return null;
+    return { fuentes: s.fuentes, resultado: s.resultado, invitados: s.invitados, puntos, enlaces: s.enlaces };
+  } catch { return null; }
+}
+
+function bloqueOficial(o: ResultadoOficialSesion | null): string {
+  if (!o) return "No hay registro oficial de esta sesión.";
+  const L = [`Fuentes: ${o.fuentes.join(", ")}`];
+  if (o.resultado) L.push(`Resultado oficial: ${o.resultado}`);
+  if (o.invitados) L.push(`Invitados citados: ${o.invitados}`);
+  for (const p of o.puntos) {
+    const extra = [p.acuerdos && `Acuerdos: ${p.acuerdos}`, p.invitados && `Invitados: ${p.invitados}`, p.asistentes && `Asistentes: ${p.asistentes}`].filter(Boolean).join(" | ");
+    if (extra) L.push(`Punto ${p.numero}: ${p.texto} | ${extra}`);
+  }
+  return L.join("\n").slice(0, 30000);
+}
+
+function prompt(p: { comision: string; fecha: string; tabla: string[]; boletines: string[]; transcripcion: string; oficial: ResultadoOficialSesion | null }): string {
   return `Eres asesor parlamentario de la Biblioteca del Congreso Nacional de Chile. Redacta el informe de una sesión de comisión
-usando EXCLUSIVAMENTE la transcripción que sigue. No agregues nada que no esté dicho en ella: ni antecedentes, ni cifras, ni nombres, ni cargos externos.
+usando EXCLUSIVAMENTE dos fuentes: la transcripción de la sesión y el registro oficial de la comisión (resultado, acuerdos e invitados).
+No agregues nada que no esté en ellas: ni antecedentes, ni cifras, ni nombres, ni cargos externos.
 
 Comisión: ${p.comision || "No informada"}
 Fecha: ${p.fecha || "No informada"}
 Tabla oficial de la sesión:
 ${p.tabla.length ? p.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n") : "No informada"}
 Boletines de la tabla: ${p.boletines.join(", ") || "ninguno"}
+
+REGISTRO OFICIAL DE LA COMISIÓN (resultado de la sesión):
+${bloqueOficial(p.oficial)}
+
+USO DEL REGISTRO OFICIAL:
+- Acuerdos y votaciones: inclúyelos aunque no se escuchen en la transcripción, con "fuente":"oficial" y "minuto":"" (copia el texto del acuerdo tal como está en el registro). Si también se escuchan en la transcripción, usa "fuente":"transcripcion" con su minuto. No repitas el mismo acuerdo dos veces.
+- Nombre completo, cargo e institución de los expositores: tómalos de los invitados del registro cuando correspondan a quien habla en la transcripción.
+- Si el registro oficial y la transcripción se contradicen en un resultado, prevalece el registro oficial.
 
 ESTILO del desarrollo (como los informes de comisión del Senado de Chile):
 - Relato en tercera persona y en pretérito, en orden cronológico dentro de cada punto de la tabla.
@@ -45,7 +78,7 @@ Responde solo JSON con esta forma:
 {"resumen":"un párrafo de 3 a 5 oraciones","sintesis":["3 a 5 ideas clave, una oración cada una"],
 "puntos":[{"numero":1,"titulo":"","boletines":["00000-00"],"estado":"","sintesis":"qué se discutió, 2 a 3 oraciones",
 "intervenciones":[{"orador":"","cargo":"","institucion":"","categoria":"PARL|ESP|ESC|EEA|SEC","minuto":"","parrafos":["",""]}],
-"acuerdos":[{"texto":"","minuto":""}],"votaciones":[{"texto":"","resultado":"","minuto":""}]}],
+"acuerdos":[{"texto":"","minuto":"","fuente":"transcripcion|oficial"}],"votaciones":[{"texto":"","resultado":"","minuto":"","fuente":"transcripcion|oficial"}]}],
 "compromisos":[{"texto":"","responsable":"","minuto":""}],"pendientes":[""]}
 
 TRANSCRIPCIÓN:
@@ -97,11 +130,12 @@ export async function generarInformeSesion(p: {
   let transcripcion = transcripcionParaPrompt(segmentos);
   if (transcripcion.length > MAX_CARACTERES) return { disponible: false, motivo: "La transcripción excede el tamaño que se puede procesar en una sola consulta." };
 
+  const oficial = await resultadoOficial(p.comision, p.fecha);
   const candidatos = await modelosGemini(apiKey);
   const errores: string[] = [];
   const limite = Date.now() + 270_000;
   const cuerpo = JSON.stringify({
-    contents: [{ parts: [{ text: prompt({ comision: p.comision, fecha: p.fecha, tabla: p.tabla || [], boletines: p.boletines || [], transcripcion }) }] }],
+    contents: [{ parts: [{ text: prompt({ comision: p.comision, fecha: p.fecha, tabla: p.tabla || [], boletines: p.boletines || [], transcripcion, oficial }) }] }],
     generationConfig: { temperature: 0.15, maxOutputTokens: 32000, responseMimeType: "application/json" },
   });
   for (const model of candidatos) {
@@ -125,7 +159,7 @@ export async function generarInformeSesion(p: {
         const data: any = await r.json();
         const texto = (data?.candidates?.[0]?.content?.parts || []).map((x: any) => x.text || "").join("");
         if (!texto) { errores.push(`${model}: respuesta vacía (${data?.candidates?.[0]?.finishReason || "sin motivo"})`); break; }
-        const informe = validarInforme(extraerJSON(texto), segmentos, p.boletines || [], !!p.parcial);
+        const informe = validarInforme(extraerJSON(texto), segmentos, p.boletines || [], !!p.parcial, oficial);
         if (!informe.resumen && informe.puntos.length === 0) { errores.push(`${model}: informe sin contenido verificable`); break; }
         return { disponible: true, informe: { ...informe, modelo: model, generado: new Date().toISOString() } };
       } catch (err: any) {
