@@ -15,5 +15,11 @@
     "api/index.js": {
       "maxDuration": 300
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/registro-sesiones/sincronizar",
+      "schedule": "23 11 * * *"
+    }
+  ]
 }

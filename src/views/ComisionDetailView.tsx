@@ -4,6 +4,7 @@
  */
 
 import { ultimoMovimiento } from "../utils/tramitacion";
+import PautaSesion from "../components/PautaSesion";
 import ResumenSesionCamara from "../components/ResumenSesionCamara";
 import ResumenSesionOficial from "../components/ResumenSesionOficial";
 import { getAnalisisVideoFromFirestore } from "../services/firebaseService";
@@ -2922,9 +2923,7 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
                             {ses.tipo}
                           </span>
                         </div>
-                        <h4 className="text-xs font-bold text-slate-900 leading-snug">
-                          {ses.materia}
-                        </h4>
+                        <PautaSesion materia={ses.materia} maxPuntos={3} onAbrirBoletin={(b) => setSelectedProyectoId(b)} />
                         {ses.invitados && (
                           <p className="text-[10px] text-slate-500 mt-1 line-clamp-1">
                             <strong>Invitados:</strong> {ses.invitados}
@@ -3191,9 +3190,7 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
                           )}
                         </div>
 
-                        <h4 className="text-xs font-extrabold text-slate-900 leading-snug">
-                          {ses.materia}
-                        </h4>
+                        <PautaSesion materia={ses.materia} maxPuntos={4} onAbrirBoletin={(b) => setSelectedProyectoId(b)} />
 
                         {ses.invitados && (
                           <p className="text-[11px] text-slate-600 leading-relaxed">

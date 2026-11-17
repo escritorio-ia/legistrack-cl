@@ -1,3 +1,4 @@
+import { sincronizarRegistroSesiones, sesionesRegistradasDeBoletin } from "../services/registroSesionesService";
 import { discusionDeProyecto } from "../services/discusionService";
 import { construirResumenSesion } from "../services/resumenSesionService";
 import { Router, Request, Response, text as expressText } from "express";
@@ -749,6 +750,40 @@ async function sesionesPorBoletin(): Promise<Record<string, any[]>> {
   return mapa;
 }
 
+// ---------------------------------------------------------------------------
+// Registro permanente de sesiones relacionado con boletines (server/services/registroSesionesService.ts).
+// Se actualiza solo: después de cada importación de la extensión y con la tarea diaria de Vercel (vercel.json).
+// ---------------------------------------------------------------------------
+/** Tras una importación: actualiza el registro sin hacer esperar más de 60 s a la extensión. */
+async function registrarTrasImportar(): Promise<{ escrituras?: number; omitida?: string; errores?: string[] } | null> {
+  const limite = new Promise<null>((r) => setTimeout(() => r(null), 60000));
+  const res = await Promise.race([sincronizarRegistroSesiones().catch((e) => ({ errores: [String(e?.message || e)] } as any)), limite]);
+  return res ? { escrituras: res.escrituras, omitida: res.omitida, errores: res.errores?.length ? res.errores : undefined } : { omitida: "Sigue en segundo plano." };
+}
+
+// Tarea programada (Vercel Cron) o ejecución manual. Si CRON_SECRET está definido, se exige
+// "Authorization: Bearer <CRON_SECRET>" (Vercel lo envía solo); sin él, se respeta el intervalo mínimo de 5 minutos.
+apiRouter.get("/registro-sesiones/sincronizar", async (req: Request, res: Response) => {
+  const secreto = process.env.CRON_SECRET;
+  const autorizado = !!secreto && req.headers.authorization === `Bearer ${secreto}`;
+  if (secreto && !autorizado) return res.status(401).json({ ok: false, error: "No autorizado." });
+  try {
+    res.json(await sincronizarRegistroSesiones({ forzar: autorizado }));
+  } catch (err: any) {
+    res.status(500).json({ ok: false, errores: [err?.message || String(err)] });
+  }
+});
+
+// Sesiones registradas de un boletín (todas las fuentes combinadas), de la más reciente a la más antigua.
+apiRouter.get("/proyecto/:id/registro-sesiones", async (req: Request, res: Response) => {
+  try {
+    const sesiones = await sesionesRegistradasDeBoletin(String(req.params.id).slice(0, 20));
+    res.json({ disponible: true, sesiones, fuente: "Registro de sesiones (citaciones, registro y detalle oficiales de la Cámara y el Senado)" });
+  } catch (err: any) {
+    res.json({ disponible: false, motivo: err?.message || String(err), sesiones: [] });
+  }
+});
+
 // Importación de citaciones de la Cámara leídas con un navegador normal (la tarea
 // programada abre camara.cl y envía aquí el HTML de la semana). Se acepta
 // text/plain para que el navegador pueda enviarlo desde camara.cl sin preflight.
@@ -775,7 +810,7 @@ apiRouter.post("/camara/citaciones/importar", expressText({ type: "text/plain", 
   if (html.length < 200) return res.status(400).json({ ok: false, error: "Falta el HTML de la página de citaciones." });
   try {
     const r = await importarCitacionesCamara(html, String(body?.semana || ""));
-    res.json({ ok: true, ...r });
+    res.json({ ok: true, ...r, registro: await registrarTrasImportar() });
   } catch (err: any) {
     res.status(422).json({ ok: false, error: err?.message || String(err) });
   }
@@ -837,7 +872,8 @@ apiRouter.post("/senado/citaciones/importar", expressText({ type: "text/plain", 
   if (token && body?.token !== token) return res.status(401).json({ ok: false, error: "Token de importación inválido." });
   if (!body?.raw || !Array.isArray(body.raw.data)) return res.status(400).json({ ok: false, error: "Falta la respuesta de web-back.senado.cl." });
   try {
-    res.json({ ok: true, ...(await importarCitacionesSenado(body.raw)) });
+    const r = await importarCitacionesSenado(body.raw);
+    res.json({ ok: true, ...r, registro: await registrarTrasImportar() });
   } catch (err: any) {
     res.status(422).json({ ok: false, error: err?.message || String(err) });
   }
@@ -851,7 +887,7 @@ apiRouter.post("/senado/sesiones/importar", expressText({ type: "text/plain", li
   if (token && body?.token !== token) return res.status(401).json({ ok: false, error: "Token de importación inválido." });
   const id = String(body?.idComision || "");
   if (!/^\d+$/.test(id) || !Array.isArray(body?.sesiones)) return res.status(400).json({ ok: false, error: "Faltan idComision o sesiones." });
-  try { res.json({ ok: true, sesiones: await importarSesionesSenado(id, body.sesiones) }); }
+  try { const n = await importarSesionesSenado(id, body.sesiones); res.json({ ok: true, sesiones: n, registro: await registrarTrasImportar() }); }
   catch (err: any) { res.status(422).json({ ok: false, error: err?.message || String(err) }); }
 });
 
@@ -861,7 +897,7 @@ apiRouter.post("/senado/sesiones/detalle/importar", expressText({ type: "text/pl
   const token = process.env.CITACIONES_IMPORT_TOKEN;
   if (token && body?.token !== token) return res.status(401).json({ ok: false, error: "Token de importación inválido." });
   if (!Array.isArray(body?.detalles)) return res.status(400).json({ ok: false, error: "Faltan detalles." });
-  try { res.json({ ok: true, detalles: await importarDetallesSesionesSenado(body.detalles.slice(0, 60)) }); }
+  try { const n = await importarDetallesSesionesSenado(body.detalles.slice(0, 60)); res.json({ ok: true, detalles: n, registro: await registrarTrasImportar() }); }
   catch (err: any) { res.status(422).json({ ok: false, error: err?.message || String(err) }); }
 });
 
@@ -902,7 +938,7 @@ apiRouter.post("/camara/resultados/importar", expressText({ type: "text/plain", 
   if (token && body?.token !== token) return res.status(401).json({ ok: false, error: "Token de importación inválido." });
   const html = String(body?.html || "");
   if (html.length < 200) return res.status(400).json({ ok: false, error: "Falta el HTML de la página de resultados." });
-  try { res.json({ ok: true, ...(await importarResultadosCamara(html, String(body?.semana || ""))) }); }
+  try { const r = await importarResultadosCamara(html, String(body?.semana || "")); res.json({ ok: true, ...r, registro: await registrarTrasImportar() }); }
   catch (err: any) { res.status(422).json({ ok: false, error: err?.message || String(err) }); }
 });
 

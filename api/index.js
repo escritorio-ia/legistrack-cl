@@ -1,598 +1,6 @@
 // server/vercelHandler.ts
 import express from "express";
 
-// server/services/cacheService.ts
-var CacheService = class _CacheService {
-  constructor() {
-    this.cache = /* @__PURE__ */ new Map();
-    this.hits = 0;
-    this.misses = 0;
-  }
-  get(key) {
-    const entry = this.cache.get(key);
-    if (!entry) {
-      this.misses++;
-      return null;
-    }
-    const isExpired = Date.now() - entry.cachedAt > entry.ttlMs;
-    if (isExpired) {
-      this.misses++;
-      return null;
-    }
-    this.hits++;
-    return entry.data;
-  }
-  getStale(key) {
-    const entry = this.cache.get(key);
-    if (!entry) {
-      this.misses++;
-      return { data: null, isStale: false };
-    }
-    const isStale = Date.now() - entry.cachedAt > entry.ttlMs;
-    if (!isStale) this.hits++;
-    return { data: entry.data, isStale };
-  }
-  static {
-    /** Tope de entradas: las búsquedas libres generan claves nuevas, así que sin tope la memoria crecería sin límite. */
-    this.MAX_ENTRADAS = 2e3;
-  }
-  set(key, data, ttlMs = 5 * 60 * 1e3) {
-    if (!this.cache.has(key) && this.cache.size >= _CacheService.MAX_ENTRADAS) {
-      const ahora = Date.now();
-      for (const [k, e] of this.cache) if (ahora - e.cachedAt > e.ttlMs) this.cache.delete(k);
-      if (this.cache.size >= _CacheService.MAX_ENTRADAS) this.cache.delete(this.cache.keys().next().value);
-    }
-    this.cache.set(key, {
-      data,
-      cachedAt: Date.now(),
-      ttlMs
-    });
-  }
-  delete(key) {
-    this.cache.delete(key);
-  }
-  clear() {
-    this.cache.clear();
-  }
-  getStats() {
-    return {
-      size: this.cache.size,
-      hits: this.hits,
-      misses: this.misses,
-      hitRate: this.hits + this.misses > 0 ? (this.hits / (this.hits + this.misses)).toFixed(2) : "0.00"
-    };
-  }
-  /**
-   * Helper that returns cached value or executes fallback function, updating cache in background.
-   */
-  async wrap(key, ttlMs, fetcher) {
-    const { data, isStale } = this.getStale(key);
-    if (data !== null && !isStale) {
-      return data;
-    }
-    if (data !== null && isStale) {
-      fetcher().then((fresh2) => this.set(key, fresh2, ttlMs)).catch((err) => console.error(`[Cache SWR Error for ${key}]:`, err));
-      return data;
-    }
-    const fresh = await fetcher();
-    this.set(key, fresh, ttlMs);
-    return fresh;
-  }
-};
-var cache = new CacheService();
-
-// server/services/aiService.ts
-import Anthropic from "@anthropic-ai/sdk";
-var aiClient = null;
-var isClaudeQuotaExceeded = false;
-function handleClaudeError(context, err) {
-  const errStr = (String(err?.message || "") + " " + String(err?.status || "") + " " + String(err?.statusCode || "") + " " + String(err?.code || "")).toLowerCase();
-  const isQuotaOrAuth = errStr.includes("quota") || errStr.includes("exhausted") || errStr.includes("billing") || errStr.includes("plan") || errStr.includes("exceeded") || errStr.includes("rate limit") || errStr.includes("429") || errStr.includes("limit") || errStr.includes("key") || errStr.includes("api_key") || errStr.includes("unauthorized") || errStr.includes("invalid") || err?.status === 429 || err?.status === 401;
-  if (isQuotaOrAuth) {
-    isClaudeQuotaExceeded = true;
-    console.log(`[Claude Info] ${context}: Quota/key limit active. Switched to alternative AI provider or high-fidelity offline mode.`);
-  } else {
-    console.log(`[Claude Info] ${context}: ${err?.message || err}`);
-  }
-}
-function getClaudeClient() {
-  if (isClaudeQuotaExceeded) {
-    return null;
-  }
-  if (!aiClient) {
-    const key = process.env.ANTHROPIC_API_KEY;
-    if (key && key !== "MY_ANTHROPIC_API_KEY") {
-      aiClient = new Anthropic({
-        apiKey: key,
-        // El SDK por defecto espera hasta 10 min y reintenta 2 veces: una sola
-        // llamada colgada dejaba la generación congelada indefinidamente.
-        timeout: 3e4,
-        maxRetries: 0,
-        defaultHeaders: {
-          "User-Agent": "aistudio-build"
-        }
-      });
-    }
-  }
-  return aiClient;
-}
-function safeJsonParse(text) {
-  let cleaned = text.trim();
-  try {
-    return JSON.parse(cleaned);
-  } catch (ignore) {
-  }
-  if (cleaned.startsWith("```")) {
-    cleaned = cleaned.replace(/^```[a-zA-Z]*\s*/, "");
-    cleaned = cleaned.replace(/\s*```$/, "");
-  }
-  cleaned = cleaned.trim();
-  cleaned = cleaned.replace(/^```json\s*/i, "").replace(/\s*```$/, "").trim();
-  try {
-    return JSON.parse(cleaned);
-  } catch (ignore) {
-  }
-  const firstBrace = cleaned.indexOf("{");
-  const firstBracket = cleaned.indexOf("[");
-  let startIdx = -1;
-  let endIdx = -1;
-  if (firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) {
-    startIdx = firstBrace;
-    endIdx = cleaned.lastIndexOf("}");
-  } else if (firstBracket !== -1) {
-    startIdx = firstBracket;
-    endIdx = cleaned.lastIndexOf("]");
-  }
-  if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
-    const candidate = cleaned.substring(startIdx, endIdx + 1);
-    try {
-      return JSON.parse(candidate);
-    } catch (e) {
-      throw new Error(`JSON parsing failed: ${e.message}`);
-    }
-  }
-  throw new Error(`Could not find valid JSON boundaries in response text.`);
-}
-function rescatarObjetosJson(text) {
-  const inicio = text.indexOf("[");
-  if (inicio === -1) return [];
-  const out = [];
-  let profundidad = 0;
-  let enString = false;
-  let escape = false;
-  let desde = -1;
-  for (let i = inicio + 1; i < text.length; i++) {
-    const c = text[i];
-    if (enString) {
-      if (escape) escape = false;
-      else if (c === "\\") escape = true;
-      else if (c === '"') enString = false;
-      continue;
-    }
-    if (c === '"') {
-      enString = true;
-      continue;
-    }
-    if (c === "{") {
-      if (profundidad === 0) desde = i;
-      profundidad++;
-    } else if (c === "}") {
-      profundidad--;
-      if (profundidad === 0 && desde !== -1) {
-        try {
-          out.push(JSON.parse(text.slice(desde, i + 1)));
-        } catch {
-        }
-        desde = -1;
-      }
-    }
-  }
-  return out;
-}
-async function generarConGeminiUnaVez(prompt, maxTokens, apiKey, model, timeoutMs) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      // Temperatura baja (no 0 -- algunos modelos rechazan temperatura
-      // exactamente 0) para tareas de búsqueda/extracción factual: reduce
-      // la variabilidad entre llamadas idénticas, que antes hacía que la
-      // misma búsqueda devolviera países/resultados distintos cada vez.
-      generationConfig: { maxOutputTokens: maxTokens, temperature: 0.15 }
-    }),
-    signal: AbortSignal.timeout(timeoutMs)
-  });
-  if (!res.ok) {
-    const err = await res.text().catch(() => "");
-    throw new Error(`Gemini HTTP ${res.status}: ${err.slice(0, 150)}`);
-  }
-  const data = await res.json();
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) throw new Error("Gemini no devolvi\xF3 texto");
-  return String(text).trim();
-}
-async function generarConGemini(prompt, maxTokens = 2e3) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey || apiKey === "MY_GEMINI_API_KEY") throw new Error("GEMINI_API_KEY no configurada");
-  const model = process.env.GEMINI_MODEL || "gemini-3.6-flash";
-  let lastErr;
-  for (let intento = 1; intento <= 2; intento++) {
-    try {
-      return await generarConGeminiUnaVez(prompt, maxTokens, apiKey, model, 25e3);
-    } catch (err) {
-      lastErr = err;
-      const esSaturacion = /HTTP 503|HTTP 429/.test(err?.message || "");
-      if (intento < 2 && esSaturacion) {
-        await new Promise((r) => setTimeout(r, 1200));
-        continue;
-      }
-      break;
-    }
-  }
-  throw lastErr;
-}
-var GROQ_MODELOS_CANDIDATOS = [
-  "openai/gpt-oss-120b",
-  "llama-3.3-70b-versatile",
-  "llama-3.1-8b-instant"
-];
-async function llamarGroqConModelo(prompt, maxTokens, apiKey, model) {
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model,
-      messages: [{ role: "user", content: prompt }],
-      // Temperatura baja para tareas de búsqueda/extracción factual -- ver
-      // nota en generarConGeminiUnaVez.
-      temperature: 0.15,
-      // Los modelos "openai/gpt-oss-*" servidos por Groq exigen max_completion_tokens
-      // en vez de (o además de) max_tokens; se envían ambos por compatibilidad.
-      max_tokens: maxTokens,
-      max_completion_tokens: maxTokens,
-      // gpt-oss-* son modelos de razonamiento: sin esto gastan el presupuesto de
-      // tokens en su "pensamiento" interno y devuelven contenido final vacío,
-      // sobre todo con maxTokens bajos (health checks, prompts cortos).
-      ...model.startsWith("openai/gpt-oss") ? { reasoning_effort: "low" } : {}
-    }),
-    signal: AbortSignal.timeout(2e4)
-  });
-  if (!res.ok) {
-    const err = await res.text().catch(() => "");
-    throw new Error(`Groq HTTP ${res.status}: ${err.slice(0, 150)}`);
-  }
-  const data = await res.json();
-  const text = data?.choices?.[0]?.message?.content;
-  if (!text) throw new Error("Groq no devolvi\xF3 texto");
-  return String(text).trim();
-}
-async function generarConGroq(prompt, maxTokens = 2e3) {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey || apiKey === "MY_GROQ_API_KEY") throw new Error("GROQ_API_KEY no configurada");
-  const modeloFijado = process.env.GROQ_MODEL;
-  if (modeloFijado) return llamarGroqConModelo(prompt, maxTokens, apiKey, modeloFijado);
-  let lastErr;
-  for (const model of GROQ_MODELOS_CANDIDATOS) {
-    try {
-      return await llamarGroqConModelo(prompt, maxTokens, apiKey, model);
-    } catch (e) {
-      lastErr = e;
-      if (!/model.*(not exist|does not exist|no access|invalid_request_error|decommissioned)|HTTP 429/i.test(e.message)) {
-        throw e;
-      }
-    }
-  }
-  throw lastErr;
-}
-async function generarConOpenRouter(prompt, maxTokens = 1500) {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey || apiKey === "MY_OPENROUTER_API_KEY") throw new Error("OPENROUTER_API_KEY no configurada");
-  const configuredModel = process.env.OPENROUTER_MODEL;
-  const models = [
-    configuredModel && !configuredModel.includes("claude-3.5-haiku") ? configuredModel : void 0,
-    // Orden por capacidad (verificados contra el catálogo público de OpenRouter);
-    // el modelo pequeño de 2.6B queda de último recurso.
-    "nvidia/nemotron-3-super-120b-a12b:free",
-    "google/gemma-4-31b-it:free",
-    "qwen/qwen3.8-27b:free",
-    "nvidia/nemotron-3-ultra-550b-a55b:free"
-  ].filter((m) => Boolean(m));
-  let lastError = "";
-  for (const model of models) {
-    try {
-      const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": process.env.APP_URL || "http://localhost:3000",
-          "X-Title": "LegisTrack-CL"
-        },
-        body: JSON.stringify({
-          model,
-          messages: [{ role: "user", content: prompt }],
-          max_tokens: maxTokens,
-          temperature: 0.15
-        }),
-        // Tareas largas (leer varios documentos y redactar cientos de palabras) necesitan más tiempo.
-        signal: AbortSignal.timeout(maxTokens > 2e3 || prompt.length > 12e3 ? 7e4 : 15e3)
-      });
-      if (!resp.ok) {
-        const errText = await resp.text().catch(() => "");
-        lastError = `OpenRouter (${model}) HTTP ${resp.status}: ${errText.slice(0, 200)}`;
-        continue;
-      }
-      const data = await resp.json();
-      const text = data?.choices?.[0]?.message?.content;
-      if (text) return String(text).trim();
-    } catch (e) {
-      lastError = e?.message || String(e);
-    }
-  }
-  throw new Error(lastError || "OpenRouter no devolvi\xF3 contenido");
-}
-var CEREBRAS_MODELOS_CANDIDATOS = ["llama-3.3-70b", "llama3.1-8b", "qwen-3-32b"];
-async function llamarCerebrasConModelo(prompt, maxTokens, apiKey, model) {
-  const res = await fetch("https://api.cerebras.ai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model,
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.15,
-      max_tokens: maxTokens
-    }),
-    signal: AbortSignal.timeout(15e3)
-  });
-  if (!res.ok) {
-    const err = await res.text().catch(() => "");
-    throw new Error(`Cerebras (${model}) HTTP ${res.status}: ${err.slice(0, 150)}`);
-  }
-  const data = await res.json();
-  const text = data?.choices?.[0]?.message?.content;
-  if (!text) throw new Error("Cerebras no devolvi\xF3 texto");
-  return String(text).trim();
-}
-async function generarConCerebras(prompt, maxTokens = 2e3) {
-  const apiKey = process.env.CEREBRAS_API_KEY;
-  if (!apiKey || apiKey === "MY_CEREBRAS_API_KEY") throw new Error("CEREBRAS_API_KEY no configurada");
-  const modeloFijado = process.env.CEREBRAS_MODEL;
-  if (modeloFijado) return llamarCerebrasConModelo(prompt, maxTokens, apiKey, modeloFijado);
-  let lastErr;
-  for (const model of CEREBRAS_MODELOS_CANDIDATOS) {
-    try {
-      return await llamarCerebrasConModelo(prompt, maxTokens, apiKey, model);
-    } catch (e) {
-      lastErr = e;
-      if (!/model.*(not exist|does not exist|no access|invalid_request_error|decommissioned)/i.test(e.message)) {
-        throw e;
-      }
-    }
-  }
-  throw lastErr;
-}
-async function intentarGemini(prompt, maxTokens) {
-  const configured = !!(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY");
-  if (!configured) return { provider: "gemini", configured };
-  try {
-    const text = await generarConGemini(prompt, maxTokens);
-    return text ? { provider: "gemini", configured, text } : { provider: "gemini", configured, error: "respuesta vac\xEDa" };
-  } catch (e) {
-    console.log(`[Gemini Free Info]: ${e?.message || e}`);
-    return { provider: "gemini", configured, error: e?.message || String(e) };
-  }
-}
-async function intentarOpenRouter(prompt, maxTokens) {
-  const configured = !!(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY !== "MY_OPENROUTER_API_KEY");
-  if (!configured) return { provider: "openrouter", configured };
-  try {
-    const text = await generarConOpenRouter(prompt, maxTokens);
-    return text ? { provider: "openrouter", configured, text } : { provider: "openrouter", configured, error: "respuesta vac\xEDa" };
-  } catch (e) {
-    console.log(`[OpenRouter Info]: ${e?.message || e}`);
-    return { provider: "openrouter", configured, error: e?.message || String(e) };
-  }
-}
-async function intentarCerebras(prompt, maxTokens) {
-  const configured = !!(process.env.CEREBRAS_API_KEY && process.env.CEREBRAS_API_KEY !== "MY_CEREBRAS_API_KEY");
-  if (!configured) return { provider: "cerebras", configured };
-  try {
-    const text = await generarConCerebras(prompt, maxTokens);
-    return text ? { provider: "cerebras", configured, text } : { provider: "cerebras", configured, error: "respuesta vac\xEDa" };
-  } catch (e) {
-    console.log(`[Cerebras Free Info]: ${e?.message || e}`);
-    return { provider: "cerebras", configured, error: e?.message || String(e) };
-  }
-}
-async function intentarGroq(prompt, maxTokens) {
-  const configured = !!(process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== "MY_GROQ_API_KEY");
-  if (!configured) return { provider: "groq", configured };
-  try {
-    const text = await generarConGroq(prompt, maxTokens);
-    return text ? { provider: "groq", configured, text } : { provider: "groq", configured, error: "respuesta vac\xEDa" };
-  } catch (e) {
-    console.log(`[Groq Free Info]: ${e?.message || e}`);
-    return { provider: "groq", configured, error: e?.message || String(e) };
-  }
-}
-async function intentarClaude(prompt, maxTokens) {
-  const claude = getClaudeClient();
-  if (!claude) return { provider: "claude", configured: !!process.env.ANTHROPIC_API_KEY };
-  const modelos = Array.from(new Set([process.env.ANTHROPIC_MODEL, "claude-haiku-5-5", "claude-haiku-4-5"].filter(Boolean)));
-  let ultimoError = "";
-  for (const model of modelos) {
-    try {
-      const resp = await claude.messages.create({
-        model,
-        max_tokens: maxTokens,
-        messages: [{ role: "user", content: prompt }]
-      });
-      const bloque = resp.content.find((c) => c.type === "text");
-      const text = bloque?.text || "";
-      if (text) return { provider: "claude", configured: true, text };
-      ultimoError = "respuesta vac\xEDa";
-    } catch (err) {
-      ultimoError = err?.message || String(err);
-      if (!/not[_ ]found|404|model/i.test(ultimoError)) {
-        handleClaudeError("Claude Universal", err);
-        break;
-      }
-    }
-  }
-  return { provider: "claude", configured: true, error: ultimoError };
-}
-var LIMITE_TOTAL_IA_MS = 16e4;
-async function generarContenidoUniversalIA(prompt, maxTokens = 2e3, attempts) {
-  let temporizador;
-  try {
-    return await Promise.race([
-      generarContenidoUniversalIAInterno(prompt, maxTokens, attempts),
-      new Promise((resolve) => {
-        temporizador = setTimeout(() => resolve(null), LIMITE_TOTAL_IA_MS);
-      })
-    ]);
-  } finally {
-    clearTimeout(temporizador);
-  }
-}
-async function generarContenidoUniversalIAInterno(prompt, maxTokens, attempts) {
-  const [geminiRes, openrouterRes, cerebrasRes] = await Promise.all([
-    intentarGemini(prompt, maxTokens),
-    intentarOpenRouter(prompt, maxTokens),
-    intentarCerebras(prompt, maxTokens)
-  ]);
-  const primeraRonda = [geminiRes, openrouterRes, cerebrasRes];
-  for (const r of primeraRonda) {
-    attempts?.push({ provider: r.provider, configured: r.configured, error: r.error });
-  }
-  const exitoPrimeraRonda = primeraRonda.find((r) => r.text);
-  if (exitoPrimeraRonda) return exitoPrimeraRonda.text;
-  const groqRes = await intentarGroq(prompt, maxTokens);
-  attempts?.push({ provider: groqRes.provider, configured: groqRes.configured, error: groqRes.error });
-  if (groqRes.text) return groqRes.text;
-  const claudeRes = await intentarClaude(prompt, maxTokens);
-  attempts?.push({ provider: claudeRes.provider, configured: claudeRes.configured, error: claudeRes.error });
-  if (claudeRes.text) return claudeRes.text;
-  const respaldo = await intentarGeminiRespaldo(prompt, maxTokens);
-  attempts?.push({ provider: "gemini-respaldo", configured: respaldo.configured, error: respaldo.error });
-  if (respaldo.text) return respaldo.text;
-  return null;
-}
-async function intentarGeminiRespaldo(prompt, maxTokens) {
-  const key = process.env.GEMINI_VIDEO_API_KEY;
-  if (!key || key === process.env.GEMINI_API_KEY) return { configured: false };
-  let ultimo = "";
-  for (const model of ["gemini-2.5-flash", "gemini-2.5-flash-lite"]) {
-    try {
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { maxOutputTokens: Math.max(maxTokens, 2048), temperature: 0.15 }
-        }),
-        signal: AbortSignal.timeout(6e4)
-      });
-      if (!res.ok) {
-        ultimo = `${model} HTTP ${res.status}: ${(await res.text().catch(() => "")).slice(0, 120)}`;
-        continue;
-      }
-      const data = await res.json();
-      const text = (data?.candidates?.[0]?.content?.parts || []).map((p) => p.text || "").join("").trim();
-      if (text) return { configured: true, text };
-      ultimo = `${model}: respuesta vac\xEDa`;
-    } catch (e) {
-      ultimo = `${model}: ${e?.message || e}`;
-    }
-  }
-  return { configured: true, error: ultimo };
-}
-async function responderCopilotoLegislativo(params) {
-  const { mensaje, contextoBoletin, contextoComision, historial = [] } = params;
-  const prompt = `Eres el "Copiloto Legislativo", un asistente experto en t\xE9cnica legislativa, derecho parlamentario y transparencia del Congreso Nacional de Chile.
-Tu misi\xF3n es explicar con claridad t\xE9cnica, objetiva y sobria el proceso legislativo, el estado de los proyectos de ley (boletines), el rol de las comisiones, qu\xF3rums requeridos y antecedentes comparados.
-
-Contexto actual del usuario:
-- Bolet\xEDn en pantalla: ${contextoBoletin || "No especificado"}
-- Comisi\xF3n en pantalla: ${contextoComision || "No especificado"}
-
-Pregunta del usuario:
-"${mensaje}"
-
-Instrucciones:
-1. Responde de forma directa, sobria y t\xE9cnicamente rigurosa (m\xE1ximo 160 palabras).
-2. Si el usuario pregunta por qu\xF3rums, cita el art\xEDculo correspondiente (ej. Art. 66 o Art. 127 de la CPR).
-3. Utiliza formato Markdown limpio (vi\xF1etas cortas y negritas en conceptos clave).
-4. No inventes art\xEDculos ni resultados de votaciones inexistentes.
-
-Responde \xFAnicamente con el texto de la respuesta.`;
-  const textoIA = await generarContenidoUniversalIA(prompt, 800);
-  if (textoIA) {
-    return {
-      respuesta: textoIA,
-      sugerencias: [
-        "\xBFCu\xE1les son los plazos seg\xFAn la urgencia vigente?",
-        "\xBFQu\xE9 qu\xF3rum se requiere para aprobar este proyecto?",
-        "\xBFQu\xE9 ministerios est\xE1n involucrados?"
-      ],
-      fuente: "ia"
-    };
-  }
-  let respuestaFallback = `El proceso legislativo chileno contempla distintas etapas constitucionales (Primer Tr\xE1mite, Segundo Tr\xE1mite, Comisi\xF3n Mixta y Promulgaci\xF3n). `;
-  if (contextoBoletin) {
-    respuestaFallback += `Para el **Bolet\xEDn ${contextoBoletin}**, puedes revisar el desglose del hemiciclo en la pesta\xF1a *Simulador de Qu\xF3rum*, las diferencias de redacci\xF3n en el *Comparador de Textos* o descargar la *Ficha Ejecutiva* formal con antecedentes oficiales.`;
-  } else {
-    respuestaFallback += `Puedes explorar el cat\xE1logo de proyectos vigentes, las citaciones en vivo de comisiones o buscar antecedentes en la secci\xF3n de *Legislaci\xF3n Comparada*.`;
-  }
-  return {
-    respuesta: respuestaFallback,
-    sugerencias: [
-      "\xBFC\xF3mo funciona una Comisi\xF3n Mixta?",
-      "\xBFQu\xE9 diferencia hay entre Moci\xF3n y Mensaje?",
-      "\xBFC\xF3mo se calculan las 4/7 partes?"
-    ],
-    fuente: "fallback"
-  };
-}
-function getAIProvidersStatus() {
-  return {
-    gemini: Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY"),
-    groq: Boolean(process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== "MY_GROQ_API_KEY"),
-    openrouter: Boolean(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY !== "MY_OPENROUTER_API_KEY"),
-    cerebras: Boolean(process.env.CEREBRAS_API_KEY && process.env.CEREBRAS_API_KEY !== "MY_CEREBRAS_API_KEY"),
-    claude: Boolean(process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_API_KEY !== "MY_ANTHROPIC_API_KEY" && !isClaudeQuotaExceeded),
-    claudeQuotaExceeded: isClaudeQuotaExceeded
-  };
-}
-async function testearProveedoresIAReal() {
-  const promptTrivial = 'Responde solo con: {"ok":true}';
-  const [gemini, openrouter, cerebras, groq, claude] = await Promise.all([
-    intentarGemini(promptTrivial, 30),
-    intentarOpenRouter(promptTrivial, 30),
-    intentarCerebras(promptTrivial, 30),
-    // Groq: se le da más presupuesto porque el modelo por defecto (gpt-oss, de
-    // razonamiento) puede consumir tokens en pensar antes de responder.
-    intentarGroq(promptTrivial, 200),
-    intentarClaude(promptTrivial, 30)
-  ]);
-  const toResult = (r) => ({ configured: r.configured, ok: !!r.text, error: r.error });
-  return {
-    gemini: toResult(gemini),
-    openrouter: toResult(openrouter),
-    cerebras: toResult(cerebras),
-    groq: toResult(groq),
-    claude: toResult(claude)
-  };
-}
-
 // src/data/comisionesData.ts
 var DIPUTADOS_COMISIONES_DETALLE = [
   {
@@ -167860,6 +167268,1216 @@ function generateFullComisionData(meta) {
   };
 }
 
+// src/utils/tramitacion.ts
+var crearFecha = (y, mo, d) => {
+  const dt = new Date(y, mo - 1, d);
+  return dt.getFullYear() === y && dt.getMonth() === mo - 1 && dt.getDate() === d ? dt : null;
+};
+function parseFechaFlexible(s) {
+  if (!s) return null;
+  const t = String(s).trim();
+  let m = t.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})(?!\d)/);
+  if (m) return crearFecha(+m[3], +m[2], +m[1]);
+  m = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return crearFecha(+m[1], +m[2], +m[3]);
+  return null;
+}
+
+// src/utils/boletines.ts
+function normalizarBoletin(b) {
+  const m = String(b || "").replace(/\./g, "").match(/(\d{3,6})(?:-(\d{1,2}))?/);
+  return m ? m[2] ? `${m[1]}-${m[2].padStart(2, "0")}` : m[1] : "";
+}
+function boletinesEnTexto(texto) {
+  const hallados = String(texto || "").match(/\b\d{1,2}\.?\d{3}-\d{1,2}\b/g) || [];
+  return Array.from(new Set(hallados.map(normalizarBoletin).filter(Boolean)));
+}
+var MESES = { enero: 0, febrero: 1, marzo: 2, abril: 3, mayo: 4, junio: 5, julio: 6, agosto: 7, septiembre: 8, setiembre: 8, octubre: 9, noviembre: 10, diciembre: 11 };
+function tiempoDeSesion(fecha) {
+  const d = parseFechaFlexible(fecha);
+  if (d) return d.getTime();
+  const m = String(fecha || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").match(/(\d{1,2})\s+de\s+([a-z]+)\s+de\s+(\d{4})/);
+  return m && m[2] in MESES ? new Date(Number(m[3]), MESES[m[2]], Number(m[1])).getTime() : 0;
+}
+
+// src/utils/pauta.ts
+function puntosDeMateria(materia) {
+  const t = String(materia || "").trim();
+  if (!t) return [];
+  let partes;
+  if (/\[Parte \d+\]/i.test(t)) partes = t.split(/\[Parte \d+\]/i);
+  else if (/(?:^|\n)\s*\d{1,2}\s*[.)]-?\s/.test(t)) partes = t.split(/(?:^|\n)\s*(?=\d{1,2}\s*[.)]-?\s)/);
+  else partes = t.split(/\n+/);
+  return partes.map((p) => p.replace(/^\s*\d{1,2}\s*[.)]-?\s*/, "").replace(/\s+/g, " ").trim()).filter(Boolean).map((texto, i) => ({ numero: i + 1, texto, boletines: boletinesEnTexto(texto) }));
+}
+
+// server/services/cacheService.ts
+var CacheService = class _CacheService {
+  constructor() {
+    this.cache = /* @__PURE__ */ new Map();
+    this.hits = 0;
+    this.misses = 0;
+  }
+  get(key) {
+    const entry = this.cache.get(key);
+    if (!entry) {
+      this.misses++;
+      return null;
+    }
+    const isExpired = Date.now() - entry.cachedAt > entry.ttlMs;
+    if (isExpired) {
+      this.misses++;
+      return null;
+    }
+    this.hits++;
+    return entry.data;
+  }
+  getStale(key) {
+    const entry = this.cache.get(key);
+    if (!entry) {
+      this.misses++;
+      return { data: null, isStale: false };
+    }
+    const isStale = Date.now() - entry.cachedAt > entry.ttlMs;
+    if (!isStale) this.hits++;
+    return { data: entry.data, isStale };
+  }
+  static {
+    /** Tope de entradas: las búsquedas libres generan claves nuevas, así que sin tope la memoria crecería sin límite. */
+    this.MAX_ENTRADAS = 2e3;
+  }
+  set(key, data, ttlMs = 5 * 60 * 1e3) {
+    if (!this.cache.has(key) && this.cache.size >= _CacheService.MAX_ENTRADAS) {
+      const ahora = Date.now();
+      for (const [k, e] of this.cache) if (ahora - e.cachedAt > e.ttlMs) this.cache.delete(k);
+      if (this.cache.size >= _CacheService.MAX_ENTRADAS) this.cache.delete(this.cache.keys().next().value);
+    }
+    this.cache.set(key, {
+      data,
+      cachedAt: Date.now(),
+      ttlMs
+    });
+  }
+  delete(key) {
+    this.cache.delete(key);
+  }
+  clear() {
+    this.cache.clear();
+  }
+  getStats() {
+    return {
+      size: this.cache.size,
+      hits: this.hits,
+      misses: this.misses,
+      hitRate: this.hits + this.misses > 0 ? (this.hits / (this.hits + this.misses)).toFixed(2) : "0.00"
+    };
+  }
+  /**
+   * Helper that returns cached value or executes fallback function, updating cache in background.
+   */
+  async wrap(key, ttlMs, fetcher) {
+    const { data, isStale } = this.getStale(key);
+    if (data !== null && !isStale) {
+      return data;
+    }
+    if (data !== null && isStale) {
+      fetcher().then((fresh2) => this.set(key, fresh2, ttlMs)).catch((err) => console.error(`[Cache SWR Error for ${key}]:`, err));
+      return data;
+    }
+    const fresh = await fetcher();
+    this.set(key, fresh, ttlMs);
+    return fresh;
+  }
+};
+var cache = new CacheService();
+
+// server/services/aiService.ts
+import Anthropic from "@anthropic-ai/sdk";
+var aiClient = null;
+var isClaudeQuotaExceeded = false;
+function handleClaudeError(context, err) {
+  const errStr = (String(err?.message || "") + " " + String(err?.status || "") + " " + String(err?.statusCode || "") + " " + String(err?.code || "")).toLowerCase();
+  const isQuotaOrAuth = errStr.includes("quota") || errStr.includes("exhausted") || errStr.includes("billing") || errStr.includes("plan") || errStr.includes("exceeded") || errStr.includes("rate limit") || errStr.includes("429") || errStr.includes("limit") || errStr.includes("key") || errStr.includes("api_key") || errStr.includes("unauthorized") || errStr.includes("invalid") || err?.status === 429 || err?.status === 401;
+  if (isQuotaOrAuth) {
+    isClaudeQuotaExceeded = true;
+    console.log(`[Claude Info] ${context}: Quota/key limit active. Switched to alternative AI provider or high-fidelity offline mode.`);
+  } else {
+    console.log(`[Claude Info] ${context}: ${err?.message || err}`);
+  }
+}
+function getClaudeClient() {
+  if (isClaudeQuotaExceeded) {
+    return null;
+  }
+  if (!aiClient) {
+    const key = process.env.ANTHROPIC_API_KEY;
+    if (key && key !== "MY_ANTHROPIC_API_KEY") {
+      aiClient = new Anthropic({
+        apiKey: key,
+        // El SDK por defecto espera hasta 10 min y reintenta 2 veces: una sola
+        // llamada colgada dejaba la generación congelada indefinidamente.
+        timeout: 3e4,
+        maxRetries: 0,
+        defaultHeaders: {
+          "User-Agent": "aistudio-build"
+        }
+      });
+    }
+  }
+  return aiClient;
+}
+function safeJsonParse(text) {
+  let cleaned = text.trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch (ignore) {
+  }
+  if (cleaned.startsWith("```")) {
+    cleaned = cleaned.replace(/^```[a-zA-Z]*\s*/, "");
+    cleaned = cleaned.replace(/\s*```$/, "");
+  }
+  cleaned = cleaned.trim();
+  cleaned = cleaned.replace(/^```json\s*/i, "").replace(/\s*```$/, "").trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch (ignore) {
+  }
+  const firstBrace = cleaned.indexOf("{");
+  const firstBracket = cleaned.indexOf("[");
+  let startIdx = -1;
+  let endIdx = -1;
+  if (firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) {
+    startIdx = firstBrace;
+    endIdx = cleaned.lastIndexOf("}");
+  } else if (firstBracket !== -1) {
+    startIdx = firstBracket;
+    endIdx = cleaned.lastIndexOf("]");
+  }
+  if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+    const candidate = cleaned.substring(startIdx, endIdx + 1);
+    try {
+      return JSON.parse(candidate);
+    } catch (e) {
+      throw new Error(`JSON parsing failed: ${e.message}`);
+    }
+  }
+  throw new Error(`Could not find valid JSON boundaries in response text.`);
+}
+function rescatarObjetosJson(text) {
+  const inicio = text.indexOf("[");
+  if (inicio === -1) return [];
+  const out = [];
+  let profundidad = 0;
+  let enString = false;
+  let escape = false;
+  let desde = -1;
+  for (let i = inicio + 1; i < text.length; i++) {
+    const c = text[i];
+    if (enString) {
+      if (escape) escape = false;
+      else if (c === "\\") escape = true;
+      else if (c === '"') enString = false;
+      continue;
+    }
+    if (c === '"') {
+      enString = true;
+      continue;
+    }
+    if (c === "{") {
+      if (profundidad === 0) desde = i;
+      profundidad++;
+    } else if (c === "}") {
+      profundidad--;
+      if (profundidad === 0 && desde !== -1) {
+        try {
+          out.push(JSON.parse(text.slice(desde, i + 1)));
+        } catch {
+        }
+        desde = -1;
+      }
+    }
+  }
+  return out;
+}
+async function generarConGeminiUnaVez(prompt, maxTokens, apiKey, model, timeoutMs) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      // Temperatura baja (no 0 -- algunos modelos rechazan temperatura
+      // exactamente 0) para tareas de búsqueda/extracción factual: reduce
+      // la variabilidad entre llamadas idénticas, que antes hacía que la
+      // misma búsqueda devolviera países/resultados distintos cada vez.
+      generationConfig: { maxOutputTokens: maxTokens, temperature: 0.15 }
+    }),
+    signal: AbortSignal.timeout(timeoutMs)
+  });
+  if (!res.ok) {
+    const err = await res.text().catch(() => "");
+    throw new Error(`Gemini HTTP ${res.status}: ${err.slice(0, 150)}`);
+  }
+  const data = await res.json();
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) throw new Error("Gemini no devolvi\xF3 texto");
+  return String(text).trim();
+}
+async function generarConGemini(prompt, maxTokens = 2e3) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || apiKey === "MY_GEMINI_API_KEY") throw new Error("GEMINI_API_KEY no configurada");
+  const model = process.env.GEMINI_MODEL || "gemini-3.6-flash";
+  let lastErr;
+  for (let intento = 1; intento <= 2; intento++) {
+    try {
+      return await generarConGeminiUnaVez(prompt, maxTokens, apiKey, model, 25e3);
+    } catch (err) {
+      lastErr = err;
+      const esSaturacion = /HTTP 503|HTTP 429/.test(err?.message || "");
+      if (intento < 2 && esSaturacion) {
+        await new Promise((r) => setTimeout(r, 1200));
+        continue;
+      }
+      break;
+    }
+  }
+  throw lastErr;
+}
+var GROQ_MODELOS_CANDIDATOS = [
+  "openai/gpt-oss-120b",
+  "llama-3.3-70b-versatile",
+  "llama-3.1-8b-instant"
+];
+async function llamarGroqConModelo(prompt, maxTokens, apiKey, model) {
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: "user", content: prompt }],
+      // Temperatura baja para tareas de búsqueda/extracción factual -- ver
+      // nota en generarConGeminiUnaVez.
+      temperature: 0.15,
+      // Los modelos "openai/gpt-oss-*" servidos por Groq exigen max_completion_tokens
+      // en vez de (o además de) max_tokens; se envían ambos por compatibilidad.
+      max_tokens: maxTokens,
+      max_completion_tokens: maxTokens,
+      // gpt-oss-* son modelos de razonamiento: sin esto gastan el presupuesto de
+      // tokens en su "pensamiento" interno y devuelven contenido final vacío,
+      // sobre todo con maxTokens bajos (health checks, prompts cortos).
+      ...model.startsWith("openai/gpt-oss") ? { reasoning_effort: "low" } : {}
+    }),
+    signal: AbortSignal.timeout(2e4)
+  });
+  if (!res.ok) {
+    const err = await res.text().catch(() => "");
+    throw new Error(`Groq HTTP ${res.status}: ${err.slice(0, 150)}`);
+  }
+  const data = await res.json();
+  const text = data?.choices?.[0]?.message?.content;
+  if (!text) throw new Error("Groq no devolvi\xF3 texto");
+  return String(text).trim();
+}
+async function generarConGroq(prompt, maxTokens = 2e3) {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey || apiKey === "MY_GROQ_API_KEY") throw new Error("GROQ_API_KEY no configurada");
+  const modeloFijado = process.env.GROQ_MODEL;
+  if (modeloFijado) return llamarGroqConModelo(prompt, maxTokens, apiKey, modeloFijado);
+  let lastErr;
+  for (const model of GROQ_MODELOS_CANDIDATOS) {
+    try {
+      return await llamarGroqConModelo(prompt, maxTokens, apiKey, model);
+    } catch (e) {
+      lastErr = e;
+      if (!/model.*(not exist|does not exist|no access|invalid_request_error|decommissioned)|HTTP 429/i.test(e.message)) {
+        throw e;
+      }
+    }
+  }
+  throw lastErr;
+}
+async function generarConOpenRouter(prompt, maxTokens = 1500) {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey || apiKey === "MY_OPENROUTER_API_KEY") throw new Error("OPENROUTER_API_KEY no configurada");
+  const configuredModel = process.env.OPENROUTER_MODEL;
+  const models = [
+    configuredModel && !configuredModel.includes("claude-3.5-haiku") ? configuredModel : void 0,
+    // Orden por capacidad (verificados contra el catálogo público de OpenRouter);
+    // el modelo pequeño de 2.6B queda de último recurso.
+    "nvidia/nemotron-3-super-120b-a12b:free",
+    "google/gemma-4-31b-it:free",
+    "qwen/qwen3.8-27b:free",
+    "nvidia/nemotron-3-ultra-550b-a55b:free"
+  ].filter((m) => Boolean(m));
+  let lastError = "";
+  for (const model of models) {
+    try {
+      const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": process.env.APP_URL || "http://localhost:3000",
+          "X-Title": "LegisTrack-CL"
+        },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: "user", content: prompt }],
+          max_tokens: maxTokens,
+          temperature: 0.15
+        }),
+        // Tareas largas (leer varios documentos y redactar cientos de palabras) necesitan más tiempo.
+        signal: AbortSignal.timeout(maxTokens > 2e3 || prompt.length > 12e3 ? 7e4 : 15e3)
+      });
+      if (!resp.ok) {
+        const errText = await resp.text().catch(() => "");
+        lastError = `OpenRouter (${model}) HTTP ${resp.status}: ${errText.slice(0, 200)}`;
+        continue;
+      }
+      const data = await resp.json();
+      const text = data?.choices?.[0]?.message?.content;
+      if (text) return String(text).trim();
+    } catch (e) {
+      lastError = e?.message || String(e);
+    }
+  }
+  throw new Error(lastError || "OpenRouter no devolvi\xF3 contenido");
+}
+var CEREBRAS_MODELOS_CANDIDATOS = ["llama-3.3-70b", "llama3.1-8b", "qwen-3-32b"];
+async function llamarCerebrasConModelo(prompt, maxTokens, apiKey, model) {
+  const res = await fetch("https://api.cerebras.ai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.15,
+      max_tokens: maxTokens
+    }),
+    signal: AbortSignal.timeout(15e3)
+  });
+  if (!res.ok) {
+    const err = await res.text().catch(() => "");
+    throw new Error(`Cerebras (${model}) HTTP ${res.status}: ${err.slice(0, 150)}`);
+  }
+  const data = await res.json();
+  const text = data?.choices?.[0]?.message?.content;
+  if (!text) throw new Error("Cerebras no devolvi\xF3 texto");
+  return String(text).trim();
+}
+async function generarConCerebras(prompt, maxTokens = 2e3) {
+  const apiKey = process.env.CEREBRAS_API_KEY;
+  if (!apiKey || apiKey === "MY_CEREBRAS_API_KEY") throw new Error("CEREBRAS_API_KEY no configurada");
+  const modeloFijado = process.env.CEREBRAS_MODEL;
+  if (modeloFijado) return llamarCerebrasConModelo(prompt, maxTokens, apiKey, modeloFijado);
+  let lastErr;
+  for (const model of CEREBRAS_MODELOS_CANDIDATOS) {
+    try {
+      return await llamarCerebrasConModelo(prompt, maxTokens, apiKey, model);
+    } catch (e) {
+      lastErr = e;
+      if (!/model.*(not exist|does not exist|no access|invalid_request_error|decommissioned)/i.test(e.message)) {
+        throw e;
+      }
+    }
+  }
+  throw lastErr;
+}
+async function intentarGemini(prompt, maxTokens) {
+  const configured = !!(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY");
+  if (!configured) return { provider: "gemini", configured };
+  try {
+    const text = await generarConGemini(prompt, maxTokens);
+    return text ? { provider: "gemini", configured, text } : { provider: "gemini", configured, error: "respuesta vac\xEDa" };
+  } catch (e) {
+    console.log(`[Gemini Free Info]: ${e?.message || e}`);
+    return { provider: "gemini", configured, error: e?.message || String(e) };
+  }
+}
+async function intentarOpenRouter(prompt, maxTokens) {
+  const configured = !!(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY !== "MY_OPENROUTER_API_KEY");
+  if (!configured) return { provider: "openrouter", configured };
+  try {
+    const text = await generarConOpenRouter(prompt, maxTokens);
+    return text ? { provider: "openrouter", configured, text } : { provider: "openrouter", configured, error: "respuesta vac\xEDa" };
+  } catch (e) {
+    console.log(`[OpenRouter Info]: ${e?.message || e}`);
+    return { provider: "openrouter", configured, error: e?.message || String(e) };
+  }
+}
+async function intentarCerebras(prompt, maxTokens) {
+  const configured = !!(process.env.CEREBRAS_API_KEY && process.env.CEREBRAS_API_KEY !== "MY_CEREBRAS_API_KEY");
+  if (!configured) return { provider: "cerebras", configured };
+  try {
+    const text = await generarConCerebras(prompt, maxTokens);
+    return text ? { provider: "cerebras", configured, text } : { provider: "cerebras", configured, error: "respuesta vac\xEDa" };
+  } catch (e) {
+    console.log(`[Cerebras Free Info]: ${e?.message || e}`);
+    return { provider: "cerebras", configured, error: e?.message || String(e) };
+  }
+}
+async function intentarGroq(prompt, maxTokens) {
+  const configured = !!(process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== "MY_GROQ_API_KEY");
+  if (!configured) return { provider: "groq", configured };
+  try {
+    const text = await generarConGroq(prompt, maxTokens);
+    return text ? { provider: "groq", configured, text } : { provider: "groq", configured, error: "respuesta vac\xEDa" };
+  } catch (e) {
+    console.log(`[Groq Free Info]: ${e?.message || e}`);
+    return { provider: "groq", configured, error: e?.message || String(e) };
+  }
+}
+async function intentarClaude(prompt, maxTokens) {
+  const claude = getClaudeClient();
+  if (!claude) return { provider: "claude", configured: !!process.env.ANTHROPIC_API_KEY };
+  const modelos = Array.from(new Set([process.env.ANTHROPIC_MODEL, "claude-haiku-5-5", "claude-haiku-4-5"].filter(Boolean)));
+  let ultimoError = "";
+  for (const model of modelos) {
+    try {
+      const resp = await claude.messages.create({
+        model,
+        max_tokens: maxTokens,
+        messages: [{ role: "user", content: prompt }]
+      });
+      const bloque = resp.content.find((c) => c.type === "text");
+      const text = bloque?.text || "";
+      if (text) return { provider: "claude", configured: true, text };
+      ultimoError = "respuesta vac\xEDa";
+    } catch (err) {
+      ultimoError = err?.message || String(err);
+      if (!/not[_ ]found|404|model/i.test(ultimoError)) {
+        handleClaudeError("Claude Universal", err);
+        break;
+      }
+    }
+  }
+  return { provider: "claude", configured: true, error: ultimoError };
+}
+var LIMITE_TOTAL_IA_MS = 16e4;
+async function generarContenidoUniversalIA(prompt, maxTokens = 2e3, attempts) {
+  let temporizador;
+  try {
+    return await Promise.race([
+      generarContenidoUniversalIAInterno(prompt, maxTokens, attempts),
+      new Promise((resolve) => {
+        temporizador = setTimeout(() => resolve(null), LIMITE_TOTAL_IA_MS);
+      })
+    ]);
+  } finally {
+    clearTimeout(temporizador);
+  }
+}
+async function generarContenidoUniversalIAInterno(prompt, maxTokens, attempts) {
+  const [geminiRes, openrouterRes, cerebrasRes] = await Promise.all([
+    intentarGemini(prompt, maxTokens),
+    intentarOpenRouter(prompt, maxTokens),
+    intentarCerebras(prompt, maxTokens)
+  ]);
+  const primeraRonda = [geminiRes, openrouterRes, cerebrasRes];
+  for (const r of primeraRonda) {
+    attempts?.push({ provider: r.provider, configured: r.configured, error: r.error });
+  }
+  const exitoPrimeraRonda = primeraRonda.find((r) => r.text);
+  if (exitoPrimeraRonda) return exitoPrimeraRonda.text;
+  const groqRes = await intentarGroq(prompt, maxTokens);
+  attempts?.push({ provider: groqRes.provider, configured: groqRes.configured, error: groqRes.error });
+  if (groqRes.text) return groqRes.text;
+  const claudeRes = await intentarClaude(prompt, maxTokens);
+  attempts?.push({ provider: claudeRes.provider, configured: claudeRes.configured, error: claudeRes.error });
+  if (claudeRes.text) return claudeRes.text;
+  const respaldo = await intentarGeminiRespaldo(prompt, maxTokens);
+  attempts?.push({ provider: "gemini-respaldo", configured: respaldo.configured, error: respaldo.error });
+  if (respaldo.text) return respaldo.text;
+  return null;
+}
+async function intentarGeminiRespaldo(prompt, maxTokens) {
+  const key = process.env.GEMINI_VIDEO_API_KEY;
+  if (!key || key === process.env.GEMINI_API_KEY) return { configured: false };
+  let ultimo = "";
+  for (const model of ["gemini-2.5-flash", "gemini-2.5-flash-lite"]) {
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { maxOutputTokens: Math.max(maxTokens, 2048), temperature: 0.15 }
+        }),
+        signal: AbortSignal.timeout(6e4)
+      });
+      if (!res.ok) {
+        ultimo = `${model} HTTP ${res.status}: ${(await res.text().catch(() => "")).slice(0, 120)}`;
+        continue;
+      }
+      const data = await res.json();
+      const text = (data?.candidates?.[0]?.content?.parts || []).map((p) => p.text || "").join("").trim();
+      if (text) return { configured: true, text };
+      ultimo = `${model}: respuesta vac\xEDa`;
+    } catch (e) {
+      ultimo = `${model}: ${e?.message || e}`;
+    }
+  }
+  return { configured: true, error: ultimo };
+}
+async function responderCopilotoLegislativo(params) {
+  const { mensaje, contextoBoletin, contextoComision, historial = [] } = params;
+  const prompt = `Eres el "Copiloto Legislativo", un asistente experto en t\xE9cnica legislativa, derecho parlamentario y transparencia del Congreso Nacional de Chile.
+Tu misi\xF3n es explicar con claridad t\xE9cnica, objetiva y sobria el proceso legislativo, el estado de los proyectos de ley (boletines), el rol de las comisiones, qu\xF3rums requeridos y antecedentes comparados.
+
+Contexto actual del usuario:
+- Bolet\xEDn en pantalla: ${contextoBoletin || "No especificado"}
+- Comisi\xF3n en pantalla: ${contextoComision || "No especificado"}
+
+Pregunta del usuario:
+"${mensaje}"
+
+Instrucciones:
+1. Responde de forma directa, sobria y t\xE9cnicamente rigurosa (m\xE1ximo 160 palabras).
+2. Si el usuario pregunta por qu\xF3rums, cita el art\xEDculo correspondiente (ej. Art. 66 o Art. 127 de la CPR).
+3. Utiliza formato Markdown limpio (vi\xF1etas cortas y negritas en conceptos clave).
+4. No inventes art\xEDculos ni resultados de votaciones inexistentes.
+
+Responde \xFAnicamente con el texto de la respuesta.`;
+  const textoIA = await generarContenidoUniversalIA(prompt, 800);
+  if (textoIA) {
+    return {
+      respuesta: textoIA,
+      sugerencias: [
+        "\xBFCu\xE1les son los plazos seg\xFAn la urgencia vigente?",
+        "\xBFQu\xE9 qu\xF3rum se requiere para aprobar este proyecto?",
+        "\xBFQu\xE9 ministerios est\xE1n involucrados?"
+      ],
+      fuente: "ia"
+    };
+  }
+  let respuestaFallback = `El proceso legislativo chileno contempla distintas etapas constitucionales (Primer Tr\xE1mite, Segundo Tr\xE1mite, Comisi\xF3n Mixta y Promulgaci\xF3n). `;
+  if (contextoBoletin) {
+    respuestaFallback += `Para el **Bolet\xEDn ${contextoBoletin}**, puedes revisar el desglose del hemiciclo en la pesta\xF1a *Simulador de Qu\xF3rum*, las diferencias de redacci\xF3n en el *Comparador de Textos* o descargar la *Ficha Ejecutiva* formal con antecedentes oficiales.`;
+  } else {
+    respuestaFallback += `Puedes explorar el cat\xE1logo de proyectos vigentes, las citaciones en vivo de comisiones o buscar antecedentes en la secci\xF3n de *Legislaci\xF3n Comparada*.`;
+  }
+  return {
+    respuesta: respuestaFallback,
+    sugerencias: [
+      "\xBFC\xF3mo funciona una Comisi\xF3n Mixta?",
+      "\xBFQu\xE9 diferencia hay entre Moci\xF3n y Mensaje?",
+      "\xBFC\xF3mo se calculan las 4/7 partes?"
+    ],
+    fuente: "fallback"
+  };
+}
+function getAIProvidersStatus() {
+  return {
+    gemini: Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY"),
+    groq: Boolean(process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== "MY_GROQ_API_KEY"),
+    openrouter: Boolean(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY !== "MY_OPENROUTER_API_KEY"),
+    cerebras: Boolean(process.env.CEREBRAS_API_KEY && process.env.CEREBRAS_API_KEY !== "MY_CEREBRAS_API_KEY"),
+    claude: Boolean(process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_API_KEY !== "MY_ANTHROPIC_API_KEY" && !isClaudeQuotaExceeded),
+    claudeQuotaExceeded: isClaudeQuotaExceeded
+  };
+}
+async function testearProveedoresIAReal() {
+  const promptTrivial = 'Responde solo con: {"ok":true}';
+  const [gemini, openrouter, cerebras, groq, claude] = await Promise.all([
+    intentarGemini(promptTrivial, 30),
+    intentarOpenRouter(promptTrivial, 30),
+    intentarCerebras(promptTrivial, 30),
+    // Groq: se le da más presupuesto porque el modelo por defecto (gpt-oss, de
+    // razonamiento) puede consumir tokens en pensar antes de responder.
+    intentarGroq(promptTrivial, 200),
+    intentarClaude(promptTrivial, 30)
+  ]);
+  const toResult = (r) => ({ configured: r.configured, ok: !!r.text, error: r.error });
+  return {
+    gemini: toResult(gemini),
+    openrouter: toResult(openrouter),
+    cerebras: toResult(cerebras),
+    groq: toResult(groq),
+    claude: toResult(claude)
+  };
+}
+
+// server/services/youtubeService.ts
+var CANALES_YOUTUBE = {
+  diputados: { id: "UCYd5k2TyOyOmUJNx0SH17KA", nombre: "Diputadas y Diputados de Chile" },
+  senado: { id: "UC4GJ43VNn4AYfiYa0RBCHQg", nombre: "TV Senado Chile" }
+};
+var YouTubeNoConfigurado = class extends Error {
+};
+var ytKey = () => {
+  const k = process.env.YOUTUBE_API_KEY;
+  return k && k !== "MY_YOUTUBE_API_KEY" ? k : "";
+};
+var youtubeApiConfigurada = () => !!ytKey();
+var MESES2 = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+var norm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+function fechaSesionADate(fecha) {
+  if (!fecha) return null;
+  const f = norm(fecha);
+  let m = f.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  m = f.match(/(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
+  if (m) return new Date(Date.UTC(+m[3], +m[2] - 1, +m[1]));
+  m = f.match(/(\d{1,2})\s+(?:de\s+)?([a-z]+)\s+(?:de\s+)?(\d{4})/);
+  if (m) {
+    const mes = MESES2.indexOf(m[2]);
+    if (mes >= 0) return new Date(Date.UTC(+m[3], mes, +m[1]));
+  }
+  return null;
+}
+function duracionISO(iso2) {
+  const m = String(iso2 || "").match(/^P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/);
+  if (!m) return null;
+  return +(m[1] || 0) * 86400 + +(m[2] || 0) * 3600 + +(m[3] || 0) * 60 + +(m[4] || 0);
+}
+function formatoDuracion(seg) {
+  if (seg == null || seg <= 0) return "";
+  const h = Math.floor(seg / 3600), m = Math.floor(seg % 3600 / 60), s = seg % 60;
+  return h ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}` : `${m}:${String(s).padStart(2, "0")}`;
+}
+async function ytGet(ruta, params) {
+  const key = ytKey();
+  if (!key) throw new YouTubeNoConfigurado("Falta configurar YOUTUBE_API_KEY (YouTube Data API v3).");
+  const qs = new URLSearchParams({ ...params, key }).toString();
+  const res = await fetch(`https://www.googleapis.com/youtube/v3/${ruta}?${qs}`, { signal: AbortSignal.timeout(12e3) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`YouTube API HTTP ${res.status}: ${data?.error?.message || ""}`.trim());
+  return data;
+}
+async function detallesVideos(ids) {
+  const unicos2 = Array.from(new Set(ids.filter((id) => /^[\w-]{11}$/.test(id)))).slice(0, 50);
+  if (unicos2.length === 0) return {};
+  return cache.wrap(`yt_det_${unicos2.join(",")}`, 6 * 60 * 60 * 1e3, async () => {
+    const data = await ytGet("videos", { part: "snippet,contentDetails", id: unicos2.join(",") });
+    const out = {};
+    for (const it of data.items || []) {
+      out[it.id] = {
+        segundos: duracionISO(it.contentDetails?.duration),
+        titulo: it.snippet?.title || "",
+        publicado: it.snippet?.publishedAt || "",
+        canal: it.snippet?.channelTitle || ""
+      };
+    }
+    return out;
+  });
+}
+async function buscarVideosSesion(comision, fecha, camara = "diputados") {
+  const limpio = String(comision || "").replace(/^(comisi[oó]n\s+(especial\s+)?(de\s+)?)/i, "").trim();
+  const dia = fechaSesionADate(fecha);
+  const canal = CANALES_YOUTUBE[camara];
+  const cacheKey = `yt_api_busqueda_${camara}_${norm(limpio)}_${dia ? dia.toISOString().slice(0, 10) : "sin-fecha"}`;
+  return cache.wrap(cacheKey, 6 * 60 * 60 * 1e3, async () => {
+    const params = {
+      part: "snippet",
+      channelId: canal.id,
+      // Solo la primera parte del nombre: los títulos de YouTube dicen "Comisión de Agricultura - fecha".
+      q: `Comisi\xF3n ${limpio.split(/[,;]/)[0].trim()}`,
+      type: "video",
+      maxResults: "15",
+      order: dia ? "relevance" : "date"
+    };
+    if (dia) {
+      params.publishedAfter = new Date(dia.getTime() - 1 * 864e5).toISOString();
+      params.publishedBefore = new Date(dia.getTime() + 4 * 864e5).toISOString();
+    }
+    const data = await ytGet("search", params);
+    const items = (data.items || []).filter((it) => it.id?.videoId);
+    if (items.length === 0) return [];
+    const det = await detallesVideos(items.map((it) => it.id.videoId)).catch(() => ({}));
+    const clave = norm(limpio.split(/[,\s]+/)[0] || limpio);
+    const diaTxt = dia ? `${dia.getUTCDate()} ${MESES2[dia.getUTCMonth()]}` : "";
+    const videos = items.map((it, idx) => {
+      const id = it.id.videoId;
+      const titulo = String(it.snippet?.title || "").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
+      const t = norm(titulo);
+      let puntaje = 0;
+      if (clave && t.includes(clave)) puntaje += 2;
+      if (t.includes("comision")) puntaje += 1;
+      if (dia) {
+        const re = new RegExp(`(^|\\D)0?${dia.getUTCDate()}\\s+(de\\s+)?${MESES2[dia.getUTCMonth()]}`);
+        if (re.test(t)) puntaje += 6;
+      }
+      const seg = det[id]?.segundos ?? null;
+      return {
+        v: {
+          id,
+          videoId: id,
+          title: titulo,
+          published: it.snippet?.publishedAt || "",
+          length: formatoDuracion(seg),
+          segundos: seg,
+          desc: it.snippet?.description || "",
+          url: `https://www.youtube.com/watch?v=${id}`,
+          canal: canal.nombre
+        },
+        puntaje,
+        idx
+      };
+    });
+    videos.sort((a, b) => b.puntaje - a.puntaje || a.idx - b.idx);
+    return videos.filter((x) => !clave || norm(x.v.title).includes(clave)).map((x) => x.v).slice(0, 10);
+  });
+}
+var SEGUNDOS_POR_PARTE = 1800;
+function aSegundos(v) {
+  if (typeof v === "number" && isFinite(v)) return Math.max(0, Math.round(v));
+  const p = String(v || "").trim().split(":").map((n) => parseInt(n, 10));
+  if (p.some((n) => isNaN(n))) return 0;
+  return p.reduce((acc, n) => acc * 60 + n, 0);
+}
+async function consultarGeminiVideo(p) {
+  const { apiKey, videoId, desde, hasta, prompt, maxOutputTokens } = p;
+  const videoMetadata = { startOffset: `${desde}s` };
+  if (hasta != null) videoMetadata.endOffset = `${hasta}s`;
+  const candidatos = Array.from(new Set([
+    process.env.GEMINI_VIDEO_MODEL,
+    process.env.GEMINI_MODEL,
+    "gemini-3.6-flash",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite"
+  ].filter(Boolean)));
+  let res = null;
+  let model = candidatos[0];
+  const errores = [];
+  const limiteTotal = Date.now() + 27e4;
+  for (const m of candidatos) {
+    model = m;
+    const restante = limiteTotal - Date.now();
+    if (restante < 2e4) {
+      errores.push(`${m}: sin tiempo restante`);
+      break;
+    }
+    try {
+      res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, {
+        method: "POST",
+        // La clave va en el encabezado: funciona con claves "AIza…" y con las nuevas "AQ.…".
+        headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { fileData: { fileUri: `https://www.youtube.com/watch?v=${videoId}` }, videoMetadata },
+              { text: prompt }
+            ]
+          }],
+          generationConfig: {
+            temperature: 0.2,
+            maxOutputTokens,
+            responseMimeType: "application/json",
+            mediaResolution: "MEDIA_RESOLUTION_LOW"
+          }
+        }),
+        signal: AbortSignal.timeout(Math.min(11e4, restante))
+      });
+    } catch (err) {
+      errores.push(`${m}: ${err?.name === "TimeoutError" ? "sin respuesta a tiempo" : err?.message || err}`);
+      res = null;
+      continue;
+    }
+    if (res.ok) break;
+    const txt = await res.text().catch(() => "");
+    let detalle = "";
+    try {
+      const j = JSON.parse(txt);
+      const viol = (j?.error?.details || []).flatMap((d) => d?.violations || []);
+      detalle = viol.map((v) => v.quotaId || v.quotaMetric).filter(Boolean).join(", ") || String(j?.error?.message || "").slice(0, 160);
+    } catch {
+      detalle = txt.slice(0, 160);
+    }
+    errores.push(`${m}: HTTP ${res.status}${detalle ? ` (${detalle})` : ""}`);
+    if (![429, 404, 500, 502, 503, 504].includes(res.status)) break;
+    res = null;
+  }
+  if (!res || !res.ok) {
+    const sinCuota = errores.some((e) => e.includes("HTTP 429"));
+    return {
+      ok: false,
+      motivo: `${sinCuota ? "La clave de Gemini no tiene cuota disponible (l\xEDmite gratuito agotado o sin facturaci\xF3n activa). " : ""}Detalle: ${errores.join(" | ")}`
+    };
+  }
+  const data = await res.json();
+  const texto = (data?.candidates?.[0]?.content?.parts || []).map((x) => x.text || "").join("");
+  return { ok: true, texto, model, fin: String(data?.candidates?.[0]?.finishReason || "") || void 0 };
+}
+async function analizarParteVideo(params) {
+  const { videoId, parte } = params;
+  const apiKey = process.env.GEMINI_VIDEO_API_KEY || process.env.GEMINI_API_KEY;
+  const desde = parte * SEGUNDOS_POR_PARTE;
+  const hasta = params.duracion ? Math.min(params.duracion, desde + SEGUNDOS_POR_PARTE) : params.duracion === null ? null : desde + SEGUNDOS_POR_PARTE;
+  if (!/^[\w-]{11}$/.test(videoId)) return { disponible: false, motivo: "Identificador de video no v\xE1lido.", parte, desde, hasta };
+  if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
+    return { disponible: false, motivo: "Falta configurar GEMINI_API_KEY.", parte, desde, hasta };
+  }
+  const claveCache = `yt_analisis_${videoId}_${parte}_${hasta ?? "fin"}`;
+  const previo = cache.get(claveCache);
+  if (previo) return previo;
+  const resultado = await (async () => {
+    const contexto = [
+      params.comision ? `Comisi\xF3n: ${params.comision}` : "",
+      params.fecha ? `Fecha de la sesi\xF3n: ${params.fecha}` : "",
+      params.materia ? `Materia citada: ${params.materia}` : ""
+    ].filter(Boolean).join("\n");
+    const prompt = `Este video es la transmisi\xF3n oficial de una sesi\xF3n de comisi\xF3n del Congreso de Chile.
+${contexto}
+
+Analiza SOLO lo que efectivamente se ve y se escucha en el tramo indicado del video. No inventes nombres, cargos, cifras ni acuerdos: si no se identifica a quien habla, usa "No identificado". Si el tramo no contiene la sesi\xF3n (pantalla en espera, receso), ind\xEDcalo en "resumen" y deja las listas vac\xEDas.
+
+Responde \xDANICAMENTE con JSON v\xE1lido:
+{
+  "resumen": "qu\xE9 ocurri\xF3 en este tramo, 3-5 frases",
+  "temas": ["temas o boletines tratados"],
+  "intervenciones": [
+    {"minuto": "H:MM:SS desde el inicio del video", "orador": "nombre tal como se presenta", "cargo": "cargo o instituci\xF3n, o ''", "resumen": "qu\xE9 plante\xF3, 1-3 frases", "cita": "frase textual breve y relevante, o ''"}
+  ],
+  "acuerdos": ["acuerdos adoptados, si se mencionan"],
+  "votaciones": ["votaciones realizadas y su resultado, si las hay"]
+}
+Ordena las intervenciones cronol\xF3gicamente y registra cada cambio relevante de orador.`;
+    const g = await consultarGeminiVideo({ apiKey, videoId, desde, hasta, prompt, maxOutputTokens: 16e3 });
+    if (g.ok === false) return { disponible: false, motivo: g.motivo, parte, desde, hasta };
+    const { texto, model } = g;
+    const json = texto ? (() => {
+      try {
+        return safeJsonParse(texto);
+      } catch {
+        return null;
+      }
+    })() : null;
+    if (!json) {
+      return { disponible: false, motivo: "Gemini no devolvi\xF3 un an\xE1lisis legible para este tramo.", parte, desde, hasta };
+    }
+    const lista3 = (v) => Array.isArray(v) ? v.map((x) => String(x || "").trim()).filter(Boolean) : [];
+    let intervenciones = (Array.isArray(json.intervenciones) ? json.intervenciones : []).map((i) => ({
+      segundos: aSegundos(i.minuto ?? i.segundos),
+      orador: String(i.orador || "No identificado"),
+      cargo: String(i.cargo || ""),
+      resumen: String(i.resumen || ""),
+      cita: i.cita ? String(i.cita) : void 0
+    }));
+    if (desde > 0 && intervenciones.length > 0 && intervenciones.every((i) => i.segundos < desde)) {
+      intervenciones = intervenciones.map((i) => ({ ...i, segundos: i.segundos + desde }));
+    }
+    return {
+      disponible: true,
+      parte,
+      desde,
+      hasta,
+      resumen: String(json.resumen || ""),
+      temas: lista3(json.temas),
+      intervenciones,
+      acuerdos: lista3(json.acuerdos),
+      votaciones: lista3(json.votaciones),
+      modelo: model
+    };
+  })();
+  if (resultado.disponible) cache.set(claveCache, resultado, 7 * 24 * 60 * 60 * 1e3);
+  return resultado;
+}
+var SEGUNDOS_POR_PARTE_TRANSCRIPCION = 600;
+var AVISO_TRANSCRIPCION = "Transcripci\xF3n autom\xE1tica generada con IA a partir del video: no es el texto oficial y puede contener errores. Contr\xE1stela con el video antes de citarla.";
+function segmentosDeRespuesta(texto) {
+  if (!texto || !texto.trim()) return { crudos: [], sinVoz: false };
+  let json = null;
+  try {
+    json = safeJsonParse(texto);
+  } catch {
+    json = null;
+  }
+  if (Array.isArray(json)) return { crudos: json, sinVoz: false };
+  if (json && typeof json === "object") {
+    const lista3 = [json.segmentos, json.segments, json.transcripcion, json["transcripci\xF3n"], json.transcript].find(Array.isArray) ?? Object.values(json).find((v) => Array.isArray(v) && v.length > 0 && typeof v[0] === "object");
+    if (Array.isArray(lista3)) return { crudos: lista3, sinVoz: lista3.length === 0 && json.sinVoz === true };
+    return { crudos: [], sinVoz: json.sinVoz === true };
+  }
+  return { crudos: rescatarObjetosJson(texto), sinVoz: false };
+}
+async function transcribirParteVideo(params) {
+  const { videoId, parte } = params;
+  const apiKey = process.env.GEMINI_VIDEO_API_KEY || process.env.GEMINI_API_KEY;
+  const desde = parte * SEGUNDOS_POR_PARTE_TRANSCRIPCION;
+  const hasta = params.duracion ? Math.min(params.duracion, desde + SEGUNDOS_POR_PARTE_TRANSCRIPCION) : params.duracion === null ? null : desde + SEGUNDOS_POR_PARTE_TRANSCRIPCION;
+  if (!/^[\w-]{11}$/.test(videoId)) return { disponible: false, motivo: "Identificador de video no v\xE1lido.", parte, desde, hasta };
+  if (params.duracion != null && desde >= params.duracion) return { disponible: false, motivo: "El tramo pedido est\xE1 fuera de la duraci\xF3n del video.", parte, desde, hasta };
+  if (!apiKey || apiKey === "MY_GEMINI_API_KEY") return { disponible: false, motivo: "Falta configurar GEMINI_API_KEY.", parte, desde, hasta };
+  const claveCache = `yt_transcripcion_${videoId}_${parte}_${hasta ?? "fin"}`;
+  const previo = cache.get(claveCache);
+  if (previo) return previo;
+  const contexto = [
+    params.comision ? `Comisi\xF3n: ${params.comision}` : "",
+    params.fecha ? `Fecha de la sesi\xF3n: ${params.fecha}` : "",
+    params.materia ? `Materia citada: ${params.materia}` : ""
+  ].filter(Boolean).join("\n");
+  const prompt = `Este video es la transmisi\xF3n oficial de una sesi\xF3n de comisi\xF3n del Congreso de Chile.
+${contexto}
+
+Transcribe en espa\xF1ol lo que se dice en el tramo indicado del video, lo m\xE1s fielmente posible y sin resumir. No inventes palabras, nombres, cargos ni cifras: si algo no se entiende escribe "[inaudible]"; si no se identifica a quien habla, usa "No identificado". Si en el tramo no se habla (silencio, pausa, solo imagen), devuelve una lista vac\xEDa.
+
+Responde \xDANICAMENTE con JSON v\xE1lido:
+{"segmentos":[{"minuto":"H:MM:SS desde el inicio del video","orador":"nombre tal como se presenta o 'No identificado'","texto":"lo que dice, tal como lo dice"}]}
+Usa exactamente esas claves ("segmentos", "minuto", "orador", "texto"). Solo si en todo el tramo no habla nadie (pantalla de espera, receso, sin audio), responde {"segmentos":[],"sinVoz":true}.
+Un segmento por cambio de orador, o cada 60 segundos como m\xE1ximo si habla la misma persona. Ord\xE9nalos cronol\xF3gicamente.`;
+  const g = await consultarGeminiVideo({ apiKey, videoId, desde, hasta, prompt, maxOutputTokens: 32e3 });
+  if (g.ok === false) return { disponible: false, motivo: g.motivo, parte, desde, hasta };
+  const { crudos, sinVoz } = segmentosDeRespuesta(g.texto);
+  let segmentos = crudos.map((x) => ({
+    segundos: aSegundos(x?.minuto ?? x?.tiempo ?? x?.timestamp ?? x?.inicio ?? x?.segundos),
+    orador: String(x?.orador ?? x?.hablante ?? x?.speaker ?? "No identificado").trim() || "No identificado",
+    texto: String(x?.texto ?? x?.text ?? x?.transcripcion ?? x?.contenido ?? "").trim()
+  })).filter((x) => x.texto);
+  if (segmentos.length === 0) {
+    if (sinVoz) {
+      const vacio2 = { disponible: true, parte, desde, hasta, segmentos: [], modelo: g.model, aviso: "En este tramo del video no se registran intervenciones habladas." };
+      cache.set(claveCache, vacio2, 24 * 60 * 60 * 1e3);
+      return vacio2;
+    }
+    return {
+      disponible: false,
+      parte,
+      desde,
+      hasta,
+      motivo: `Gemini no devolvi\xF3 texto para este tramo (t\xE9rmino: ${g.fin || "no informado"}; respuesta de ${g.texto.length} caracteres${g.texto ? `, comienza con: ${g.texto.slice(0, 80).replace(/\s+/g, " ")}` : ""}).`
+    };
+  }
+  if (desde > 0 && segmentos.length > 0 && segmentos.every((x) => x.segundos < desde)) {
+    segmentos = segmentos.map((x) => ({ ...x, segundos: x.segundos + desde }));
+  }
+  segmentos.sort((a, b) => a.segundos - b.segundos);
+  const resultado = { disponible: true, parte, desde, hasta, segmentos, modelo: g.model, aviso: AVISO_TRANSCRIPCION };
+  cache.set(claveCache, resultado, 7 * 24 * 60 * 60 * 1e3);
+  return resultado;
+}
+
+// server/services/sesionesCamaraService.ts
+var MESES3 = { enero: 0, febrero: 1, marzo: 2, abril: 3, mayo: 4, junio: 5, julio: 6, agosto: 7, septiembre: 8, setiembre: 8, octubre: 9, noviembre: 10, diciembre: 11 };
+var norm2 = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim();
+var FS_PROY = process.env.VITE_FIREBASE_PROJECT_ID || "legistrack-d75bc";
+var FS_KEY = process.env.VITE_FIREBASE_API_KEY || "AIzaSyAZvd-S6AmPpV05UYEkRRULgDezD7mAkaE";
+function fechaISO(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function parsearTituloSesion(titulo) {
+  const t = String(titulo || "").replace(/\s+/g, " ").trim();
+  const m = t.match(/^((?:comisi[oó]n|cei|subcomisi[oó]n)\b.*?)\s*[-–|]\s*(?:lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo)?\s*,?\s*(\d{1,2})\s+(?:de\s+)?([a-záéíóú]+)\s+(?:de\s+)?(\d{4})/i);
+  if (!m) return null;
+  const mes = MESES3[norm2(m[3])];
+  if (mes === void 0) return null;
+  return { comision: m[1].trim(), fecha: fechaISO(new Date(+m[4], mes, +m[2])) };
+}
+function formatoDuracion2(seg) {
+  if (!seg) return "";
+  const h = Math.floor(seg / 3600), mi = Math.floor(seg % 3600 / 60), s = seg % 60;
+  return h ? `${h}:${String(mi).padStart(2, "0")}:${String(s).padStart(2, "0")}` : `${mi}:${String(s).padStart(2, "0")}`;
+}
+async function videosSesionesCamara() {
+  return videosSesionesCanal("diputados");
+}
+async function videosSesionesCanal(camara) {
+  const key = process.env.YOUTUBE_API_KEY;
+  if (!key) return [];
+  return cache.wrap(`yt_sesiones_${camara}_v2`, 6 * 60 * 60 * 1e3, async () => {
+    const docUrl = `https://firestore.googleapis.com/v1/projects/${FS_PROY}/databases/(default)/documents/videos_sesiones/${camara}?key=${FS_KEY}`;
+    try {
+      const r = await fetch(docUrl, { signal: AbortSignal.timeout(8e3) });
+      if (r.ok) {
+        const d = await r.json();
+        const act = d?.fields?.actualizado?.stringValue;
+        if (act && Date.now() - new Date(act).getTime() < 12 * 60 * 60 * 1e3) {
+          const lista4 = JSON.parse(d?.fields?.payload?.stringValue || "[]");
+          if (Array.isArray(lista4) && lista4.length > 0) return lista4;
+        }
+      }
+    } catch {
+    }
+    const lista3 = await videosDesdeYouTube(camara, key);
+    if (lista3.length > 0) {
+      fetch(docUrl, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fields: { payload: { stringValue: JSON.stringify(lista3) }, actualizado: { stringValue: (/* @__PURE__ */ new Date()).toISOString() } } }),
+        signal: AbortSignal.timeout(1e4)
+      }).catch(() => {
+      });
+    }
+    return lista3;
+  });
+}
+async function videosDesdeYouTube(camara, key) {
+  {
+    const playlist = "UU" + CANALES_YOUTUBE[camara].id.slice(2);
+    const limite = Date.now() - 270 * 864e5;
+    const items = [];
+    let pageToken = "";
+    for (let pagina = 0; pagina < (camara === "senado" ? 120 : 60); pagina++) {
+      const qs = new URLSearchParams({ part: "snippet", playlistId: playlist, maxResults: "50", key, ...pageToken ? { pageToken } : {} });
+      const r = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?${qs}`, { signal: AbortSignal.timeout(12e3) });
+      if (!r.ok) break;
+      const d = await r.json();
+      let viejo = false;
+      for (const it of d.items || []) {
+        const publicado = new Date(it.snippet?.publishedAt || 0).getTime();
+        if (publicado && publicado < limite) {
+          viejo = true;
+          continue;
+        }
+        const id = it.snippet?.resourceId?.videoId;
+        if (id) items.push({ videoId: id, titulo: String(it.snippet?.title || ""), publicado: String(it.snippet?.publishedAt || "") });
+      }
+      pageToken = d.nextPageToken || "";
+      if (!pageToken || viejo) break;
+    }
+    const sesiones = items.map((i) => ({ ...i, p: parsearTituloSesion(i.titulo) })).filter((i) => i.p);
+    const duraciones = {};
+    for (let i = 0; i < sesiones.length; i += 50) {
+      const det = await detallesVideos(sesiones.slice(i, i + 50).map((s) => s.videoId)).catch(() => ({}));
+      for (const [id, v] of Object.entries(det)) duraciones[id] = v.segundos ?? null;
+    }
+    return sesiones.map((s) => ({ videoId: s.videoId, comision: s.p.comision, fecha: s.p.fecha, duracion: formatoDuracion2(duraciones[s.videoId] ?? null), titulo: s.titulo, publicado: s.publicado }));
+  }
+}
+async function resultadosCamaraHistoricos() {
+  const docs = await documentosCitacionesCamara();
+  const out = [];
+  for (const doc of docs) {
+    if (!/\/resultados_[^/]+$/.test(doc.name || "")) continue;
+    try {
+      out.push(...JSON.parse(doc.fields?.payload?.stringValue || "{}").resultados || []);
+    } catch {
+    }
+  }
+  return out;
+}
+async function documentosCitacionesCamara() {
+  return cache.wrap("citaciones_camara_docs_v1", 15 * 60 * 1e3, async () => {
+    const docs = [];
+    let pageToken = "";
+    for (let i = 0; i < 20; i++) {
+      const qs = new URLSearchParams({ pageSize: "100", key: FS_KEY, ...pageToken ? { pageToken } : {} });
+      const r = await fetch(`https://firestore.googleapis.com/v1/projects/${FS_PROY}/databases/(default)/documents/citaciones_camara?${qs}`, { signal: AbortSignal.timeout(1e4) });
+      if (!r.ok) break;
+      const d = await r.json();
+      docs.push(...d.documents || []);
+      pageToken = d.nextPageToken || "";
+      if (!pageToken) break;
+    }
+    return docs;
+  });
+}
+async function citacionesCamaraHistoricas() {
+  return cache.wrap("citaciones_camara_historicas_v2", 15 * 60 * 1e3, async () => {
+    const out = [];
+    for (const doc of await documentosCitacionesCamara()) {
+      if (!/\/semana_[^/]+$/.test(doc.name || "")) continue;
+      try {
+        const reg = JSON.parse(doc.fields?.payload?.stringValue || "null");
+        for (const c of reg?.datos?.todas || []) out.push({ ...c, _semana: reg.semana });
+      } catch {
+      }
+    }
+    return out;
+  });
+}
+var DIA_CIT = /(\d{1,2})\s+de\s+([a-záéíóú]+)\s+de\s+(\d{4})/i;
+function fechaCitacion(f) {
+  const m = String(f || "").match(DIA_CIT);
+  if (!m) return "";
+  const mes = MESES3[norm2(m[2])];
+  return mes === void 0 ? "" : fechaISO(new Date(+m[3], mes, +m[1]));
+}
+function mismaComision(nombreVideo, nombreComision) {
+  const limpiar2 = (s) => norm2(s).replace(/^(sub)?comision\s+(especial\s+)?(investigadora\s+)?(de\s+|del\s+|sobre\s+)?/, "").replace(/[,.]/g, " ");
+  const v = limpiar2(nombreVideo).split(" ").filter((w) => w.length > 3 && !["para", "sobre", "como"].includes(w));
+  const c = limpiar2(nombreComision);
+  if (v.length === 0) return false;
+  return v.slice(0, 2).every((w) => c.includes(w));
+}
+async function sesionesCamaraDeComision(slug2, nombre) {
+  const [videos, citas, resultados] = await Promise.all([
+    videosSesionesCamara().catch(() => []),
+    citacionesCamaraHistoricas().catch(() => []),
+    resultadosCamaraHistoricos().catch(() => [])
+  ]);
+  const porFecha = /* @__PURE__ */ new Map();
+  const hoy = fechaISO(/* @__PURE__ */ new Date());
+  for (const c of citas) {
+    if (c.comisionSlug !== slug2) continue;
+    const f = fechaCitacion(c.fecha);
+    if (!f) continue;
+    porFecha.set(f, {
+      id: `ses-cd-hist-${f}`,
+      fecha: f,
+      hora: c.hora,
+      lugar: c.lugar,
+      tipo: c.tipo || "Sesi\xF3n de Comisi\xF3n",
+      materia: c.materia || "Materia no informada",
+      invitados: /^no informado/i.test(c.invitados || "") ? "" : c.invitados || "",
+      tabla: c.tabla,
+      completada: f < hoy,
+      acuerdosCount: 0,
+      fuente: "Citaci\xF3n oficial (camara.cl)"
+    });
+  }
+  for (const r of resultados) {
+    if (r.comisionSlug !== slug2) continue;
+    const f = fechaCitacion(r.fecha);
+    if (!f || !r.resultado) continue;
+    const previa = porFecha.get(f);
+    const base = previa || {
+      id: `ses-cd-hist-${f}`,
+      fecha: f,
+      hora: r.hora,
+      lugar: r.lugar,
+      tipo: "Sesi\xF3n de Comisi\xF3n",
+      materia: r.materia || "Materia no informada",
+      invitados: "",
+      completada: true,
+      acuerdosCount: 0,
+      fuente: "Resultado oficial (camara.cl)"
+    };
+    porFecha.set(f, { ...base, actaTexto: r.resultado, completada: true, fuente: base.fuente.includes("Resultado") ? base.fuente : `${base.fuente} + resultado oficial` });
+  }
+  for (const v of videos) {
+    if (!mismaComision(v.comision, nombre)) continue;
+    const previa = porFecha.get(v.fecha);
+    const video = { videoUrl: `https://www.youtube.com/watch?v=${v.videoId}`, duracionVideo: v.duracion };
+    if (previa) porFecha.set(v.fecha, { ...previa, ...video, completada: true, fuente: "Citaci\xF3n oficial y video oficial" });
+    else porFecha.set(v.fecha, {
+      id: `ses-cd-hist-${v.fecha}`,
+      fecha: v.fecha,
+      tipo: "Sesi\xF3n de Comisi\xF3n",
+      materia: "Materia no informada (sesi\xF3n registrada en el canal oficial de YouTube)",
+      invitados: "",
+      completada: true,
+      acuerdosCount: 0,
+      ...video,
+      fuente: "Video oficial (YouTube de la C\xE1mara)"
+    });
+  }
+  const DIAS = ["Domingo", "Lunes", "Martes", "Mi\xE9rcoles", "Jueves", "Viernes", "S\xE1bado"];
+  const NOMBRES_MES = Object.keys(MESES3).filter((k) => k !== "setiembre");
+  return Array.from(porFecha.values()).sort((a, b) => b.fecha.localeCompare(a.fecha)).map((s) => {
+    const [y, m, d] = s.fecha.split("-").map(Number);
+    const dt = new Date(y, m - 1, d);
+    return { ...s, fecha: `${DIAS[dt.getDay()]} ${d} de ${NOMBRES_MES[m - 1]} de ${y}` };
+  });
+}
+async function videosSenadoPorFecha(nombreComision) {
+  const videos = await videosSesionesCanal("senado").catch(() => []);
+  const mapa = /* @__PURE__ */ new Map();
+  for (const v of videos) {
+    if (!mismaComision(v.comision, nombreComision)) continue;
+    const lista3 = mapa.get(v.fecha) || [];
+    lista3.push(v);
+    mapa.set(v.fecha, lista3);
+  }
+  for (const lista3 of mapa.values()) lista3.sort((a, b) => String(a.publicado).localeCompare(String(b.publicado)));
+  return mapa;
+}
+
 // src/data/proyectosRealData.ts
 var PROYECTOS_REALES_CHILE = [
   {
@@ -187605,14 +188223,14 @@ async function importarDetallesSesionesSenado(items) {
   }
   return n;
 }
-async function detalleSesionSenado(idComision, idSesion) {
-  if (!/^\d+$/.test(idComision) || !/^\d+$/.test(idSesion)) return { disponible: false, motivo: "Identificadores no v\xE1lidos." };
-  const url = `https://www.senado.cl/actividad-legislativa/comisiones/${idComision}/${idSesion}`;
-  const clave = `detalle_sesion_senado_${idComision}_${idSesion}`;
+async function detalleSesionSenado(idComision, idSesion2) {
+  if (!/^\d+$/.test(idComision) || !/^\d+$/.test(idSesion2)) return { disponible: false, motivo: "Identificadores no v\xE1lidos." };
+  const url = `https://www.senado.cl/actividad-legislativa/comisiones/${idComision}/${idSesion2}`;
+  const clave = `detalle_sesion_senado_${idComision}_${idSesion2}`;
   const previo = cache.get(clave);
   if (previo) return previo;
   try {
-    const r = await fetch(FS_DET(idSesion), { signal: AbortSignal.timeout(8e3) });
+    const r = await fetch(FS_DET(idSesion2), { signal: AbortSignal.timeout(8e3) });
     if (r.ok) {
       const d = await r.json();
       const det = JSON.parse(d?.fields?.payload?.stringValue || "null");
@@ -187636,6 +188254,373 @@ async function detalleSesionSenado(idComision, idSesion) {
   } catch (err) {
     return { disponible: false, motivo: `No se pudo consultar senado.cl: ${err?.message || err}`, url };
   }
+}
+
+// server/services/registroSesionesService.ts
+var COLECCION = "registro_sesiones";
+var FUENTES = ["citacion", "historia", "detalle", "resultado"];
+function conexion() {
+  const proy = process.env.VITE_FIREBASE_PROJECT_ID || "";
+  const key = process.env.VITE_FIREBASE_API_KEY || "";
+  if (!proy || !key) throw new Error("Faltan VITE_FIREBASE_PROJECT_ID o VITE_FIREBASE_API_KEY en el entorno del servidor.");
+  return { proy, key, base: `https://firestore.googleapis.com/v1/projects/${proy}/databases/(default)/documents` };
+}
+function fechaISO2(texto) {
+  const t = tiempoDeSesion(texto);
+  if (!t) return "";
+  const d = new Date(t);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function horaInicio(texto) {
+  const m = String(texto || "").match(/(\d{1,2})[:.](\d{2})/);
+  return m ? `${m[1].padStart(2, "0")}${m[2]}` : "";
+}
+var slug = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/^comision\s+(de\s+|del\s+)?/, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60);
+function idSesion(camara, comision, fecha, hora) {
+  return `${camara === "Senado" ? "sr" : "cd"}-${slug(comision) || "sin-comision"}-${fecha || "sin-fecha"}-${horaInicio(hora) || "0000"}`;
+}
+function huella(o) {
+  const s = JSON.stringify(o);
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = (h << 5) + h + s.charCodeAt(i) | 0;
+  return `${(h >>> 0).toString(36)}-${s.length}`;
+}
+var nombreCamara = (slugCamara, nombre) => DIPUTADOS_COMISIONES_DETALLE.find((c) => c.id === slugCamara)?.nombre || (/^comisi[oó]n/i.test(nombre) ? nombre : `Comisi\xF3n de ${nombre}`);
+function aportesCitacionesCamara(citaciones) {
+  const out = [];
+  for (const c of citaciones || []) {
+    const fecha = fechaISO2(c.fecha);
+    if (!fecha || !c.comisionNombre) continue;
+    const nombre = nombreCamara(c.comisionSlug, c.comisionNombre);
+    const puntos = puntosDeMateria(c.materia);
+    const boletines = Array.from(new Set([...(c.boletinesRelacionados || []).map(normalizarBoletin), ...puntos.flatMap((p) => p.boletines)].filter(Boolean)));
+    out.push({
+      id: idSesion("C\xE1mara", c.comisionSlug || nombre, fecha, c.hora),
+      fuente: "citacion",
+      camara: "C\xE1mara",
+      comisionId: c.comisionSlug ? `cd-${c.comisionSlug}` : "",
+      comisionNombre: nombre,
+      fecha,
+      boletines,
+      datos: {
+        fechaTexto: c.fecha,
+        hora: c.hora || null,
+        lugar: c.lugar || null,
+        citacionNumero: c.citacionNumero || null,
+        tipo: c.tipo || null,
+        materia: c.materia || null,
+        puntos,
+        invitados: c.invitados && !/^no informad/i.test(c.invitados) ? c.invitados : null,
+        url: "https://www.camara.cl/legislacion/comisiones/citaciones.aspx"
+      }
+    });
+  }
+  return out;
+}
+function aportesResultadosCamara(resultados) {
+  const out = [];
+  for (const r of resultados || []) {
+    const fecha = fechaISO2(r.fecha);
+    if (!fecha || !r.comisionNombre || !r.resultado) continue;
+    const nombre = nombreCamara(r.comisionSlug, r.comisionNombre);
+    out.push({
+      id: idSesion("C\xE1mara", r.comisionSlug || nombre, fecha, r.hora),
+      fuente: "resultado",
+      camara: "C\xE1mara",
+      comisionId: r.comisionSlug ? `cd-${r.comisionSlug}` : "",
+      comisionNombre: nombre,
+      fecha,
+      boletines: Array.from(new Set([...(r.boletines || []).map(normalizarBoletin), ...boletinesEnTexto(`${r.materia || ""} ${r.resultado}`)].filter(Boolean))),
+      datos: { resultado: r.resultado, materia: r.materia || null, url: "https://www.camara.cl/legislacion/comisiones/resultados.aspx" }
+    });
+  }
+  return out;
+}
+var nombreSenado = (idComision, nombre) => SENADO_COMISIONES_DETALLE.find((c) => c.senadoId === String(idComision))?.nombre || nombre || "Comisi\xF3n del Senado";
+var idSenadoApp = (idComision) => {
+  const c = SENADO_COMISIONES_DETALLE.find((x) => x.senadoId === String(idComision));
+  return c ? `senado-${c.id}` : "";
+};
+function aportesCitacionesSenado(citaciones) {
+  const out = [];
+  for (const c of citaciones || []) {
+    const fecha = fechaISO2(c.fecha);
+    if (!fecha || !c.idComision) continue;
+    const nombre = nombreSenado(String(c.idComision), c.comision);
+    const puntos = puntosDeMateria(c.materia);
+    out.push({
+      id: idSesion("Senado", nombre, fecha, c.hora),
+      fuente: "citacion",
+      camara: "Senado",
+      comisionId: idSenadoApp(String(c.idComision)),
+      comisionNombre: nombre,
+      fecha,
+      boletines: Array.from(new Set([...(c.boletines || []).map(normalizarBoletin), ...puntos.flatMap((p) => p.boletines)].filter(Boolean))),
+      datos: {
+        fechaTexto: c.fecha,
+        hora: /^horario reglamentario$/i.test(c.hora || "") ? null : c.hora || null,
+        lugar: /^valpara[ií]so \/ santiago$/i.test(c.lugar || "") ? null : c.lugar || null,
+        citacionNumero: c.idCitacion ? `Citaci\xF3n N\xB0 ${c.idCitacion}` : null,
+        materia: /^sesi[oó]n de comisi[oó]n$/i.test(c.materia || "") ? null : c.materia || null,
+        puntos,
+        senadoComisionId: String(c.idComision),
+        url: "https://www.senado.cl/actividad-legislativa/comisiones/citaciones"
+      }
+    });
+  }
+  return out;
+}
+function aportesHistoriaSenado(idComision, sesiones) {
+  const nombre = nombreSenado(idComision, "");
+  return (sesiones || []).map((h) => {
+    const fecha = fechaISO2(h.fecha);
+    const puntos = puntosDeMateria(h.materia);
+    return {
+      id: idSesion("Senado", nombre, fecha, h.inicio),
+      fuente: "historia",
+      camara: "Senado",
+      comisionId: idSenadoApp(idComision),
+      comisionNombre: nombre,
+      fecha,
+      boletines: puntos.flatMap((p) => p.boletines),
+      datos: {
+        idSesionSenado: String(h.idSesion),
+        inicio: h.inicio || null,
+        termino: h.termino || null,
+        lugar: h.lugar || null,
+        materia: h.materia || null,
+        puntos,
+        fracasada: !!h.fracasada,
+        senadoComisionId: idComision,
+        url: `https://www.senado.cl/actividad-legislativa/comisiones/${idComision}/${h.idSesion}`
+      }
+    };
+  }).filter((a) => a.fecha);
+}
+function aporteDetalleSenado(idComision, h, det) {
+  if (!det?.disponible) return null;
+  const nombre = nombreSenado(idComision, det.comision);
+  const fecha = fechaISO2(det.fecha || h.fecha);
+  if (!fecha) return null;
+  const puntos = (det.puntos || []).map((p, i) => ({
+    numero: Number(p.numero) || i + 1,
+    texto: String(p.tema || "").trim(),
+    boletines: Array.from(new Set([normalizarBoletin(p.boletin || ""), ...boletinesEnTexto(p.tema || "")].filter(Boolean))),
+    aspectos: p.aspectos || null,
+    acuerdos: p.acuerdos && !/^pendiente\.?$/i.test(String(p.acuerdos).trim()) ? p.acuerdos : null,
+    invitados: p.invitados || null,
+    asistentes: p.asistentes || null
+  }));
+  return {
+    id: idSesion("Senado", nombre, fecha, h.inicio || det.inicio),
+    fuente: "detalle",
+    camara: "Senado",
+    comisionId: idSenadoApp(idComision),
+    comisionNombre: nombre,
+    fecha,
+    boletines: Array.from(new Set(puntos.flatMap((p) => p.boletines))),
+    datos: { puntos, inicio: det.inicio || null, termino: det.termino || null, lugar: det.lugar || null, presentaciones: det.presentaciones || [], url: det.url || null }
+  };
+}
+async function listarDocs(coleccion, mascara) {
+  const { base, key } = conexion();
+  const docs = [];
+  let pageToken = "";
+  for (let i = 0; i < 60; i++) {
+    const qs = new URLSearchParams({ pageSize: "300", key, ...pageToken ? { pageToken } : {} });
+    for (const m of mascara || []) qs.append("mask.fieldPaths", m);
+    const r = await fetch(`${base}/${coleccion}?${qs}`, { signal: AbortSignal.timeout(15e3) });
+    if (!r.ok) throw new Error(`Firestore (${coleccion}) respondi\xF3 HTTP ${r.status}`);
+    const d = await r.json();
+    docs.push(...d.documents || []);
+    pageToken = d.nextPageToken || "";
+    if (!pageToken) break;
+  }
+  return docs;
+}
+var idDoc = (d) => String(d.name || "").split("/").pop() || "";
+var sv = (v) => ({ stringValue: v });
+async function escribirAportes(aportes) {
+  const { base, proy, key } = conexion();
+  const porSesion = /* @__PURE__ */ new Map();
+  for (const a of aportes) porSesion.set(a.id, [...porSesion.get(a.id) || [], a]);
+  const existentes = /* @__PURE__ */ new Map();
+  for (const d of await listarDocs(COLECCION, FUENTES.map((f) => `h_${f}`))) {
+    const f = {};
+    for (const k of FUENTES) {
+      const v = d.fields?.[`h_${k}`]?.stringValue;
+      if (v) f[k] = v;
+    }
+    existentes.set(idDoc(d), f);
+  }
+  const writes = [];
+  const ahora = (/* @__PURE__ */ new Date()).toISOString();
+  for (const [id, lista3] of porSesion) {
+    const previas = existentes.get(id) || {};
+    const fields = {};
+    const mask = [];
+    for (const a of lista3) {
+      const h = huella(a.datos);
+      if (previas[a.fuente] === h || fields[a.fuente]) continue;
+      fields[a.fuente] = sv(JSON.stringify(a.datos));
+      fields[`h_${a.fuente}`] = sv(h);
+      mask.push(a.fuente, `h_${a.fuente}`);
+    }
+    if (mask.length === 0) continue;
+    const primero = lista3[0];
+    Object.assign(fields, { camara: sv(primero.camara), comisionNombre: sv(primero.comisionNombre), fecha: sv(primero.fecha), actualizado: sv(ahora) });
+    mask.push("camara", "comisionNombre", "fecha", "actualizado");
+    const comisionId = lista3.find((a) => a.comisionId)?.comisionId;
+    if (comisionId) {
+      fields.comisionId = sv(comisionId);
+      mask.push("comisionId");
+    }
+    const boletines = Array.from(new Set(lista3.flatMap((a) => a.boletines).filter(Boolean)));
+    writes.push({
+      update: { name: `projects/${proy}/databases/(default)/documents/${COLECCION}/${id}`, fields },
+      updateMask: { fieldPaths: mask },
+      updateTransforms: [{ fieldPath: "boletines", appendMissingElements: { values: boletines.map(sv) } }]
+    });
+  }
+  for (let i = 0; i < writes.length; i += 400) {
+    const r = await fetch(`${base}:commit?key=${key}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ writes: writes.slice(i, i + 400) }),
+      signal: AbortSignal.timeout(3e4)
+    });
+    if (!r.ok) throw new Error(`Firestore no acept\xF3 la escritura (HTTP ${r.status}): ${(await r.text()).slice(0, 200)}`);
+  }
+  return { sesiones: porSesion.size, escrituras: writes.length };
+}
+var enCurso = null;
+var ultima = 0;
+var INTERVALO_MIN_MS = 5 * 60 * 1e3;
+async function sincronizarRegistroSesiones(opciones = {}) {
+  if (enCurso) return enCurso;
+  if (!opciones.forzar && Date.now() - ultima < INTERVALO_MIN_MS) {
+    return { ok: true, sesiones: 0, escrituras: 0, porFuente: {}, errores: [], duracionMs: 0, omitida: "Se sincroniz\xF3 hace menos de 5 minutos." };
+  }
+  enCurso = (async () => {
+    const t0 = Date.now();
+    const errores = [];
+    const aportes = [];
+    const porFuente = {};
+    const sumar = (nombre, lista3) => {
+      porFuente[nombre] = lista3.length;
+      aportes.push(...lista3);
+    };
+    try {
+      conexion();
+    } catch (e) {
+      return { ok: false, sesiones: 0, escrituras: 0, porFuente, errores: [String(e?.message || e)], duracionMs: 0 };
+    }
+    try {
+      sumar("citaciones C\xE1mara", aportesCitacionesCamara(await citacionesCamaraHistoricas()));
+    } catch (e) {
+      errores.push(`Citaciones C\xE1mara: ${e?.message || e}`);
+    }
+    try {
+      sumar("resultados C\xE1mara", aportesResultadosCamara(await resultadosCamaraHistoricos()));
+    } catch (e) {
+      errores.push(`Resultados C\xE1mara: ${e?.message || e}`);
+    }
+    try {
+      sumar("citaciones Senado", aportesCitacionesSenado((await fetchSenadoCitacionesLive(false)).citaciones));
+    } catch (e) {
+      errores.push(`Citaciones Senado: ${e?.message || e}`);
+    }
+    try {
+      const historias = await listarDocs("sesiones_senado");
+      const detalles = /* @__PURE__ */ new Map();
+      try {
+        for (const d of await listarDocs("sesiones_senado_detalle")) {
+          try {
+            detalles.set(idDoc(d), JSON.parse(d.fields?.payload?.stringValue || "null"));
+          } catch {
+          }
+        }
+      } catch (e) {
+        errores.push(`Detalle Senado: ${e?.message || e}`);
+      }
+      const hist = [];
+      const det = [];
+      for (const doc of historias) {
+        const idComision = idDoc(doc);
+        let sesiones = [];
+        try {
+          sesiones = JSON.parse(doc.fields?.payload?.stringValue || "[]");
+        } catch {
+          continue;
+        }
+        hist.push(...aportesHistoriaSenado(idComision, sesiones));
+        for (const h of sesiones) {
+          const a = aporteDetalleSenado(idComision, h, detalles.get(String(h.idSesion)));
+          if (a) det.push(a);
+        }
+      }
+      sumar("historial Senado", hist);
+      sumar("detalle Senado", det);
+    } catch (e) {
+      errores.push(`Historial Senado: ${e?.message || e}`);
+    }
+    let r = { sesiones: 0, escrituras: 0 };
+    try {
+      r = await escribirAportes(aportes.filter((a) => a.fecha));
+    } catch (e) {
+      errores.push(`Escritura: ${e?.message || e}`);
+    }
+    ultima = Date.now();
+    return { ok: errores.length === 0, ...r, porFuente, errores, duracionMs: Date.now() - t0 };
+  })().finally(() => {
+    enCurso = null;
+  });
+  return enCurso;
+}
+function combinarSesion(id, f) {
+  const leer = (k) => {
+    try {
+      return JSON.parse(f[k]?.stringValue || "null");
+    } catch {
+      return null;
+    }
+  };
+  const cit = leer("citacion"), his = leer("historia"), det = leer("detalle"), res = leer("resultado");
+  const fuentes = [cit && "citaci\xF3n oficial", his && "registro de sesiones del Senado", det && "detalle oficial de la sesi\xF3n", res && "resultado oficial"].filter(Boolean);
+  const hora = cit?.hora || (his?.inicio ? [his.inicio, his.termino].filter(Boolean).join(" a ") : null) || (det?.inicio ? [det.inicio, det.termino].filter(Boolean).join(" a ") : null);
+  return {
+    id,
+    camara: f.camara?.stringValue || "",
+    comisionId: f.comisionId?.stringValue,
+    comisionNombre: f.comisionNombre?.stringValue || "",
+    fecha: f.fecha?.stringValue || "",
+    boletines: (f.boletines?.arrayValue?.values || []).map((v) => v.stringValue).filter(Boolean),
+    fuentes,
+    hora,
+    lugar: cit?.lugar || det?.lugar || his?.lugar || null,
+    citacionNumero: cit?.citacionNumero || null,
+    materia: cit?.materia || his?.materia || res?.materia || null,
+    // El detalle oficial (con aspectos y acuerdos por punto) manda; si no existe, la pauta de la citación o del registro.
+    puntos: det?.puntos?.length ? det.puntos : cit?.puntos?.length ? cit.puntos : his?.puntos || [],
+    invitados: cit?.invitados || null,
+    resultado: res?.resultado || null,
+    enlaces: Array.from(new Set([cit?.url, his?.url, det?.url, res?.url].filter(Boolean))),
+    actualizado: f.actualizado?.stringValue
+  };
+}
+async function sesionesRegistradasDeBoletin(boletin) {
+  const b = normalizarBoletin(boletin);
+  if (!b || !b.includes("-")) return [];
+  const { base, key } = conexion();
+  const r = await fetch(`${base}:runQuery?key=${key}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ structuredQuery: { from: [{ collectionId: COLECCION }], where: { fieldFilter: { field: { fieldPath: "boletines" }, op: "ARRAY_CONTAINS", value: sv(b) } } } }),
+    signal: AbortSignal.timeout(15e3)
+  });
+  if (!r.ok) throw new Error(`Firestore respondi\xF3 HTTP ${r.status}`);
+  const filas = await r.json();
+  return filas.filter((x) => x.document).map((x) => combinarSesion(idDoc(x.document), x.document.fields || {})).sort((a, c) => c.fecha.localeCompare(a.fecha));
 }
 
 // server/services/discusionService.ts
@@ -188042,7 +189027,7 @@ function performUnifiedSearch(rawQuery) {
 }
 
 // src/utils/dateUtils.ts
-var MESES = {
+var MESES4 = {
   enero: 0,
   febrero: 1,
   marzo: 2,
@@ -188071,7 +189056,7 @@ function parseFechaSesion(fechaStr) {
     const day = Number(match[1]);
     const monthStr = match[2].toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
     const year = Number(match[3]);
-    const month = MESES[monthStr] ?? 0;
+    const month = MESES4[monthStr] ?? 0;
     return new Date(year, month, day, 23, 59, 59);
   }
   return null;
@@ -188240,12 +189225,12 @@ function parsearCitacionesCamaraHtml(html) {
         materia = rawContent.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
       }
       const boletines = materia.match(/\b\d{4,5}-\d{2}\b|\b\d{1,2}\.\d{3}-\d{2}\b/g) || [];
-      const slug = getCommissionSlugFromName(rawComision);
+      const slug2 = getCommissionSlugFromName(rawComision);
       const citObj = {
         id: `cit-live-${totalCount}`,
         fecha: fechaStr,
         comisionNombre: rawComision,
-        comisionSlug: slug || void 0,
+        comisionSlug: slug2 || void 0,
         citacionNumero: `Citaci\xF3n Oficial N\xB0 ${totalCount}`,
         hora: rawHora,
         lugar: rawLugar,
@@ -188259,9 +189244,9 @@ function parsearCitacionesCamaraHtml(html) {
       };
       dayCitaciones.push(citObj);
       todas.push(citObj);
-      if (slug) {
-        if (!porComision[slug]) porComision[slug] = [];
-        porComision[slug].push(citObj);
+      if (slug2) {
+        if (!porComision[slug2]) porComision[slug2] = [];
+        porComision[slug2].push(citObj);
       }
     }
     daysList.push({
@@ -188273,8 +189258,8 @@ function parsearCitacionesCamaraHtml(html) {
   return { porDia: daysList, porComision, todas };
 }
 var FS_PROYECTO = process.env.VITE_FIREBASE_PROJECT_ID || "legistrack-d75bc";
-var FS_KEY = process.env.VITE_FIREBASE_API_KEY || "AIzaSyAZvd-S6AmPpV05UYEkRRULgDezD7mAkaE";
-var FS_DOC = (id) => `https://firestore.googleapis.com/v1/projects/${FS_PROYECTO}/databases/(default)/documents/citaciones_camara/${id}?key=${FS_KEY}`;
+var FS_KEY2 = process.env.VITE_FIREBASE_API_KEY || "AIzaSyAZvd-S6AmPpV05UYEkRRULgDezD7mAkaE";
+var FS_DOC = (id) => `https://firestore.googleapis.com/v1/projects/${FS_PROYECTO}/databases/(default)/documents/citaciones_camara/${id}?key=${FS_KEY2}`;
 var semanasImportadas = null;
 var semanasLeidasEn = 0;
 async function leerSemanasImportadas() {
@@ -188547,581 +189532,6 @@ async function fetchCamaraVotacionDetalle(votacionId) {
       return { disponible: false, motivo: `No se pudo consultar la API de la C\xE1mara: ${err?.message || err}`, votos: [] };
     }
   });
-}
-
-// server/services/youtubeService.ts
-var CANALES_YOUTUBE = {
-  diputados: { id: "UCYd5k2TyOyOmUJNx0SH17KA", nombre: "Diputadas y Diputados de Chile" },
-  senado: { id: "UC4GJ43VNn4AYfiYa0RBCHQg", nombre: "TV Senado Chile" }
-};
-var YouTubeNoConfigurado = class extends Error {
-};
-var ytKey = () => {
-  const k = process.env.YOUTUBE_API_KEY;
-  return k && k !== "MY_YOUTUBE_API_KEY" ? k : "";
-};
-var youtubeApiConfigurada = () => !!ytKey();
-var MESES2 = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
-var norm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
-function fechaSesionADate(fecha) {
-  if (!fecha) return null;
-  const f = norm(fecha);
-  let m = f.match(/(\d{4})-(\d{2})-(\d{2})/);
-  if (m) return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
-  m = f.match(/(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
-  if (m) return new Date(Date.UTC(+m[3], +m[2] - 1, +m[1]));
-  m = f.match(/(\d{1,2})\s+(?:de\s+)?([a-z]+)\s+(?:de\s+)?(\d{4})/);
-  if (m) {
-    const mes = MESES2.indexOf(m[2]);
-    if (mes >= 0) return new Date(Date.UTC(+m[3], mes, +m[1]));
-  }
-  return null;
-}
-function duracionISO(iso2) {
-  const m = String(iso2 || "").match(/^P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/);
-  if (!m) return null;
-  return +(m[1] || 0) * 86400 + +(m[2] || 0) * 3600 + +(m[3] || 0) * 60 + +(m[4] || 0);
-}
-function formatoDuracion(seg) {
-  if (seg == null || seg <= 0) return "";
-  const h = Math.floor(seg / 3600), m = Math.floor(seg % 3600 / 60), s = seg % 60;
-  return h ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}` : `${m}:${String(s).padStart(2, "0")}`;
-}
-async function ytGet(ruta, params) {
-  const key = ytKey();
-  if (!key) throw new YouTubeNoConfigurado("Falta configurar YOUTUBE_API_KEY (YouTube Data API v3).");
-  const qs = new URLSearchParams({ ...params, key }).toString();
-  const res = await fetch(`https://www.googleapis.com/youtube/v3/${ruta}?${qs}`, { signal: AbortSignal.timeout(12e3) });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(`YouTube API HTTP ${res.status}: ${data?.error?.message || ""}`.trim());
-  return data;
-}
-async function detallesVideos(ids) {
-  const unicos2 = Array.from(new Set(ids.filter((id) => /^[\w-]{11}$/.test(id)))).slice(0, 50);
-  if (unicos2.length === 0) return {};
-  return cache.wrap(`yt_det_${unicos2.join(",")}`, 6 * 60 * 60 * 1e3, async () => {
-    const data = await ytGet("videos", { part: "snippet,contentDetails", id: unicos2.join(",") });
-    const out = {};
-    for (const it of data.items || []) {
-      out[it.id] = {
-        segundos: duracionISO(it.contentDetails?.duration),
-        titulo: it.snippet?.title || "",
-        publicado: it.snippet?.publishedAt || "",
-        canal: it.snippet?.channelTitle || ""
-      };
-    }
-    return out;
-  });
-}
-async function buscarVideosSesion(comision, fecha, camara = "diputados") {
-  const limpio = String(comision || "").replace(/^(comisi[oó]n\s+(especial\s+)?(de\s+)?)/i, "").trim();
-  const dia = fechaSesionADate(fecha);
-  const canal = CANALES_YOUTUBE[camara];
-  const cacheKey = `yt_api_busqueda_${camara}_${norm(limpio)}_${dia ? dia.toISOString().slice(0, 10) : "sin-fecha"}`;
-  return cache.wrap(cacheKey, 6 * 60 * 60 * 1e3, async () => {
-    const params = {
-      part: "snippet",
-      channelId: canal.id,
-      // Solo la primera parte del nombre: los títulos de YouTube dicen "Comisión de Agricultura - fecha".
-      q: `Comisi\xF3n ${limpio.split(/[,;]/)[0].trim()}`,
-      type: "video",
-      maxResults: "15",
-      order: dia ? "relevance" : "date"
-    };
-    if (dia) {
-      params.publishedAfter = new Date(dia.getTime() - 1 * 864e5).toISOString();
-      params.publishedBefore = new Date(dia.getTime() + 4 * 864e5).toISOString();
-    }
-    const data = await ytGet("search", params);
-    const items = (data.items || []).filter((it) => it.id?.videoId);
-    if (items.length === 0) return [];
-    const det = await detallesVideos(items.map((it) => it.id.videoId)).catch(() => ({}));
-    const clave = norm(limpio.split(/[,\s]+/)[0] || limpio);
-    const diaTxt = dia ? `${dia.getUTCDate()} ${MESES2[dia.getUTCMonth()]}` : "";
-    const videos = items.map((it, idx) => {
-      const id = it.id.videoId;
-      const titulo = String(it.snippet?.title || "").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
-      const t = norm(titulo);
-      let puntaje = 0;
-      if (clave && t.includes(clave)) puntaje += 2;
-      if (t.includes("comision")) puntaje += 1;
-      if (dia) {
-        const re = new RegExp(`(^|\\D)0?${dia.getUTCDate()}\\s+(de\\s+)?${MESES2[dia.getUTCMonth()]}`);
-        if (re.test(t)) puntaje += 6;
-      }
-      const seg = det[id]?.segundos ?? null;
-      return {
-        v: {
-          id,
-          videoId: id,
-          title: titulo,
-          published: it.snippet?.publishedAt || "",
-          length: formatoDuracion(seg),
-          segundos: seg,
-          desc: it.snippet?.description || "",
-          url: `https://www.youtube.com/watch?v=${id}`,
-          canal: canal.nombre
-        },
-        puntaje,
-        idx
-      };
-    });
-    videos.sort((a, b) => b.puntaje - a.puntaje || a.idx - b.idx);
-    return videos.filter((x) => !clave || norm(x.v.title).includes(clave)).map((x) => x.v).slice(0, 10);
-  });
-}
-var SEGUNDOS_POR_PARTE = 1800;
-function aSegundos(v) {
-  if (typeof v === "number" && isFinite(v)) return Math.max(0, Math.round(v));
-  const p = String(v || "").trim().split(":").map((n) => parseInt(n, 10));
-  if (p.some((n) => isNaN(n))) return 0;
-  return p.reduce((acc, n) => acc * 60 + n, 0);
-}
-async function consultarGeminiVideo(p) {
-  const { apiKey, videoId, desde, hasta, prompt, maxOutputTokens } = p;
-  const videoMetadata = { startOffset: `${desde}s` };
-  if (hasta != null) videoMetadata.endOffset = `${hasta}s`;
-  const candidatos = Array.from(new Set([
-    process.env.GEMINI_VIDEO_MODEL,
-    process.env.GEMINI_MODEL,
-    "gemini-3.6-flash",
-    "gemini-2.5-flash",
-    "gemini-2.5-flash-lite"
-  ].filter(Boolean)));
-  let res = null;
-  let model = candidatos[0];
-  const errores = [];
-  const limiteTotal = Date.now() + 27e4;
-  for (const m of candidatos) {
-    model = m;
-    const restante = limiteTotal - Date.now();
-    if (restante < 2e4) {
-      errores.push(`${m}: sin tiempo restante`);
-      break;
-    }
-    try {
-      res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, {
-        method: "POST",
-        // La clave va en el encabezado: funciona con claves "AIza…" y con las nuevas "AQ.…".
-        headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              { fileData: { fileUri: `https://www.youtube.com/watch?v=${videoId}` }, videoMetadata },
-              { text: prompt }
-            ]
-          }],
-          generationConfig: {
-            temperature: 0.2,
-            maxOutputTokens,
-            responseMimeType: "application/json",
-            mediaResolution: "MEDIA_RESOLUTION_LOW"
-          }
-        }),
-        signal: AbortSignal.timeout(Math.min(11e4, restante))
-      });
-    } catch (err) {
-      errores.push(`${m}: ${err?.name === "TimeoutError" ? "sin respuesta a tiempo" : err?.message || err}`);
-      res = null;
-      continue;
-    }
-    if (res.ok) break;
-    const txt = await res.text().catch(() => "");
-    let detalle = "";
-    try {
-      const j = JSON.parse(txt);
-      const viol = (j?.error?.details || []).flatMap((d) => d?.violations || []);
-      detalle = viol.map((v) => v.quotaId || v.quotaMetric).filter(Boolean).join(", ") || String(j?.error?.message || "").slice(0, 160);
-    } catch {
-      detalle = txt.slice(0, 160);
-    }
-    errores.push(`${m}: HTTP ${res.status}${detalle ? ` (${detalle})` : ""}`);
-    if (![429, 404, 500, 502, 503, 504].includes(res.status)) break;
-    res = null;
-  }
-  if (!res || !res.ok) {
-    const sinCuota = errores.some((e) => e.includes("HTTP 429"));
-    return {
-      ok: false,
-      motivo: `${sinCuota ? "La clave de Gemini no tiene cuota disponible (l\xEDmite gratuito agotado o sin facturaci\xF3n activa). " : ""}Detalle: ${errores.join(" | ")}`
-    };
-  }
-  const data = await res.json();
-  const texto = (data?.candidates?.[0]?.content?.parts || []).map((x) => x.text || "").join("");
-  return { ok: true, texto, model, fin: String(data?.candidates?.[0]?.finishReason || "") || void 0 };
-}
-async function analizarParteVideo(params) {
-  const { videoId, parte } = params;
-  const apiKey = process.env.GEMINI_VIDEO_API_KEY || process.env.GEMINI_API_KEY;
-  const desde = parte * SEGUNDOS_POR_PARTE;
-  const hasta = params.duracion ? Math.min(params.duracion, desde + SEGUNDOS_POR_PARTE) : params.duracion === null ? null : desde + SEGUNDOS_POR_PARTE;
-  if (!/^[\w-]{11}$/.test(videoId)) return { disponible: false, motivo: "Identificador de video no v\xE1lido.", parte, desde, hasta };
-  if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
-    return { disponible: false, motivo: "Falta configurar GEMINI_API_KEY.", parte, desde, hasta };
-  }
-  const claveCache = `yt_analisis_${videoId}_${parte}_${hasta ?? "fin"}`;
-  const previo = cache.get(claveCache);
-  if (previo) return previo;
-  const resultado = await (async () => {
-    const contexto = [
-      params.comision ? `Comisi\xF3n: ${params.comision}` : "",
-      params.fecha ? `Fecha de la sesi\xF3n: ${params.fecha}` : "",
-      params.materia ? `Materia citada: ${params.materia}` : ""
-    ].filter(Boolean).join("\n");
-    const prompt = `Este video es la transmisi\xF3n oficial de una sesi\xF3n de comisi\xF3n del Congreso de Chile.
-${contexto}
-
-Analiza SOLO lo que efectivamente se ve y se escucha en el tramo indicado del video. No inventes nombres, cargos, cifras ni acuerdos: si no se identifica a quien habla, usa "No identificado". Si el tramo no contiene la sesi\xF3n (pantalla en espera, receso), ind\xEDcalo en "resumen" y deja las listas vac\xEDas.
-
-Responde \xDANICAMENTE con JSON v\xE1lido:
-{
-  "resumen": "qu\xE9 ocurri\xF3 en este tramo, 3-5 frases",
-  "temas": ["temas o boletines tratados"],
-  "intervenciones": [
-    {"minuto": "H:MM:SS desde el inicio del video", "orador": "nombre tal como se presenta", "cargo": "cargo o instituci\xF3n, o ''", "resumen": "qu\xE9 plante\xF3, 1-3 frases", "cita": "frase textual breve y relevante, o ''"}
-  ],
-  "acuerdos": ["acuerdos adoptados, si se mencionan"],
-  "votaciones": ["votaciones realizadas y su resultado, si las hay"]
-}
-Ordena las intervenciones cronol\xF3gicamente y registra cada cambio relevante de orador.`;
-    const g = await consultarGeminiVideo({ apiKey, videoId, desde, hasta, prompt, maxOutputTokens: 16e3 });
-    if (g.ok === false) return { disponible: false, motivo: g.motivo, parte, desde, hasta };
-    const { texto, model } = g;
-    const json = texto ? (() => {
-      try {
-        return safeJsonParse(texto);
-      } catch {
-        return null;
-      }
-    })() : null;
-    if (!json) {
-      return { disponible: false, motivo: "Gemini no devolvi\xF3 un an\xE1lisis legible para este tramo.", parte, desde, hasta };
-    }
-    const lista3 = (v) => Array.isArray(v) ? v.map((x) => String(x || "").trim()).filter(Boolean) : [];
-    let intervenciones = (Array.isArray(json.intervenciones) ? json.intervenciones : []).map((i) => ({
-      segundos: aSegundos(i.minuto ?? i.segundos),
-      orador: String(i.orador || "No identificado"),
-      cargo: String(i.cargo || ""),
-      resumen: String(i.resumen || ""),
-      cita: i.cita ? String(i.cita) : void 0
-    }));
-    if (desde > 0 && intervenciones.length > 0 && intervenciones.every((i) => i.segundos < desde)) {
-      intervenciones = intervenciones.map((i) => ({ ...i, segundos: i.segundos + desde }));
-    }
-    return {
-      disponible: true,
-      parte,
-      desde,
-      hasta,
-      resumen: String(json.resumen || ""),
-      temas: lista3(json.temas),
-      intervenciones,
-      acuerdos: lista3(json.acuerdos),
-      votaciones: lista3(json.votaciones),
-      modelo: model
-    };
-  })();
-  if (resultado.disponible) cache.set(claveCache, resultado, 7 * 24 * 60 * 60 * 1e3);
-  return resultado;
-}
-var SEGUNDOS_POR_PARTE_TRANSCRIPCION = 600;
-var AVISO_TRANSCRIPCION = "Transcripci\xF3n autom\xE1tica generada con IA a partir del video: no es el texto oficial y puede contener errores. Contr\xE1stela con el video antes de citarla.";
-function segmentosDeRespuesta(texto) {
-  if (!texto || !texto.trim()) return { crudos: [], sinVoz: false };
-  let json = null;
-  try {
-    json = safeJsonParse(texto);
-  } catch {
-    json = null;
-  }
-  if (Array.isArray(json)) return { crudos: json, sinVoz: false };
-  if (json && typeof json === "object") {
-    const lista3 = [json.segmentos, json.segments, json.transcripcion, json["transcripci\xF3n"], json.transcript].find(Array.isArray) ?? Object.values(json).find((v) => Array.isArray(v) && v.length > 0 && typeof v[0] === "object");
-    if (Array.isArray(lista3)) return { crudos: lista3, sinVoz: lista3.length === 0 && json.sinVoz === true };
-    return { crudos: [], sinVoz: json.sinVoz === true };
-  }
-  return { crudos: rescatarObjetosJson(texto), sinVoz: false };
-}
-async function transcribirParteVideo(params) {
-  const { videoId, parte } = params;
-  const apiKey = process.env.GEMINI_VIDEO_API_KEY || process.env.GEMINI_API_KEY;
-  const desde = parte * SEGUNDOS_POR_PARTE_TRANSCRIPCION;
-  const hasta = params.duracion ? Math.min(params.duracion, desde + SEGUNDOS_POR_PARTE_TRANSCRIPCION) : params.duracion === null ? null : desde + SEGUNDOS_POR_PARTE_TRANSCRIPCION;
-  if (!/^[\w-]{11}$/.test(videoId)) return { disponible: false, motivo: "Identificador de video no v\xE1lido.", parte, desde, hasta };
-  if (params.duracion != null && desde >= params.duracion) return { disponible: false, motivo: "El tramo pedido est\xE1 fuera de la duraci\xF3n del video.", parte, desde, hasta };
-  if (!apiKey || apiKey === "MY_GEMINI_API_KEY") return { disponible: false, motivo: "Falta configurar GEMINI_API_KEY.", parte, desde, hasta };
-  const claveCache = `yt_transcripcion_${videoId}_${parte}_${hasta ?? "fin"}`;
-  const previo = cache.get(claveCache);
-  if (previo) return previo;
-  const contexto = [
-    params.comision ? `Comisi\xF3n: ${params.comision}` : "",
-    params.fecha ? `Fecha de la sesi\xF3n: ${params.fecha}` : "",
-    params.materia ? `Materia citada: ${params.materia}` : ""
-  ].filter(Boolean).join("\n");
-  const prompt = `Este video es la transmisi\xF3n oficial de una sesi\xF3n de comisi\xF3n del Congreso de Chile.
-${contexto}
-
-Transcribe en espa\xF1ol lo que se dice en el tramo indicado del video, lo m\xE1s fielmente posible y sin resumir. No inventes palabras, nombres, cargos ni cifras: si algo no se entiende escribe "[inaudible]"; si no se identifica a quien habla, usa "No identificado". Si en el tramo no se habla (silencio, pausa, solo imagen), devuelve una lista vac\xEDa.
-
-Responde \xDANICAMENTE con JSON v\xE1lido:
-{"segmentos":[{"minuto":"H:MM:SS desde el inicio del video","orador":"nombre tal como se presenta o 'No identificado'","texto":"lo que dice, tal como lo dice"}]}
-Usa exactamente esas claves ("segmentos", "minuto", "orador", "texto"). Solo si en todo el tramo no habla nadie (pantalla de espera, receso, sin audio), responde {"segmentos":[],"sinVoz":true}.
-Un segmento por cambio de orador, o cada 60 segundos como m\xE1ximo si habla la misma persona. Ord\xE9nalos cronol\xF3gicamente.`;
-  const g = await consultarGeminiVideo({ apiKey, videoId, desde, hasta, prompt, maxOutputTokens: 32e3 });
-  if (g.ok === false) return { disponible: false, motivo: g.motivo, parte, desde, hasta };
-  const { crudos, sinVoz } = segmentosDeRespuesta(g.texto);
-  let segmentos = crudos.map((x) => ({
-    segundos: aSegundos(x?.minuto ?? x?.tiempo ?? x?.timestamp ?? x?.inicio ?? x?.segundos),
-    orador: String(x?.orador ?? x?.hablante ?? x?.speaker ?? "No identificado").trim() || "No identificado",
-    texto: String(x?.texto ?? x?.text ?? x?.transcripcion ?? x?.contenido ?? "").trim()
-  })).filter((x) => x.texto);
-  if (segmentos.length === 0) {
-    if (sinVoz) {
-      const vacio2 = { disponible: true, parte, desde, hasta, segmentos: [], modelo: g.model, aviso: "En este tramo del video no se registran intervenciones habladas." };
-      cache.set(claveCache, vacio2, 24 * 60 * 60 * 1e3);
-      return vacio2;
-    }
-    return {
-      disponible: false,
-      parte,
-      desde,
-      hasta,
-      motivo: `Gemini no devolvi\xF3 texto para este tramo (t\xE9rmino: ${g.fin || "no informado"}; respuesta de ${g.texto.length} caracteres${g.texto ? `, comienza con: ${g.texto.slice(0, 80).replace(/\s+/g, " ")}` : ""}).`
-    };
-  }
-  if (desde > 0 && segmentos.length > 0 && segmentos.every((x) => x.segundos < desde)) {
-    segmentos = segmentos.map((x) => ({ ...x, segundos: x.segundos + desde }));
-  }
-  segmentos.sort((a, b) => a.segundos - b.segundos);
-  const resultado = { disponible: true, parte, desde, hasta, segmentos, modelo: g.model, aviso: AVISO_TRANSCRIPCION };
-  cache.set(claveCache, resultado, 7 * 24 * 60 * 60 * 1e3);
-  return resultado;
-}
-
-// server/services/sesionesCamaraService.ts
-var MESES3 = { enero: 0, febrero: 1, marzo: 2, abril: 3, mayo: 4, junio: 5, julio: 6, agosto: 7, septiembre: 8, setiembre: 8, octubre: 9, noviembre: 10, diciembre: 11 };
-var norm2 = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim();
-var FS_PROY = process.env.VITE_FIREBASE_PROJECT_ID || "legistrack-d75bc";
-var FS_KEY2 = process.env.VITE_FIREBASE_API_KEY || "AIzaSyAZvd-S6AmPpV05UYEkRRULgDezD7mAkaE";
-function fechaISO(d) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-function parsearTituloSesion(titulo) {
-  const t = String(titulo || "").replace(/\s+/g, " ").trim();
-  const m = t.match(/^((?:comisi[oó]n|cei|subcomisi[oó]n)\b.*?)\s*[-–|]\s*(?:lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo)?\s*,?\s*(\d{1,2})\s+(?:de\s+)?([a-záéíóú]+)\s+(?:de\s+)?(\d{4})/i);
-  if (!m) return null;
-  const mes = MESES3[norm2(m[3])];
-  if (mes === void 0) return null;
-  return { comision: m[1].trim(), fecha: fechaISO(new Date(+m[4], mes, +m[2])) };
-}
-function formatoDuracion2(seg) {
-  if (!seg) return "";
-  const h = Math.floor(seg / 3600), mi = Math.floor(seg % 3600 / 60), s = seg % 60;
-  return h ? `${h}:${String(mi).padStart(2, "0")}:${String(s).padStart(2, "0")}` : `${mi}:${String(s).padStart(2, "0")}`;
-}
-async function videosSesionesCamara() {
-  return videosSesionesCanal("diputados");
-}
-async function videosSesionesCanal(camara) {
-  const key = process.env.YOUTUBE_API_KEY;
-  if (!key) return [];
-  return cache.wrap(`yt_sesiones_${camara}_v2`, 6 * 60 * 60 * 1e3, async () => {
-    const docUrl = `https://firestore.googleapis.com/v1/projects/${FS_PROY}/databases/(default)/documents/videos_sesiones/${camara}?key=${FS_KEY2}`;
-    try {
-      const r = await fetch(docUrl, { signal: AbortSignal.timeout(8e3) });
-      if (r.ok) {
-        const d = await r.json();
-        const act = d?.fields?.actualizado?.stringValue;
-        if (act && Date.now() - new Date(act).getTime() < 12 * 60 * 60 * 1e3) {
-          const lista4 = JSON.parse(d?.fields?.payload?.stringValue || "[]");
-          if (Array.isArray(lista4) && lista4.length > 0) return lista4;
-        }
-      }
-    } catch {
-    }
-    const lista3 = await videosDesdeYouTube(camara, key);
-    if (lista3.length > 0) {
-      fetch(docUrl, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fields: { payload: { stringValue: JSON.stringify(lista3) }, actualizado: { stringValue: (/* @__PURE__ */ new Date()).toISOString() } } }),
-        signal: AbortSignal.timeout(1e4)
-      }).catch(() => {
-      });
-    }
-    return lista3;
-  });
-}
-async function videosDesdeYouTube(camara, key) {
-  {
-    const playlist = "UU" + CANALES_YOUTUBE[camara].id.slice(2);
-    const limite = Date.now() - 270 * 864e5;
-    const items = [];
-    let pageToken = "";
-    for (let pagina = 0; pagina < (camara === "senado" ? 120 : 60); pagina++) {
-      const qs = new URLSearchParams({ part: "snippet", playlistId: playlist, maxResults: "50", key, ...pageToken ? { pageToken } : {} });
-      const r = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?${qs}`, { signal: AbortSignal.timeout(12e3) });
-      if (!r.ok) break;
-      const d = await r.json();
-      let viejo = false;
-      for (const it of d.items || []) {
-        const publicado = new Date(it.snippet?.publishedAt || 0).getTime();
-        if (publicado && publicado < limite) {
-          viejo = true;
-          continue;
-        }
-        const id = it.snippet?.resourceId?.videoId;
-        if (id) items.push({ videoId: id, titulo: String(it.snippet?.title || ""), publicado: String(it.snippet?.publishedAt || "") });
-      }
-      pageToken = d.nextPageToken || "";
-      if (!pageToken || viejo) break;
-    }
-    const sesiones = items.map((i) => ({ ...i, p: parsearTituloSesion(i.titulo) })).filter((i) => i.p);
-    const duraciones = {};
-    for (let i = 0; i < sesiones.length; i += 50) {
-      const det = await detallesVideos(sesiones.slice(i, i + 50).map((s) => s.videoId)).catch(() => ({}));
-      for (const [id, v] of Object.entries(det)) duraciones[id] = v.segundos ?? null;
-    }
-    return sesiones.map((s) => ({ videoId: s.videoId, comision: s.p.comision, fecha: s.p.fecha, duracion: formatoDuracion2(duraciones[s.videoId] ?? null), titulo: s.titulo, publicado: s.publicado }));
-  }
-}
-async function resultadosCamaraHistoricos() {
-  const docs = await documentosCitacionesCamara();
-  const out = [];
-  for (const doc of docs) {
-    if (!/\/resultados_[^/]+$/.test(doc.name || "")) continue;
-    try {
-      out.push(...JSON.parse(doc.fields?.payload?.stringValue || "{}").resultados || []);
-    } catch {
-    }
-  }
-  return out;
-}
-async function documentosCitacionesCamara() {
-  return cache.wrap("citaciones_camara_docs_v1", 15 * 60 * 1e3, async () => {
-    const docs = [];
-    let pageToken = "";
-    for (let i = 0; i < 20; i++) {
-      const qs = new URLSearchParams({ pageSize: "100", key: FS_KEY2, ...pageToken ? { pageToken } : {} });
-      const r = await fetch(`https://firestore.googleapis.com/v1/projects/${FS_PROY}/databases/(default)/documents/citaciones_camara?${qs}`, { signal: AbortSignal.timeout(1e4) });
-      if (!r.ok) break;
-      const d = await r.json();
-      docs.push(...d.documents || []);
-      pageToken = d.nextPageToken || "";
-      if (!pageToken) break;
-    }
-    return docs;
-  });
-}
-async function citacionesCamaraHistoricas() {
-  return cache.wrap("citaciones_camara_historicas_v2", 15 * 60 * 1e3, async () => {
-    const out = [];
-    for (const doc of await documentosCitacionesCamara()) {
-      if (!/\/semana_[^/]+$/.test(doc.name || "")) continue;
-      try {
-        const reg = JSON.parse(doc.fields?.payload?.stringValue || "null");
-        for (const c of reg?.datos?.todas || []) out.push({ ...c, _semana: reg.semana });
-      } catch {
-      }
-    }
-    return out;
-  });
-}
-var DIA_CIT = /(\d{1,2})\s+de\s+([a-záéíóú]+)\s+de\s+(\d{4})/i;
-function fechaCitacion(f) {
-  const m = String(f || "").match(DIA_CIT);
-  if (!m) return "";
-  const mes = MESES3[norm2(m[2])];
-  return mes === void 0 ? "" : fechaISO(new Date(+m[3], mes, +m[1]));
-}
-function mismaComision(nombreVideo, nombreComision) {
-  const limpiar2 = (s) => norm2(s).replace(/^(sub)?comision\s+(especial\s+)?(investigadora\s+)?(de\s+|del\s+|sobre\s+)?/, "").replace(/[,.]/g, " ");
-  const v = limpiar2(nombreVideo).split(" ").filter((w) => w.length > 3 && !["para", "sobre", "como"].includes(w));
-  const c = limpiar2(nombreComision);
-  if (v.length === 0) return false;
-  return v.slice(0, 2).every((w) => c.includes(w));
-}
-async function sesionesCamaraDeComision(slug, nombre) {
-  const [videos, citas, resultados] = await Promise.all([
-    videosSesionesCamara().catch(() => []),
-    citacionesCamaraHistoricas().catch(() => []),
-    resultadosCamaraHistoricos().catch(() => [])
-  ]);
-  const porFecha = /* @__PURE__ */ new Map();
-  const hoy = fechaISO(/* @__PURE__ */ new Date());
-  for (const c of citas) {
-    if (c.comisionSlug !== slug) continue;
-    const f = fechaCitacion(c.fecha);
-    if (!f) continue;
-    porFecha.set(f, {
-      id: `ses-cd-hist-${f}`,
-      fecha: f,
-      hora: c.hora,
-      lugar: c.lugar,
-      tipo: c.tipo || "Sesi\xF3n de Comisi\xF3n",
-      materia: c.materia || "Materia no informada",
-      invitados: /^no informado/i.test(c.invitados || "") ? "" : c.invitados || "",
-      tabla: c.tabla,
-      completada: f < hoy,
-      acuerdosCount: 0,
-      fuente: "Citaci\xF3n oficial (camara.cl)"
-    });
-  }
-  for (const r of resultados) {
-    if (r.comisionSlug !== slug) continue;
-    const f = fechaCitacion(r.fecha);
-    if (!f || !r.resultado) continue;
-    const previa = porFecha.get(f);
-    const base = previa || {
-      id: `ses-cd-hist-${f}`,
-      fecha: f,
-      hora: r.hora,
-      lugar: r.lugar,
-      tipo: "Sesi\xF3n de Comisi\xF3n",
-      materia: r.materia || "Materia no informada",
-      invitados: "",
-      completada: true,
-      acuerdosCount: 0,
-      fuente: "Resultado oficial (camara.cl)"
-    };
-    porFecha.set(f, { ...base, actaTexto: r.resultado, completada: true, fuente: base.fuente.includes("Resultado") ? base.fuente : `${base.fuente} + resultado oficial` });
-  }
-  for (const v of videos) {
-    if (!mismaComision(v.comision, nombre)) continue;
-    const previa = porFecha.get(v.fecha);
-    const video = { videoUrl: `https://www.youtube.com/watch?v=${v.videoId}`, duracionVideo: v.duracion };
-    if (previa) porFecha.set(v.fecha, { ...previa, ...video, completada: true, fuente: "Citaci\xF3n oficial y video oficial" });
-    else porFecha.set(v.fecha, {
-      id: `ses-cd-hist-${v.fecha}`,
-      fecha: v.fecha,
-      tipo: "Sesi\xF3n de Comisi\xF3n",
-      materia: "Materia no informada (sesi\xF3n registrada en el canal oficial de YouTube)",
-      invitados: "",
-      completada: true,
-      acuerdosCount: 0,
-      ...video,
-      fuente: "Video oficial (YouTube de la C\xE1mara)"
-    });
-  }
-  const DIAS = ["Domingo", "Lunes", "Martes", "Mi\xE9rcoles", "Jueves", "Viernes", "S\xE1bado"];
-  const NOMBRES_MES = Object.keys(MESES3).filter((k) => k !== "setiembre");
-  return Array.from(porFecha.values()).sort((a, b) => b.fecha.localeCompare(a.fecha)).map((s) => {
-    const [y, m, d] = s.fecha.split("-").map(Number);
-    const dt = new Date(y, m - 1, d);
-    return { ...s, fecha: `${DIAS[dt.getDay()]} ${d} de ${NOMBRES_MES[m - 1]} de ${y}` };
-  });
-}
-async function videosSenadoPorFecha(nombreComision) {
-  const videos = await videosSesionesCanal("senado").catch(() => []);
-  const mapa = /* @__PURE__ */ new Map();
-  for (const v of videos) {
-    if (!mismaComision(v.comision, nombreComision)) continue;
-    const lista3 = mapa.get(v.fecha) || [];
-    lista3.push(v);
-    mapa.set(v.fecha, lista3);
-  }
-  for (const lista3 of mapa.values()) lista3.sort((a, b) => String(a.publicado).localeCompare(String(b.publicado)));
-  return mapa;
 }
 
 // server/services/dipresService.ts
@@ -189484,7 +189894,7 @@ var STOP = /* @__PURE__ */ new Set(["de", "la", "el", "los", "las", "del", "para
 function terminosDeConsulta(q) {
   return Array.from(new Set((q.toLowerCase().match(/[\p{L}\d]+/gu) || []).filter((w) => w.length >= 4 && !STOP.has(w)))).slice(0, 5);
 }
-function fechaISO2(d) {
+function fechaISO3(d) {
   if (!d) return void 0;
   const m = d.match(/^(\d{4})(\d{2})(\d{2})/);
   return m ? `${m[1]}-${m[2]}-${m[3]}` : d;
@@ -189556,7 +189966,7 @@ async function buscarEspana(q) {
       pais: "Espa\xF1a",
       fuente: "BOE \u2014 legislaci\xF3n consolidada, AEBOE (oficial; texto consolidado informativo)",
       titulo: String(i.titulo),
-      fecha: fechaISO2(String(i.fecha_publicacion || "")),
+      fecha: fechaISO3(String(i.fecha_publicacion || "")),
       url: String(i.url_html_consolidada || `https://www.boe.es/buscar/act.php?id=${i.identificador}`),
       descripcion: `${i.rango?.texto || "Norma"} \xB7 ${i.departamento?.texto || "departamento no informado"} \xB7 \xE1mbito ${i.ambito?.texto || "no informado"} \xB7 estado de consolidaci\xF3n: ${i.estado_consolidacion?.texto || "no informado"}. Metadatos de la API del BOE.`,
       idOficial: String(i.identificador),
@@ -189858,13 +190268,13 @@ async function buscarSuecia(q) {
   const ahora = (/* @__PURE__ */ new Date()).toISOString();
   const base = { jurisdiccion: "Suecia", fuente: "Riksdagen \u2014 datos abiertos (SFS)", consultadoEl: ahora };
   try {
-    const sv = (await traducirConsulta(q, "sueco")).toLowerCase().replace(/[^\p{L}\d]/gu, "").trim();
-    if (!sv || sv.length < 3) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene t\xE9rminos \xFAtiles." } };
-    const url = `https://data.riksdagen.se/dokumentlista/?doktyp=sfs&sok=${encodeURIComponent(sv)}&utformat=json&sz=40`;
+    const sv2 = (await traducirConsulta(q, "sueco")).toLowerCase().replace(/[^\p{L}\d]/gu, "").trim();
+    if (!sv2 || sv2.length < 3) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene t\xE9rminos \xFAtiles." } };
+    const url = `https://data.riksdagen.se/dokumentlista/?doktyp=sfs&sok=${encodeURIComponent(sv2)}&utformat=json&sz=40`;
     const r = await descargar(url, { Accept: "application/json" }, 2e4);
     if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
     const docs = JSON.parse(r.buf.toString("utf8"))?.dokumentlista?.dokument || [];
-    const normas = docs.filter((d) => d?.dok_id && d?.titel && String(d.titel).toLowerCase().includes(sv) && /^(lag|balk)\b/i.test(String(d.titel))).sort((a, b) => String(b.datum || "").localeCompare(String(a.datum || ""))).slice(0, 4).map((d) => ({
+    const normas = docs.filter((d) => d?.dok_id && d?.titel && String(d.titel).toLowerCase().includes(sv2) && /^(lag|balk)\b/i.test(String(d.titel))).sort((a, b) => String(b.datum || "").localeCompare(String(a.datum || ""))).slice(0, 4).map((d) => ({
       pais: "Suecia",
       fuente: "Sveriges riksdag \u2014 Svensk f\xF6rfattningssamling (oficial)",
       titulo: String(d.titel),
@@ -189876,7 +190286,7 @@ async function buscarSuecia(q) {
       origen: "oficial",
       consultadoEl: ahora
     }));
-    return { normas, estado: { ...base, estado: normas.length ? "ok" : "sin_resultados", consultaUsada: `doktyp=sfs, "${sv}" en el t\xEDtulo (palabra de consulta traducida por IA)`, motivo: normas.length ? void 0 : "Riksdagen no devolvi\xF3 leyes para esa consulta." } };
+    return { normas, estado: { ...base, estado: normas.length ? "ok" : "sin_resultados", consultaUsada: `doktyp=sfs, "${sv2}" en el t\xEDtulo (palabra de consulta traducida por IA)`, motivo: normas.length ? void 0 : "Riksdagen no devolvi\xF3 leyes para esa consulta." } };
   } catch (e) {
     return { normas: [], estado: { ...base, estado: "no_disponible", motivo: `Riksdagen no respondi\xF3: ${e?.message || e}` } };
   }
@@ -190678,9 +191088,9 @@ async function fetchTextoOficial(url) {
       const bloques = xml.match(/<bloque\b[\s\S]*?<\/bloque>/g) || [];
       const partes = bloques.map((b) => {
         const versiones = b.match(/<version\b[\s\S]*?<\/version>/g) || [];
-        const ultima = versiones[versiones.length - 1] || "";
+        const ultima2 = versiones[versiones.length - 1] || "";
         const tit = (b.match(/<bloque\b[^>]*\btitulo="([^"]*)"/) || [])[1];
-        return `${tit && !/^\[/.test(tit) ? decodificar(tit) + "\n" : ""}${xmlATexto(ultima)}`;
+        return `${tit && !/^\[/.test(tit) ? decodificar(tit) + "\n" : ""}${xmlATexto(ultima2)}`;
       });
       const texto = partes.join("\n").trim();
       if (texto.length < 200) return null;
@@ -193017,9 +193427,9 @@ async function getIneVigente() {
 
 // server/services/datosAbiertosService.ts
 var SLUG = /^[a-z0-9][a-z0-9_\-]{2,160}$/i;
-async function ckanDataset(slug) {
-  if (!SLUG.test(slug)) throw new Error("slug inv\xE1lido");
-  const r = await fetch(`https://datos.gob.cl/api/3/action/package_show?id=${encodeURIComponent(slug)}`, {
+async function ckanDataset(slug2) {
+  if (!SLUG.test(slug2)) throw new Error("slug inv\xE1lido");
+  const r = await fetch(`https://datos.gob.cl/api/3/action/package_show?id=${encodeURIComponent(slug2)}`, {
     headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0 (compatible; Legislacion++)" },
     signal: AbortSignal.timeout(2e4)
   });
@@ -193028,7 +193438,7 @@ async function ckanDataset(slug) {
   const d = j?.result;
   if (!d) throw new Error("dataset no encontrado");
   return {
-    slug,
+    slug: slug2,
     titulo: d.title,
     organizacion: d.organization?.title || "",
     actualizado: d.metadata_modified,
@@ -193574,7 +193984,7 @@ import path from "path";
 import Papa from "papaparse";
 var sinAcentos = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "");
 var norm3 = (s) => sinAcentos(s).toLowerCase().trim();
-function normalizarBoletin(b) {
+function normalizarBoletin2(b) {
   return b.replace(/\./g, "").replace(/\s+/g, "").replace(/-0+(\d)/, "-$1").trim();
 }
 function normalizarNorma(n) {
@@ -193643,12 +194053,12 @@ function inicioDeSemana(ref) {
   d.setDate(d.getDate() - dow);
   return d;
 }
-var MESES4 = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+var MESES5 = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 function semanaActual(ref = /* @__PURE__ */ new Date()) {
   const desde = inicioDeSemana(ref);
   const hasta = new Date(desde);
   hasta.setDate(hasta.getDate() + 6);
-  const f = (d) => `${d.getDate()} ${MESES4[d.getMonth()].toUpperCase()}`;
+  const f = (d) => `${d.getDate()} ${MESES5[d.getMonth()].toUpperCase()}`;
   return { desde, hasta, etiqueta: `${f(desde)} \u2013 ${f(hasta)}` };
 }
 function iso(base, diasOffset) {
@@ -193729,7 +194139,7 @@ function parsearInvestigacionesCsv(texto) {
       tipo: norm3(r.tipo || "").startsWith("parl") ? "parlamentario" : "comision",
       solicitante: (r.solicitante || r.comision || "").trim(),
       comision: (r.comision || "").trim() || void 0,
-      boletines: lista2(r.boletines || r.boletin).map(normalizarBoletin),
+      boletines: lista2(r.boletines || r.boletin).map(normalizarBoletin2),
       materia,
       descripcion: (r.descripcion || "").trim() || void 0,
       palabrasClave: lista2(r.palabras_clave || r.palabrasclave),
@@ -193764,7 +194174,7 @@ function parsearAsignacionesCsv(texto) {
 function sanear(inv) {
   return {
     ...inv,
-    boletines: (inv.boletines || []).map(normalizarBoletin),
+    boletines: (inv.boletines || []).map(normalizarBoletin2),
     palabrasClave: inv.palabrasClave || [],
     normas: inv.normas || [],
     estado: inv.estado || "en_curso",
@@ -194529,6 +194939,29 @@ async function sesionesPorBoletin() {
   }
   return mapa;
 }
+async function registrarTrasImportar() {
+  const limite = new Promise((r) => setTimeout(() => r(null), 6e4));
+  const res = await Promise.race([sincronizarRegistroSesiones().catch((e) => ({ errores: [String(e?.message || e)] })), limite]);
+  return res ? { escrituras: res.escrituras, omitida: res.omitida, errores: res.errores?.length ? res.errores : void 0 } : { omitida: "Sigue en segundo plano." };
+}
+apiRouter.get("/registro-sesiones/sincronizar", async (req, res) => {
+  const secreto = process.env.CRON_SECRET;
+  const autorizado = !!secreto && req.headers.authorization === `Bearer ${secreto}`;
+  if (secreto && !autorizado) return res.status(401).json({ ok: false, error: "No autorizado." });
+  try {
+    res.json(await sincronizarRegistroSesiones({ forzar: autorizado }));
+  } catch (err) {
+    res.status(500).json({ ok: false, errores: [err?.message || String(err)] });
+  }
+});
+apiRouter.get("/proyecto/:id/registro-sesiones", async (req, res) => {
+  try {
+    const sesiones = await sesionesRegistradasDeBoletin(String(req.params.id).slice(0, 20));
+    res.json({ disponible: true, sesiones, fuente: "Registro de sesiones (citaciones, registro y detalle oficiales de la C\xE1mara y el Senado)" });
+  } catch (err) {
+    res.json({ disponible: false, motivo: err?.message || String(err), sesiones: [] });
+  }
+});
 var ORIGEN_CAMARA = /^https:\/\/(www\.)?camara\.cl$/;
 apiRouter.options("/camara/citaciones/importar", (req, res) => {
   const origen = String(req.headers.origin || "");
@@ -194556,7 +194989,7 @@ apiRouter.post("/camara/citaciones/importar", expressText({ type: "text/plain", 
   if (html.length < 200) return res.status(400).json({ ok: false, error: "Falta el HTML de la p\xE1gina de citaciones." });
   try {
     const r = await importarCitacionesCamara(html, String(body?.semana || ""));
-    res.json({ ok: true, ...r });
+    res.json({ ok: true, ...r, registro: await registrarTrasImportar() });
   } catch (err) {
     res.status(422).json({ ok: false, error: err?.message || String(err) });
   }
@@ -194613,7 +195046,8 @@ apiRouter.post("/senado/citaciones/importar", expressText({ type: "text/plain", 
   if (token && body?.token !== token) return res.status(401).json({ ok: false, error: "Token de importaci\xF3n inv\xE1lido." });
   if (!body?.raw || !Array.isArray(body.raw.data)) return res.status(400).json({ ok: false, error: "Falta la respuesta de web-back.senado.cl." });
   try {
-    res.json({ ok: true, ...await importarCitacionesSenado(body.raw) });
+    const r = await importarCitacionesSenado(body.raw);
+    res.json({ ok: true, ...r, registro: await registrarTrasImportar() });
   } catch (err) {
     res.status(422).json({ ok: false, error: err?.message || String(err) });
   }
@@ -194632,7 +195066,8 @@ apiRouter.post("/senado/sesiones/importar", expressText({ type: "text/plain", li
   const id = String(body?.idComision || "");
   if (!/^\d+$/.test(id) || !Array.isArray(body?.sesiones)) return res.status(400).json({ ok: false, error: "Faltan idComision o sesiones." });
   try {
-    res.json({ ok: true, sesiones: await importarSesionesSenado(id, body.sesiones) });
+    const n = await importarSesionesSenado(id, body.sesiones);
+    res.json({ ok: true, sesiones: n, registro: await registrarTrasImportar() });
   } catch (err) {
     res.status(422).json({ ok: false, error: err?.message || String(err) });
   }
@@ -194650,7 +195085,8 @@ apiRouter.post("/senado/sesiones/detalle/importar", expressText({ type: "text/pl
   if (token && body?.token !== token) return res.status(401).json({ ok: false, error: "Token de importaci\xF3n inv\xE1lido." });
   if (!Array.isArray(body?.detalles)) return res.status(400).json({ ok: false, error: "Faltan detalles." });
   try {
-    res.json({ ok: true, detalles: await importarDetallesSesionesSenado(body.detalles.slice(0, 60)) });
+    const n = await importarDetallesSesionesSenado(body.detalles.slice(0, 60));
+    res.json({ ok: true, detalles: n, registro: await registrarTrasImportar() });
   } catch (err) {
     res.status(422).json({ ok: false, error: err?.message || String(err) });
   }
@@ -194694,7 +195130,8 @@ apiRouter.post("/camara/resultados/importar", expressText({ type: "text/plain", 
   const html = String(body?.html || "");
   if (html.length < 200) return res.status(400).json({ ok: false, error: "Falta el HTML de la p\xE1gina de resultados." });
   try {
-    res.json({ ok: true, ...await importarResultadosCamara(html, String(body?.semana || "")) });
+    const r = await importarResultadosCamara(html, String(body?.semana || ""));
+    res.json({ ok: true, ...r, registro: await registrarTrasImportar() });
   } catch (err) {
     res.status(422).json({ ok: false, error: err?.message || String(err) });
   }
@@ -195051,7 +195488,7 @@ apiRouter.get("/pizarra", exigirTokenPizarra, async (req, res) => {
       if (!comision) return;
       const set = porComision.get(comision) || /* @__PURE__ */ new Set();
       for (const b of Array.isArray(boletines) ? boletines : []) {
-        const bol = normalizarBoletin(String(b));
+        const bol = normalizarBoletin2(String(b));
         set.add(bol);
         porBoletin.set(bol, [...porBoletin.get(bol) || [], comision]);
       }
