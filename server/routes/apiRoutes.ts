@@ -2,6 +2,7 @@ import { sincronizarRegistroSesiones, sesionesRegistradasDeBoletin, sesionesRegi
 import { exigirSesion, credencialesValidas, fijarSesion, cerrarSesion, sesionActual, authConfigurada, demasiadosIntentos, registrarFallo, limpiarFallos } from "../services/authService";
 import { generarInformeSesion } from "../services/informeSesionService";
 import { pasoTranscripcionAutomatica, estadoTranscripcionAutomatica } from "../services/transcripcionAutomaticaService";
+import { resumenComisionesBoletin } from "../services/resumenBoletinService";
 import { salaSemana, importarTablaSenado, sincronizarSala, sesionesSalaDeBoletin } from "../services/salaService";
 import { discusionDeProyecto } from "../services/discusionService";
 import { construirResumenSesion } from "../services/resumenSesionService";
@@ -1591,6 +1592,12 @@ apiRouter.post("/transcripcion/automatica/paso", pasoAuto);
 apiRouter.get("/transcripcion/automatica/estado", async (_req: Request, res: Response) => {
   try { res.json(await estadoTranscripcionAutomatica()); }
   catch (err: any) { res.json({ error: err?.message || String(err) }); }
+});
+
+// Lo visto en comisiones sobre un boletín (informes de sesión desde las transcripciones + resumen consolidado).
+apiRouter.get("/proyecto/:id/resumen-comisiones", async (req: Request, res: Response) => {
+  try { res.json(await resumenComisionesBoletin(String(req.params.id).slice(0, 20), { forzar: req.query.forzar === "1", soloGuardado: req.query.rapido === "1" })); }
+  catch (err: any) { res.json({ disponible: false, motivo: err?.message || String(err), sesiones: [] }); }
 });
 
 // Informe de una sesión de comisión redactado solo a partir de su transcripción (validado contra ella).

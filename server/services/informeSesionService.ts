@@ -203,3 +203,37 @@ export async function generarInformeSesion(p: {
   const saturado = errores.some((e) => /HTTP (503|429)/.test(e));
   return { disponible: false, motivo: `${saturado ? "Gemini está saturado en este momento; intente de nuevo en unos minutos (la transcripción ya está guardada). " : "No se pudo generar el informe. "}Detalle: ${errores.join(" | ")}` };
 }
+
+/** Consulta genérica a Gemini con salida JSON estructurada (con reintentos y modelos de respaldo). */
+export async function geminiJSON(texto: string, esquema: any, opciones: { maxTokens?: number; presupuestoMs?: number } = {}):
+  Promise<{ ok: true; datos: any; modelo: string } | { ok: false; motivo: string }> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return { ok: false, motivo: "GEMINI_API_KEY no está configurada en el servidor." };
+  const candidatos = await modelosGemini(apiKey);
+  const limite = Date.now() + (opciones.presupuestoMs ?? 120_000);
+  const errores: string[] = [];
+  const cuerpo = JSON.stringify({
+    contents: [{ parts: [{ text: texto }] }],
+    generationConfig: { temperature: 0.15, maxOutputTokens: opciones.maxTokens ?? 8000, responseMimeType: "application/json", responseSchema: esquema },
+  });
+  for (const model of candidatos) {
+    for (let intento = 0; intento < 3; intento++) {
+      const restante = limite - Date.now();
+      if (restante < 15_000) break;
+      if (intento > 0) await esperar(intento * 5000);
+      try {
+        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+          method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey }, body: cuerpo,
+          signal: AbortSignal.timeout(restante),
+        });
+        if (!r.ok) { errores.push(`${model}: HTTP ${r.status}`); if ([503, 429, 500, 502, 504].includes(r.status)) continue; break; }
+        const data: any = await r.json();
+        const t = (data?.candidates?.[0]?.content?.parts || []).map((x: any) => x.text || "").join("");
+        if (!t) { errores.push(`${model}: respuesta vacía`); break; }
+        try { return { ok: true, datos: extraerJSON(t), modelo: model }; }
+        catch { errores.push(`${model}: JSON no válido`); continue; }
+      } catch (err: any) { errores.push(`${model}: ${err?.name === "TimeoutError" ? "sin respuesta a tiempo" : err?.message || err}`); break; }
+    }
+  }
+  return { ok: false, motivo: errores.join(" | ") || "Sin modelos disponibles." };
+}

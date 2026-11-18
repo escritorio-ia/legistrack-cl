@@ -14,6 +14,8 @@ import { conexionFirestore, leerDoc, escribirDoc, consultar, camposAObjeto } fro
 import { combinarSesion, unirSesionesLeidas, type SesionRegistrada } from "./registroSesionesService";
 import { buscarVideosSesion, detallesVideos, transcribirParteVideo, SEGUNDOS_POR_PARTE_TRANSCRIPCION, youtubeApiConfigurada } from "./youtubeService";
 import { generarInformeSesion } from "./informeSesionService";
+import { fichaEjecutivaProyecto } from "./senadoService";
+import { resumenComisionesBoletin } from "./resumenBoletinService";
 import { boletinesEnTexto } from "../../src/utils/boletines";
 
 const COLA = "cola_transcripcion";
@@ -177,14 +179,58 @@ async function redactarInforme(t: Trabajo): Promise<string> {
     fecha: t.fecha, tabla: t.tabla, boletines: Array.from(new Set([...previa.boletines, ...t.boletines])), automatica: true, updatedAt: new Date().toISOString(),
   });
   await guardarTrabajo(t, { estado: "informe_listo", intentos: 0, error: "" });
+  // Actualiza "lo visto en comisiones" de los boletines de la sesión (si queda tiempo, uno por uno).
+  for (const b of t.boletines.slice(0, 3)) await resumenComisionesBoletin(b).catch(() => undefined);
   return "Informe redactado.";
 }
 
-export async function pasoTranscripcionAutomatica(): Promise<{ ok: boolean; accion: string; sesion?: string; detalle: string }> {
+/**
+ * Precarga de la Ficha Ejecutiva ("1-Pager"): para los boletines que aparecen en las sesiones recientes
+ * (comisiones y Sala) y aún no tienen ficha guardada, la genera en segundo plano y la deja en
+ * historial_proyectos/<boletín>.fichaEjecutiva, que es donde la app la lee al abrir el proyecto.
+ */
+export async function precargarFichas(maximo = 1): Promise<string[]> {
+  const desde = sumarDias(hoyChileISO(), -45);
+  const filas = await consultar({
+    from: [{ collectionId: "registro_sesiones" }],
+    where: { fieldFilter: { field: { fieldPath: "fecha" }, op: "GREATER_THAN_OR_EQUAL", value: { stringValue: desde } } },
+    orderBy: [{ field: { fieldPath: "fecha" }, direction: "DESCENDING" }], limit: 300,
+  }).catch(() => []);
+  const sala = await consultar({
+    from: [{ collectionId: "sesiones_sala" }],
+    where: { fieldFilter: { field: { fieldPath: "fecha" }, op: "GREATER_THAN_OR_EQUAL", value: { stringValue: desde } } }, limit: 100,
+  }).catch(() => []);
+  const boletines = Array.from(new Set([...filas, ...sala].flatMap((f) => (camposAObjeto(f.datos).boletines || []) as string[]).filter((b) => /^\d{3,6}-\d{2}$/.test(b))));
+  const hechos: string[] = [];
+  const hoy = hoyChileISO();
+  for (const b of boletines) {
+    if (hechos.length >= maximo) break;
+    const g = await leerDoc(`historial_proyectos/${b}`).catch(() => null);
+    if (g?.fichaEjecutiva?.ficha) continue;
+    if (g?.fichaIntento && g.fichaIntento >= sumarDias(hoy, -7)) continue; // no reintentar a diario si el texto no se pudo leer
+    const r = await fichaEjecutivaProyecto(b).catch(() => null);
+    if (r?.disponible && r.ficha?.fuente === "texto") {
+      await escribirDoc(`historial_proyectos/${b}`, { boletinId: b, fichaEjecutiva: { ficha: r.ficha, guardadoEn: new Date().toISOString(), automatica: true }, updatedAt: new Date().toISOString() });
+    } else {
+      await escribirDoc(`historial_proyectos/${b}`, { boletinId: b, fichaIntento: hoy });
+    }
+    hechos.push(b);
+  }
+  return hechos;
+}
+
+export async function pasoTranscripcionAutomatica(): Promise<{ ok: boolean; accion: string; sesion?: string; detalle: string; fichas?: string[] }> {
+  // La precarga de fichas no depende de la transcripción automática: corre en cada paso (una por vez).
+  const fichas = await Promise.race([precargarFichas(1).catch(() => [] as string[]), new Promise<string[]>((r) => setTimeout(() => r([]), 60_000))]);
+  const r = await pasoTranscripcion();
+  return { ...r, fichas };
+}
+
+async function pasoTranscripcion(): Promise<{ ok: boolean; accion: string; sesion?: string; detalle: string }> {
   const conf = configuracionAuto();
   if (!conf.activa) return { ok: true, accion: "inactiva", detalle: `La transcripción automática está desactivada: TRANSCRIPCION_AUTO ${process.env.TRANSCRIPCION_AUTO === undefined ? "no existe en este despliegue" : `tiene un valor distinto de 1 (${String(process.env.TRANSCRIPCION_AUTO).length} caracteres)`}.` };
   if (!youtubeApiConfigurada()) return { ok: false, accion: "sin_youtube", detalle: "Falta YOUTUBE_API_KEY para encontrar los videos." };
-  const limite = Date.now() + 150_000; // deja margen dentro de los 300 s de Vercel
+  const limite = Date.now() + 100_000; // deja margen dentro de los 300 s de Vercel (la precarga de fichas usa hasta 60 s)
 
   // 1) Sesión en curso.
   let t = await trabajoEnEstado("transcribiendo");

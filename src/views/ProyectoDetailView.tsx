@@ -53,6 +53,7 @@ import { boletinDiscrepante, normalizarBoletin } from "../utils/boletines";
 import DiscusionInformes from "../components/DiscusionInformes";
 import MetricasBoletin from "../components/MetricasBoletin";
 import SalaBoletin from "../components/SalaBoletin";
+import LoVistoEnComisiones from "../components/LoVistoEnComisiones";
 import TranscripcionesProyecto from "../components/TranscripcionesProyecto";
 import { parseFechaFlexible, diasEntre, detectTramite, etapaActual, ultimoMovimiento } from "../utils/tramitacion";
 import SimuladorQuorum from "../components/SimuladorQuorum";
@@ -1214,7 +1215,7 @@ export default function ProyectoDetailView({
             {activeTab === "resumen" && (
               <div className="flex flex-col gap-5" id="tabpanel-resumen">
 
-                {/* 🌟 PIPELINE INTERACTIVO DE TRAMITACIÓN LEGISLATIVA */}
+                {/* TRAMITACIÓN LEGISLATIVA */}
                 <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-blue-950 text-white rounded-3xl p-6 sm:p-7 shadow-xl border border-slate-800 space-y-5">
                   <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
                     <div className="flex items-center gap-3">
@@ -1223,7 +1224,7 @@ export default function ProyectoDetailView({
                       </div>
                       <div>
                         <h3 className="text-base font-extrabold tracking-tight text-white flex items-center gap-2">
-                          <span>Pipeline Interactivo de Tramitación</span>
+                          <span>Tramitación legislativa</span>
                         </h3>
                         <p className="text-xs text-slate-300 font-medium">
                           Etapa actual: <strong className="text-white">{proyecto.etapa || "No informada"}</strong> • Cámara de Origen: <strong className="text-white">{proyecto.camaraOrigen}</strong>
@@ -1339,6 +1340,9 @@ export default function ProyectoDetailView({
                     </div>
                   </div>
                 </div>
+
+                {/* LO VISTO EN COMISIONES (informes de sesión desde las transcripciones) */}
+                <LoVistoEnComisiones proyectoId={proyecto.id} />
 
                 {/* 🤖 FICHA EJECUTIVA INTELIGENTE "1-PAGER" POR IA */}
                 <div className="bg-gradient-to-br from-indigo-50/70 via-white to-blue-50/50 rounded-3xl border border-indigo-200/90 shadow-sm p-6 sm:p-7 space-y-4">
