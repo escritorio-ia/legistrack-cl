@@ -83,6 +83,7 @@ import {
 import YouTubeTranscriptModal, { analisisATexto, obtenerAnalisisVideo } from "../components/YouTubeTranscriptModal";
 import InformeComision from "../components/InformeComision";
 import TranscripcionesSesiones from "../components/TranscripcionesSesiones";
+import EstadoTranscripcionAuto from "../components/EstadoTranscripcionAuto";
 import { getRegistrosVideoPorComision } from "../services/firebaseService";
 import ParlamentariosMatrix from "../components/ParlamentariosMatrix";
 import NotasColaborativasDrawer from "../components/NotasColaborativasDrawer";
@@ -3314,9 +3315,10 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
           {/* ========================================================================= */}
           {activeTab === "transcripciones" && (
             <div className="flex flex-col gap-4 animate-fade-in">
+              <EstadoTranscripcionAuto />
               <TranscripcionesSesiones
                 clave={comision.nombre}
-                cargar={() => getRegistrosVideoPorComision(comision.nombre)}
+                cargar={() => getRegistrosVideoPorComision(comision.nombre, comisionId)}
                 titulo="Transcripciones de sesiones"
                 descripcion="Sesiones de esta comisión con transcripción o informe guardados. Transcripción automática del video oficial (no es el acta oficial). Para transcribir una sesión nueva, use 'Video, transcripción e informe' en la pestaña Sesiones."
                 vacio="Aún no hay sesiones transcritas de esta comisión."

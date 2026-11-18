@@ -520,11 +520,18 @@ export async function getRegistrosVideoPorBoletin(boletin: string): Promise<Regi
 }
 
 /** Sesiones de una comisión con transcripción o informe guardados (por el nombre con que se guardaron). */
-export async function getRegistrosVideoPorComision(nombre: string): Promise<RegistroVideoSesion[]> {
+export async function getRegistrosVideoPorComision(nombre: string, comisionId?: string): Promise<RegistroVideoSesion[]> {
   if (!db || !nombre) return [];
   try {
-    const snap = await getDocs(query(collection(db, COLLECTIONS.ANALISIS_VIDEOS), where("comision", "==", nombre)));
-    const docs: { id: string; data: any }[] = []; snap.forEach((d) => docs.push({ id: d.id, data: d.data() }));
+    const docs: { id: string; data: any }[] = [];
+    const vistos = new Set<string>();
+    const consultas = [query(collection(db, COLLECTIONS.ANALISIS_VIDEOS), where("comision", "==", nombre))];
+    // Las transcripciones automáticas guardan además el identificador de la comisión de la app.
+    if (comisionId) consultas.push(query(collection(db, COLLECTIONS.ANALISIS_VIDEOS), where("comisionId", "==", comisionId)));
+    for (const q of consultas) {
+      const snap = await getDocs(q);
+      snap.forEach((d) => { if (!vistos.has(d.id)) { vistos.add(d.id); docs.push({ id: d.id, data: d.data() }); } });
+    }
     return agruparRegistrosVideo(docs);
   } catch (err) {
     console.warn(`No se pudieron leer las transcripciones de ${nombre}:`, err);

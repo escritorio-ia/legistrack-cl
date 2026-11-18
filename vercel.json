@@ -20,6 +20,10 @@
     {
       "path": "/api/registro-sesiones/sincronizar",
       "schedule": "23 11 * * *"
+    },
+    {
+      "path": "/api/transcripcion/automatica/paso",
+      "schedule": "47 12 * * *"
     }
   ]
 }

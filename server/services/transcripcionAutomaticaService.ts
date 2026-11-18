@@ -1,0 +1,240 @@
+/**
+ * Transcripción automática de sesiones de comisión, en segundo plano.
+ *
+ * Cada llamada a `pasoTranscripcionAutomatica()` hace UNA unidad de trabajo (cabe en el límite de 5 min de Vercel):
+ *  1) continúa la sesión que se está transcribiendo (1 o 2 tramos de 10 min), o
+ *  2) redacta el informe de una sesión ya transcrita (si TRANSCRIPCION_AUTO_INFORME=1), o
+ *  3) toma la siguiente sesión realizada del registro oficial, de la más reciente hacia atrás, busca su video
+ *     en el canal oficial (solo si el título menciona la fecha) y empieza a transcribirla.
+ * El avance queda en Firestore ("cola_transcripcion") y la transcripción en el mismo documento que usa la app
+ * (`analisis_videos_sesion/<videoId>__t`), así que aparece en la comisión y en los proyectos de la tabla.
+ * Un tope diario de tramos (TRANSCRIPCION_AUTO_MAX_TRAMOS_DIA) controla el gasto de Gemini.
+ */
+import { conexionFirestore, leerDoc, escribirDoc, consultar, camposAObjeto } from "./firestoreRest";
+import { combinarSesion, unirSesionesLeidas, type SesionRegistrada } from "./registroSesionesService";
+import { buscarVideosSesion, detallesVideos, transcribirParteVideo, SEGUNDOS_POR_PARTE_TRANSCRIPCION, youtubeApiConfigurada } from "./youtubeService";
+import { generarInformeSesion } from "./informeSesionService";
+import { boletinesEnTexto } from "../../src/utils/boletines";
+
+const COLA = "cola_transcripcion";
+const VIDEOS = "analisis_videos_sesion";
+const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+const norm = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+export function hoyChileISO(d = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+}
+const sumarDias = (iso: string, n: number) => { const d = new Date(`${iso}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+
+export function configuracionAuto() {
+  return {
+    activa: process.env.TRANSCRIPCION_AUTO === "1",
+    maxTramosDia: Math.max(1, Number(process.env.TRANSCRIPCION_AUTO_MAX_TRAMOS_DIA) || 60),
+    informe: process.env.TRANSCRIPCION_AUTO_INFORME === "1",
+    desde: /^\d{4}-\d{2}-\d{2}$/.test(process.env.TRANSCRIPCION_AUTO_DESDE || "") ? process.env.TRANSCRIPCION_AUTO_DESDE! : "2026-01-01",
+  };
+}
+
+/** ¿El título del video menciona la fecha de la sesión? ("3 de noviembre", "03-11-2026", "3/11/2026"). */
+export function tituloConFecha(titulo: string, fechaISO: string): boolean {
+  const [a, m, d] = fechaISO.split("-").map(Number);
+  if (!a || !m || !d) return false;
+  const t = norm(titulo);
+  return new RegExp(`(^|\\D)0?${d}\\s+(de\\s+)?${MESES[m - 1]}`).test(t) || new RegExp(`(^|\\D)0?${d}[-/.]0?${m}[-/.](${a}|${String(a).slice(2)})(\\D|$)`).test(t);
+}
+
+interface Trabajo {
+  id: string; estado: string; camara: string; comision: string; comisionId?: string; fecha: string; hora?: string | null;
+  boletines: string[]; tabla: string[]; videoId?: string; titulo?: string; duracion?: number | null; total?: number;
+  intentos?: number; error?: string; reintentarDesde?: string;
+}
+
+async function contadorDia(): Promise<{ ruta: string; tramos: number }> {
+  const ruta = `${COLA}/_contador_${hoyChileISO()}`;
+  const d = await leerDoc(ruta).catch(() => null);
+  return { ruta, tramos: Number(d?.tramos) || 0 };
+}
+
+async function leerTranscripcion(videoId: string): Promise<{ partes: any[]; completo: boolean; boletines: string[] }> {
+  const d = await leerDoc(`${VIDEOS}/${videoId}__t`).catch(() => null);
+  return { partes: Array.isArray(d?.partes) ? d!.partes : [], completo: !!d?.completo, boletines: Array.isArray(d?.boletines) ? d!.boletines : [] };
+}
+
+async function guardarTrabajo(t: Trabajo, cambios: Partial<Trabajo>) {
+  Object.assign(t, cambios);
+  await escribirDoc(`${COLA}/${t.id}`, { ...t, actualizado: new Date().toISOString() });
+}
+
+/** Siguiente sesión realizada del registro (de la más reciente hacia atrás) que aún no está en la cola. */
+async function siguienteSesion(): Promise<SesionRegistrada | null> {
+  const { base, proy, key } = conexionFirestore();
+  const { desde } = configuracionAuto();
+  let hasta = sumarDias(hoyChileISO(), -1);
+  for (let pagina = 0; pagina < 15 && hasta >= desde; pagina++) {
+    const filas = await consultar({
+      from: [{ collectionId: "registro_sesiones" }],
+      where: { compositeFilter: { op: "AND", filters: [
+        { fieldFilter: { field: { fieldPath: "fecha" }, op: "LESS_THAN_OR_EQUAL", value: { stringValue: hasta } } },
+        { fieldFilter: { field: { fieldPath: "fecha" }, op: "GREATER_THAN_OR_EQUAL", value: { stringValue: desde } } },
+      ] } },
+      orderBy: [{ field: { fieldPath: "fecha" }, direction: "DESCENDING" }],
+      limit: 100,
+    });
+    if (filas.length === 0) return null;
+    const sesiones = unirSesionesLeidas(filas.map((f) => combinarSesion(f.id, f.datos)))
+      .filter((s) => s.camara && s.comisionNombre)
+      .sort((a, b) => b.fecha.localeCompare(a.fecha) || String(b.hora || "").localeCompare(String(a.hora || "")));
+    // ¿Cuáles ya están en la cola?
+    const r = await fetch(`${base}:batchGet?key=${key}`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ documents: sesiones.map((s) => `projects/${proy}/databases/(default)/documents/${COLA}/${s.id}`) }),
+      signal: AbortSignal.timeout(15000),
+    });
+    const existentes = new Set<string>();
+    if (r.ok) for (const x of (await r.json()) as any[]) if (x.found) existentes.add(String(x.found.name).split("/").pop());
+    const libre = sesiones.find((s) => !existentes.has(s.id));
+    if (libre) return libre;
+    const ultima = sesiones[sesiones.length - 1]?.fecha || filas.map((f) => camposAObjeto(f.datos).fecha).sort()[0];
+    if (!ultima || ultima >= hasta) hasta = sumarDias(hasta, -1); else hasta = ultima;
+    if (filas.length < 100) hasta = sumarDias(ultima || hasta, -1);
+  }
+  return null;
+}
+
+/** Sesiones sin video encontrado recientes (los videos a veces se publican días después): se reintentan. */
+async function trabajoParaReintentar(): Promise<Trabajo | null> {
+  const hoy = hoyChileISO();
+  const filas = await consultar({ from: [{ collectionId: COLA }], where: { fieldFilter: { field: { fieldPath: "estado" }, op: "EQUAL", value: { stringValue: "sin_video" } } }, limit: 50 });
+  const t = filas.map((f) => ({ id: f.id, ...camposAObjeto(f.datos) } as Trabajo))
+    .find((x) => x.reintentarDesde && x.reintentarDesde <= hoy && x.fecha >= sumarDias(hoy, -10));
+  return t || null;
+}
+
+async function trabajoEnEstado(estado: string): Promise<Trabajo | null> {
+  const filas = await consultar({ from: [{ collectionId: COLA }], where: { fieldFilter: { field: { fieldPath: "estado" }, op: "EQUAL", value: { stringValue: estado } } }, limit: 1 });
+  return filas[0] ? ({ id: filas[0].id, ...camposAObjeto(filas[0].datos) } as Trabajo) : null;
+}
+
+async function buscarVideo(t: Trabajo): Promise<string | null> {
+  const camaraYT = /senado/i.test(t.camara) ? "senado" : "diputados";
+  const videos = await buscarVideosSesion(t.comision, t.fecha, camaraYT as any);
+  const v = videos.find((x) => tituloConFecha(x.title, t.fecha));
+  if (!v) return null;
+  const det = (await detallesVideos([v.id]).catch(() => ({} as any)))[v.id];
+  const duracion = det?.segundos ?? v.segundos ?? null;
+  await guardarTrabajo(t, { videoId: v.id, titulo: v.title, duracion, total: duracion ? Math.max(1, Math.ceil(duracion / SEGUNDOS_POR_PARTE_TRANSCRIPCION)) : 1, estado: "transcribiendo", intentos: 0, error: "" });
+  return v.id;
+}
+
+/** Transcribe los tramos que falten (hasta que se acabe el tiempo de esta llamada o el tope diario). */
+async function avanzarTranscripcion(t: Trabajo, limite: number): Promise<string> {
+  const previa = await leerTranscripcion(t.videoId!);
+  const partes = previa.partes.filter((p) => p?.disponible);
+  const total = t.total || 1;
+  let hechos = 0;
+  for (let parte = 0; parte < total; parte++) {
+    if (partes.some((p) => p.parte === parte)) continue;
+    if (Date.now() > limite) break;
+    const cont = await contadorDia();
+    if (cont.tramos >= configuracionAuto().maxTramosDia) return `Tope diario alcanzado (${cont.tramos} tramos).`;
+    const r = await transcribirParteVideo({ videoId: t.videoId!, parte, duracion: t.duracion ?? undefined, comision: t.comision, fecha: t.fecha, materia: t.tabla.join(" ") });
+    await escribirDoc(cont.ruta, { tramos: cont.tramos + 1, fecha: hoyChileISO() });
+    if (!r.disponible) {
+      const intentos = (t.intentos || 0) + 1;
+      await guardarTrabajo(t, { intentos, error: r.motivo || "No se pudo transcribir el tramo", estado: intentos >= 3 ? "error" : "transcribiendo" });
+      break;
+    }
+    partes.push(r); partes.sort((a, b) => a.parte - b.parte); hechos++;
+    const completo = partes.length >= total;
+    const mencionados = boletinesEnTexto(partes.flatMap((p: any) => p.segmentos || []).map((g: any) => g.texto).join(" "));
+    await escribirDoc(`${VIDEOS}/${t.videoId}__t`, {
+      partes, completo, tipo: "transcripcion", videoId: t.videoId, titulo: t.titulo || "", comision: t.comision, comisionId: t.comisionId || "",
+      fecha: t.fecha, duracion: t.duracion ?? null, tabla: t.tabla, boletines: Array.from(new Set([...previa.boletines, ...t.boletines, ...mencionados])),
+      automatica: true, updatedAt: new Date().toISOString(),
+    });
+    if (completo) {
+      await guardarTrabajo(t, { estado: configuracionAuto().informe ? "informe_pendiente" : "transcrita", intentos: 0, error: "" });
+      return `Transcripción completa (${total} tramos).`;
+    }
+    if (t.intentos) await guardarTrabajo(t, { intentos: 0, error: "" });
+  }
+  if (partes.length >= total && t.estado === "transcribiendo") await guardarTrabajo(t, { estado: configuracionAuto().informe ? "informe_pendiente" : "transcrita" });
+  return `${hechos} tramo(s) transcritos; van ${partes.length} de ${total}.`;
+}
+
+async function redactarInforme(t: Trabajo): Promise<string> {
+  const previa = await leerTranscripcion(t.videoId!);
+  const segmentos = previa.partes.filter((p) => p?.disponible).flatMap((p) => p.segmentos || []);
+  const r = await generarInformeSesion({ segmentos, tabla: t.tabla, boletines: t.boletines, comision: t.comision, fecha: t.fecha, parcial: !previa.completo });
+  if (r.disponible === false) {
+    const motivo = (r as { motivo: string }).motivo;
+    const intentos = (t.intentos || 0) + 1;
+    await guardarTrabajo(t, { intentos, error: motivo, estado: intentos >= 3 ? "transcrita" : "informe_pendiente" });
+    return `No se pudo redactar el informe: ${motivo}`;
+  }
+  await escribirDoc(`${VIDEOS}/${t.videoId}__i`, {
+    informe: (r as { informe: any }).informe, tipo: "informe", videoId: t.videoId, titulo: t.titulo || "", comision: t.comision, comisionId: t.comisionId || "",
+    fecha: t.fecha, tabla: t.tabla, boletines: Array.from(new Set([...previa.boletines, ...t.boletines])), automatica: true, updatedAt: new Date().toISOString(),
+  });
+  await guardarTrabajo(t, { estado: "informe_listo", intentos: 0, error: "" });
+  return "Informe redactado.";
+}
+
+export async function pasoTranscripcionAutomatica(): Promise<{ ok: boolean; accion: string; sesion?: string; detalle: string }> {
+  const conf = configuracionAuto();
+  if (!conf.activa) return { ok: true, accion: "inactiva", detalle: "La transcripción automática está desactivada (TRANSCRIPCION_AUTO distinto de 1)." };
+  if (!youtubeApiConfigurada()) return { ok: false, accion: "sin_youtube", detalle: "Falta YOUTUBE_API_KEY para encontrar los videos." };
+  const limite = Date.now() + 150_000; // deja margen dentro de los 300 s de Vercel
+
+  // 1) Sesión en curso.
+  let t = await trabajoEnEstado("transcribiendo");
+  if (t?.videoId) return { ok: true, accion: "transcribir", sesion: `${t.comision} ${t.fecha}`, detalle: await avanzarTranscripcion(t, limite) };
+
+  // 2) Informe pendiente.
+  if (conf.informe) {
+    t = await trabajoEnEstado("informe_pendiente");
+    if (t?.videoId) return { ok: true, accion: "informe", sesion: `${t.comision} ${t.fecha}`, detalle: await redactarInforme(t) };
+  }
+
+  const cont = await contadorDia();
+  if (cont.tramos >= conf.maxTramosDia) return { ok: true, accion: "tope", detalle: `Tope diario alcanzado (${cont.tramos} de ${conf.maxTramosDia} tramos). Sigue mañana.` };
+
+  // 3) Reintento de una sesión reciente cuyo video no estaba publicado; si no, una sesión nueva.
+  t = await trabajoParaReintentar();
+  if (!t) {
+    const s = await siguienteSesion();
+    if (!s) return { ok: true, accion: "nada", detalle: `No quedan sesiones por transcribir desde ${conf.desde}.` };
+    t = {
+      id: s.id, estado: "buscando_video", camara: s.camara, comision: s.comisionNombre, comisionId: s.comisionId, fecha: s.fecha, hora: s.hora,
+      boletines: s.boletines, tabla: s.puntos.map((p) => p.texto).filter(Boolean),
+    };
+    await guardarTrabajo(t, {});
+  }
+  const videoId = await buscarVideo(t).catch(() => null);
+  if (!videoId) {
+    const reciente = t.fecha >= sumarDias(hoyChileISO(), -10);
+    await guardarTrabajo(t, { estado: "sin_video", reintentarDesde: reciente ? sumarDias(hoyChileISO(), 2) : "", error: "No se encontró en el canal oficial un video con la fecha de la sesión." });
+    return { ok: true, accion: "sin_video", sesion: `${t.comision} ${t.fecha}`, detalle: "Sin video con esa fecha en el canal oficial." };
+  }
+  // Si la app ya la había transcrito a mano, se aprovecha.
+  const previa = await leerTranscripcion(videoId);
+  if (previa.completo) {
+    await guardarTrabajo(t, { estado: conf.informe ? "informe_pendiente" : "transcrita" });
+    return { ok: true, accion: "ya_transcrita", sesion: `${t.comision} ${t.fecha}`, detalle: "Ya estaba transcrita." };
+  }
+  return { ok: true, accion: "transcribir", sesion: `${t.comision} ${t.fecha}`, detalle: await avanzarTranscripcion(t, limite) };
+}
+
+/** Resumen del avance para mostrar en la app. */
+export async function estadoTranscripcionAutomatica() {
+  const conf = configuracionAuto();
+  const filas = await consultar({ from: [{ collectionId: COLA }], orderBy: [{ field: { fieldPath: "actualizado" }, direction: "DESCENDING" }], limit: 300 });
+  const trabajos = filas.filter((f) => !f.id.startsWith("_")).map((f) => ({ id: f.id, ...camposAObjeto(f.datos) } as any));
+  const porEstado: Record<string, number> = {};
+  for (const t of trabajos) porEstado[t.estado] = (porEstado[t.estado] || 0) + 1;
+  const cont = await contadorDia();
+  return {
+    configuracion: conf, tramosHoy: cont.tramos, porEstado,
+    recientes: trabajos.slice(0, 15).map((t) => ({ comision: t.comision, fecha: t.fecha, estado: t.estado, videoId: t.videoId || null, error: t.error || null, actualizado: t.actualizado })),
+  };
+}

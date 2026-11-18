@@ -1,6 +1,7 @@
 import { sincronizarRegistroSesiones, sesionesRegistradasDeBoletin, sesionesRegistradasDeComision } from "../services/registroSesionesService";
 import { exigirSesion, credencialesValidas, fijarSesion, cerrarSesion, sesionActual, authConfigurada, demasiadosIntentos, registrarFallo, limpiarFallos } from "../services/authService";
 import { generarInformeSesion } from "../services/informeSesionService";
+import { pasoTranscripcionAutomatica, estadoTranscripcionAutomatica } from "../services/transcripcionAutomaticaService";
 import { salaSemana, importarTablaSenado, sincronizarSala, sesionesSalaDeBoletin } from "../services/salaService";
 import { discusionDeProyecto } from "../services/discusionService";
 import { construirResumenSesion } from "../services/resumenSesionService";
@@ -1575,6 +1576,21 @@ Si no hay ninguna coincidencia real, responde exactamente: []`;
     console.error("Error evaluando tópicos de alerta:", error);
     res.status(500).json({ error: "Error al evaluar tópicos de alerta" });
   }
+});
+
+// Transcripción automática en segundo plano: un paso por llamada (lo invoca un programador externo con CRON_SECRET).
+async function pasoAuto(req: Request, res: Response) {
+  const secreto = process.env.CRON_SECRET;
+  if (!secreto) return res.status(503).json({ ok: false, error: "Falta CRON_SECRET en Vercel." });
+  if (req.headers.authorization !== `Bearer ${secreto}`) return res.status(401).json({ ok: false, error: "No autorizado." });
+  try { res.json(await pasoTranscripcionAutomatica()); }
+  catch (err: any) { res.status(500).json({ ok: false, error: err?.message || String(err) }); }
+}
+apiRouter.get("/transcripcion/automatica/paso", pasoAuto);
+apiRouter.post("/transcripcion/automatica/paso", pasoAuto);
+apiRouter.get("/transcripcion/automatica/estado", async (_req: Request, res: Response) => {
+  try { res.json(await estadoTranscripcionAutomatica()); }
+  catch (err: any) { res.json({ error: err?.message || String(err) }); }
 });
 
 // Informe de una sesión de comisión redactado solo a partir de su transcripción (validado contra ella).

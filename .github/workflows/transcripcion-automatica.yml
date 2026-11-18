@@ -1,0 +1,22 @@
+# Transcripción automática de sesiones de comisión: cada 10 minutos pide a la app que avance un paso.
+# Requiere el secreto CRON_SECRET en GitHub (Settings > Secrets and variables > Actions), con el mismo
+# valor que la variable CRON_SECRET de Vercel. La app decide qué hacer y respeta el tope diario.
+name: Transcripcion automatica
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+concurrency:
+  group: transcripcion-automatica
+  cancel-in-progress: false
+jobs:
+  paso:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Avanzar un paso
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          curl -sS --max-time 320 -H "Authorization: Bearer $CRON_SECRET" \
+            https://legistrack-cl.vercel.app/api/transcripcion/automatica/paso || true

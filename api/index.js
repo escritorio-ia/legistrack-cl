@@ -187454,7 +187454,7 @@ async function fetchProyectoFromSenado(boletinId) {
       const mapeoSufijo = MATERIA_COMISION_MAP[sufijo];
       const materia = mapeoSufijo ? mapeoSufijo.materia : "Sin clasificar";
       let comisionActual = mapeoSufijo ? mapeoSufijo.comision : "No informada";
-      let siguienteSesion = void 0;
+      let siguienteSesion2 = void 0;
       if (subetapa) {
         const limpia = limpiarNombreComision(subetapa);
         if (limpia) comisionActual = limpia;
@@ -187583,7 +187583,7 @@ async function fetchProyectoFromSenado(boletinId) {
         comisionActual,
         comisionesHistoricas: [comisionActual],
         pasosComision: computePasosComision(timeline),
-        siguienteSesion,
+        siguienteSesion: siguienteSesion2,
         // Quórum: la ficha no lo informa. Solo se indica cuando el título lo hace
         // inequívoco (reforma constitucional); en otro caso queda sin informar.
         quorum: /reforma constitucional|modifica la constituci[oó]n|carta fundamental/i.test(titulo) ? estimarQuorum(titulo, materia) : void 0,
@@ -188065,14 +188065,14 @@ function ventanas(texto, marcadores, ancho, max) {
 async function resumenPasoComision(boletinId, comision) {
   const digits = String(boletinId || "").replace(/\./g, "").match(/\d{3,6}/)?.[0] || "";
   if (!digits || !comision) return { disponible: false, motivo: "Faltan el bolet\xEDn o la comisi\xF3n." };
-  const norm5 = (x) => x.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
-  const clave = `resumen_comision_v3_${digits}_${norm5(comision)}`;
+  const norm6 = (x) => x.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const clave = `resumen_comision_v3_${digits}_${norm6(comision)}`;
   const previo = cache.get(clave);
   if (previo) return previo;
   const p = await fetchProyectoFromSenado(digits);
   if (!p) return { disponible: false, motivo: "No se encontr\xF3 el proyecto en la ficha oficial del Senado." };
-  const nucleo = norm5(comision).replace(/^comision\s+(especial\s+)?(de\s+)?/, "").split(/[^a-z0-9]+/).filter((w) => w.length > 3).slice(0, 2);
-  const informes = (p.documentos || []).filter((d) => d.tipo === "Informe" && d.url && nucleo.every((w) => norm5(d.titulo).includes(w))).sort((a, b) => (a.fecha || "").localeCompare(b.fecha || "")).slice(0, 2);
+  const nucleo = norm6(comision).replace(/^comision\s+(especial\s+)?(de\s+)?/, "").split(/[^a-z0-9]+/).filter((w) => w.length > 3).slice(0, 2);
+  const informes = (p.documentos || []).filter((d) => d.tipo === "Informe" && d.url && nucleo.every((w) => norm6(d.titulo).includes(w))).sort((a, b) => (a.fecha || "").localeCompare(b.fecha || "")).slice(0, 2);
   if (informes.length === 0) {
     return { disponible: false, comision, motivo: "Esta comisi\xF3n a\xFAn no ha emitido un informe en el expediente; el resumen estar\xE1 disponible cuando lo publique." };
   }
@@ -188750,6 +188750,7 @@ function rutaPublica(metodo, ruta) {
   if (ruta.startsWith("/auth/")) return true;
   if (ruta === "/registro-sesiones/sincronizar") return true;
   if (ruta === "/senado/comisiones-ids") return true;
+  if (ruta === "/transcripcion/automatica/paso") return true;
   if (metodo === "POST" && /\/importar$/.test(ruta)) return true;
   return false;
 }
@@ -189087,12 +189088,299 @@ async function generarInformeSesion(p) {
   return { disponible: false, motivo: `${saturado ? "Gemini est\xE1 saturado en este momento; intente de nuevo en unos minutos (la transcripci\xF3n ya est\xE1 guardada). " : "No se pudo generar el informe. "}Detalle: ${errores.join(" | ")}` };
 }
 
+// server/services/firestoreRest.ts
+function conexionFirestore() {
+  const proy = process.env.VITE_FIREBASE_PROJECT_ID || "";
+  const key = process.env.VITE_FIREBASE_API_KEY || "";
+  if (!proy || !key) throw new Error("Faltan VITE_FIREBASE_PROJECT_ID o VITE_FIREBASE_API_KEY en el entorno del servidor.");
+  return { proy, key, base: `https://firestore.googleapis.com/v1/projects/${proy}/databases/(default)/documents` };
+}
+function aFirestore(v) {
+  if (v === null || v === void 0) return { nullValue: null };
+  if (typeof v === "boolean") return { booleanValue: v };
+  if (typeof v === "number") return Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v };
+  if (typeof v === "string") return { stringValue: v };
+  if (Array.isArray(v)) return { arrayValue: { values: v.map(aFirestore) } };
+  if (typeof v === "object") return { mapValue: { fields: Object.fromEntries(Object.entries(v).filter(([, x]) => x !== void 0).map(([k, x]) => [k, aFirestore(x)])) } };
+  return { stringValue: String(v) };
+}
+function deFirestore(v) {
+  if (!v || typeof v !== "object") return null;
+  if ("stringValue" in v) return v.stringValue;
+  if ("integerValue" in v) return Number(v.integerValue);
+  if ("doubleValue" in v) return Number(v.doubleValue);
+  if ("booleanValue" in v) return !!v.booleanValue;
+  if ("nullValue" in v) return null;
+  if ("timestampValue" in v) return v.timestampValue;
+  if ("arrayValue" in v) return (v.arrayValue.values || []).map(deFirestore);
+  if ("mapValue" in v) return Object.fromEntries(Object.entries(v.mapValue.fields || {}).map(([k, x]) => [k, deFirestore(x)]));
+  return null;
+}
+var camposAObjeto = (fields) => Object.fromEntries(Object.entries(fields || {}).map(([k, x]) => [k, deFirestore(x)]));
+async function leerDoc(ruta) {
+  const { base, key } = conexionFirestore();
+  const r = await fetch(`${base}/${ruta}?key=${key}`, { signal: AbortSignal.timeout(12e3) });
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error(`Firestore (${ruta}) respondi\xF3 HTTP ${r.status}`);
+  const d = await r.json();
+  return camposAObjeto(d.fields);
+}
+async function escribirDoc(ruta, datos) {
+  const { base, key } = conexionFirestore();
+  const qs = new URLSearchParams({ key });
+  for (const k of Object.keys(datos)) qs.append("updateMask.fieldPaths", k);
+  const r = await fetch(`${base}/${ruta}?${qs}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fields: Object.fromEntries(Object.entries(datos).map(([k, v]) => [k, aFirestore(v)])) }),
+    signal: AbortSignal.timeout(2e4)
+  });
+  if (!r.ok) throw new Error(`Firestore no acept\xF3 la escritura de ${ruta} (HTTP ${r.status}): ${(await r.text()).slice(0, 160)}`);
+}
+async function consultar(structuredQuery) {
+  const { base, key } = conexionFirestore();
+  const r = await fetch(`${base}:runQuery?key=${key}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ structuredQuery }),
+    signal: AbortSignal.timeout(15e3)
+  });
+  if (!r.ok) throw new Error(`Firestore respondi\xF3 HTTP ${r.status}`);
+  const filas = await r.json();
+  return filas.filter((x) => x.document).map((x) => ({ id: String(x.document.name).split("/").pop() || "", datos: x.document.fields }));
+}
+
+// server/services/transcripcionAutomaticaService.ts
+var COLA = "cola_transcripcion";
+var VIDEOS = "analisis_videos_sesion";
+var MESES4 = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+var norm4 = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+function hoyChileISO(d = /* @__PURE__ */ new Date()) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+}
+var sumarDias = (iso2, n) => {
+  const d = /* @__PURE__ */ new Date(`${iso2}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+function configuracionAuto() {
+  return {
+    activa: process.env.TRANSCRIPCION_AUTO === "1",
+    maxTramosDia: Math.max(1, Number(process.env.TRANSCRIPCION_AUTO_MAX_TRAMOS_DIA) || 60),
+    informe: process.env.TRANSCRIPCION_AUTO_INFORME === "1",
+    desde: /^\d{4}-\d{2}-\d{2}$/.test(process.env.TRANSCRIPCION_AUTO_DESDE || "") ? process.env.TRANSCRIPCION_AUTO_DESDE : "2026-01-01"
+  };
+}
+function tituloConFecha(titulo, fechaISO4) {
+  const [a, m, d] = fechaISO4.split("-").map(Number);
+  if (!a || !m || !d) return false;
+  const t = norm4(titulo);
+  return new RegExp(`(^|\\D)0?${d}\\s+(de\\s+)?${MESES4[m - 1]}`).test(t) || new RegExp(`(^|\\D)0?${d}[-/.]0?${m}[-/.](${a}|${String(a).slice(2)})(\\D|$)`).test(t);
+}
+async function contadorDia() {
+  const ruta = `${COLA}/_contador_${hoyChileISO()}`;
+  const d = await leerDoc(ruta).catch(() => null);
+  return { ruta, tramos: Number(d?.tramos) || 0 };
+}
+async function leerTranscripcion(videoId) {
+  const d = await leerDoc(`${VIDEOS}/${videoId}__t`).catch(() => null);
+  return { partes: Array.isArray(d?.partes) ? d.partes : [], completo: !!d?.completo, boletines: Array.isArray(d?.boletines) ? d.boletines : [] };
+}
+async function guardarTrabajo(t, cambios) {
+  Object.assign(t, cambios);
+  await escribirDoc(`${COLA}/${t.id}`, { ...t, actualizado: (/* @__PURE__ */ new Date()).toISOString() });
+}
+async function siguienteSesion() {
+  const { base, proy, key } = conexionFirestore();
+  const { desde } = configuracionAuto();
+  let hasta = sumarDias(hoyChileISO(), -1);
+  for (let pagina = 0; pagina < 15 && hasta >= desde; pagina++) {
+    const filas = await consultar({
+      from: [{ collectionId: "registro_sesiones" }],
+      where: { compositeFilter: { op: "AND", filters: [
+        { fieldFilter: { field: { fieldPath: "fecha" }, op: "LESS_THAN_OR_EQUAL", value: { stringValue: hasta } } },
+        { fieldFilter: { field: { fieldPath: "fecha" }, op: "GREATER_THAN_OR_EQUAL", value: { stringValue: desde } } }
+      ] } },
+      orderBy: [{ field: { fieldPath: "fecha" }, direction: "DESCENDING" }],
+      limit: 100
+    });
+    if (filas.length === 0) return null;
+    const sesiones = unirSesionesLeidas(filas.map((f) => combinarSesion(f.id, f.datos))).filter((s) => s.camara && s.comisionNombre).sort((a, b) => b.fecha.localeCompare(a.fecha) || String(b.hora || "").localeCompare(String(a.hora || "")));
+    const r = await fetch(`${base}:batchGet?key=${key}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ documents: sesiones.map((s) => `projects/${proy}/databases/(default)/documents/${COLA}/${s.id}`) }),
+      signal: AbortSignal.timeout(15e3)
+    });
+    const existentes = /* @__PURE__ */ new Set();
+    if (r.ok) {
+      for (const x of await r.json()) if (x.found) existentes.add(String(x.found.name).split("/").pop());
+    }
+    const libre = sesiones.find((s) => !existentes.has(s.id));
+    if (libre) return libre;
+    const ultima2 = sesiones[sesiones.length - 1]?.fecha || filas.map((f) => camposAObjeto(f.datos).fecha).sort()[0];
+    if (!ultima2 || ultima2 >= hasta) hasta = sumarDias(hasta, -1);
+    else hasta = ultima2;
+    if (filas.length < 100) hasta = sumarDias(ultima2 || hasta, -1);
+  }
+  return null;
+}
+async function trabajoParaReintentar() {
+  const hoy = hoyChileISO();
+  const filas = await consultar({ from: [{ collectionId: COLA }], where: { fieldFilter: { field: { fieldPath: "estado" }, op: "EQUAL", value: { stringValue: "sin_video" } } }, limit: 50 });
+  const t = filas.map((f) => ({ id: f.id, ...camposAObjeto(f.datos) })).find((x) => x.reintentarDesde && x.reintentarDesde <= hoy && x.fecha >= sumarDias(hoy, -10));
+  return t || null;
+}
+async function trabajoEnEstado(estado) {
+  const filas = await consultar({ from: [{ collectionId: COLA }], where: { fieldFilter: { field: { fieldPath: "estado" }, op: "EQUAL", value: { stringValue: estado } } }, limit: 1 });
+  return filas[0] ? { id: filas[0].id, ...camposAObjeto(filas[0].datos) } : null;
+}
+async function buscarVideo(t) {
+  const camaraYT = /senado/i.test(t.camara) ? "senado" : "diputados";
+  const videos = await buscarVideosSesion(t.comision, t.fecha, camaraYT);
+  const v = videos.find((x) => tituloConFecha(x.title, t.fecha));
+  if (!v) return null;
+  const det = (await detallesVideos([v.id]).catch(() => ({})))[v.id];
+  const duracion = det?.segundos ?? v.segundos ?? null;
+  await guardarTrabajo(t, { videoId: v.id, titulo: v.title, duracion, total: duracion ? Math.max(1, Math.ceil(duracion / SEGUNDOS_POR_PARTE_TRANSCRIPCION)) : 1, estado: "transcribiendo", intentos: 0, error: "" });
+  return v.id;
+}
+async function avanzarTranscripcion(t, limite) {
+  const previa = await leerTranscripcion(t.videoId);
+  const partes = previa.partes.filter((p) => p?.disponible);
+  const total = t.total || 1;
+  let hechos = 0;
+  for (let parte = 0; parte < total; parte++) {
+    if (partes.some((p) => p.parte === parte)) continue;
+    if (Date.now() > limite) break;
+    const cont = await contadorDia();
+    if (cont.tramos >= configuracionAuto().maxTramosDia) return `Tope diario alcanzado (${cont.tramos} tramos).`;
+    const r = await transcribirParteVideo({ videoId: t.videoId, parte, duracion: t.duracion ?? void 0, comision: t.comision, fecha: t.fecha, materia: t.tabla.join(" ") });
+    await escribirDoc(cont.ruta, { tramos: cont.tramos + 1, fecha: hoyChileISO() });
+    if (!r.disponible) {
+      const intentos2 = (t.intentos || 0) + 1;
+      await guardarTrabajo(t, { intentos: intentos2, error: r.motivo || "No se pudo transcribir el tramo", estado: intentos2 >= 3 ? "error" : "transcribiendo" });
+      break;
+    }
+    partes.push(r);
+    partes.sort((a, b) => a.parte - b.parte);
+    hechos++;
+    const completo = partes.length >= total;
+    const mencionados = boletinesEnTexto(partes.flatMap((p) => p.segmentos || []).map((g) => g.texto).join(" "));
+    await escribirDoc(`${VIDEOS}/${t.videoId}__t`, {
+      partes,
+      completo,
+      tipo: "transcripcion",
+      videoId: t.videoId,
+      titulo: t.titulo || "",
+      comision: t.comision,
+      comisionId: t.comisionId || "",
+      fecha: t.fecha,
+      duracion: t.duracion ?? null,
+      tabla: t.tabla,
+      boletines: Array.from(/* @__PURE__ */ new Set([...previa.boletines, ...t.boletines, ...mencionados])),
+      automatica: true,
+      updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+    });
+    if (completo) {
+      await guardarTrabajo(t, { estado: configuracionAuto().informe ? "informe_pendiente" : "transcrita", intentos: 0, error: "" });
+      return `Transcripci\xF3n completa (${total} tramos).`;
+    }
+    if (t.intentos) await guardarTrabajo(t, { intentos: 0, error: "" });
+  }
+  if (partes.length >= total && t.estado === "transcribiendo") await guardarTrabajo(t, { estado: configuracionAuto().informe ? "informe_pendiente" : "transcrita" });
+  return `${hechos} tramo(s) transcritos; van ${partes.length} de ${total}.`;
+}
+async function redactarInforme(t) {
+  const previa = await leerTranscripcion(t.videoId);
+  const segmentos = previa.partes.filter((p) => p?.disponible).flatMap((p) => p.segmentos || []);
+  const r = await generarInformeSesion({ segmentos, tabla: t.tabla, boletines: t.boletines, comision: t.comision, fecha: t.fecha, parcial: !previa.completo });
+  if (r.disponible === false) {
+    const motivo = r.motivo;
+    const intentos2 = (t.intentos || 0) + 1;
+    await guardarTrabajo(t, { intentos: intentos2, error: motivo, estado: intentos2 >= 3 ? "transcrita" : "informe_pendiente" });
+    return `No se pudo redactar el informe: ${motivo}`;
+  }
+  await escribirDoc(`${VIDEOS}/${t.videoId}__i`, {
+    informe: r.informe,
+    tipo: "informe",
+    videoId: t.videoId,
+    titulo: t.titulo || "",
+    comision: t.comision,
+    comisionId: t.comisionId || "",
+    fecha: t.fecha,
+    tabla: t.tabla,
+    boletines: Array.from(/* @__PURE__ */ new Set([...previa.boletines, ...t.boletines])),
+    automatica: true,
+    updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+  });
+  await guardarTrabajo(t, { estado: "informe_listo", intentos: 0, error: "" });
+  return "Informe redactado.";
+}
+async function pasoTranscripcionAutomatica() {
+  const conf = configuracionAuto();
+  if (!conf.activa) return { ok: true, accion: "inactiva", detalle: "La transcripci\xF3n autom\xE1tica est\xE1 desactivada (TRANSCRIPCION_AUTO distinto de 1)." };
+  if (!youtubeApiConfigurada()) return { ok: false, accion: "sin_youtube", detalle: "Falta YOUTUBE_API_KEY para encontrar los videos." };
+  const limite = Date.now() + 15e4;
+  let t = await trabajoEnEstado("transcribiendo");
+  if (t?.videoId) return { ok: true, accion: "transcribir", sesion: `${t.comision} ${t.fecha}`, detalle: await avanzarTranscripcion(t, limite) };
+  if (conf.informe) {
+    t = await trabajoEnEstado("informe_pendiente");
+    if (t?.videoId) return { ok: true, accion: "informe", sesion: `${t.comision} ${t.fecha}`, detalle: await redactarInforme(t) };
+  }
+  const cont = await contadorDia();
+  if (cont.tramos >= conf.maxTramosDia) return { ok: true, accion: "tope", detalle: `Tope diario alcanzado (${cont.tramos} de ${conf.maxTramosDia} tramos). Sigue ma\xF1ana.` };
+  t = await trabajoParaReintentar();
+  if (!t) {
+    const s = await siguienteSesion();
+    if (!s) return { ok: true, accion: "nada", detalle: `No quedan sesiones por transcribir desde ${conf.desde}.` };
+    t = {
+      id: s.id,
+      estado: "buscando_video",
+      camara: s.camara,
+      comision: s.comisionNombre,
+      comisionId: s.comisionId,
+      fecha: s.fecha,
+      hora: s.hora,
+      boletines: s.boletines,
+      tabla: s.puntos.map((p) => p.texto).filter(Boolean)
+    };
+    await guardarTrabajo(t, {});
+  }
+  const videoId = await buscarVideo(t).catch(() => null);
+  if (!videoId) {
+    const reciente = t.fecha >= sumarDias(hoyChileISO(), -10);
+    await guardarTrabajo(t, { estado: "sin_video", reintentarDesde: reciente ? sumarDias(hoyChileISO(), 2) : "", error: "No se encontr\xF3 en el canal oficial un video con la fecha de la sesi\xF3n." });
+    return { ok: true, accion: "sin_video", sesion: `${t.comision} ${t.fecha}`, detalle: "Sin video con esa fecha en el canal oficial." };
+  }
+  const previa = await leerTranscripcion(videoId);
+  if (previa.completo) {
+    await guardarTrabajo(t, { estado: conf.informe ? "informe_pendiente" : "transcrita" });
+    return { ok: true, accion: "ya_transcrita", sesion: `${t.comision} ${t.fecha}`, detalle: "Ya estaba transcrita." };
+  }
+  return { ok: true, accion: "transcribir", sesion: `${t.comision} ${t.fecha}`, detalle: await avanzarTranscripcion(t, limite) };
+}
+async function estadoTranscripcionAutomatica() {
+  const conf = configuracionAuto();
+  const filas = await consultar({ from: [{ collectionId: COLA }], orderBy: [{ field: { fieldPath: "actualizado" }, direction: "DESCENDING" }], limit: 300 });
+  const trabajos = filas.filter((f) => !f.id.startsWith("_")).map((f) => ({ id: f.id, ...camposAObjeto(f.datos) }));
+  const porEstado = {};
+  for (const t of trabajos) porEstado[t.estado] = (porEstado[t.estado] || 0) + 1;
+  const cont = await contadorDia();
+  return {
+    configuracion: conf,
+    tramosHoy: cont.tramos,
+    porEstado,
+    recientes: trabajos.slice(0, 15).map((t) => ({ comision: t.comision, fecha: t.fecha, estado: t.estado, videoId: t.videoId || null, error: t.error || null, actualizado: t.actualizado }))
+  };
+}
+
 // src/utils/sala.ts
-var MESES4 = { enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6, julio: 7, agosto: 8, septiembre: 9, setiembre: 9, octubre: 10, noviembre: 11, diciembre: 12 };
+var MESES5 = { enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6, julio: 7, agosto: 8, septiembre: 9, setiembre: 9, octubre: 10, noviembre: 11, diciembre: 12 };
 var dos = (n) => String(n).padStart(2, "0");
 function fechaLargaAISO(texto) {
   const m = String(texto || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").match(/(\d{1,2})\s+de\s+([a-z]+)\s+de\s+(\d{4})/);
-  return m && MESES4[m[2]] ? `${m[3]}-${dos(MESES4[m[2]])}-${dos(m[1])}` : "";
+  return m && MESES5[m[2]] ? `${m[3]}-${dos(MESES5[m[2]])}-${dos(m[1])}` : "";
 }
 var hhmm = (s) => {
   const m = String(s || "").match(/(\d{1,2}):(\d{2})/);
@@ -189207,7 +189495,7 @@ var sv2 = (v) => ({ stringValue: v });
 function hoyChile(d = /* @__PURE__ */ new Date()) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
 }
-var sumarDias = (iso2, n) => {
+var sumarDias2 = (iso2, n) => {
   const d = /* @__PURE__ */ new Date(`${iso2}T12:00:00Z`);
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
@@ -189240,7 +189528,7 @@ async function sesionesSalaCamara(anio, conAsistenciaDesde) {
 async function salaCamaraSemana(hoy) {
   const fuente = "Datos Abiertos de la C\xE1mara (opendata.camara.cl): sesiones de Sala, votaciones y asistencia";
   const transmision = "https://www.camara.cl/prensa/television.aspx";
-  const desde = sumarDias(hoy, -7), hasta = sumarDias(hoy, 7);
+  const desde = sumarDias2(hoy, -7), hasta = sumarDias2(hoy, 7);
   try {
     const anios = Array.from(/* @__PURE__ */ new Set([desde.slice(0, 4), hasta.slice(0, 4)])).map(Number);
     const todas = (await Promise.all(anios.map((a) => sesionesSalaCamara(a, desde)))).flat();
@@ -189795,7 +190083,7 @@ function performUnifiedSearch(rawQuery) {
 }
 
 // src/utils/dateUtils.ts
-var MESES5 = {
+var MESES6 = {
   enero: 0,
   febrero: 1,
   marzo: 2,
@@ -189824,7 +190112,7 @@ function parseFechaSesion(fechaStr) {
     const day = Number(match[1]);
     const monthStr = match[2].toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
     const year = Number(match[3]);
-    const month = MESES5[monthStr] ?? 0;
+    const month = MESES6[monthStr] ?? 0;
     return new Date(year, month, day, 23, 59, 59);
   }
   return null;
@@ -190673,7 +190961,7 @@ async function buscarUE(q) {
   const base = { jurisdiccion: "Uni\xF3n Europea", fuente: "Oficina de Publicaciones de la UE \u2014 Cellar (SPARQL)", consultadoEl: ahora };
   const ts = terminosDeConsulta(q);
   if (ts.length === 0) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene t\xE9rminos \xFAtiles." } };
-  const consultar = async (cond) => {
+  const consultar2 = async (cond) => {
     const sparql = `PREFIX cdm: <http://publications.europa.eu/ontology/cdm#>
 SELECT DISTINCT ?celex ?title ?date WHERE {
  ?e cdm:expression_title ?title .
@@ -190693,7 +190981,7 @@ SELECT DISTINCT ?celex ?title ?date WHERE {
   try {
     const and = ts.map((t) => `'${t}'`).join(" AND ");
     const usada = and;
-    const filas = await consultar(and);
+    const filas = await consultar2(and);
     const vistos = /* @__PURE__ */ new Set();
     const normas = filas.map((f) => ({ celex: String(f.celex?.value || ""), titulo: String(f.title?.value || ""), fecha: String(f.date?.value || "") })).filter((f) => /^3\d{4}[LRD]\d{4}$/.test(f.celex) && f.titulo && !vistos.has(f.celex) && !!vistos.add(f.celex)).sort((a, b) => b.fecha.localeCompare(a.fecha)).slice(0, 4).map((f) => ({
       pais: "Uni\xF3n Europea",
@@ -190718,7 +191006,7 @@ async function buscarEspana(q) {
   const base = { jurisdiccion: "Espa\xF1a", fuente: "AEBOE \u2014 API de datos abiertos, legislaci\xF3n consolidada", consultadoEl: ahora };
   const ts = terminosDeConsulta(q);
   if (ts.length === 0) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene t\xE9rminos \xFAtiles." } };
-  const consultar = async (cond) => {
+  const consultar2 = async (cond) => {
     const query = JSON.stringify({ query: { query_string: { query: cond } }, sort: [{ fecha_publicacion: "desc" }] });
     const r = await descargar(`${BOE_API}?limit=25&query=${encodeURIComponent(query)}`, { Accept: "application/json" }, 15e3);
     if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
@@ -190728,7 +191016,7 @@ async function buscarEspana(q) {
   };
   try {
     const usada = `titulo:(${ts.join(" and ")})`;
-    const items = await consultar(usada);
+    const items = await consultar2(usada);
     const peso = (rango) => /^Ley/i.test(rango) ? 0 : /Real Decreto-ley|Real Decreto Legislativo/i.test(rango) ? 1 : 2;
     const normas = items.filter((i) => i?.identificador && i?.titulo).sort((a, b) => peso(String(a.rango?.texto || "")) - peso(String(b.rango?.texto || ""))).slice(0, 4).map((i) => ({
       pais: "Espa\xF1a",
@@ -194751,12 +195039,12 @@ import fs from "fs";
 import path from "path";
 import Papa from "papaparse";
 var sinAcentos = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "");
-var norm4 = (s) => sinAcentos(s).toLowerCase().trim();
+var norm5 = (s) => sinAcentos(s).toLowerCase().trim();
 function normalizarBoletin2(b) {
   return b.replace(/\./g, "").replace(/\s+/g, "").replace(/-0+(\d)/, "-$1").trim();
 }
 function normalizarNorma(n) {
-  return norm4(n).replace(/\./g, "").replace(/\s+/g, " ");
+  return norm5(n).replace(/\./g, "").replace(/\s+/g, " ");
 }
 var STOPWORDS = /* @__PURE__ */ new Set([
   "sobre",
@@ -194800,7 +195088,7 @@ function terminos(inv) {
   const out = /* @__PURE__ */ new Set();
   const fuentes = [...inv.palabrasClave, inv.materia];
   for (const f of fuentes) {
-    for (const w of norm4(f).split(/[^a-z0-9ñ]+/)) {
+    for (const w of norm5(f).split(/[^a-z0-9ñ]+/)) {
       if (w.length >= 5 && !STOPWORDS.has(w)) out.add(raiz(w));
     }
   }
@@ -194821,12 +195109,12 @@ function inicioDeSemana(ref) {
   d.setDate(d.getDate() - dow);
   return d;
 }
-var MESES6 = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+var MESES7 = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 function semanaActual(ref = /* @__PURE__ */ new Date()) {
   const desde = inicioDeSemana(ref);
   const hasta = new Date(desde);
   hasta.setDate(hasta.getDate() + 6);
-  const f = (d) => `${d.getDate()} ${MESES6[d.getMonth()].toUpperCase()}`;
+  const f = (d) => `${d.getDate()} ${MESES7[d.getMonth()].toUpperCase()}`;
   return { desde, hasta, etiqueta: `${f(desde)} \u2013 ${f(hasta)}` };
 }
 function iso(base, diasOffset) {
@@ -194870,7 +195158,7 @@ function datosDemo() {
 }
 var lista2 = (v) => String(v ?? "").split(/[;|]/).map((x) => x.trim()).filter(Boolean);
 function aEstado(v) {
-  const s = norm4(String(v ?? ""));
+  const s = norm5(String(v ?? ""));
   if (s.startsWith("entreg") || s === "cerrada" || s === "finalizada") return "entregada";
   if (s.startsWith("archiv")) return "archivada";
   return "en_curso";
@@ -194887,7 +195175,7 @@ function parsearInvestigacionesCsv(texto) {
   const parsed = Papa.parse(texto.replace(/^﻿/, ""), {
     header: true,
     skipEmptyLines: true,
-    transformHeader: (h) => norm4(h).replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")
+    transformHeader: (h) => norm5(h).replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")
   });
   const registros = [];
   const rechazados = [];
@@ -194904,7 +195192,7 @@ function parsearInvestigacionesCsv(texto) {
       id,
       area,
       investigador: (r.investigador || "").trim() || "(sin asignar)",
-      tipo: norm4(r.tipo || "").startsWith("parl") ? "parlamentario" : "comision",
+      tipo: norm5(r.tipo || "").startsWith("parl") ? "parlamentario" : "comision",
       solicitante: (r.solicitante || r.comision || "").trim(),
       comision: (r.comision || "").trim() || void 0,
       boletines: lista2(r.boletines || r.boletin).map(normalizarBoletin2),
@@ -194924,7 +195212,7 @@ function parsearAsignacionesCsv(texto) {
   const parsed = Papa.parse(texto.replace(/^﻿/, ""), {
     header: true,
     skipEmptyLines: true,
-    transformHeader: (h) => norm4(h).replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")
+    transformHeader: (h) => norm5(h).replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")
   });
   const registros = [];
   const rechazados = [];
@@ -195092,11 +195380,11 @@ function detectarConexiones(datos, agenda) {
   for (const inv of activas) {
     if (!inv.comision) continue;
     const seguidores = datos.asignaciones.filter(
-      (s) => norm4(s.comision) === norm4(inv.comision) && norm4(s.investigador) !== norm4(inv.investigador)
+      (s) => norm5(s.comision) === norm5(inv.comision) && norm5(s.investigador) !== norm5(inv.investigador)
     );
     for (const s of seguidores) {
       coordinacion.push({
-        id: `com-${inv.id}-${norm4(s.investigador).replace(/\s+/g, "-")}`,
+        id: `com-${inv.id}-${norm5(s.investigador).replace(/\s+/g, "-")}`,
         tipo: "coordinacion",
         titulo: `Informe para ${inv.comision}`,
         mensaje: `${s.investigador} (${s.area || "ATP"}) acompa\xF1a esta comisi\xF3n y quiz\xE1 no sabe que se est\xE1 elaborando este trabajo.`,
@@ -195129,8 +195417,8 @@ function detectarConexiones(datos, agenda) {
     if (!previas || previas.length === 0) continue;
     const comisionesAgenda = agenda.porBoletin.get(bol) || [];
     const yaCubierto = continuidad.some((c) => c.id.startsWith(`cont-${bol}-`));
-    const comisionesATP = new Set(previas.map((p) => norm4(p.comision || "")));
-    const nuevaComision = comisionesAgenda.find((c) => !comisionesATP.has(norm4(c)));
+    const comisionesATP = new Set(previas.map((p) => norm5(p.comision || "")));
+    const nuevaComision = comisionesAgenda.find((c) => !comisionesATP.has(norm5(c)));
     if (yaCubierto || !nuevaComision) continue;
     continuidad.push({
       id: `cont-agenda-${bol}`,
@@ -196443,6 +196731,25 @@ Si no hay ninguna coincidencia real, responde exactamente: []`;
   } catch (error) {
     console.error("Error evaluando t\xF3picos de alerta:", error);
     res.status(500).json({ error: "Error al evaluar t\xF3picos de alerta" });
+  }
+});
+async function pasoAuto(req, res) {
+  const secreto = process.env.CRON_SECRET;
+  if (!secreto) return res.status(503).json({ ok: false, error: "Falta CRON_SECRET en Vercel." });
+  if (req.headers.authorization !== `Bearer ${secreto}`) return res.status(401).json({ ok: false, error: "No autorizado." });
+  try {
+    res.json(await pasoTranscripcionAutomatica());
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err?.message || String(err) });
+  }
+}
+apiRouter.get("/transcripcion/automatica/paso", pasoAuto);
+apiRouter.post("/transcripcion/automatica/paso", pasoAuto);
+apiRouter.get("/transcripcion/automatica/estado", async (_req, res) => {
+  try {
+    res.json(await estadoTranscripcionAutomatica());
+  } catch (err) {
+    res.json({ error: err?.message || String(err) });
   }
 });
 apiRouter.post("/sesion/informe", async (req, res) => {
