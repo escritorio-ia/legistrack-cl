@@ -189165,9 +189165,9 @@ var sumarDias = (iso2, n) => {
 };
 function configuracionAuto() {
   return {
-    activa: process.env.TRANSCRIPCION_AUTO === "1",
+    activa: /^(1|true|si|sí|on)$/i.test(String(process.env.TRANSCRIPCION_AUTO || "").trim().replace(/^["']|["']$/g, "")),
     maxTramosDia: Math.max(1, Number(process.env.TRANSCRIPCION_AUTO_MAX_TRAMOS_DIA) || 60),
-    informe: process.env.TRANSCRIPCION_AUTO_INFORME === "1",
+    informe: /^(1|true|si|sí|on)$/i.test(String(process.env.TRANSCRIPCION_AUTO_INFORME || "").trim().replace(/^["']|["']$/g, "")),
     desde: /^\d{4}-\d{2}-\d{2}$/.test(process.env.TRANSCRIPCION_AUTO_DESDE || "") ? process.env.TRANSCRIPCION_AUTO_DESDE : "2026-01-01"
   };
 }
@@ -189319,7 +189319,7 @@ async function redactarInforme(t) {
 }
 async function pasoTranscripcionAutomatica() {
   const conf = configuracionAuto();
-  if (!conf.activa) return { ok: true, accion: "inactiva", detalle: "La transcripci\xF3n autom\xE1tica est\xE1 desactivada (TRANSCRIPCION_AUTO distinto de 1)." };
+  if (!conf.activa) return { ok: true, accion: "inactiva", detalle: `La transcripci\xF3n autom\xE1tica est\xE1 desactivada: TRANSCRIPCION_AUTO ${process.env.TRANSCRIPCION_AUTO === void 0 ? "no existe en este despliegue" : `tiene un valor distinto de 1 (${String(process.env.TRANSCRIPCION_AUTO).length} caracteres)`}.` };
   if (!youtubeApiConfigurada()) return { ok: false, accion: "sin_youtube", detalle: "Falta YOUTUBE_API_KEY para encontrar los videos." };
   const limite = Date.now() + 15e4;
   let t = await trabajoEnEstado("transcribiendo");

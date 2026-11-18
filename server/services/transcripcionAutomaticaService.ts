@@ -28,9 +28,9 @@ const sumarDias = (iso: string, n: number) => { const d = new Date(`${iso}T12:00
 
 export function configuracionAuto() {
   return {
-    activa: process.env.TRANSCRIPCION_AUTO === "1",
+    activa: /^(1|true|si|sí|on)$/i.test(String(process.env.TRANSCRIPCION_AUTO || "").trim().replace(/^["']|["']$/g, "")),
     maxTramosDia: Math.max(1, Number(process.env.TRANSCRIPCION_AUTO_MAX_TRAMOS_DIA) || 60),
-    informe: process.env.TRANSCRIPCION_AUTO_INFORME === "1",
+    informe: /^(1|true|si|sí|on)$/i.test(String(process.env.TRANSCRIPCION_AUTO_INFORME || "").trim().replace(/^["']|["']$/g, "")),
     desde: /^\d{4}-\d{2}-\d{2}$/.test(process.env.TRANSCRIPCION_AUTO_DESDE || "") ? process.env.TRANSCRIPCION_AUTO_DESDE! : "2026-01-01",
   };
 }
@@ -182,7 +182,7 @@ async function redactarInforme(t: Trabajo): Promise<string> {
 
 export async function pasoTranscripcionAutomatica(): Promise<{ ok: boolean; accion: string; sesion?: string; detalle: string }> {
   const conf = configuracionAuto();
-  if (!conf.activa) return { ok: true, accion: "inactiva", detalle: "La transcripción automática está desactivada (TRANSCRIPCION_AUTO distinto de 1)." };
+  if (!conf.activa) return { ok: true, accion: "inactiva", detalle: `La transcripción automática está desactivada: TRANSCRIPCION_AUTO ${process.env.TRANSCRIPCION_AUTO === undefined ? "no existe en este despliegue" : `tiene un valor distinto de 1 (${String(process.env.TRANSCRIPCION_AUTO).length} caracteres)`}.` };
   if (!youtubeApiConfigurada()) return { ok: false, accion: "sin_youtube", detalle: "Falta YOUTUBE_API_KEY para encontrar los videos." };
   const limite = Date.now() + 150_000; // deja margen dentro de los 300 s de Vercel
 
