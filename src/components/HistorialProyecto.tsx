@@ -8,6 +8,7 @@ const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "o
 const fmt = (iso?: string | null) => { if (!iso) return "No informado"; const [y, m, d] = String(iso).split("-").map(Number); return y && m && d ? `${d} ${MESES[m - 1]} ${y}` : String(iso); };
 const hm = (min?: number | null) => min == null ? "No informado" : min >= 60 ? `${Math.floor(min / 60)} h ${min % 60} min` : `${min} min`;
 const hoyISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+const informado = (t?: string | null) => !!t && !/^\s*(no informad|no fue posible|sin informaci)/i.test(String(t));
 const limpiar = (t?: string) => String(t || "").replace(/^[^\w¿¡]*\s*(Objeto\s*&\s*Ámbito|Mecanismos\s*Clave|Fiscalización\s*&\s*(Sanciones|Cumplimiento))\s*:\s*/i, "");
 const CAT_COLOR: Record<string, string> = { PARL: "bg-slate-700", ESP: "bg-sky-600", ESC: "bg-amber-500", EEA: "bg-emerald-600", SEC: "bg-slate-400", ND: "bg-slate-300" };
 const corto = (c: string) => (CATEGORIAS as any)[c]?.corto || c;
@@ -58,7 +59,9 @@ export default function HistorialProyecto({ proyecto, ficha, fichaCargando, info
     for (const c of comisiones) for (const v of c.votaciones) out.push({ fecha: v.fecha, lugar: c.nombre, texto: v.texto, resultado: v.resultado, fuente: v.fuente, link: ytLink(v.videoId, v.segundos) });
     for (const v of proyecto.votaciones || []) out.push({ fecha: fechaISO(v.fecha), lugar: "Senado", texto: v.materia, resultado: v.resultado, si: v.conteoInformado === false ? undefined : v.si, no: v.conteoInformado === false ? undefined : v.no, fuente: "Tramitación oficial del Senado" });
     for (const v of votacionesCamara || []) out.push({ fecha: fechaISO(v.fecha), lugar: "Cámara", texto: v.descripcion, resultado: v.resultado, si: v.si, no: v.no, fuente: "Datos abiertos de la Cámara" });
-    return out.filter((v) => v.fecha).sort((a, b) => b.fecha.localeCompare(a.fecha));
+    // Se descartan registros sin contenido (la ficha a veces trae votaciones sin materia ni resultado).
+    const vacio = (t: string) => !t || /no informad/i.test(t);
+    return out.filter((v) => v.fecha && !(vacio(v.texto) && vacio(v.resultado))).sort((a, b) => b.fecha.localeCompare(a.fecha));
   }, [comisiones, proyecto, votacionesCamara]);
 
   const proximas = useMemo(() => comisiones.flatMap((c) => c.programadas.map((f) => ({ fecha: f, lugar: c.nombre }))).filter((x) => x.fecha >= hoy).sort((a, b) => a.fecha.localeCompare(b.fecha)), [comisiones, hoy]);
@@ -153,9 +156,12 @@ export default function HistorialProyecto({ proyecto, ficha, fichaCargando, info
 
       {/* En 30 segundos */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 mt-4">
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">¿Dónde está?</p><p className="text-[13px] font-semibold mt-0.5">{proyecto.etapa || "Etapa no informada"}</p>{proyecto.comisionActual && proyecto.estado !== "Publicado como Ley" && <p className="text-xs text-slate-600">En estudio: {proyecto.comisionActual}</p>}</div>
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">¿Dónde está?</p><p className="text-[13px] font-semibold mt-0.5">{proyecto.etapa || "Etapa no informada"}</p>{informado(proyecto.comisionActual) && proyecto.estado !== "Publicado como Ley" && <p className="text-xs text-slate-600">En estudio: {proyecto.comisionActual}</p>}{informado(proyecto.subetapa) && <p className="text-xs text-slate-600">{proyecto.subetapa}</p>}</div>
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">¿Qué se ha decidido?</p>{ultimaDecision ? <><p className="text-[13px] font-semibold mt-0.5 line-clamp-2">{ultimaDecision.texto}{ultimaDecision.resultado ? `: ${ultimaDecision.resultado}` : ""}</p><p className="text-xs text-slate-600">{ultimaDecision.lugar} · {fmt(ultimaDecision.fecha)}</p></> : <p className="text-[13px] text-slate-500 mt-0.5">Sin votaciones ni acuerdos registrados.</p>}</div>
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">¿Qué viene?</p>{proximas[0] ? <><p className="text-[13px] font-semibold mt-0.5">{proximas[0].lugar}</p><p className="text-xs text-slate-600">Citada para el {fmt(proximas[0].fecha)}</p></> : <p className="text-[13px] text-slate-500 mt-0.5">Sin citación próxima registrada.</p>}{proyecto.urgencia && !/no informada|sin urgencia/i.test(proyecto.urgencia) && <p className="text-xs text-amber-800 font-semibold">Urgencia: {proyecto.urgencia}</p>}</div>
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">¿Qué viene?</p>{proximas[0] ? <><p className="text-[13px] font-semibold mt-0.5">{proximas[0].lugar}</p><p className="text-xs text-slate-600">Citada para el {fmt(proximas[0].fecha)}</p></>
+          : /aprobaci[oó]n presidencial|observaciones|promulgaci|tribunal constitucional|publicad/i.test(`${proyecto.etapa} ${proyecto.subetapa || ""}`)
+            ? <><p className="text-[13px] font-semibold mt-0.5">Fuera de comisiones</p><p className="text-xs text-slate-600">{[proyecto.etapa, proyecto.subetapa].filter(informado).join(" · ")}</p></>
+            : <p className="text-[13px] text-slate-500 mt-0.5">Sin citación próxima registrada.</p>}{proyecto.urgencia && !/no informada|sin urgencia/i.test(proyecto.urgencia) && <p className="text-xs text-amber-800 font-semibold">Urgencia: {proyecto.urgencia}</p>}</div>
       </div>
 
       {/* Recorrido */}
@@ -185,12 +191,12 @@ export default function HistorialProyecto({ proyecto, ficha, fichaCargando, info
       <Sec n="II." t="Motivo de ingreso">
         {fichaCargando && !ficha ? <p className="text-xs text-slate-400 flex items-center gap-1.5"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Leyendo el mensaje o moción…</p> : (
           <ul className="space-y-1.5 text-[13px]">
-            <li><b>Qué propone:</b> {limpiar(ficha?.objeto) || proyecto.titulo || "No informado"}</li>
-            {ficha?.mecanismos && <li><b>A quiénes impacta:</b> {limpiar(ficha.mecanismos)}</li>}
-            {ficha?.fiscalizacion && <li><b>Fiscalización e impacto:</b> {limpiar(ficha.fiscalizacion)}</li>}
+            <li><b>Qué propone:</b> {ficha?.fuente === "texto" ? limpiar(ficha?.objeto) : (h?.objetivoOficial || limpiar(ficha?.objeto) || proyecto.titulo || "No informado")}</li>
+            {informado(limpiar(ficha?.mecanismos)) && <li><b>A quiénes impacta:</b> {limpiar(ficha.mecanismos)}</li>}
+            {informado(limpiar(ficha?.fiscalizacion)) && <li><b>Fiscalización e impacto:</b> {limpiar(ficha.fiscalizacion)}</li>}
           </ul>
         )}
-        <p className="text-[10.5px] text-slate-500 mt-1">{ficha?.fuente === "texto" ? "Síntesis con IA del texto oficial del mensaje o moción." : "Sin texto oficial disponible: se muestra el título."}</p>
+        <p className="text-[10.5px] text-slate-500 mt-1">{ficha?.fuente === "texto" ? "Síntesis con IA del texto oficial del mensaje o moción." : h?.objetivoOficial ? "Objetivo del proyecto según el informe oficial de la comisión (no se pudo leer el mensaje o moción)." : "Sin texto oficial disponible: se muestra el título."}</p>
       </Sec>
 
       <Sec n="III." t="Antecedentes" tab="documentos">
@@ -321,7 +327,7 @@ export default function HistorialProyecto({ proyecto, ficha, fichaCargando, info
       <Sec n="V." t="Estado actual" tab="tramitacion">
         <table className="w-full"><tbody>
           <Fila k="Etapa" v={[proyecto.etapa, proyecto.subetapa].filter(Boolean).join(" · ")} />
-          <Fila k="En estudio" v={proyecto.estado === "Publicado como Ley" ? "Publicado como ley" : proyecto.comisionActual} />
+          <Fila k="En estudio" v={proyecto.estado === "Publicado como Ley" ? "Publicado como ley" : informado(proyecto.comisionActual) ? proyecto.comisionActual : "Ninguna comisión (según la etapa actual)"} />
           <Fila k="Próximas citaciones" v={proximas.length ? proximas.slice(0, 4).map((p) => `${p.lugar} · ${fmt(p.fecha)}`).join(" | ") : "Sin citaciones próximas registradas"} />
           <Fila k="Urgencia" v={proyecto.urgencia} />
           <Fila k="Plazo de indicaciones" v={plazoIndicaciones ? `${fmt(plazoIndicaciones.iso)} · ${plazoIndicaciones.titulo}${plazoIndicaciones.descripcion && plazoIndicaciones.descripcion !== plazoIndicaciones.titulo ? `: ${plazoIndicaciones.descripcion}` : ""}` : "No informado en la tramitación"} />

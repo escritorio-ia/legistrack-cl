@@ -44,6 +44,8 @@ export interface HistorialProyecto {
   comisiones: ComisionHistorial[];
   sala: { fecha: string; camara: string; numero: string; detalle: string }[];
   hilo?: { tema: string; pasos: { comision: string; fecha: string; estado: string }[] }[];
+  /** Objetivo del proyecto según el informe oficial de comisión (para el motivo de ingreso si no se leyó el mensaje o moción). */
+  objetivoOficial?: string;
   sintesisIA?: { disponible: boolean; motivo?: string; modelo?: string };
 }
 

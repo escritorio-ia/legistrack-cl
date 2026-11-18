@@ -189698,18 +189698,26 @@ async function informesDeSesion(b) {
   const filas = await consultar({ from: [{ collectionId: "analisis_videos_sesion" }], where: { fieldFilter: { field: { fieldPath: "boletines" }, op: "ARRAY_CONTAINS", value: { stringValue: b } } } });
   return filas.map((f) => camposAObjeto(f.datos)).filter((d) => d.tipo === "informe" && d.informe).map((d) => ({ videoId: String(d.videoId), fecha: isoDe(d.fecha), comision: String(d.comision || ""), inf: normalizarInforme(d.informe) }));
 }
-async function extractoInformeOficial(url) {
-  const texto = await conTiempo(fetchTextoInformeDocx(url), 2e4, null);
-  if (!texto) return "";
-  const secs = seccionesInforme(texto, 0);
-  const partes = [];
-  for (const s of secs) {
-    if (!/OBJETIVO|ASPECTOS CENTRALES|DISCUSI|VOTACI|ACORDAD|RESUMEN EJECUTIVO|MODIFICACIONES/i.test(s.titulo)) continue;
-    const max = /RESUMEN EJECUTIVO|ASPECTOS CENTRALES|OBJETIVO/i.test(s.titulo) ? 2500 : 3500;
-    partes.push(`## ${s.titulo}
-${texto.slice(s.inicio, s.inicio + Math.min(s.largo, max)).trim()}`);
-  }
-  return partes.join("\n\n").slice(0, 14e3);
+async function textoInformeOficial(url) {
+  const texto = await conTiempo(fetchTextoInformeDocx(url), 4e4, null);
+  if (!texto) return { texto: "", motivo: "No se pudo leer el informe oficial de la comisi\xF3n." };
+  const corte = texto.search(/TEXTO DEL PROYECTO|PROYECTO DE LEY\s*:/);
+  const util = corte > 2e4 ? texto.slice(0, corte) + " " + texto.slice(texto.search(/ACORDADO/) > corte ? texto.search(/ACORDADO/) : texto.length) : texto;
+  return { texto: util.slice(0, 12e4) };
+}
+var MESES_TXT = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+var normT = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ");
+function fechaEnTexto(iso3, corpus) {
+  const [a, m, d] = iso3.split("-").map(Number);
+  if (!a || !m || !d) return false;
+  const t = normT(corpus);
+  return new RegExp(`(^|\\D)0?${d}\\s+de\\s+${MESES_TXT[m - 1]}`).test(t) || new RegExp(`(^|\\D)0?${d}[/.-]0?${m}[/.-]${a}`).test(t);
+}
+function nombreEnTexto(nombre, corpus) {
+  const palabras = normT(nombre).replace(/\b(senor|senora|don|dona|honorable|senador|senadora|diputado|diputada|sr|sra)\b/g, " ").split(/[^a-z]+/).filter((w) => w.length >= 4);
+  if (palabras.length === 0) return false;
+  const t = normT(corpus);
+  return palabras.sort((x, y) => y.length - x.length).slice(0, 1).every((w) => t.includes(w));
 }
 async function construirHistorial(boletin, opciones = {}) {
   const b = normalizarBoletin(boletin);
@@ -189722,6 +189730,7 @@ async function construirHistorial(boletin, opciones = {}) {
   ]);
   const informesOficiales = (discusion?.informes || []).map((i) => ({ titulo: i.titulo, url: i.url, fecha: i.fecha }));
   const firma2 = [
+    "v2",
     registro.map((s) => `${s.id}:${s.resultado ? 1 : 0}`).sort().join(","),
     informes.map((i) => `${i.videoId}:${i.inf.generado || ""}`).sort().join(","),
     informesOficiales.map((i) => i.url).sort().join(",")
@@ -189876,65 +189885,112 @@ async function construirHistorial(boletin, opciones = {}) {
   })).sort((x, y) => x.fecha.localeCompare(y.fecha));
   const historial = { disponible: comisiones.length > 0 || salaEventos.length > 0, boletin: b, firma: firma2, generado: (/* @__PURE__ */ new Date()).toISOString(), comisiones, sala: salaEventos };
   if (!historial.disponible) historial.motivo = "No hay sesiones de comisi\xF3n ni de Sala registradas para este bolet\xEDn.";
-  const conMaterial = comisiones.filter((c) => c.estadistica.sesionesConInforme > 0 || c.informeOficial);
-  if (conMaterial.length) {
-    const bloques = [];
-    for (const c of conMaterial) {
-      const ses = informes.filter((i) => mismaComision2(i.comision, c.nombre));
-      const textoSes = ses.map((i) => {
-        const pts = i.inf.puntos.filter((p) => p.boletines.includes(b) || i.inf.puntos.length === 1);
-        return `### Sesi\xF3n ${i.fecha}
+  const S3 = (type, extra = {}) => ({ type, ...extra });
+  const esquema = S3("OBJECT", { properties: {
+    objetivo: S3("STRING"),
+    sesiones: S3("ARRAY", { items: S3("STRING") }),
+    expositores: S3("ARRAY", { items: S3("OBJECT", { properties: { nombre: S3("STRING"), cargo: S3("STRING"), institucion: S3("STRING"), categoria: S3("STRING", { enum: ["ESP", "ESC", "EEA"] }), planteo: S3("STRING") }, required: ["nombre", "categoria"] }) }),
+    votaciones: S3("ARRAY", { items: S3("OBJECT", { properties: { texto: S3("STRING"), resultado: S3("STRING"), fecha: S3("STRING") }, required: ["texto", "resultado"] }) }),
+    temas: S3("ARRAY", { items: S3("OBJECT", { properties: { tema: S3("STRING"), detalle: S3("STRING"), fechas: S3("ARRAY", { items: S3("STRING") }), estado: S3("STRING", { enum: ["resuelto", "pendiente", "en debate"] }) }, required: ["tema", "detalle", "estado"] }) }),
+    posiciones: S3("ARRAY", { items: S3("OBJECT", { properties: { actor: S3("STRING"), postura: S3("STRING"), fecha: S3("STRING") }, required: ["actor", "postura"] }) }),
+    contrapuntos: S3("ARRAY", { items: S3("OBJECT", { properties: { tema: S3("STRING"), aFavor: S3("ARRAY", { items: S3("STRING") }), enContra: S3("ARRAY", { items: S3("STRING") }), fecha: S3("STRING") }, required: ["tema", "aFavor", "enContra"] }) }),
+    cierre: S3("OBJECT", { properties: { recibio: S3("STRING"), despacho: S3("STRING"), cambios: S3("STRING"), pendientes: S3("ARRAY", { items: S3("STRING") }) } })
+  }, required: ["temas"] });
+  const txt = (v) => String(v ?? "").replace(/\s+/g, " ").trim();
+  const motivosIA = [];
+  let objetivoOficial = "";
+  await Promise.all(comisiones.filter((c) => c.estadistica.sesionesConInforme > 0 || c.informeOficial).map(async (c) => {
+    const oficial = c.informeOficial ? await textoInformeOficial(c.informeOficial.url) : { texto: "" };
+    if (c.informeOficial && !oficial.texto) motivosIA.push(`${c.nombre}: ${oficial.motivo}`);
+    const ses = informes.filter((i) => mismaComision2(i.comision, c.nombre));
+    const textoSes = ses.map((i) => {
+      const pts = i.inf.puntos.filter((p) => p.boletines.includes(b) || i.inf.puntos.length === 1);
+      return `### Sesi\xF3n ${i.fecha}
 ${pts.map((p) => [p.sintesis, ...p.intervenciones.map((x) => `- ${x.orador}${x.cargo ? ` (${x.cargo}${x.institucion ? `, ${x.institucion}` : ""})` : ""} [${x.categoria}]: ${x.parrafos.join(" ").slice(0, 900)}`), ...p.acuerdos.map((a) => `Acuerdo: ${a.texto}`), ...p.votaciones.map((v) => `Votaci\xF3n: ${v.texto}: ${v.resultado}`)].filter(Boolean).join("\n")).join("\n")}`;
-      }).join("\n\n").slice(0, 4e4);
-      const oficial = c.informeOficial ? await extractoInformeOficial(c.informeOficial.url) : "";
-      bloques.push(`=== COMISI\xD3N: ${c.nombre} (clave: ${c.clave}) \xB7 sesiones con fecha: ${c.sesiones.map((s) => s.fecha).join(", ") || "sin fecha"} ===
-${oficial ? `INFORME OFICIAL DE LA COMISI\xD3N (${c.informeOficial.titulo}):
-${oficial}
+    }).join("\n\n").slice(0, 4e4);
+    if (!oficial.texto && !textoSes) return;
+    const prompt3 = `Eres asesor parlamentario de la Biblioteca del Congreso Nacional de Chile. Lee el material sobre el bolet\xEDn ${b} en la ${c.nombre}
+y extrae su historial en esa comisi\xF3n, usando EXCLUSIVAMENTE ese material. No agregues nada externo. Redacci\xF3n neutral, tercera persona, sin adjetivos valorativos.
+- "objetivo": el objetivo del proyecto tal como lo describe el informe oficial (2 a 4 oraciones); vac\xEDo si no hay informe oficial.
+- "sesiones": fechas (AAAA-MM-DD) de las sesiones que la comisi\xF3n dedic\xF3 al proyecto, seg\xFAn el informe (p. ej. la secci\xF3n "Acordado") o los informes de sesi\xF3n.
+- "expositores": personas que expusieron que NO son parlamentarios: nombre, cargo, instituci\xF3n y categor\xEDa:
+   ESP = sector p\xFAblico (cargo en representaci\xF3n del Estado o misi\xF3n diplom\xE1tica); ESC = sociedad civil (ONG, partido, fundaci\xF3n, gremio, sindicato, asociaci\xF3n, empresa);
+   EEA = expertos y acad\xE9micos (incluida la Biblioteca del Congreso Nacional). "planteo": lo principal que plante\xF3, en 1 a 2 oraciones.
+- "votaciones": cada votaci\xF3n (en general, en particular, indicaciones) con su resultado y votos si se indican, y la fecha si se indica.
+- "temas": 3 a 6 temas del debate (1 a 2 oraciones), con fechas si se conocen y su estado ("resuelto", "pendiente", "en debate").
+- "posiciones": posturas de los PARLAMENTARIOS (actor y postura en una oraci\xF3n, con fecha si se conoce).
+- "contrapuntos": solo temas con posturas opuestas de personas identificadas.
+- "cierre" (solo con informe oficial): con qu\xE9 texto recibi\xF3 el proyecto, qu\xE9 despach\xF3 (votaci\xF3n final), qu\xE9 cambi\xF3 en esta comisi\xF3n y qu\xE9 qued\xF3 pendiente.
+
+${oficial.texto ? `INFORME OFICIAL DE LA COMISI\xD3N (${c.informeOficial.titulo}):
+${oficial.texto}
 
 ` : ""}${textoSes ? `INFORMES DE SESI\xD3N (desde las transcripciones):
-${textoSes}` : ""}`);
+${textoSes}` : ""}`;
+    const r = await geminiJSON(prompt3, esquema, { maxTokens: 12e3, presupuestoMs: 14e4 });
+    if (r.ok === false) {
+      motivosIA.push(`${c.nombre}: ${r.motivo}`);
+      return;
     }
-    const S3 = (type, extra = {}) => ({ type, ...extra });
-    const esquema = S3("OBJECT", { properties: {
-      comisiones: S3("ARRAY", { items: S3("OBJECT", { properties: {
-        clave: S3("STRING"),
-        temas: S3("ARRAY", { items: S3("OBJECT", { properties: { tema: S3("STRING"), detalle: S3("STRING"), fechas: S3("ARRAY", { items: S3("STRING") }), estado: S3("STRING", { enum: ["resuelto", "pendiente", "en debate"] }) }, required: ["tema", "detalle", "fechas", "estado"] }) }),
-        posiciones: S3("ARRAY", { items: S3("OBJECT", { properties: { actor: S3("STRING"), postura: S3("STRING"), fecha: S3("STRING") }, required: ["actor", "postura", "fecha"] }) }),
-        contrapuntos: S3("ARRAY", { items: S3("OBJECT", { properties: { tema: S3("STRING"), aFavor: S3("ARRAY", { items: S3("STRING") }), enContra: S3("ARRAY", { items: S3("STRING") }), fecha: S3("STRING") }, required: ["tema", "aFavor", "enContra", "fecha"] }) }),
-        cierre: S3("OBJECT", { properties: { recibio: S3("STRING"), despacho: S3("STRING"), cambios: S3("STRING"), pendientes: S3("ARRAY", { items: S3("STRING") }) } })
-      }, required: ["clave", "temas"] }) }),
-      hilo: S3("ARRAY", { items: S3("OBJECT", { properties: { tema: S3("STRING"), pasos: S3("ARRAY", { items: S3("OBJECT", { properties: { comision: S3("STRING"), fecha: S3("STRING"), estado: S3("STRING") }, required: ["comision", "fecha", "estado"] }) }) }, required: ["tema", "pasos"] }) })
-    }, required: ["comisiones"] });
-    const prompt3 = `Eres asesor parlamentario de la Biblioteca del Congreso Nacional de Chile. Arma el historial del bolet\xEDn ${b} por comisi\xF3n,
-usando EXCLUSIVAMENTE el material que sigue (informes oficiales de comisi\xF3n e informes de sesi\xF3n hechos desde las transcripciones). No agregues nada externo.
-Redacci\xF3n neutral, en tercera persona y sin adjetivos valorativos; toda postura atribuida a quien la expres\xF3.
-Por cada comisi\xF3n (usa su "clave"):
-- "temas": 3 a 6 temas del debate, cada uno con 1 a 2 oraciones, las fechas (AAAA-MM-DD) de las sesiones donde se trat\xF3 (solo fechas listadas para esa comisi\xF3n) y su estado ("resuelto", "pendiente", "en debate").
-- "posiciones": posturas de los PARLAMENTARIOS (actor y postura en una oraci\xF3n, con fecha).
-- "contrapuntos": solo temas donde hay posturas opuestas expresadas por personas identificadas (qui\xE9nes a favor, qui\xE9nes en contra). Si no hay, lista vac\xEDa.
-- "cierre": solo si hay INFORME OFICIAL: con qu\xE9 texto recibi\xF3 el proyecto, qu\xE9 despach\xF3 (y votaci\xF3n final), qu\xE9 cambi\xF3 en esa comisi\xF3n, y qu\xE9 qued\xF3 pendiente. Si no hay informe oficial, deja los campos vac\xEDos.
-"hilo": temas que aparecen en m\xE1s de una comisi\xF3n, con cada paso (comisi\xF3n, fecha, estado).
-
-${bloques.join("\n\n")}`;
-    const r = await geminiJSON(prompt3, esquema, { maxTokens: 12e3, presupuestoMs: 15e4 });
-    if (r.ok === false) historial.sintesisIA = { disponible: false, motivo: r.motivo };
-    else {
-      const d = r.datos;
-      const txt = (v) => String(v ?? "").replace(/\s+/g, " ").trim();
-      for (const x of Array.isArray(d?.comisiones) ? d.comisiones : []) {
-        const c = comisiones.find((k) => k.clave === txt(x?.clave));
-        if (!c) continue;
-        const fechas = new Set(c.sesiones.map((s) => s.fecha));
-        if (c.informeOficial?.fecha) fechas.add(isoDe(c.informeOficial.fecha));
-        c.temas = (x.temas || []).map((t) => ({ tema: txt(t?.tema), detalle: txt(t?.detalle), fechas: (t?.fechas || []).map(txt).filter((f) => fechas.has(f)), estado: txt(t?.estado) })).filter((t) => t.tema && t.detalle && (t.fechas.length || c.informeOficial));
-        c.posiciones = (x.posiciones || []).map((p) => ({ actor: txt(p?.actor), postura: txt(p?.postura), fecha: txt(p?.fecha) })).filter((p) => p.actor && p.postura && (fechas.has(p.fecha) || c.informeOficial));
-        c.contrapuntos = (x.contrapuntos || []).map((p) => ({ tema: txt(p?.tema), aFavor: (p?.aFavor || []).map(txt).filter(Boolean), enContra: (p?.enContra || []).map(txt).filter(Boolean), fecha: txt(p?.fecha) })).filter((p) => p.tema && p.aFavor.length && p.enContra.length);
-        const ci = x.cierre || {};
-        c.cierre = c.informeOficial && (txt(ci.despacho) || txt(ci.cambios)) ? { recibio: txt(ci.recibio), despacho: txt(ci.despacho), cambios: txt(ci.cambios), pendientes: (ci.pendientes || []).map(txt).filter(Boolean) } : null;
+    const d = r.datos;
+    const corpus = `${oficial.texto}
+${textoSes}`;
+    for (const f of (d.sesiones || []).map(txt)) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(f) || !(fechaEnTexto(f, corpus) || ses.some((i) => i.fecha === f))) continue;
+      if (!c.sesiones.some((x) => x.fecha === f)) c.sesiones.push({ fecha: f });
+      if (!c.desde || f < c.desde) c.desde = f;
+      if (!c.hasta || f > c.hasta) c.hasta = f;
+    }
+    for (const e of d.expositores || []) {
+      const nombre = txt(e?.nombre);
+      if (!nombre || !nombreEnTexto(nombre, corpus)) continue;
+      const cat = categoriaFinal(e?.categoria, nombre, txt(e?.cargo), txt(e?.institucion));
+      if (cat === "PARL") continue;
+      const ya = c.expositores.find((x) => nombreEnTexto(x.orador, nombre) || nombreEnTexto(nombre, x.orador));
+      if (ya) {
+        ya.cargo ||= txt(e?.cargo);
+        ya.institucion ||= txt(e?.institucion);
+        if (!ya.planteo) ya.planteo = txt(e?.planteo);
+        continue;
       }
+      c.expositores.push({ orador: nombre, cargo: txt(e?.cargo), institucion: txt(e?.institucion), categoria: cat, fechas: [], planteo: txt(e?.planteo) });
+    }
+    for (const v of d.votaciones || []) {
+      const t = txt(v?.texto), res = txt(v?.resultado);
+      if (!t || !res) continue;
+      const f = txt(v?.fecha);
+      if (c.votaciones.some((x) => x.texto.toLowerCase() === t.toLowerCase())) continue;
+      c.votaciones.push({ texto: t, resultado: res, fecha: /^\d{4}-\d{2}-\d{2}$/.test(f) ? f : c.hasta || "", fuente: oficial.texto ? "Informe oficial de la comisi\xF3n" : "Informes de sesi\xF3n" });
+    }
+    const fechas = new Set(c.sesiones.map((x) => x.fecha));
+    c.temas = (d.temas || []).map((t) => ({ tema: txt(t?.tema), detalle: txt(t?.detalle), fechas: (t?.fechas || []).map(txt).filter((f) => fechas.has(f)), estado: txt(t?.estado) })).filter((t) => t.tema && t.detalle);
+    c.posiciones = (d.posiciones || []).map((p) => ({ actor: txt(p?.actor), postura: txt(p?.postura), fecha: fechas.has(txt(p?.fecha)) ? txt(p?.fecha) : "" })).filter((p) => p.actor && p.postura && nombreEnTexto(p.actor, corpus));
+    c.contrapuntos = (d.contrapuntos || []).map((p) => ({ tema: txt(p?.tema), aFavor: (p?.aFavor || []).map(txt).filter((n) => n && nombreEnTexto(n, corpus)), enContra: (p?.enContra || []).map(txt).filter((n) => n && nombreEnTexto(n, corpus)), fecha: fechas.has(txt(p?.fecha)) ? txt(p?.fecha) : "" })).filter((p) => p.tema && p.aFavor.length && p.enContra.length);
+    const ci = d.cierre || {};
+    c.cierre = oficial.texto && (txt(ci.despacho) || txt(ci.cambios)) ? { recibio: txt(ci.recibio), despacho: txt(ci.despacho), cambios: txt(ci.cambios), pendientes: (ci.pendientes || []).map(txt).filter(Boolean) } : null;
+    if (!objetivoOficial && oficial.texto && txt(d.objetivo)) objetivoOficial = txt(d.objetivo);
+  }));
+  for (const c of comisiones) {
+    c.sesiones.sort((x, y) => x.fecha.localeCompare(y.fecha));
+    c.estadistica.sesionesCitadas = Math.max(c.estadistica.sesionesCitadas, c.sesiones.filter((x) => x.fecha <= H).length);
+    c.estadistica.diasEnComision = c.desde && c.hasta ? dias(c.desde, c.hasta) + 1 : null;
+  }
+  comisiones.sort((x, y) => String(x.desde || "9999").localeCompare(String(y.desde || "9999")));
+  historial.objetivoOficial = objetivoOficial || void 0;
+  historial.sintesisIA = motivosIA.length ? { disponible: false, motivo: motivosIA.join(" | ") } : { disponible: true };
+  const conTemas = comisiones.filter((c) => (c.temas || []).length);
+  if (conTemas.length >= 2) {
+    const r = await geminiJSON(
+      `Con estos temas por comisi\xF3n del bolet\xEDn ${b}, indica los temas que aparecen en m\xE1s de una comisi\xF3n y su estado en cada una. Usa solo esta informaci\xF3n.
+
+${conTemas.map((c) => `${c.nombre}:
+${c.temas.map((t) => `- ${t.tema} (${t.estado}; ${t.fechas.join(", ")}): ${t.detalle}`).join("\n")}`).join("\n\n")}`,
+      S3("OBJECT", { properties: { hilo: S3("ARRAY", { items: S3("OBJECT", { properties: { tema: S3("STRING"), pasos: S3("ARRAY", { items: S3("OBJECT", { properties: { comision: S3("STRING"), fecha: S3("STRING"), estado: S3("STRING") }, required: ["comision", "estado"] }) }) }, required: ["tema", "pasos"] }) }) } }),
+      { maxTokens: 3e3, presupuestoMs: 4e4 }
+    );
+    if (r.ok) {
       const nombres = comisiones.map((c) => c.nombre);
-      historial.hilo = (Array.isArray(d?.hilo) ? d.hilo : []).map((h) => ({ tema: txt(h?.tema), pasos: (h?.pasos || []).map((p) => ({ comision: txt(p?.comision), fecha: txt(p?.fecha), estado: txt(p?.estado) })).filter((p) => nombres.some((n) => mismaComision2(n, p.comision))) })).filter((h) => h.tema && h.pasos.length >= 2);
-      historial.sintesisIA = { disponible: true, modelo: r.modelo };
+      historial.hilo = (r.datos?.hilo || []).map((h) => ({ tema: txt(h?.tema), pasos: (h?.pasos || []).map((p) => ({ comision: txt(p?.comision), fecha: txt(p?.fecha), estado: txt(p?.estado) })).filter((p) => nombres.some((n) => mismaComision2(n, p.comision))) })).filter((h) => h.tema && h.pasos.length >= 2);
     }
   }
   await escribirDoc(`historial_proyectos/${b}`, { boletinId: b, historial, updatedAt: (/* @__PURE__ */ new Date()).toISOString() }).catch(() => void 0);
