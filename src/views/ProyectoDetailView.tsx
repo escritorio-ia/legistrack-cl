@@ -52,7 +52,6 @@ import { fetchLiveSenateProject } from "../utils/senadoClientApi";
 import { boletinDiscrepante, normalizarBoletin } from "../utils/boletines";
 import DiscusionInformes from "../components/DiscusionInformes";
 import MetricasBoletin from "../components/MetricasBoletin";
-import SalaBoletin from "../components/SalaBoletin";
 import LoVistoEnComisiones from "../components/LoVistoEnComisiones";
 import LineaTiempoBoletin from "../components/LineaTiempoBoletin";
 import TranscripcionesProyecto from "../components/TranscripcionesProyecto";
@@ -109,11 +108,11 @@ const TAB_DESCRIPCIONES: Record<string, string> = {
   "resumen": "Qué propone el proyecto: ficha ejecutiva, quórum exigido, urgencia, autores y resumen del contenido.",
   "tramitacion": "Recorrido del proyecto por trámite constitucional: fechas, comisiones que lo han visto, votaciones en Sala y etapa actual.",
   "comisiones": "Comisiones por las que ha pasado el proyecto, con su resumen y las sesiones donde se trató.",
-  "documentos": "Textos oficiales del expediente: mensaje o moción, informes, oficios y otros documentos publicados.",
+  "documentos": "Textos oficiales del expediente: mensaje o moción, informes de comisión, oficios y otros documentos publicados.",
   "votaciones": "Resultados de las votaciones del proyecto: a favor, en contra y abstenciones.",
   "comparado": "Compara el texto del proyecto entre etapas (qué cambió en cada informe o trámite).",
   "indicaciones": "Modificaciones propuestas al texto durante la tramitación, y su estado.",
-  "informes-bcn": "Informes del expediente: informes de comisión e informes financieros de la DIPRES (cuánto costaría y cómo se financia).",
+  "informes-bcn": "Informes financieros de la DIPRES: cuánto costaría el proyecto y cómo se financia. Los informes de comisión están en Documentos.",
 };
 
 function extractComisiones(text: string): string[] {
@@ -1192,7 +1191,7 @@ export default function ProyectoDetailView({
               id="tab-btn-informes-bcn"
             >
               <Award className={`w-3.5 h-3.5 transition-colors ${activeTab === "informes-bcn" ? "text-amber-500" : "text-slate-400 group-hover/btn:text-amber-500"}`} />
-              <span>Informes</span>
+              <span>Informe financiero</span>
               {informesFin?.informes && informesFin.informes.length > 0 ? (
                 <span className="text-[9px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.2 rounded-full scale-90" title="Tiene informe financiero de la DIPRES">
                   IF {informesFin.informes.length}
@@ -2076,13 +2075,19 @@ export default function ProyectoDetailView({
                     </>
                   );
                 })()}
+                <div className="mt-4">
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-[11px] text-amber-950 leading-relaxed">
+                  <strong>Asesorías de la BCN:</strong> los informes de Asesoría Técnica Parlamentaria de la Biblioteca del Congreso
+                  aún no están conectados a la app. Búscalos por número de boletín en{" "}
+                  <a href="https://www.bcn.cl/asesoriasparlamentarias" target="_blank" rel="noopener noreferrer" className="font-bold underline">bcn.cl/asesoriasparlamentarias</a>.
+                </div>
+                </div>
               </div>
             )}
 
             {/* 5. Votaciones Tab */}
             {activeTab === "votaciones" && (
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6" id="tabpanel-votaciones">
-                <SalaBoletin proyectoId={proyecto.id} />
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
                   <div>
                     <h3 className="text-sm font-black text-slate-900 tracking-tight flex items-center gap-2">
@@ -2508,10 +2513,11 @@ export default function ProyectoDetailView({
                 <div className="border-b border-slate-100 pb-4">
                   <h3 className="text-sm font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
                     <Award className="w-5 h-5 text-amber-500" />
-                    <span>Informes del expediente y asesoría BCN</span>
+                    <span>Informe financiero</span>
                   </h3>
                   <p className="text-xs text-slate-500 font-medium mt-1">
-                    Informes de comisión publicados en la ficha oficial de tramitación del boletín {proyecto.id}.
+                    Informes financieros de la Dirección de Presupuestos (DIPRES) para el boletín {proyecto.id}: costo fiscal y financiamiento.
+                    Los informes de comisión están en la pestaña <button type="button" onClick={() => setActiveTab("documentos")} className="font-bold text-blue-700 hover:underline cursor-pointer">Documentos</button>.
                   </p>
                 </div>
 
@@ -2626,38 +2632,6 @@ export default function ProyectoDetailView({
                   )}
                 </div>
 
-                <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider pt-2">Informes de comisión</h4>
-                {(() => {
-                  const informes = (proyecto.documentos || []).filter(d => /informe/i.test(`${d.tipo} ${d.titulo}`) && d.url);
-                  if (informes.length === 0) {
-                    return (
-                      <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-xl p-4">
-                        Este boletín todavía no tiene informes de comisión publicados en su ficha oficial.
-                      </p>
-                    );
-                  }
-                  return (
-                    <ul className="flex flex-col gap-2">
-                      {informes.map(inf => (
-                        <li key={inf.id} className="flex items-center justify-between gap-3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
-                          <div className="min-w-0">
-                            <p className="text-xs font-bold text-slate-900">{inf.titulo}</p>
-                            <p className="text-[11px] text-slate-500">{formatFechaCL(inf.fecha)}</p>
-                          </div>
-                          <a href={inf.url} target="_blank" rel="noopener noreferrer" className="shrink-0 text-xs font-bold text-blue-700 hover:underline flex items-center gap-1">
-                            Abrir <ExternalLink className="w-3.5 h-3.5" />
-                          </a>
-                        </li>
-                      ))}
-                    </ul>
-                  );
-                })()}
-
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-[11px] text-amber-950 leading-relaxed">
-                  <strong>Asesorías de la BCN:</strong> los informes de Asesoría Técnica Parlamentaria de la Biblioteca del Congreso
-                  aún no están conectados a la app. Búscalos por número de boletín en{" "}
-                  <a href="https://www.bcn.cl/asesoriasparlamentarias" target="_blank" rel="noopener noreferrer" className="font-bold underline">bcn.cl/asesoriasparlamentarias</a>.
-                </div>
               </div>
             )}
 
