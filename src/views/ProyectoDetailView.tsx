@@ -52,8 +52,8 @@ import { fetchLiveSenateProject } from "../utils/senadoClientApi";
 import { boletinDiscrepante, normalizarBoletin } from "../utils/boletines";
 import DiscusionInformes from "../components/DiscusionInformes";
 import MetricasBoletin from "../components/MetricasBoletin";
-import LoVistoEnComisiones from "../components/LoVistoEnComisiones";
 import LineaTiempoBoletin from "../components/LineaTiempoBoletin";
+import HistorialProyecto from "../components/HistorialProyecto";
 import TranscripcionesProyecto from "../components/TranscripcionesProyecto";
 import { parseFechaFlexible, diasEntre, detectTramite, etapaActual, ultimoMovimiento } from "../utils/tramitacion";
 import SimuladorQuorum from "../components/SimuladorQuorum";
@@ -105,7 +105,7 @@ function oneLine(text?: string, maxLen = 110) {
 const COMISION_REGEX = /(Comisión\s+de\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñA-ZÁÉÍÓÚÑ\s\-\,y\(\)]+|Comisión\s+Mixta|Comisión\s+técnica|Comisión\s+especializada)/gi;
 
 const TAB_DESCRIPCIONES: Record<string, string> = {
-  "resumen": "Qué propone el proyecto: ficha ejecutiva, quórum exigido, urgencia, autores y resumen del contenido.",
+  "resumen": "Historial del proyecto: qué propone, por qué comisiones ha pasado y qué ocurrió en cada una, estado actual y puntos críticos.",
   "tramitacion": "Recorrido del proyecto por trámite constitucional: fechas, comisiones que lo han visto, votaciones en Sala y etapa actual.",
   "comisiones": "Comisiones por las que ha pasado el proyecto, con su resumen y las sesiones donde se trató.",
   "documentos": "Textos oficiales del expediente: mensaje o moción, informes de comisión, oficios y otros documentos publicados.",
@@ -1130,7 +1130,7 @@ export default function ProyectoDetailView({
                 activeTab === "resumen" ? "border-blue-600 text-blue-600 font-bold" : "border-transparent text-slate-500 hover:text-slate-800"
               }`}
             >
-              Resumen & Ficha Técnica
+              Historial
             </button>
             <button
               onClick={() => setActiveTab("tramitacion")}
@@ -1215,234 +1215,17 @@ export default function ProyectoDetailView({
             {activeTab === "resumen" && (
               <div className="flex flex-col gap-5" id="tabpanel-resumen">
 
-                {/* TRAMITACIÓN LEGISLATIVA */}
-                <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-blue-950 text-white rounded-3xl p-6 sm:p-7 shadow-xl border border-slate-800 space-y-5">
-                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-2xl bg-blue-500/20 text-blue-400 flex items-center justify-center border border-blue-500/30">
-                        <TrendingUp className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <h3 className="text-base font-extrabold tracking-tight text-white flex items-center gap-2">
-                          <span>Tramitación legislativa</span>
-                        </h3>
-                        <p className="text-xs text-slate-300 font-medium">
-                          Etapa actual: <strong className="text-white">{proyecto.etapa || "No informada"}</strong> • Cámara de Origen: <strong className="text-white">{proyecto.camaraOrigen}</strong>
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {proyecto.diasTramitacion !== undefined && (
-                        <span className="text-xs font-mono font-bold text-slate-300 bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-700">
-                          ⏱️ {proyecto.diasTramitacion} día{proyecto.diasTramitacion === 1 ? "" : "s"} en trámite
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Visual 5-Step Pipeline Progress Bar */}
-                  {(() => {
-                    // Una sola etapa actual, tomada de la ficha o, si esta no la informa, del último hito (ver
-                    // utils/tramitacion). Si no hay dato no se marca ninguna etapa: no se adivina.
-                    const et = etapaActual(proyecto);
-                    const esLey = et.actual === 5;
-                    const segundaCamara = proyecto.camaraOrigen === "Senado" ? "Cámara Dip." : proyecto.camaraOrigen === "Diputados" ? "Senado" : "Cámara revisora";
-                    const enTercer = et.enTercer;
-                    const stagesList = [
-                      { num: 1, label: "Ingreso", sub: proyecto.camaraOrigen || "Origen" },
-                      { num: 2, label: "1er Trámite", sub: "Comisión y Sala" },
-                      { num: 3, label: enTercer ? "3er Trámite" : "2do Trámite", sub: enTercer ? `Vuelve a ${proyecto.camaraOrigen === "Senado" ? "Senado" : proyecto.camaraOrigen === "Diputados" ? "Cámara Dip." : "la cámara de origen"}` : segundaCamara },
-                      { num: 4, label: "Comisión Mixta / TC", sub: "Discrepancias" },
-                      { num: 5, label: "Promulgación y Ley", sub: "Diario Oficial" }
-                    ].map(st => ({
-                      ...st,
-                      done: st.num === 1 ? !!proyecto.fechaIngreso || et.actual !== null
-                        : et.actual === null ? false
-                        : esLey || (et.terminada ? st.num <= et.actual : st.num < et.actual),
-                      current: et.actual !== null && !et.terminada && st.num === et.actual
-                    }));
-                    const avisoPipeline = et.actual === null
-                      ? "La ficha oficial no informa la etapa de tramitación de este proyecto."
-                      : et.terminada && !esLey
-                        ? `La ficha indica que la tramitación terminó (${proyecto.estado || proyecto.etapa || "estado no informado"}); se muestra hasta la última etapa informada.`
-                        : et.fuente === "hitos"
-                          ? "La ficha no informa la etapa; se muestra la del último hito que nombra un trámite."
-                          : "";
-
-                    return (
-                      <div className="py-2">
-                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 relative">
-                          {stagesList.map((st, i) => (
-                            <div 
-                              key={i} 
-                              className={`p-3.5 rounded-2xl border transition-all relative flex flex-col justify-between ${
-                                st.current 
-                                  ? "bg-blue-600/30 border-blue-400 text-white shadow-lg ring-2 ring-blue-500/40" 
-                                  : st.done 
-                                    ? "bg-slate-800/60 border-slate-700 text-slate-200" 
-                                    : "bg-slate-900/40 border-slate-800/80 text-slate-500 opacity-60"
-                              }`}
-                            >
-                              <div className="flex items-center justify-between mb-2">
-                                <span className={`w-6 h-6 rounded-full text-[11px] font-mono font-bold flex items-center justify-center ${
-                                  st.current 
-                                    ? "bg-blue-500 text-white" 
-                                    : st.done 
-                                      ? "bg-emerald-500 text-slate-950 font-black" 
-                                      : "bg-slate-800 text-slate-400"
-                                }`}>
-                                  {st.done && !st.current ? "✓" : st.num}
-                                </span>
-                                {st.current && (
-                                  <span className="text-[9px] font-bold uppercase tracking-wider text-blue-300 bg-blue-900/60 px-2 py-0.5 rounded-md animate-pulse">
-                                    ACTUAL
-                                  </span>
-                                )}
-                              </div>
-                              <div>
-                                <h4 className="text-xs font-bold leading-tight text-white">{st.label}</h4>
-                                <span className="text-[10px] text-slate-400 font-medium block mt-0.5">{st.sub}</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                        {avisoPipeline && <p className="text-[11px] text-amber-200/90 mt-3">{avisoPipeline}</p>}
-                      </div>
-                    );
-                  })()}
-
-                  {/* Último movimiento real de la ficha (sin estimaciones) */}
-                  <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
-                    <div className="flex items-center gap-2 text-slate-300">
-                      <span className="w-2.5 h-2.5 rounded-full bg-slate-500 shrink-0"></span>
-                      {(() => {
-                        const um = ultimoMovimiento(proyecto.timeline);
-                        const comision = proyecto.comisionActual && !/^no informad/i.test(proyecto.comisionActual.trim()) ? proyecto.comisionActual : null;
-                        return (
-                          <span>
-                            <strong>Último movimiento:</strong>{" "}
-                            {um
-                              ? `${formatFechaSafe(um.fechaTexto)} — ${um.titulo || um.descripcion || "sin descripción"} (hace ${um.dias} día${um.dias === 1 ? "" : "s"})`
-                              : "la ficha oficial no informa hitos con fecha."}
-                            {comision ? ` · Comisión: ${comision}` : ""}
-                          </span>
-                        );
-                      })()}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button 
-                        onClick={() => setActiveTab("tramitacion")}
-                        className="text-xs font-bold text-blue-400 hover:text-blue-300 hover:underline flex items-center gap-1 cursor-pointer"
-                      >
-                        Ver Cronograma de Hitos Detallados &rsaquo;
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* LO VISTO EN COMISIONES (informes de sesión desde las transcripciones) */}
-                <LoVistoEnComisiones proyectoId={proyecto.id} />
-
-                {/* 🤖 FICHA EJECUTIVA INTELIGENTE "1-PAGER" POR IA */}
-                <div className="bg-gradient-to-br from-indigo-50/70 via-white to-blue-50/50 rounded-3xl border border-indigo-200/90 shadow-sm p-6 sm:p-7 space-y-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-indigo-100 pb-3">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-9 h-9 rounded-xl bg-indigo-600/10 text-indigo-700 flex items-center justify-center border border-indigo-200">
-                        <Sparkles className="w-5 h-5 text-indigo-600" />
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-black text-slate-900 tracking-tight flex items-center gap-2">
-                          <span>Ficha Ejecutiva Inteligente ("1-Pager")</span>
-                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 border border-indigo-200 font-bold">
-                            SÍNTESIS DE ALTO IMPACTO
-                          </span>
-                        </h3>
-                        <p className="text-[11px] text-slate-500 font-medium">
-                          Resumen ejecutivo en 3 viñetas para toma de decisiones parlamentarias y gremiales
-                        </p>
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={() => setIsFichaModalOpen(true)}
-                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <Printer className="w-3.5 h-3.5" />
-                      <span>Exportar Minuta PDF / Word</span>
-                    </button>
-                  </div>
-
-                  {/* 3 Executive Bullet Points */}
-                  {fichaLoading && !fichaVista ? (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-                      {[1, 2, 3].map((n) => (
-                        <div key={n} className="p-4 bg-white rounded-2xl border border-slate-200/90 shadow-2xs space-y-2 animate-pulse">
-                          <div className="flex items-center gap-2">
-                            <span className="w-6 h-6 rounded-lg bg-slate-200 shrink-0" />
-                            <span className="h-3 w-24 bg-slate-200 rounded" />
-                          </div>
-                          <div className="h-2.5 w-full bg-slate-100 rounded" />
-                          <div className="h-2.5 w-5/6 bg-slate-100 rounded" />
-                          <div className="h-2.5 w-2/3 bg-slate-100 rounded" />
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-                      {/* Bullet 1 */}
-                      <div className="p-4 bg-white rounded-2xl border border-slate-200/90 shadow-2xs space-y-1.5">
-                        <div className="flex items-center gap-2">
-                          <span className="w-6 h-6 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center font-bold text-xs">1</span>
-                          <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wide">¿Qué Cambia?</h4>
-                        </div>
-                        <p className="text-xs text-slate-700 leading-relaxed font-medium">
-                          {fichaVista?.objeto
-                            ? fichaVista!.objeto.replace(/^🎯\s*Objeto\s*&\s*Ámbito:\s*/i, "")
-                            : (proyecto.titulo || "Sin información en la ficha oficial para describir el cambio propuesto.")}
-                        </p>
-                      </div>
-
-                      {/* Bullet 2 */}
-                      <div className="p-4 bg-white rounded-2xl border border-slate-200/90 shadow-2xs space-y-1.5">
-                        <div className="flex items-center gap-2">
-                          <span className="w-6 h-6 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-xs">2</span>
-                          <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wide">¿Quiénes se Impactan?</h4>
-                        </div>
-                        <p className="text-xs text-slate-700 leading-relaxed font-medium">
-                          {fichaVista?.mecanismos
-                            ? fichaVista!.mecanismos.replace(/^⚙️\s*Mecanismos\s*Clave:\s*/i, "")
-                            : "No fue posible leer el texto oficial del proyecto para identificar a quiénes afecta."}
-                        </p>
-                      </div>
-
-                      {/* Bullet 3 */}
-                      <div className="p-4 bg-white rounded-2xl border border-slate-200/90 shadow-2xs space-y-1.5">
-                        <div className="flex items-center gap-2">
-                          <span className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs">3</span>
-                          <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wide">Impacto y Fiscalización</h4>
-                        </div>
-                        <p className="text-xs text-slate-700 leading-relaxed font-medium">
-                          {fichaVista?.fiscalizacion
-                            ? fichaVista!.fiscalizacion.replace(/^⚖️\s*Fiscalización\s*&\s*(Sanciones|Cumplimiento):\s*/i, "")
-                            : "No fue posible leer el texto oficial del proyecto para identificar fiscalización o sanciones."}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                  {!fichaLoading && (
-                    <p className="text-[10.5px] text-slate-500">
-                      {fichaVista?.fuente === "texto"
-                        ? "Síntesis generada con IA a partir del texto oficial del mensaje o moción. Verifique en el documento original."
-                        : fichaVista
-                          ? "Síntesis basada solo en el título: no se pudo leer el texto oficial del proyecto."
-                          : "Sin síntesis con IA: se muestra el título oficial del proyecto."}
-                      {proyecto.linkCongreso && (
-                        <> {" "}<a href={proyecto.linkCongreso} target="_blank" rel="noopener noreferrer" className="text-indigo-600 font-bold hover:underline">Ver texto oficial</a></>
-                      )}
-                    </p>
-                  )}
-                </div>
+                {/* HISTORIAL DEL PROYECTO ("anamnesis legislativa"): reemplaza a Tramitación legislativa, Lo visto en comisiones y la Ficha Ejecutiva */}
+                <HistorialProyecto
+                  proyecto={proyecto}
+                  ficha={fichaVista}
+                  fichaCargando={fichaLoading}
+                  informesFin={informesFin}
+                  consolidadoIF={consolidadoIF}
+                  votacionesCamara={camaraOficial?.votaciones || []}
+                  onVerTab={(t) => setActiveTab(t as any)}
+                  onExportarMinuta={() => setIsFichaModalOpen(true)}
+                />
 
                 {/* FICHA TÉCNICA EN 3 EJES — oculta: repetía el contenido de la Ficha Ejecutiva */}
                 <div className="hidden bg-gradient-to-br from-slate-50 via-white to-blue-50/20 rounded-2xl border border-slate-200/90 shadow-sm p-6 space-y-4">

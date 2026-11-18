@@ -3,6 +3,7 @@ import { exigirSesion, credencialesValidas, fijarSesion, cerrarSesion, sesionAct
 import { generarInformeSesion } from "../services/informeSesionService";
 import { pasoTranscripcionAutomatica, estadoTranscripcionAutomatica } from "../services/transcripcionAutomaticaService";
 import { resumenComisionesBoletin } from "../services/resumenBoletinService";
+import { construirHistorial } from "../services/historialService";
 import { salaSemana, importarTablaSenado, sincronizarSala, sesionesSalaDeBoletin } from "../services/salaService";
 import { discusionDeProyecto } from "../services/discusionService";
 import { construirResumenSesion } from "../services/resumenSesionService";
@@ -1594,6 +1595,12 @@ apiRouter.post("/transcripcion/automatica/paso", pasoAuto);
 apiRouter.get("/transcripcion/automatica/estado", async (_req: Request, res: Response) => {
   try { res.json(await estadoTranscripcionAutomatica()); }
   catch (err: any) { res.json({ error: err?.message || String(err) }); }
+});
+
+// Historial del proyecto ("anamnesis legislativa"): por comisión, con traspasos, tiempos y síntesis.
+apiRouter.get("/proyecto/:id/historial", async (req: Request, res: Response) => {
+  try { res.json(await construirHistorial(String(req.params.id).slice(0, 20), { forzar: req.query.forzar === "1", soloGuardado: req.query.rapido === "1" })); }
+  catch (err: any) { res.json({ disponible: false, motivo: err?.message || String(err), boletin: req.params.id, comisiones: [], sala: [] }); }
 });
 
 // Lo visto en comisiones sobre un boletín (informes de sesión desde las transcripciones + resumen consolidado).

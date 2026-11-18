@@ -168402,7 +168402,7 @@ async function sesionesCamaraDeComision(slug2, nombre) {
     resultadosCamaraHistoricos().catch(() => [])
   ]);
   const porFecha = /* @__PURE__ */ new Map();
-  const hoy = fechaISO(/* @__PURE__ */ new Date());
+  const hoy2 = fechaISO(/* @__PURE__ */ new Date());
   for (const c of citas) {
     if (c.comisionSlug !== slug2) continue;
     const f = fechaCitacion(c.fecha);
@@ -168416,7 +168416,7 @@ async function sesionesCamaraDeComision(slug2, nombre) {
       materia: c.materia || "Materia no informada",
       invitados: /^no informado/i.test(c.invitados || "") ? "" : c.invitados || "",
       tabla: c.tabla,
-      completada: f < hoy,
+      completada: f < hoy2,
       acuerdosCount: 0,
       fuente: "Citaci\xF3n oficial (camara.cl)"
     });
@@ -187226,7 +187226,7 @@ function computePasosComision(timeline) {
     }
   }
   if (transiciones.length === 0) return [];
-  const hoy = /* @__PURE__ */ new Date();
+  const hoy2 = /* @__PURE__ */ new Date();
   return transiciones.map((tr, idx) => {
     const entrada = parseFechaDDMMYYYY(tr.fecha);
     const siguiente = transiciones[idx + 1];
@@ -187235,7 +187235,7 @@ function computePasosComision(timeline) {
       comisionNombre: tr.comisionNombre,
       fechaEntrada: tr.fecha,
       fechaSalida: siguiente ? siguiente.fecha : null,
-      diasEnComision: entrada ? diffDias(entrada, salida || hoy) : void 0
+      diasEnComision: entrada ? diffDias(entrada, salida || hoy2) : void 0
     };
   });
 }
@@ -187274,8 +187274,8 @@ function computeDiasTramitacion(fechaIngreso) {
   const start = new Date(fechaIngreso);
   if (isNaN(start.getTime())) return void 0;
   const diffMs = Date.now() - start.getTime();
-  const dias = Math.floor(diffMs / (1e3 * 60 * 60 * 24));
-  return dias >= 0 ? dias : void 0;
+  const dias2 = Math.floor(diffMs / (1e3 * 60 * 60 * 24));
+  return dias2 >= 0 ? dias2 : void 0;
 }
 function estimarQuorum(titulo, materia) {
   const text = `${titulo} ${materia}`.toLowerCase();
@@ -187655,8 +187655,8 @@ function listadoToProyecto(item) {
   const materia = mapeo ? mapeo.materia : "Sin clasificar";
   const estadoNorm = item.estado.toLowerCase();
   const estado = estadoNorm.includes("public") ? "Publicado como Ley" : estadoNorm.includes("tramit") ? "En discusi\xF3n" : item.estado;
-  const dias = computeDiasTramitacion(parseFechaChilena(item.fecha || ""));
-  const diasTxt = dias !== void 0 ? ` Lleva ${dias} d\xEDa${dias === 1 ? "" : "s"} en tramitaci\xF3n.` : "";
+  const dias2 = computeDiasTramitacion(parseFechaChilena(item.fecha || ""));
+  const diasTxt = dias2 !== void 0 ? ` Lleva ${dias2} d\xEDa${dias2 === 1 ? "" : "s"} en tramitaci\xF3n.` : "";
   return {
     id: item.id,
     titulo: item.titulo,
@@ -187672,7 +187672,7 @@ function listadoToProyecto(item) {
     patrocinantes: 0,
     iniciativa: "Moci\xF3n",
     comisionActual: mapeo ? mapeo.comision : "No informada",
-    diasTramitacion: dias,
+    diasTramitacion: dias2,
     timeline: [],
     documentos: [],
     votaciones: [],
@@ -189244,368 +189244,12 @@ async function consultar(structuredQuery) {
   return filas.filter((x) => x.document).map((x) => ({ id: String(x.document.name).split("/").pop() || "", datos: x.document.fields }));
 }
 
-// server/services/resumenBoletinService.ts
-var iso = (f) => {
-  const m = String(f || "").match(/(\d{4})-(\d{2})-(\d{2})/);
-  if (m) return m[0];
-  const d = String(f || "").match(/(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
-  return d ? `${d[3]}-${d[2].padStart(2, "0")}-${d[1].padStart(2, "0")}` : String(f || "");
-};
-async function sesionesDelBoletin(boletin) {
-  const b = normalizarBoletin(boletin);
-  if (!b.includes("-")) return [];
-  const filas = await consultar({ from: [{ collectionId: "analisis_videos_sesion" }], where: { fieldFilter: { field: { fieldPath: "boletines" }, op: "ARRAY_CONTAINS", value: { stringValue: b } } } });
-  const out = [];
-  for (const f of filas) {
-    const d = camposAObjeto(f.datos);
-    if (d.tipo !== "informe" || !d.informe) continue;
-    const inf = normalizarInforme(d.informe);
-    let puntos = inf.puntos.filter((p) => p.boletines.includes(b));
-    if (puntos.length === 0 && inf.puntos.length === 1) puntos = inf.puntos;
-    if (puntos.length === 0) continue;
-    const parcial = { ...inf, puntos };
-    const ints = intervinientes(parcial);
-    out.push({
-      videoId: String(d.videoId || f.id.replace(/__i$/, "")),
-      fecha: iso(d.fecha),
-      comision: String(d.comision || ""),
-      titulo: String(d.titulo || ""),
-      estado: puntos.map((p) => p.estado).filter(Boolean).join(" \xB7 "),
-      sintesis: puntos.map((p) => p.sintesis).filter(Boolean).join(" "),
-      acuerdos: puntos.flatMap((p) => p.acuerdos.map((a) => a.texto)),
-      votaciones: puntos.flatMap((p) => p.votaciones.map((v) => `${v.texto}: ${v.resultado}`)),
-      expositores: ints.filter((i) => i.categoria !== "PARL" && i.categoria !== "SEC").map((i) => ({ orador: i.orador, cargo: i.cargo, institucion: i.institucion, categoria: i.categoria })),
-      parlamentarios: ints.filter((i) => i.categoria === "PARL").map((i) => i.orador),
-      intervenciones: puntos.flatMap((p) => p.intervenciones.map((i) => ({ orador: i.orador, texto: i.parrafos.join(" ") })))
-    });
-  }
-  return out.sort((a, c) => c.fecha.localeCompare(a.fecha));
-}
-var firmaDe = (s) => s.map((x) => `${x.videoId}:${x.fecha}:${x.intervenciones.length}`).sort().join("|");
-var S2 = (type, extra = {}) => ({ type, ...extra });
-var ESQUEMA2 = S2("OBJECT", {
-  properties: {
-    resumen: S2("STRING"),
-    temas: S2("ARRAY", { items: S2("OBJECT", { properties: { tema: S2("STRING"), detalle: S2("STRING"), fechas: S2("ARRAY", { items: S2("STRING") }) }, required: ["tema", "detalle", "fechas"] }) }),
-    posiciones: S2("ARRAY", { items: S2("OBJECT", { properties: { actor: S2("STRING"), postura: S2("STRING"), fecha: S2("STRING") }, required: ["actor", "postura", "fecha"] }) }),
-    pendientes: S2("ARRAY", { items: S2("STRING") })
-  },
-  required: ["resumen", "temas"]
-});
-function prompt2(b, sesiones) {
-  const bloques = sesiones.slice().reverse().map((s) => [
-    `### Sesi\xF3n ${s.fecha} \xB7 ${s.comision}`,
-    s.sintesis && `Qu\xE9 se discuti\xF3: ${s.sintesis}`,
-    ...s.intervenciones.map((i) => `- ${i.orador}: ${i.texto}`),
-    ...s.acuerdos.map((a) => `Acuerdo: ${a}`),
-    ...s.votaciones.map((v) => `Votaci\xF3n: ${v}`)
-  ].filter(Boolean).join("\n")).join("\n\n");
-  return `Eres asesor parlamentario de la Biblioteca del Congreso Nacional de Chile. Resume lo que se ha visto en comisiones sobre el bolet\xEDn ${b},
-usando EXCLUSIVAMENTE los informes de sesi\xF3n que siguen (hechos a partir de las transcripciones). No agregues nada externo.
-- "resumen": un p\xE1rrafo de 4 a 6 oraciones sobre el estado de la discusi\xF3n en comisi\xF3n.
-- "temas": 3 a 6 temas principales del debate, cada uno con 1 a 2 oraciones y las fechas (AAAA-MM-DD) de las sesiones donde se trat\xF3.
-- "posiciones": las posturas m\xE1s relevantes (actor con su cargo o instituci\xF3n si aparece, y su postura en una oraci\xF3n), con la fecha de la sesi\xF3n.
-- "pendientes": lo que qued\xF3 pendiente seg\xFAn los informes.
-Espa\xF1ol formal, tercera persona.
-
-${bloques.slice(0, 2e5)}`;
-}
-async function resumenComisionesBoletin(boletin, opciones = {}) {
-  const b = normalizarBoletin(boletin);
-  const sesiones = await sesionesDelBoletin(b);
-  if (sesiones.length === 0) return { disponible: false, motivo: "A\xFAn no hay informes de sesiones de comisi\xF3n con este bolet\xEDn.", sesiones: [] };
-  const firma2 = firmaDe(sesiones);
-  const guardado = await leerDoc(`historial_proyectos/${b}`).catch(() => null);
-  const prev = guardado?.resumenComisiones;
-  if (prev?.firma === firma2 && !opciones.forzar) return { ...prev, disponible: true, sesiones };
-  if (opciones.soloGuardado) return prev ? { ...prev, disponible: true, desactualizado: true, sesiones } : { disponible: false, motivo: "pendiente", sesiones };
-  const r = await geminiJSON(prompt2(b, sesiones), ESQUEMA2, { maxTokens: 6e3, presupuestoMs: 12e4 });
-  if (r.ok === false) return { ...prev || {}, disponible: !!prev, motivo: `No se pudo actualizar el resumen: ${r.motivo}`, sesiones };
-  const fechas = new Set(sesiones.map((s) => s.fecha));
-  const txt = (v) => String(v ?? "").replace(/\s+/g, " ").trim();
-  const d = r.datos;
-  const resultado = {
-    firma: firma2,
-    generado: (/* @__PURE__ */ new Date()).toISOString(),
-    modelo: r.modelo,
-    resumen: txt(d?.resumen),
-    // Solo se aceptan temas y posturas ligados a sesiones que existen.
-    temas: (Array.isArray(d?.temas) ? d.temas : []).map((t) => ({ tema: txt(t?.tema), detalle: txt(t?.detalle), fechas: (Array.isArray(t?.fechas) ? t.fechas : []).map(txt).filter((f) => fechas.has(f)) })).filter((t) => t.tema && t.detalle && t.fechas.length),
-    posiciones: (Array.isArray(d?.posiciones) ? d.posiciones : []).map((p) => ({ actor: txt(p?.actor), postura: txt(p?.postura), fecha: txt(p?.fecha) })).filter((p) => p.actor && p.postura && fechas.has(p.fecha)),
-    pendientes: (Array.isArray(d?.pendientes) ? d.pendientes : []).map(txt).filter(Boolean)
-  };
-  await escribirDoc(`historial_proyectos/${b}`, { boletinId: b, resumenComisiones: resultado, updatedAt: (/* @__PURE__ */ new Date()).toISOString() }).catch(() => void 0);
-  return { ...resultado, disponible: true, sesiones };
-}
-
-// server/services/transcripcionAutomaticaService.ts
-var COLA = "cola_transcripcion";
-var VIDEOS = "analisis_videos_sesion";
-var MESES4 = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
-var norm4 = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
-function hoyChileISO(d = /* @__PURE__ */ new Date()) {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
-}
-var sumarDias = (iso3, n) => {
-  const d = /* @__PURE__ */ new Date(`${iso3}T12:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
-};
-function configuracionAuto() {
-  return {
-    activa: /^(1|true|si|sí|on)$/i.test(String(process.env.TRANSCRIPCION_AUTO || "").trim().replace(/^["']|["']$/g, "")),
-    maxTramosDia: Math.max(1, Number(process.env.TRANSCRIPCION_AUTO_MAX_TRAMOS_DIA) || 60),
-    informe: /^(1|true|si|sí|on)$/i.test(String(process.env.TRANSCRIPCION_AUTO_INFORME || "").trim().replace(/^["']|["']$/g, "")),
-    desde: /^\d{4}-\d{2}-\d{2}$/.test(process.env.TRANSCRIPCION_AUTO_DESDE || "") ? process.env.TRANSCRIPCION_AUTO_DESDE : "2026-01-01"
-  };
-}
-function tituloConFecha(titulo, fechaISO4) {
-  const [a, m, d] = fechaISO4.split("-").map(Number);
-  if (!a || !m || !d) return false;
-  const t = norm4(titulo);
-  return new RegExp(`(^|\\D)0?${d}\\s+(de\\s+)?${MESES4[m - 1]}`).test(t) || new RegExp(`(^|\\D)0?${d}[-/.]0?${m}[-/.](${a}|${String(a).slice(2)})(\\D|$)`).test(t);
-}
-async function contadorDia() {
-  const ruta = `${COLA}/_contador_${hoyChileISO()}`;
-  const d = await leerDoc(ruta).catch(() => null);
-  return { ruta, tramos: Number(d?.tramos) || 0 };
-}
-async function leerTranscripcion(videoId) {
-  const d = await leerDoc(`${VIDEOS}/${videoId}__t`).catch(() => null);
-  return { partes: Array.isArray(d?.partes) ? d.partes : [], completo: !!d?.completo, boletines: Array.isArray(d?.boletines) ? d.boletines : [] };
-}
-async function guardarTrabajo(t, cambios) {
-  Object.assign(t, cambios);
-  await escribirDoc(`${COLA}/${t.id}`, { ...t, actualizado: (/* @__PURE__ */ new Date()).toISOString() });
-}
-async function siguienteSesion() {
-  const { base, proy, key } = conexionFirestore();
-  const { desde } = configuracionAuto();
-  let hasta = sumarDias(hoyChileISO(), -1);
-  for (let pagina = 0; pagina < 15 && hasta >= desde; pagina++) {
-    const filas = await consultar({
-      from: [{ collectionId: "registro_sesiones" }],
-      where: { compositeFilter: { op: "AND", filters: [
-        { fieldFilter: { field: { fieldPath: "fecha" }, op: "LESS_THAN_OR_EQUAL", value: { stringValue: hasta } } },
-        { fieldFilter: { field: { fieldPath: "fecha" }, op: "GREATER_THAN_OR_EQUAL", value: { stringValue: desde } } }
-      ] } },
-      orderBy: [{ field: { fieldPath: "fecha" }, direction: "DESCENDING" }],
-      limit: 100
-    });
-    if (filas.length === 0) return null;
-    const sesiones = unirSesionesLeidas(filas.map((f) => combinarSesion(f.id, f.datos))).filter((s) => s.camara && s.comisionNombre).sort((a, b) => b.fecha.localeCompare(a.fecha) || String(b.hora || "").localeCompare(String(a.hora || "")));
-    const r = await fetch(`${base}:batchGet?key=${key}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ documents: sesiones.map((s) => `projects/${proy}/databases/(default)/documents/${COLA}/${s.id}`) }),
-      signal: AbortSignal.timeout(15e3)
-    });
-    const existentes = /* @__PURE__ */ new Set();
-    if (r.ok) {
-      for (const x of await r.json()) if (x.found) existentes.add(String(x.found.name).split("/").pop());
-    }
-    const libre = sesiones.find((s) => !existentes.has(s.id));
-    if (libre) return libre;
-    const ultima2 = sesiones[sesiones.length - 1]?.fecha || filas.map((f) => camposAObjeto(f.datos).fecha).sort()[0];
-    if (!ultima2 || ultima2 >= hasta) hasta = sumarDias(hasta, -1);
-    else hasta = ultima2;
-    if (filas.length < 100) hasta = sumarDias(ultima2 || hasta, -1);
-  }
-  return null;
-}
-async function trabajoParaReintentar() {
-  const hoy = hoyChileISO();
-  const filas = await consultar({ from: [{ collectionId: COLA }], where: { fieldFilter: { field: { fieldPath: "estado" }, op: "EQUAL", value: { stringValue: "sin_video" } } }, limit: 50 });
-  const t = filas.map((f) => ({ id: f.id, ...camposAObjeto(f.datos) })).find((x) => x.reintentarDesde && x.reintentarDesde <= hoy && x.fecha >= sumarDias(hoy, -10));
-  return t || null;
-}
-async function trabajoEnEstado(estado) {
-  const filas = await consultar({ from: [{ collectionId: COLA }], where: { fieldFilter: { field: { fieldPath: "estado" }, op: "EQUAL", value: { stringValue: estado } } }, limit: 1 });
-  return filas[0] ? { id: filas[0].id, ...camposAObjeto(filas[0].datos) } : null;
-}
-async function buscarVideo(t) {
-  const camaraYT = /senado/i.test(t.camara) ? "senado" : "diputados";
-  const videos = await buscarVideosSesion(t.comision, t.fecha, camaraYT);
-  const v = videos.find((x) => tituloConFecha(x.title, t.fecha));
-  if (!v) return null;
-  const det = (await detallesVideos([v.id]).catch(() => ({})))[v.id];
-  const duracion = det?.segundos ?? v.segundos ?? null;
-  await guardarTrabajo(t, { videoId: v.id, titulo: v.title, duracion, total: duracion ? Math.max(1, Math.ceil(duracion / SEGUNDOS_POR_PARTE_TRANSCRIPCION)) : 1, estado: "transcribiendo", intentos: 0, error: "" });
-  return v.id;
-}
-async function avanzarTranscripcion(t, limite) {
-  const previa = await leerTranscripcion(t.videoId);
-  const partes = previa.partes.filter((p) => p?.disponible);
-  const total = t.total || 1;
-  let hechos = 0;
-  for (let parte = 0; parte < total; parte++) {
-    if (partes.some((p) => p.parte === parte)) continue;
-    if (Date.now() > limite) break;
-    const cont = await contadorDia();
-    if (cont.tramos >= configuracionAuto().maxTramosDia) return `Tope diario alcanzado (${cont.tramos} tramos).`;
-    const r = await transcribirParteVideo({ videoId: t.videoId, parte, duracion: t.duracion ?? void 0, comision: t.comision, fecha: t.fecha, materia: t.tabla.join(" ") });
-    await escribirDoc(cont.ruta, { tramos: cont.tramos + 1, fecha: hoyChileISO() });
-    if (!r.disponible) {
-      const intentos2 = (t.intentos || 0) + 1;
-      await guardarTrabajo(t, { intentos: intentos2, error: r.motivo || "No se pudo transcribir el tramo", estado: intentos2 >= 3 ? "error" : "transcribiendo" });
-      break;
-    }
-    partes.push(r);
-    partes.sort((a, b) => a.parte - b.parte);
-    hechos++;
-    const completo = partes.length >= total;
-    const mencionados = boletinesEnTexto(partes.flatMap((p) => p.segmentos || []).map((g) => g.texto).join(" "));
-    await escribirDoc(`${VIDEOS}/${t.videoId}__t`, {
-      partes,
-      completo,
-      tipo: "transcripcion",
-      videoId: t.videoId,
-      titulo: t.titulo || "",
-      comision: t.comision,
-      comisionId: t.comisionId || "",
-      fecha: t.fecha,
-      duracion: t.duracion ?? null,
-      tabla: t.tabla,
-      boletines: Array.from(/* @__PURE__ */ new Set([...previa.boletines, ...t.boletines, ...mencionados])),
-      automatica: true,
-      updatedAt: (/* @__PURE__ */ new Date()).toISOString()
-    });
-    if (completo) {
-      await guardarTrabajo(t, { estado: configuracionAuto().informe ? "informe_pendiente" : "transcrita", intentos: 0, error: "" });
-      return `Transcripci\xF3n completa (${total} tramos).`;
-    }
-    if (t.intentos) await guardarTrabajo(t, { intentos: 0, error: "" });
-  }
-  if (partes.length >= total && t.estado === "transcribiendo") await guardarTrabajo(t, { estado: configuracionAuto().informe ? "informe_pendiente" : "transcrita" });
-  return `${hechos} tramo(s) transcritos; van ${partes.length} de ${total}.`;
-}
-async function redactarInforme(t) {
-  const previa = await leerTranscripcion(t.videoId);
-  const segmentos = previa.partes.filter((p) => p?.disponible).flatMap((p) => p.segmentos || []);
-  const r = await generarInformeSesion({ segmentos, tabla: t.tabla, boletines: t.boletines, comision: t.comision, fecha: t.fecha, parcial: !previa.completo });
-  if (r.disponible === false) {
-    const motivo = r.motivo;
-    const intentos2 = (t.intentos || 0) + 1;
-    await guardarTrabajo(t, { intentos: intentos2, error: motivo, estado: intentos2 >= 3 ? "transcrita" : "informe_pendiente" });
-    return `No se pudo redactar el informe: ${motivo}`;
-  }
-  await escribirDoc(`${VIDEOS}/${t.videoId}__i`, {
-    informe: r.informe,
-    tipo: "informe",
-    videoId: t.videoId,
-    titulo: t.titulo || "",
-    comision: t.comision,
-    comisionId: t.comisionId || "",
-    fecha: t.fecha,
-    tabla: t.tabla,
-    boletines: Array.from(/* @__PURE__ */ new Set([...previa.boletines, ...t.boletines])),
-    automatica: true,
-    updatedAt: (/* @__PURE__ */ new Date()).toISOString()
-  });
-  await guardarTrabajo(t, { estado: "informe_listo", intentos: 0, error: "" });
-  for (const b of t.boletines.slice(0, 3)) await resumenComisionesBoletin(b).catch(() => void 0);
-  return "Informe redactado.";
-}
-async function precargarFichas(maximo = 1) {
-  const desde = sumarDias(hoyChileISO(), -45);
-  const filas = await consultar({
-    from: [{ collectionId: "registro_sesiones" }],
-    where: { fieldFilter: { field: { fieldPath: "fecha" }, op: "GREATER_THAN_OR_EQUAL", value: { stringValue: desde } } },
-    orderBy: [{ field: { fieldPath: "fecha" }, direction: "DESCENDING" }],
-    limit: 300
-  }).catch(() => []);
-  const sala = await consultar({
-    from: [{ collectionId: "sesiones_sala" }],
-    where: { fieldFilter: { field: { fieldPath: "fecha" }, op: "GREATER_THAN_OR_EQUAL", value: { stringValue: desde } } },
-    limit: 100
-  }).catch(() => []);
-  const boletines = Array.from(new Set([...filas, ...sala].flatMap((f) => camposAObjeto(f.datos).boletines || []).filter((b) => /^\d{3,6}-\d{2}$/.test(b))));
-  const hechos = [];
-  const hoy = hoyChileISO();
-  for (const b of boletines) {
-    if (hechos.length >= maximo) break;
-    const g = await leerDoc(`historial_proyectos/${b}`).catch(() => null);
-    if (g?.fichaEjecutiva?.ficha) continue;
-    if (g?.fichaIntento && g.fichaIntento >= sumarDias(hoy, -7)) continue;
-    const r = await fichaEjecutivaProyecto(b).catch(() => null);
-    if (r?.disponible && r.ficha?.fuente === "texto") {
-      await escribirDoc(`historial_proyectos/${b}`, { boletinId: b, fichaEjecutiva: { ficha: r.ficha, guardadoEn: (/* @__PURE__ */ new Date()).toISOString(), automatica: true }, updatedAt: (/* @__PURE__ */ new Date()).toISOString() });
-    } else {
-      await escribirDoc(`historial_proyectos/${b}`, { boletinId: b, fichaIntento: hoy });
-    }
-    hechos.push(b);
-  }
-  return hechos;
-}
-async function pasoTranscripcionAutomatica() {
-  const fichas = await Promise.race([precargarFichas(1).catch(() => []), new Promise((r2) => setTimeout(() => r2([]), 6e4))]);
-  const r = await pasoTranscripcion();
-  return { ...r, fichas };
-}
-async function pasoTranscripcion() {
-  const conf = configuracionAuto();
-  if (!conf.activa) return { ok: true, accion: "inactiva", detalle: `La transcripci\xF3n autom\xE1tica est\xE1 desactivada: TRANSCRIPCION_AUTO ${process.env.TRANSCRIPCION_AUTO === void 0 ? "no existe en este despliegue" : `tiene un valor distinto de 1 (${String(process.env.TRANSCRIPCION_AUTO).length} caracteres)`}.` };
-  if (!youtubeApiConfigurada()) return { ok: false, accion: "sin_youtube", detalle: "Falta YOUTUBE_API_KEY para encontrar los videos." };
-  const limite = Date.now() + 1e5;
-  let t = await trabajoEnEstado("transcribiendo");
-  if (t?.videoId) return { ok: true, accion: "transcribir", sesion: `${t.comision} ${t.fecha}`, detalle: await avanzarTranscripcion(t, limite) };
-  if (conf.informe) {
-    t = await trabajoEnEstado("informe_pendiente");
-    if (t?.videoId) return { ok: true, accion: "informe", sesion: `${t.comision} ${t.fecha}`, detalle: await redactarInforme(t) };
-  }
-  const cont = await contadorDia();
-  if (cont.tramos >= conf.maxTramosDia) return { ok: true, accion: "tope", detalle: `Tope diario alcanzado (${cont.tramos} de ${conf.maxTramosDia} tramos). Sigue ma\xF1ana.` };
-  t = await trabajoParaReintentar();
-  if (!t) {
-    const s = await siguienteSesion();
-    if (!s) return { ok: true, accion: "nada", detalle: `No quedan sesiones por transcribir desde ${conf.desde}.` };
-    t = {
-      id: s.id,
-      estado: "buscando_video",
-      camara: s.camara,
-      comision: s.comisionNombre,
-      comisionId: s.comisionId,
-      fecha: s.fecha,
-      hora: s.hora,
-      boletines: s.boletines,
-      tabla: s.puntos.map((p) => p.texto).filter(Boolean)
-    };
-    await guardarTrabajo(t, {});
-  }
-  const videoId = await buscarVideo(t).catch(() => null);
-  if (!videoId) {
-    const reciente = t.fecha >= sumarDias(hoyChileISO(), -10);
-    await guardarTrabajo(t, { estado: "sin_video", reintentarDesde: reciente ? sumarDias(hoyChileISO(), 2) : "", error: "No se encontr\xF3 en el canal oficial un video con la fecha de la sesi\xF3n." });
-    return { ok: true, accion: "sin_video", sesion: `${t.comision} ${t.fecha}`, detalle: "Sin video con esa fecha en el canal oficial." };
-  }
-  const previa = await leerTranscripcion(videoId);
-  if (previa.completo) {
-    await guardarTrabajo(t, { estado: conf.informe ? "informe_pendiente" : "transcrita" });
-    return { ok: true, accion: "ya_transcrita", sesion: `${t.comision} ${t.fecha}`, detalle: "Ya estaba transcrita." };
-  }
-  return { ok: true, accion: "transcribir", sesion: `${t.comision} ${t.fecha}`, detalle: await avanzarTranscripcion(t, limite) };
-}
-async function estadoTranscripcionAutomatica() {
-  const conf = configuracionAuto();
-  const filas = await consultar({ from: [{ collectionId: COLA }], orderBy: [{ field: { fieldPath: "actualizado" }, direction: "DESCENDING" }], limit: 300 });
-  const trabajos = filas.filter((f) => !f.id.startsWith("_")).map((f) => ({ id: f.id, ...camposAObjeto(f.datos) }));
-  const porEstado = {};
-  for (const t of trabajos) porEstado[t.estado] = (porEstado[t.estado] || 0) + 1;
-  const cont = await contadorDia();
-  return {
-    configuracion: conf,
-    tramosHoy: cont.tramos,
-    porEstado,
-    recientes: trabajos.slice(0, 15).map((t) => ({ comision: t.comision, fecha: t.fecha, estado: t.estado, videoId: t.videoId || null, error: t.error || null, actualizado: t.actualizado }))
-  };
-}
-
 // src/utils/sala.ts
-var MESES5 = { enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6, julio: 7, agosto: 8, septiembre: 9, setiembre: 9, octubre: 10, noviembre: 11, diciembre: 12 };
+var MESES4 = { enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6, julio: 7, agosto: 8, septiembre: 9, setiembre: 9, octubre: 10, noviembre: 11, diciembre: 12 };
 var dos = (n) => String(n).padStart(2, "0");
 function fechaLargaAISO(texto) {
   const m = String(texto || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").match(/(\d{1,2})\s+de\s+([a-z]+)\s+de\s+(\d{4})/);
-  return m && MESES5[m[2]] ? `${m[3]}-${dos(MESES5[m[2]])}-${dos(m[1])}` : "";
+  return m && MESES4[m[2]] ? `${m[3]}-${dos(MESES4[m[2]])}-${dos(m[1])}` : "";
 }
 var hhmm = (s) => {
   const m = String(s || "").match(/(\d{1,2}):(\d{2})/);
@@ -189720,7 +189364,7 @@ var sv2 = (v) => ({ stringValue: v });
 function hoyChile(d = /* @__PURE__ */ new Date()) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
 }
-var sumarDias2 = (iso3, n) => {
+var sumarDias = (iso3, n) => {
   const d = /* @__PURE__ */ new Date(`${iso3}T12:00:00Z`);
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
@@ -189750,10 +189394,10 @@ async function sesionesSalaCamara(anio, conAsistenciaDesde) {
     return sesiones;
   });
 }
-async function salaCamaraSemana(hoy) {
+async function salaCamaraSemana(hoy2) {
   const fuente = "Datos Abiertos de la C\xE1mara (opendata.camara.cl): sesiones de Sala, votaciones y asistencia";
   const transmision = "https://www.camara.cl/prensa/television.aspx";
-  const desde = sumarDias2(hoy, -7), hasta = sumarDias2(hoy, 7);
+  const desde = sumarDias(hoy2, -7), hasta = sumarDias(hoy2, 7);
   try {
     const anios = Array.from(/* @__PURE__ */ new Set([desde.slice(0, 4), hasta.slice(0, 4)])).map(Number);
     const todas = (await Promise.all(anios.map((a) => sesionesSalaCamara(a, desde)))).flat();
@@ -189815,14 +189459,14 @@ async function salaSenadoSemana() {
 }
 var ultimoGuardado = 0;
 async function salaSemana() {
-  const hoy = hoyChile();
-  const [camara, senado] = await Promise.all([salaCamaraSemana(hoy), salaSenadoSemana()]);
+  const hoy2 = hoyChile();
+  const [camara, senado] = await Promise.all([salaCamaraSemana(hoy2), salaSenadoSemana()]);
   if (Date.now() - ultimoGuardado > 30 * 60 * 1e3) {
     ultimoGuardado = Date.now();
-    const lote = [...camara.sesiones, ...senado.sesiones].filter((s) => s.fecha <= hoy || s.puntos.length > 0);
+    const lote = [...camara.sesiones, ...senado.sesiones].filter((s) => s.fecha <= hoy2 || s.puntos.length > 0);
     await Promise.race([guardarSesionesSala(lote).catch(() => void 0), new Promise((r) => setTimeout(r, 4e3))]);
   }
-  return { camara, senado, hoy };
+  return { camara, senado, hoy: hoy2 };
 }
 function huella2(o) {
   const s = JSON.stringify(o);
@@ -190011,6 +189655,657 @@ async function discusionDeProyecto(boletinId) {
   if (!res.disponible) res.motivo = "No se pudo leer ninguno de los informes de comisi\xF3n.";
   if (resultado.every((r) => r.disponible)) cache.set(clave, res, TTL_MS);
   return res;
+}
+
+// src/utils/historial.ts
+var SEG_MAX_INTERVENCION = 600;
+function tiempoEnVentana(segmentos, ini, fin) {
+  const segs = [...segmentos].sort((a, b) => a.segundos - b.segundos);
+  const porOrador = /* @__PURE__ */ new Map();
+  let total = 0;
+  segs.forEach((g, i) => {
+    if (g.segundos < ini || g.segundos >= fin) return;
+    const sig = segs[i + 1]?.segundos ?? g.segundos;
+    const dur = Math.max(0, Math.min(SEG_MAX_INTERVENCION, Math.min(sig, fin) - g.segundos));
+    total += dur;
+    const nombre = String(g.orador || "Orador no identificado").trim();
+    const k = nombre.toLowerCase();
+    const e = porOrador.get(k) || { nombre, segundos: 0, intervenciones: 0 };
+    e.segundos += dur;
+    if (!segs[i - 1] || String(segs[i - 1].orador).trim().toLowerCase() !== k) e.intervenciones++;
+    porOrador.set(k, e);
+  });
+  return { total, porOrador };
+}
+var normComision = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\b(comision|comisiones|permanente|especial|de|del|la|las|el|los|y|e|senado|camara|diputados|diputadas)\b/g, " ").replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+
+// server/services/historialService.ts
+var hoy = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago", year: "numeric", month: "2-digit", day: "2-digit" }).format(/* @__PURE__ */ new Date());
+var isoDe = (f) => {
+  const t = String(f || "");
+  const m = t.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return m[0];
+  const d = t.match(/(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
+  return d ? `${d[3]}-${d[2].padStart(2, "0")}-${d[1].padStart(2, "0")}` : "";
+};
+var dias = (a, b) => Math.round(((/* @__PURE__ */ new Date(`${b}T12:00:00Z`)).getTime() - (/* @__PURE__ */ new Date(`${a}T12:00:00Z`)).getTime()) / 864e5);
+var conTiempo = (p, ms, def) => Promise.race([p.catch(() => def), new Promise((r) => setTimeout(() => r(def), ms))]);
+var mismaComision2 = (a, b) => {
+  const x = normComision(a), y = normComision(b);
+  return !!x && !!y && (x === y || x.includes(y) || y.includes(x));
+};
+async function informesDeSesion(b) {
+  const filas = await consultar({ from: [{ collectionId: "analisis_videos_sesion" }], where: { fieldFilter: { field: { fieldPath: "boletines" }, op: "ARRAY_CONTAINS", value: { stringValue: b } } } });
+  return filas.map((f) => camposAObjeto(f.datos)).filter((d) => d.tipo === "informe" && d.informe).map((d) => ({ videoId: String(d.videoId), fecha: isoDe(d.fecha), comision: String(d.comision || ""), inf: normalizarInforme(d.informe) }));
+}
+async function extractoInformeOficial(url) {
+  const texto = await conTiempo(fetchTextoInformeDocx(url), 2e4, null);
+  if (!texto) return "";
+  const secs = seccionesInforme(texto, 0);
+  const partes = [];
+  for (const s of secs) {
+    if (!/OBJETIVO|ASPECTOS CENTRALES|DISCUSI|VOTACI|ACORDAD|RESUMEN EJECUTIVO|MODIFICACIONES/i.test(s.titulo)) continue;
+    const max = /RESUMEN EJECUTIVO|ASPECTOS CENTRALES|OBJETIVO/i.test(s.titulo) ? 2500 : 3500;
+    partes.push(`## ${s.titulo}
+${texto.slice(s.inicio, s.inicio + Math.min(s.largo, max)).trim()}`);
+  }
+  return partes.join("\n\n").slice(0, 14e3);
+}
+async function construirHistorial(boletin, opciones = {}) {
+  const b = normalizarBoletin(boletin);
+  if (!b.includes("-")) return { disponible: false, motivo: "N\xFAmero de bolet\xEDn no v\xE1lido.", boletin: b, comisiones: [], sala: [] };
+  const [registro, informes, sala, discusion] = await Promise.all([
+    conTiempo(sesionesRegistradasDeBoletin(b), 15e3, []),
+    conTiempo(informesDeSesion(b), 15e3, []),
+    conTiempo(sesionesSalaDeBoletin(b), 1e4, []),
+    conTiempo(discusionDeProyecto(b), 25e3, { disponible: false, informes: [] })
+  ]);
+  const informesOficiales = (discusion?.informes || []).map((i) => ({ titulo: i.titulo, url: i.url, fecha: i.fecha }));
+  const firma2 = [
+    registro.map((s) => `${s.id}:${s.resultado ? 1 : 0}`).sort().join(","),
+    informes.map((i) => `${i.videoId}:${i.inf.generado || ""}`).sort().join(","),
+    informesOficiales.map((i) => i.url).sort().join(",")
+  ].join("|");
+  const guardado = await leerDoc(`historial_proyectos/${b}`).catch(() => null);
+  const prev = guardado?.historial;
+  if (prev && prev.firma === firma2 && !opciones.forzar) return prev;
+  if (opciones.soloGuardado) return prev ? { ...prev, desactualizado: true } : { disponible: false, motivo: "pendiente", boletin: b, comisiones: [], sala: [] };
+  const H = hoy();
+  const comisiones = [];
+  const obtener = (nombre, camara) => {
+    let c = comisiones.find((x) => mismaComision2(x.nombre, nombre));
+    if (!c) {
+      c = {
+        clave: normComision(nombre).replace(/ /g, "-") || `c${comisiones.length}`,
+        nombre,
+        camara,
+        desde: null,
+        hasta: null,
+        programadas: [],
+        expositores: [],
+        parlamentarios: [],
+        acuerdos: [],
+        votaciones: [],
+        compromisos: [],
+        pendientes: [],
+        informeOficial: null,
+        sesiones: [],
+        estadistica: { sesionesCitadas: 0, sesionesConInforme: 0, sesionesSinTratar: 0, diasEnComision: null, minutosDiscusion: null, minutosPorCategoria: {}, oradores: [], minutosPorSesion: [] }
+      };
+      comisiones.push(c);
+    }
+    if (!c.camara && camara) c.camara = camara;
+    return c;
+  };
+  for (const s of registro) {
+    if (!s.comisionNombre || !s.fecha) continue;
+    const c = obtener(s.comisionNombre, s.camara);
+    if (s.fecha > H) {
+      c.programadas.push(s.fecha);
+      continue;
+    }
+    c.estadistica.sesionesCitadas++;
+    if (/no alcanz|no se trat|no fue tratad|quedó pendiente para/i.test(String(s.resultado || ""))) c.estadistica.sesionesSinTratar++;
+    c.desde = !c.desde || s.fecha < c.desde ? s.fecha : c.desde;
+    c.hasta = !c.hasta || s.fecha > c.hasta ? s.fecha : c.hasta;
+    const puntos = s.puntos.filter((p) => (p.boletines || []).includes(b));
+    for (const p of puntos) if (p.acuerdos) c.acuerdos.push({ texto: p.acuerdos, fecha: s.fecha, fuente: "Detalle oficial de la sesi\xF3n" });
+    if (s.resultado) c.acuerdos.push({ texto: s.resultado, fecha: s.fecha, fuente: "Resultado oficial de la sesi\xF3n" });
+    if (!c.sesiones.some((x) => x.fecha === s.fecha)) c.sesiones.push({ fecha: s.fecha });
+  }
+  const minutosPorCat = {};
+  for (const i of informes) {
+    let puntos = i.inf.puntos.filter((p) => p.boletines.includes(b));
+    if (puntos.length === 0 && i.inf.puntos.length === 1) puntos = i.inf.puntos;
+    if (puntos.length === 0 || !i.fecha) continue;
+    const c = obtener(i.comision || "Comisi\xF3n no informada", "");
+    c.estadistica.sesionesConInforme++;
+    if (!c.desde || i.fecha < c.desde) c.desde = i.fecha;
+    if (!c.hasta || i.fecha > c.hasta) c.hasta = i.fecha;
+    const ses = c.sesiones.find((x) => x.fecha === i.fecha) || (c.sesiones.push({ fecha: i.fecha }), c.sesiones[c.sesiones.length - 1]);
+    ses.videoId = i.videoId;
+    ses.estado = puntos.map((p) => p.estado).filter(Boolean).join(" \xB7 ");
+    ses.sintesis = puntos.map((p) => p.sintesis).filter(Boolean).join(" ");
+    const categoriaDe = /* @__PURE__ */ new Map();
+    for (const p of puntos) {
+      for (const it of p.intervenciones) {
+        categoriaDe.set(it.orador.toLowerCase(), it.categoria);
+        if (it.categoria === "PARL") {
+          const e = c.parlamentarios.find((x) => x.orador.toLowerCase() === it.orador.toLowerCase());
+          if (e) {
+            if (!e.fechas.includes(i.fecha)) e.fechas.push(i.fecha);
+          } else c.parlamentarios.push({ orador: it.orador, fechas: [i.fecha] });
+        } else if (it.categoria !== "SEC") {
+          const e = c.expositores.find((x) => x.orador.toLowerCase() === it.orador.toLowerCase());
+          if (e) {
+            if (!e.fechas.includes(i.fecha)) e.fechas.push(i.fecha);
+            e.cargo ||= it.cargo;
+            e.institucion ||= it.institucion;
+          } else c.expositores.push({ orador: it.orador, cargo: it.cargo, institucion: it.institucion, categoria: it.categoria, fechas: [i.fecha], planteo: it.parrafos[0] || "", videoId: i.videoId, segundos: it.segundos });
+        }
+      }
+      for (const a of p.acuerdos) c.acuerdos.push({ texto: a.texto, fecha: i.fecha, fuente: a.fuente === "oficial" ? "Registro oficial (en el informe de sesi\xF3n)" : "Transcripci\xF3n de la sesi\xF3n", videoId: i.videoId, segundos: a.segundos });
+      for (const v of p.votaciones) c.votaciones.push({ texto: v.texto, resultado: v.resultado, fecha: i.fecha, fuente: v.fuente === "oficial" ? "Registro oficial (en el informe de sesi\xF3n)" : "Transcripci\xF3n de la sesi\xF3n", videoId: i.videoId, segundos: v.segundos });
+    }
+    if (i.inf.puntos.every((p) => p.boletines.length === 0 || p.boletines.includes(b))) {
+      for (const k of i.inf.compromisos) c.compromisos.push({ texto: k.texto, responsable: k.responsable, fecha: i.fecha, videoId: i.videoId, segundos: k.segundos });
+      for (const t2 of i.inf.pendientes) if (!c.pendientes.includes(t2)) c.pendientes.push(t2);
+    }
+    const t = await leerDoc(`analisis_videos_sesion/${i.videoId}__t`).catch(() => null);
+    const segmentos = (Array.isArray(t?.partes) ? t.partes : []).filter((p) => p?.disponible).flatMap((p) => p.segmentos || []);
+    if (segmentos.length) {
+      const propios = puntos.flatMap((p) => p.intervenciones.map((x) => x.segundos));
+      const ajenos = i.inf.puntos.filter((p) => !puntos.includes(p)).flatMap((p) => p.intervenciones.map((x) => x.segundos));
+      const ini = propios.length ? Math.min(...propios) : 0;
+      const finPropio = propios.length ? Math.max(...propios) : Infinity;
+      const sigAjeno = ajenos.filter((s) => s > finPropio).sort((x, y) => x - y)[0];
+      const fin = puntos.length === i.inf.puntos.length ? Infinity : sigAjeno ?? Infinity;
+      const { total, porOrador } = tiempoEnVentana(segmentos, ini, fin);
+      const min = Math.round(total / 60);
+      c.estadistica.minutosDiscusion = (c.estadistica.minutosDiscusion || 0) + min;
+      c.estadistica.minutosPorSesion.push({ fecha: i.fecha, minutos: min });
+      const mc = minutosPorCat[c.clave] ||= {};
+      for (const o of porOrador.values()) {
+        const cat = categoriaDe.get(o.nombre.toLowerCase()) || (/no identificad/i.test(o.nombre) ? "ND" : categoriaFinal("", o.nombre, "", ""));
+        mc[cat] = (mc[cat] || 0) + o.segundos / 60;
+        const e = c.estadistica.oradores.find((x) => x.nombre.toLowerCase() === o.nombre.toLowerCase());
+        if (e) {
+          e.minutos += o.segundos / 60;
+          e.intervenciones += o.intervenciones;
+        } else c.estadistica.oradores.push({ nombre: o.nombre, categoria: cat, minutos: o.segundos / 60, intervenciones: o.intervenciones });
+      }
+    }
+  }
+  for (const c of comisiones) {
+    c.sesiones.sort((x, y) => x.fecha.localeCompare(y.fecha));
+    c.programadas = Array.from(new Set(c.programadas)).sort();
+    c.estadistica.diasEnComision = c.desde && c.hasta ? dias(c.desde, c.hasta) + 1 : null;
+    c.estadistica.minutosPorCategoria = Object.fromEntries(Object.entries(minutosPorCat[c.clave] || {}).map(([k, v]) => [k, Math.round(v)]));
+    c.estadistica.oradores = c.estadistica.oradores.map((o) => ({ ...o, minutos: Math.round(o.minutos) })).sort((x, y) => y.minutos - x.minutos).slice(0, 12);
+    c.estadistica.minutosPorSesion.sort((x, y) => x.fecha.localeCompare(y.fecha));
+    c.informeOficial = informesOficiales.find((i) => normComision(i.titulo).includes(normComision(c.nombre)) || mismaComision2(i.titulo, c.nombre)) || null;
+    const vistos = /* @__PURE__ */ new Set();
+    c.acuerdos = c.acuerdos.filter((a) => {
+      const k = `${a.fecha}|${a.texto.toLowerCase().slice(0, 80)}`;
+      if (vistos.has(k)) return false;
+      vistos.add(k);
+      return true;
+    });
+  }
+  for (const i of informesOficiales) {
+    if (comisiones.some((c2) => c2.informeOficial?.url === i.url)) continue;
+    const m = i.titulo.match(/comisi[oó]n(?:es)?\s+(?:unidas\s+)?(?:de\s+|del\s+)?([^,.;]+)/i);
+    if (!m) continue;
+    const c = obtener(`Comisi\xF3n de ${m[1].trim()}`, "");
+    c.informeOficial = i;
+    const f = isoDe(i.fecha);
+    if (f) {
+      c.hasta = c.hasta && c.hasta > f ? c.hasta : f;
+      c.desde = c.desde || f;
+    }
+  }
+  comisiones.sort((x, y) => String(x.desde || "9999").localeCompare(String(y.desde || "9999")));
+  const salaEventos = sala.map((s) => ({
+    fecha: s.fecha,
+    camara: s.camara,
+    numero: s.numero,
+    detalle: [
+      s.puntos.filter((p) => p.boletin === b).map((p) => `En tabla${p.parte ? ` (${p.parte.toLowerCase()})` : ""}${p.quorum ? ` \xB7 ${p.quorum}` : ""}`).join(" \xB7 "),
+      ...s.votaciones.filter((v) => v.boletin === b).map((v) => `Votaci\xF3n: ${v.resultado} (S\xED ${v.si}, No ${v.no}, Abst. ${v.abstencion})`)
+    ].filter(Boolean).join(" \xB7 ")
+  })).sort((x, y) => x.fecha.localeCompare(y.fecha));
+  const historial = { disponible: comisiones.length > 0 || salaEventos.length > 0, boletin: b, firma: firma2, generado: (/* @__PURE__ */ new Date()).toISOString(), comisiones, sala: salaEventos };
+  if (!historial.disponible) historial.motivo = "No hay sesiones de comisi\xF3n ni de Sala registradas para este bolet\xEDn.";
+  const conMaterial = comisiones.filter((c) => c.estadistica.sesionesConInforme > 0 || c.informeOficial);
+  if (conMaterial.length) {
+    const bloques = [];
+    for (const c of conMaterial) {
+      const ses = informes.filter((i) => mismaComision2(i.comision, c.nombre));
+      const textoSes = ses.map((i) => {
+        const pts = i.inf.puntos.filter((p) => p.boletines.includes(b) || i.inf.puntos.length === 1);
+        return `### Sesi\xF3n ${i.fecha}
+${pts.map((p) => [p.sintesis, ...p.intervenciones.map((x) => `- ${x.orador}${x.cargo ? ` (${x.cargo}${x.institucion ? `, ${x.institucion}` : ""})` : ""} [${x.categoria}]: ${x.parrafos.join(" ").slice(0, 900)}`), ...p.acuerdos.map((a) => `Acuerdo: ${a.texto}`), ...p.votaciones.map((v) => `Votaci\xF3n: ${v.texto}: ${v.resultado}`)].filter(Boolean).join("\n")).join("\n")}`;
+      }).join("\n\n").slice(0, 4e4);
+      const oficial = c.informeOficial ? await extractoInformeOficial(c.informeOficial.url) : "";
+      bloques.push(`=== COMISI\xD3N: ${c.nombre} (clave: ${c.clave}) \xB7 sesiones con fecha: ${c.sesiones.map((s) => s.fecha).join(", ") || "sin fecha"} ===
+${oficial ? `INFORME OFICIAL DE LA COMISI\xD3N (${c.informeOficial.titulo}):
+${oficial}
+
+` : ""}${textoSes ? `INFORMES DE SESI\xD3N (desde las transcripciones):
+${textoSes}` : ""}`);
+    }
+    const S3 = (type, extra = {}) => ({ type, ...extra });
+    const esquema = S3("OBJECT", { properties: {
+      comisiones: S3("ARRAY", { items: S3("OBJECT", { properties: {
+        clave: S3("STRING"),
+        temas: S3("ARRAY", { items: S3("OBJECT", { properties: { tema: S3("STRING"), detalle: S3("STRING"), fechas: S3("ARRAY", { items: S3("STRING") }), estado: S3("STRING", { enum: ["resuelto", "pendiente", "en debate"] }) }, required: ["tema", "detalle", "fechas", "estado"] }) }),
+        posiciones: S3("ARRAY", { items: S3("OBJECT", { properties: { actor: S3("STRING"), postura: S3("STRING"), fecha: S3("STRING") }, required: ["actor", "postura", "fecha"] }) }),
+        contrapuntos: S3("ARRAY", { items: S3("OBJECT", { properties: { tema: S3("STRING"), aFavor: S3("ARRAY", { items: S3("STRING") }), enContra: S3("ARRAY", { items: S3("STRING") }), fecha: S3("STRING") }, required: ["tema", "aFavor", "enContra", "fecha"] }) }),
+        cierre: S3("OBJECT", { properties: { recibio: S3("STRING"), despacho: S3("STRING"), cambios: S3("STRING"), pendientes: S3("ARRAY", { items: S3("STRING") }) } })
+      }, required: ["clave", "temas"] }) }),
+      hilo: S3("ARRAY", { items: S3("OBJECT", { properties: { tema: S3("STRING"), pasos: S3("ARRAY", { items: S3("OBJECT", { properties: { comision: S3("STRING"), fecha: S3("STRING"), estado: S3("STRING") }, required: ["comision", "fecha", "estado"] }) }) }, required: ["tema", "pasos"] }) })
+    }, required: ["comisiones"] });
+    const prompt3 = `Eres asesor parlamentario de la Biblioteca del Congreso Nacional de Chile. Arma el historial del bolet\xEDn ${b} por comisi\xF3n,
+usando EXCLUSIVAMENTE el material que sigue (informes oficiales de comisi\xF3n e informes de sesi\xF3n hechos desde las transcripciones). No agregues nada externo.
+Redacci\xF3n neutral, en tercera persona y sin adjetivos valorativos; toda postura atribuida a quien la expres\xF3.
+Por cada comisi\xF3n (usa su "clave"):
+- "temas": 3 a 6 temas del debate, cada uno con 1 a 2 oraciones, las fechas (AAAA-MM-DD) de las sesiones donde se trat\xF3 (solo fechas listadas para esa comisi\xF3n) y su estado ("resuelto", "pendiente", "en debate").
+- "posiciones": posturas de los PARLAMENTARIOS (actor y postura en una oraci\xF3n, con fecha).
+- "contrapuntos": solo temas donde hay posturas opuestas expresadas por personas identificadas (qui\xE9nes a favor, qui\xE9nes en contra). Si no hay, lista vac\xEDa.
+- "cierre": solo si hay INFORME OFICIAL: con qu\xE9 texto recibi\xF3 el proyecto, qu\xE9 despach\xF3 (y votaci\xF3n final), qu\xE9 cambi\xF3 en esa comisi\xF3n, y qu\xE9 qued\xF3 pendiente. Si no hay informe oficial, deja los campos vac\xEDos.
+"hilo": temas que aparecen en m\xE1s de una comisi\xF3n, con cada paso (comisi\xF3n, fecha, estado).
+
+${bloques.join("\n\n")}`;
+    const r = await geminiJSON(prompt3, esquema, { maxTokens: 12e3, presupuestoMs: 15e4 });
+    if (r.ok === false) historial.sintesisIA = { disponible: false, motivo: r.motivo };
+    else {
+      const d = r.datos;
+      const txt = (v) => String(v ?? "").replace(/\s+/g, " ").trim();
+      for (const x of Array.isArray(d?.comisiones) ? d.comisiones : []) {
+        const c = comisiones.find((k) => k.clave === txt(x?.clave));
+        if (!c) continue;
+        const fechas = new Set(c.sesiones.map((s) => s.fecha));
+        if (c.informeOficial?.fecha) fechas.add(isoDe(c.informeOficial.fecha));
+        c.temas = (x.temas || []).map((t) => ({ tema: txt(t?.tema), detalle: txt(t?.detalle), fechas: (t?.fechas || []).map(txt).filter((f) => fechas.has(f)), estado: txt(t?.estado) })).filter((t) => t.tema && t.detalle && (t.fechas.length || c.informeOficial));
+        c.posiciones = (x.posiciones || []).map((p) => ({ actor: txt(p?.actor), postura: txt(p?.postura), fecha: txt(p?.fecha) })).filter((p) => p.actor && p.postura && (fechas.has(p.fecha) || c.informeOficial));
+        c.contrapuntos = (x.contrapuntos || []).map((p) => ({ tema: txt(p?.tema), aFavor: (p?.aFavor || []).map(txt).filter(Boolean), enContra: (p?.enContra || []).map(txt).filter(Boolean), fecha: txt(p?.fecha) })).filter((p) => p.tema && p.aFavor.length && p.enContra.length);
+        const ci = x.cierre || {};
+        c.cierre = c.informeOficial && (txt(ci.despacho) || txt(ci.cambios)) ? { recibio: txt(ci.recibio), despacho: txt(ci.despacho), cambios: txt(ci.cambios), pendientes: (ci.pendientes || []).map(txt).filter(Boolean) } : null;
+      }
+      const nombres = comisiones.map((c) => c.nombre);
+      historial.hilo = (Array.isArray(d?.hilo) ? d.hilo : []).map((h) => ({ tema: txt(h?.tema), pasos: (h?.pasos || []).map((p) => ({ comision: txt(p?.comision), fecha: txt(p?.fecha), estado: txt(p?.estado) })).filter((p) => nombres.some((n) => mismaComision2(n, p.comision))) })).filter((h) => h.tema && h.pasos.length >= 2);
+      historial.sintesisIA = { disponible: true, modelo: r.modelo };
+    }
+  }
+  await escribirDoc(`historial_proyectos/${b}`, { boletinId: b, historial, updatedAt: (/* @__PURE__ */ new Date()).toISOString() }).catch(() => void 0);
+  return historial;
+}
+
+// server/services/transcripcionAutomaticaService.ts
+var COLA = "cola_transcripcion";
+var VIDEOS = "analisis_videos_sesion";
+var MESES5 = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+var norm4 = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+function hoyChileISO(d = /* @__PURE__ */ new Date()) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+}
+var sumarDias2 = (iso3, n) => {
+  const d = /* @__PURE__ */ new Date(`${iso3}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+function configuracionAuto() {
+  return {
+    activa: /^(1|true|si|sí|on)$/i.test(String(process.env.TRANSCRIPCION_AUTO || "").trim().replace(/^["']|["']$/g, "")),
+    maxTramosDia: Math.max(1, Number(process.env.TRANSCRIPCION_AUTO_MAX_TRAMOS_DIA) || 60),
+    informe: /^(1|true|si|sí|on)$/i.test(String(process.env.TRANSCRIPCION_AUTO_INFORME || "").trim().replace(/^["']|["']$/g, "")),
+    desde: /^\d{4}-\d{2}-\d{2}$/.test(process.env.TRANSCRIPCION_AUTO_DESDE || "") ? process.env.TRANSCRIPCION_AUTO_DESDE : "2026-01-01"
+  };
+}
+function tituloConFecha(titulo, fechaISO4) {
+  const [a, m, d] = fechaISO4.split("-").map(Number);
+  if (!a || !m || !d) return false;
+  const t = norm4(titulo);
+  return new RegExp(`(^|\\D)0?${d}\\s+(de\\s+)?${MESES5[m - 1]}`).test(t) || new RegExp(`(^|\\D)0?${d}[-/.]0?${m}[-/.](${a}|${String(a).slice(2)})(\\D|$)`).test(t);
+}
+async function contadorDia() {
+  const ruta = `${COLA}/_contador_${hoyChileISO()}`;
+  const d = await leerDoc(ruta).catch(() => null);
+  return { ruta, tramos: Number(d?.tramos) || 0 };
+}
+async function leerTranscripcion(videoId) {
+  const d = await leerDoc(`${VIDEOS}/${videoId}__t`).catch(() => null);
+  return { partes: Array.isArray(d?.partes) ? d.partes : [], completo: !!d?.completo, boletines: Array.isArray(d?.boletines) ? d.boletines : [] };
+}
+async function guardarTrabajo(t, cambios) {
+  Object.assign(t, cambios);
+  await escribirDoc(`${COLA}/${t.id}`, { ...t, actualizado: (/* @__PURE__ */ new Date()).toISOString() });
+}
+async function siguienteSesion() {
+  const { base, proy, key } = conexionFirestore();
+  const { desde } = configuracionAuto();
+  let hasta = sumarDias2(hoyChileISO(), -1);
+  for (let pagina = 0; pagina < 15 && hasta >= desde; pagina++) {
+    const filas = await consultar({
+      from: [{ collectionId: "registro_sesiones" }],
+      where: { compositeFilter: { op: "AND", filters: [
+        { fieldFilter: { field: { fieldPath: "fecha" }, op: "LESS_THAN_OR_EQUAL", value: { stringValue: hasta } } },
+        { fieldFilter: { field: { fieldPath: "fecha" }, op: "GREATER_THAN_OR_EQUAL", value: { stringValue: desde } } }
+      ] } },
+      orderBy: [{ field: { fieldPath: "fecha" }, direction: "DESCENDING" }],
+      limit: 100
+    });
+    if (filas.length === 0) return null;
+    const sesiones = unirSesionesLeidas(filas.map((f) => combinarSesion(f.id, f.datos))).filter((s) => s.camara && s.comisionNombre).sort((a, b) => b.fecha.localeCompare(a.fecha) || String(b.hora || "").localeCompare(String(a.hora || "")));
+    const r = await fetch(`${base}:batchGet?key=${key}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ documents: sesiones.map((s) => `projects/${proy}/databases/(default)/documents/${COLA}/${s.id}`) }),
+      signal: AbortSignal.timeout(15e3)
+    });
+    const existentes = /* @__PURE__ */ new Set();
+    if (r.ok) {
+      for (const x of await r.json()) if (x.found) existentes.add(String(x.found.name).split("/").pop());
+    }
+    const libre = sesiones.find((s) => !existentes.has(s.id));
+    if (libre) return libre;
+    const ultima2 = sesiones[sesiones.length - 1]?.fecha || filas.map((f) => camposAObjeto(f.datos).fecha).sort()[0];
+    if (!ultima2 || ultima2 >= hasta) hasta = sumarDias2(hasta, -1);
+    else hasta = ultima2;
+    if (filas.length < 100) hasta = sumarDias2(ultima2 || hasta, -1);
+  }
+  return null;
+}
+async function trabajoParaReintentar() {
+  const hoy2 = hoyChileISO();
+  const filas = await consultar({ from: [{ collectionId: COLA }], where: { fieldFilter: { field: { fieldPath: "estado" }, op: "EQUAL", value: { stringValue: "sin_video" } } }, limit: 50 });
+  const t = filas.map((f) => ({ id: f.id, ...camposAObjeto(f.datos) })).find((x) => x.reintentarDesde && x.reintentarDesde <= hoy2 && x.fecha >= sumarDias2(hoy2, -10));
+  return t || null;
+}
+async function trabajoEnEstado(estado) {
+  const filas = await consultar({ from: [{ collectionId: COLA }], where: { fieldFilter: { field: { fieldPath: "estado" }, op: "EQUAL", value: { stringValue: estado } } }, limit: 1 });
+  return filas[0] ? { id: filas[0].id, ...camposAObjeto(filas[0].datos) } : null;
+}
+async function buscarVideo(t) {
+  const camaraYT = /senado/i.test(t.camara) ? "senado" : "diputados";
+  const videos = await buscarVideosSesion(t.comision, t.fecha, camaraYT);
+  const v = videos.find((x) => tituloConFecha(x.title, t.fecha));
+  if (!v) return null;
+  const det = (await detallesVideos([v.id]).catch(() => ({})))[v.id];
+  const duracion = det?.segundos ?? v.segundos ?? null;
+  await guardarTrabajo(t, { videoId: v.id, titulo: v.title, duracion, total: duracion ? Math.max(1, Math.ceil(duracion / SEGUNDOS_POR_PARTE_TRANSCRIPCION)) : 1, estado: "transcribiendo", intentos: 0, error: "" });
+  return v.id;
+}
+async function avanzarTranscripcion(t, limite) {
+  const previa = await leerTranscripcion(t.videoId);
+  const partes = previa.partes.filter((p) => p?.disponible);
+  const total = t.total || 1;
+  let hechos = 0;
+  for (let parte = 0; parte < total; parte++) {
+    if (partes.some((p) => p.parte === parte)) continue;
+    if (Date.now() > limite) break;
+    const cont = await contadorDia();
+    if (cont.tramos >= configuracionAuto().maxTramosDia) return `Tope diario alcanzado (${cont.tramos} tramos).`;
+    const r = await transcribirParteVideo({ videoId: t.videoId, parte, duracion: t.duracion ?? void 0, comision: t.comision, fecha: t.fecha, materia: t.tabla.join(" ") });
+    await escribirDoc(cont.ruta, { tramos: cont.tramos + 1, fecha: hoyChileISO() });
+    if (!r.disponible) {
+      const intentos2 = (t.intentos || 0) + 1;
+      await guardarTrabajo(t, { intentos: intentos2, error: r.motivo || "No se pudo transcribir el tramo", estado: intentos2 >= 3 ? "error" : "transcribiendo" });
+      break;
+    }
+    partes.push(r);
+    partes.sort((a, b) => a.parte - b.parte);
+    hechos++;
+    const completo = partes.length >= total;
+    const mencionados = boletinesEnTexto(partes.flatMap((p) => p.segmentos || []).map((g) => g.texto).join(" "));
+    await escribirDoc(`${VIDEOS}/${t.videoId}__t`, {
+      partes,
+      completo,
+      tipo: "transcripcion",
+      videoId: t.videoId,
+      titulo: t.titulo || "",
+      comision: t.comision,
+      comisionId: t.comisionId || "",
+      fecha: t.fecha,
+      duracion: t.duracion ?? null,
+      tabla: t.tabla,
+      boletines: Array.from(/* @__PURE__ */ new Set([...previa.boletines, ...t.boletines, ...mencionados])),
+      automatica: true,
+      updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+    });
+    if (completo) {
+      await guardarTrabajo(t, { estado: configuracionAuto().informe ? "informe_pendiente" : "transcrita", intentos: 0, error: "" });
+      return `Transcripci\xF3n completa (${total} tramos).`;
+    }
+    if (t.intentos) await guardarTrabajo(t, { intentos: 0, error: "" });
+  }
+  if (partes.length >= total && t.estado === "transcribiendo") await guardarTrabajo(t, { estado: configuracionAuto().informe ? "informe_pendiente" : "transcrita" });
+  return `${hechos} tramo(s) transcritos; van ${partes.length} de ${total}.`;
+}
+async function redactarInforme(t) {
+  const previa = await leerTranscripcion(t.videoId);
+  const segmentos = previa.partes.filter((p) => p?.disponible).flatMap((p) => p.segmentos || []);
+  const r = await generarInformeSesion({ segmentos, tabla: t.tabla, boletines: t.boletines, comision: t.comision, fecha: t.fecha, parcial: !previa.completo });
+  if (r.disponible === false) {
+    const motivo = r.motivo;
+    const intentos2 = (t.intentos || 0) + 1;
+    await guardarTrabajo(t, { intentos: intentos2, error: motivo, estado: intentos2 >= 3 ? "transcrita" : "informe_pendiente" });
+    return `No se pudo redactar el informe: ${motivo}`;
+  }
+  await escribirDoc(`${VIDEOS}/${t.videoId}__i`, {
+    informe: r.informe,
+    tipo: "informe",
+    videoId: t.videoId,
+    titulo: t.titulo || "",
+    comision: t.comision,
+    comisionId: t.comisionId || "",
+    fecha: t.fecha,
+    tabla: t.tabla,
+    boletines: Array.from(/* @__PURE__ */ new Set([...previa.boletines, ...t.boletines])),
+    automatica: true,
+    updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+  });
+  await guardarTrabajo(t, { estado: "informe_listo", intentos: 0, error: "" });
+  const pend = await leerDoc(`${COLA}/_historial_pendiente`).catch(() => null);
+  await escribirDoc(`${COLA}/_historial_pendiente`, { boletines: Array.from(/* @__PURE__ */ new Set([...pend?.boletines || [], ...t.boletines])) }).catch(() => void 0);
+  return "Informe redactado.";
+}
+async function precargarFichas(maximo = 1) {
+  const desde = sumarDias2(hoyChileISO(), -45);
+  const filas = await consultar({
+    from: [{ collectionId: "registro_sesiones" }],
+    where: { fieldFilter: { field: { fieldPath: "fecha" }, op: "GREATER_THAN_OR_EQUAL", value: { stringValue: desde } } },
+    orderBy: [{ field: { fieldPath: "fecha" }, direction: "DESCENDING" }],
+    limit: 300
+  }).catch(() => []);
+  const sala = await consultar({
+    from: [{ collectionId: "sesiones_sala" }],
+    where: { fieldFilter: { field: { fieldPath: "fecha" }, op: "GREATER_THAN_OR_EQUAL", value: { stringValue: desde } } },
+    limit: 100
+  }).catch(() => []);
+  const boletines = Array.from(new Set([...filas, ...sala].flatMap((f) => camposAObjeto(f.datos).boletines || []).filter((b) => /^\d{3,6}-\d{2}$/.test(b))));
+  const hechos = [];
+  const hoy2 = hoyChileISO();
+  for (const b of boletines) {
+    if (hechos.length >= maximo) break;
+    const g = await leerDoc(`historial_proyectos/${b}`).catch(() => null);
+    if (g?.fichaEjecutiva?.ficha) continue;
+    if (g?.fichaIntento && g.fichaIntento >= sumarDias2(hoy2, -7)) continue;
+    const r = await fichaEjecutivaProyecto(b).catch(() => null);
+    if (r?.disponible && r.ficha?.fuente === "texto") {
+      await escribirDoc(`historial_proyectos/${b}`, { boletinId: b, fichaEjecutiva: { ficha: r.ficha, guardadoEn: (/* @__PURE__ */ new Date()).toISOString(), automatica: true }, updatedAt: (/* @__PURE__ */ new Date()).toISOString() });
+    } else {
+      await escribirDoc(`historial_proyectos/${b}`, { boletinId: b, fichaIntento: hoy2 });
+    }
+    hechos.push(b);
+  }
+  return hechos;
+}
+async function pasoTranscripcionAutomatica() {
+  const fichas = await Promise.race([precargarFichas(1).catch(() => []), new Promise((r2) => setTimeout(() => r2([]), 6e4))]);
+  const r = await pasoTranscripcion();
+  let historial;
+  if (["sin_video", "nada", "tope", "ya_transcrita", "inactiva", "sin_youtube"].includes(r.accion)) {
+    const pend = await leerDoc(`${COLA}/_historial_pendiente`).catch(() => null);
+    const lista3 = pend?.boletines || [];
+    if (lista3.length) {
+      historial = lista3[0];
+      await escribirDoc(`${COLA}/_historial_pendiente`, { boletines: lista3.slice(1) }).catch(() => void 0);
+      await Promise.race([construirHistorial(historial).catch(() => void 0), new Promise((res) => setTimeout(res, 17e4))]);
+    }
+  }
+  return { ...r, fichas, ...historial ? { historial } : {} };
+}
+async function pasoTranscripcion() {
+  const conf = configuracionAuto();
+  if (!conf.activa) return { ok: true, accion: "inactiva", detalle: `La transcripci\xF3n autom\xE1tica est\xE1 desactivada: TRANSCRIPCION_AUTO ${process.env.TRANSCRIPCION_AUTO === void 0 ? "no existe en este despliegue" : `tiene un valor distinto de 1 (${String(process.env.TRANSCRIPCION_AUTO).length} caracteres)`}.` };
+  if (!youtubeApiConfigurada()) return { ok: false, accion: "sin_youtube", detalle: "Falta YOUTUBE_API_KEY para encontrar los videos." };
+  const limite = Date.now() + 1e5;
+  let t = await trabajoEnEstado("transcribiendo");
+  if (t?.videoId) return { ok: true, accion: "transcribir", sesion: `${t.comision} ${t.fecha}`, detalle: await avanzarTranscripcion(t, limite) };
+  if (conf.informe) {
+    t = await trabajoEnEstado("informe_pendiente");
+    if (t?.videoId) return { ok: true, accion: "informe", sesion: `${t.comision} ${t.fecha}`, detalle: await redactarInforme(t) };
+  }
+  const cont = await contadorDia();
+  if (cont.tramos >= conf.maxTramosDia) return { ok: true, accion: "tope", detalle: `Tope diario alcanzado (${cont.tramos} de ${conf.maxTramosDia} tramos). Sigue ma\xF1ana.` };
+  t = await trabajoParaReintentar();
+  if (!t) {
+    const s = await siguienteSesion();
+    if (!s) return { ok: true, accion: "nada", detalle: `No quedan sesiones por transcribir desde ${conf.desde}.` };
+    t = {
+      id: s.id,
+      estado: "buscando_video",
+      camara: s.camara,
+      comision: s.comisionNombre,
+      comisionId: s.comisionId,
+      fecha: s.fecha,
+      hora: s.hora,
+      boletines: s.boletines,
+      tabla: s.puntos.map((p) => p.texto).filter(Boolean)
+    };
+    await guardarTrabajo(t, {});
+  }
+  const videoId = await buscarVideo(t).catch(() => null);
+  if (!videoId) {
+    const reciente = t.fecha >= sumarDias2(hoyChileISO(), -10);
+    await guardarTrabajo(t, { estado: "sin_video", reintentarDesde: reciente ? sumarDias2(hoyChileISO(), 2) : "", error: "No se encontr\xF3 en el canal oficial un video con la fecha de la sesi\xF3n." });
+    return { ok: true, accion: "sin_video", sesion: `${t.comision} ${t.fecha}`, detalle: "Sin video con esa fecha en el canal oficial." };
+  }
+  const previa = await leerTranscripcion(videoId);
+  if (previa.completo) {
+    await guardarTrabajo(t, { estado: conf.informe ? "informe_pendiente" : "transcrita" });
+    return { ok: true, accion: "ya_transcrita", sesion: `${t.comision} ${t.fecha}`, detalle: "Ya estaba transcrita." };
+  }
+  return { ok: true, accion: "transcribir", sesion: `${t.comision} ${t.fecha}`, detalle: await avanzarTranscripcion(t, limite) };
+}
+async function estadoTranscripcionAutomatica() {
+  const conf = configuracionAuto();
+  const filas = await consultar({ from: [{ collectionId: COLA }], orderBy: [{ field: { fieldPath: "actualizado" }, direction: "DESCENDING" }], limit: 300 });
+  const trabajos = filas.filter((f) => !f.id.startsWith("_")).map((f) => ({ id: f.id, ...camposAObjeto(f.datos) }));
+  const porEstado = {};
+  for (const t of trabajos) porEstado[t.estado] = (porEstado[t.estado] || 0) + 1;
+  const cont = await contadorDia();
+  return {
+    configuracion: conf,
+    tramosHoy: cont.tramos,
+    porEstado,
+    recientes: trabajos.slice(0, 15).map((t) => ({ comision: t.comision, fecha: t.fecha, estado: t.estado, videoId: t.videoId || null, error: t.error || null, actualizado: t.actualizado }))
+  };
+}
+
+// server/services/resumenBoletinService.ts
+var iso = (f) => {
+  const m = String(f || "").match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return m[0];
+  const d = String(f || "").match(/(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
+  return d ? `${d[3]}-${d[2].padStart(2, "0")}-${d[1].padStart(2, "0")}` : String(f || "");
+};
+async function sesionesDelBoletin(boletin) {
+  const b = normalizarBoletin(boletin);
+  if (!b.includes("-")) return [];
+  const filas = await consultar({ from: [{ collectionId: "analisis_videos_sesion" }], where: { fieldFilter: { field: { fieldPath: "boletines" }, op: "ARRAY_CONTAINS", value: { stringValue: b } } } });
+  const out = [];
+  for (const f of filas) {
+    const d = camposAObjeto(f.datos);
+    if (d.tipo !== "informe" || !d.informe) continue;
+    const inf = normalizarInforme(d.informe);
+    let puntos = inf.puntos.filter((p) => p.boletines.includes(b));
+    if (puntos.length === 0 && inf.puntos.length === 1) puntos = inf.puntos;
+    if (puntos.length === 0) continue;
+    const parcial = { ...inf, puntos };
+    const ints = intervinientes(parcial);
+    out.push({
+      videoId: String(d.videoId || f.id.replace(/__i$/, "")),
+      fecha: iso(d.fecha),
+      comision: String(d.comision || ""),
+      titulo: String(d.titulo || ""),
+      estado: puntos.map((p) => p.estado).filter(Boolean).join(" \xB7 "),
+      sintesis: puntos.map((p) => p.sintesis).filter(Boolean).join(" "),
+      acuerdos: puntos.flatMap((p) => p.acuerdos.map((a) => a.texto)),
+      votaciones: puntos.flatMap((p) => p.votaciones.map((v) => `${v.texto}: ${v.resultado}`)),
+      expositores: ints.filter((i) => i.categoria !== "PARL" && i.categoria !== "SEC").map((i) => ({ orador: i.orador, cargo: i.cargo, institucion: i.institucion, categoria: i.categoria })),
+      parlamentarios: ints.filter((i) => i.categoria === "PARL").map((i) => i.orador),
+      intervenciones: puntos.flatMap((p) => p.intervenciones.map((i) => ({ orador: i.orador, texto: i.parrafos.join(" ") })))
+    });
+  }
+  return out.sort((a, c) => c.fecha.localeCompare(a.fecha));
+}
+var firmaDe = (s) => s.map((x) => `${x.videoId}:${x.fecha}:${x.intervenciones.length}`).sort().join("|");
+var S2 = (type, extra = {}) => ({ type, ...extra });
+var ESQUEMA2 = S2("OBJECT", {
+  properties: {
+    resumen: S2("STRING"),
+    temas: S2("ARRAY", { items: S2("OBJECT", { properties: { tema: S2("STRING"), detalle: S2("STRING"), fechas: S2("ARRAY", { items: S2("STRING") }) }, required: ["tema", "detalle", "fechas"] }) }),
+    posiciones: S2("ARRAY", { items: S2("OBJECT", { properties: { actor: S2("STRING"), postura: S2("STRING"), fecha: S2("STRING") }, required: ["actor", "postura", "fecha"] }) }),
+    pendientes: S2("ARRAY", { items: S2("STRING") })
+  },
+  required: ["resumen", "temas"]
+});
+function prompt2(b, sesiones) {
+  const bloques = sesiones.slice().reverse().map((s) => [
+    `### Sesi\xF3n ${s.fecha} \xB7 ${s.comision}`,
+    s.sintesis && `Qu\xE9 se discuti\xF3: ${s.sintesis}`,
+    ...s.intervenciones.map((i) => `- ${i.orador}: ${i.texto}`),
+    ...s.acuerdos.map((a) => `Acuerdo: ${a}`),
+    ...s.votaciones.map((v) => `Votaci\xF3n: ${v}`)
+  ].filter(Boolean).join("\n")).join("\n\n");
+  return `Eres asesor parlamentario de la Biblioteca del Congreso Nacional de Chile. Resume lo que se ha visto en comisiones sobre el bolet\xEDn ${b},
+usando EXCLUSIVAMENTE los informes de sesi\xF3n que siguen (hechos a partir de las transcripciones). No agregues nada externo.
+- "resumen": un p\xE1rrafo de 4 a 6 oraciones sobre el estado de la discusi\xF3n en comisi\xF3n.
+- "temas": 3 a 6 temas principales del debate, cada uno con 1 a 2 oraciones y las fechas (AAAA-MM-DD) de las sesiones donde se trat\xF3.
+- "posiciones": las posturas m\xE1s relevantes (actor con su cargo o instituci\xF3n si aparece, y su postura en una oraci\xF3n), con la fecha de la sesi\xF3n.
+- "pendientes": lo que qued\xF3 pendiente seg\xFAn los informes.
+Espa\xF1ol formal, tercera persona.
+
+${bloques.slice(0, 2e5)}`;
+}
+async function resumenComisionesBoletin(boletin, opciones = {}) {
+  const b = normalizarBoletin(boletin);
+  const sesiones = await sesionesDelBoletin(b);
+  if (sesiones.length === 0) return { disponible: false, motivo: "A\xFAn no hay informes de sesiones de comisi\xF3n con este bolet\xEDn.", sesiones: [] };
+  const firma2 = firmaDe(sesiones);
+  const guardado = await leerDoc(`historial_proyectos/${b}`).catch(() => null);
+  const prev = guardado?.resumenComisiones;
+  if (prev?.firma === firma2 && !opciones.forzar) return { ...prev, disponible: true, sesiones };
+  if (opciones.soloGuardado) return prev ? { ...prev, disponible: true, desactualizado: true, sesiones } : { disponible: false, motivo: "pendiente", sesiones };
+  const r = await geminiJSON(prompt2(b, sesiones), ESQUEMA2, { maxTokens: 6e3, presupuestoMs: 12e4 });
+  if (r.ok === false) return { ...prev || {}, disponible: !!prev, motivo: `No se pudo actualizar el resumen: ${r.motivo}`, sesiones };
+  const fechas = new Set(sesiones.map((s) => s.fecha));
+  const txt = (v) => String(v ?? "").replace(/\s+/g, " ").trim();
+  const d = r.datos;
+  const resultado = {
+    firma: firma2,
+    generado: (/* @__PURE__ */ new Date()).toISOString(),
+    modelo: r.modelo,
+    resumen: txt(d?.resumen),
+    // Solo se aceptan temas y posturas ligados a sesiones que existen.
+    temas: (Array.isArray(d?.temas) ? d.temas : []).map((t) => ({ tema: txt(t?.tema), detalle: txt(t?.detalle), fechas: (Array.isArray(t?.fechas) ? t.fechas : []).map(txt).filter((f) => fechas.has(f)) })).filter((t) => t.tema && t.detalle && t.fechas.length),
+    posiciones: (Array.isArray(d?.posiciones) ? d.posiciones : []).map((p) => ({ actor: txt(p?.actor), postura: txt(p?.postura), fecha: txt(p?.fecha) })).filter((p) => p.actor && p.postura && fechas.has(p.fecha)),
+    pendientes: (Array.isArray(d?.pendientes) ? d.pendientes : []).map(txt).filter(Boolean)
+  };
+  await escribirDoc(`historial_proyectos/${b}`, { boletinId: b, resumenComisiones: resultado, updatedAt: (/* @__PURE__ */ new Date()).toISOString() }).catch(() => void 0);
+  return { ...resultado, disponible: true, sesiones };
 }
 
 // server/services/resumenSesionService.ts
@@ -191027,13 +191322,13 @@ function urlPermitida(u) {
 var cacheEnlaces = /* @__PURE__ */ new Map();
 var TTL_ENLACE_MS = 60 * 60 * 1e3;
 async function visitar(url) {
-  const hoy = (/* @__PURE__ */ new Date()).toISOString();
+  const hoy2 = (/* @__PURE__ */ new Date()).toISOString();
   const c = cacheEnlaces.get(url);
   if (c && Date.now() - c.en < TTL_ENLACE_MS) return c.v;
   const u = urlPermitida(url);
   let v;
   if (!u) {
-    v = { url, estado: "roto", verificadoEl: hoy };
+    v = { url, estado: "roto", verificadoEl: hoy2 };
   } else {
     try {
       const r = await fetch(u.toString(), {
@@ -191052,10 +191347,10 @@ async function visitar(url) {
         codigo: s,
         urlFinal: r.url && r.url !== url ? r.url : void 0,
         estado: s >= 200 && s < 400 ? "ok" : s === 401 || s === 403 || s === 429 ? "bloqueado" : "roto",
-        verificadoEl: hoy
+        verificadoEl: hoy2
       };
     } catch {
-      v = { url, estado: "roto", verificadoEl: hoy };
+      v = { url, estado: "roto", verificadoEl: hoy2 };
     }
   }
   cacheEnlaces.set(url, { en: Date.now(), v });
@@ -191741,8 +192036,8 @@ async function buscarAustria(q) {
   try {
     const de = (await traducirConsulta(q, "alem\xE1n")).trim();
     if (!de) return { normas: [], estado: { ...base, estado: "sin_resultados", motivo: "La consulta no tiene t\xE9rminos \xFAtiles." } };
-    const hoy = ahora.slice(0, 10);
-    const url = `https://data.bka.gv.at/ris/api/v2.6/Bundesrecht?Applikation=BrKons&Titel=${encodeURIComponent(de)}&FassungVom=${hoy}&DokumenteProSeite=Fifty`;
+    const hoy2 = ahora.slice(0, 10);
+    const url = `https://data.bka.gv.at/ris/api/v2.6/Bundesrecht?Applikation=BrKons&Titel=${encodeURIComponent(de)}&FassungVom=${hoy2}&DokumenteProSeite=Fifty`;
     const r = await descargar(url, { Accept: "application/json" }, 2e4);
     if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
     const res = JSON.parse(r.buf.toString("utf8"))?.OgdSearchResult;
@@ -191764,7 +192059,7 @@ async function buscarAustria(q) {
         titulo,
         fecha: b.BrKons.Inkrafttretensdatum || void 0,
         url: `https://www.ris.bka.gv.at/GeltendeFassung.wxe?Abfrage=Bundesnormen&Gesetzesnummer=${encodeURIComponent(k)}`,
-        descripcion: `Norma federal austriaca vigente al ${hoy}${b.BrKons.StammnormBgblnummer ? ` \xB7 ${b.BrKons.StammnormPublikationsorgan || "BGBl."} ${b.BrKons.StammnormBgblnummer}` : ""}. Metadatos del RIS; texto en alem\xE1n.`,
+        descripcion: `Norma federal austriaca vigente al ${hoy2}${b.BrKons.StammnormBgblnummer ? ` \xB7 ${b.BrKons.StammnormPublikationsorgan || "BGBl."} ${b.BrKons.StammnormBgblnummer}` : ""}. Metadatos del RIS; texto en alem\xE1n.`,
         idOficial: String(k),
         tipoOficial: typ === "BG" ? "Bundesgesetz" : typ === "V" ? "Verordnung" : typ || void 0,
         origen: "oficial",
@@ -194630,7 +194925,7 @@ var redondear = (n, d) => Math.round(n * 10 ** d) / 10 ** d;
 async function getIndicadoresVivos() {
   if (cache2 && Date.now() - cache2.en < TTL_MS2) return cache2.datos;
   const datos = {};
-  const hoy = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+  const hoy2 = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
   await Promise.all(
     CONFIG.map(async (c) => {
       try {
@@ -194649,8 +194944,8 @@ async function getIndicadoresVivos() {
           urlFuente: `https://data.worldbank.org/indicator/${c.codigo}?locations=CL`,
           definicion: c.definicion,
           frecuencia: `Anual (serie ${serie[0].year} \u2013 ${ult.year}, \xFAltimo a\xF1o publicado)`,
-          sintesisDiagnostica: `\xDAltimo dato publicado para Chile: ${ult.chile.toLocaleString("es-CL", { maximumFractionDigits: c.decimales })} ${c.unidad} (${ult.year}).` + (typeof ult.oecd_avg === "number" ? ` Promedio OCDE ese a\xF1o: ${ult.oecd_avg.toLocaleString("es-CL", { maximumFractionDigits: c.decimales })}.` : "") + (typeof ult.latam_avg === "number" ? ` Am\xE9rica Latina y el Caribe: ${ult.latam_avg.toLocaleString("es-CL", { maximumFractionDigits: c.decimales })}.` : "") + ` Serie de ${c.nombre} descargada del Banco Mundial el ${hoy}; no incluye estimaciones propias.`,
-          consultadoEl: hoy
+          sintesisDiagnostica: `\xDAltimo dato publicado para Chile: ${ult.chile.toLocaleString("es-CL", { maximumFractionDigits: c.decimales })} ${c.unidad} (${ult.year}).` + (typeof ult.oecd_avg === "number" ? ` Promedio OCDE ese a\xF1o: ${ult.oecd_avg.toLocaleString("es-CL", { maximumFractionDigits: c.decimales })}.` : "") + (typeof ult.latam_avg === "number" ? ` Am\xE9rica Latina y el Caribe: ${ult.latam_avg.toLocaleString("es-CL", { maximumFractionDigits: c.decimales })}.` : "") + ` Serie de ${c.nombre} descargada del Banco Mundial el ${hoy2}; no incluye estimaciones propias.`,
+          consultadoEl: hoy2
         };
       } catch (e) {
         console.warn(`[bancoMundial] ${c.id}: ${e?.message}`);
@@ -194669,12 +194964,12 @@ var cache3 = null;
 function aTexto(html) {
   return html.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&ndash;|&#8211;/g, "\u2013").replace(/&aacute;/g, "\xE1").replace(/&eacute;/g, "\xE9").replace(/&iacute;/g, "\xED").replace(/&oacute;/g, "\xF3").replace(/&uacute;/g, "\xFA").replace(/&ntilde;/g, "\xF1").replace(/\s+/g, " ");
 }
-function extraer(texto, re, url, hoy) {
+function extraer(texto, re, url, hoy2) {
   const m = texto.match(re);
   if (!m) return null;
   const valor = Number(m[1].replace(/\./g, "").replace(",", "."));
   if (!Number.isFinite(valor)) return null;
-  return { valor, texto: `${m[1]}%`, periodo: m[2].trim(), fuenteUrl: url, consultadoEl: hoy };
+  return { valor, texto: `${m[1]}%`, periodo: m[2].trim(), fuenteUrl: url, consultadoEl: hoy2 };
 }
 async function bajar(url) {
   const r = await fetch(url, {
@@ -194686,19 +194981,19 @@ async function bajar(url) {
 }
 async function getIneVigente() {
   if (cache3 && Date.now() - cache3.en < TTL_MS3) return cache3.datos;
-  const hoy = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+  const hoy2 = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
   const datos = { desocupacion: null, informalidad: null, ipcMensual: null };
   const PERIODO_TRIM = "([A-Za-z\xC1\xC9\xCD\xD3\xDA\xE1\xE9\xED\xF3\xFA\xF1]+\\s*[\u2013-]\\s*[A-Za-z\xC1\xC9\xCD\xD3\xDA\xE1\xE9\xED\xF3\xFA\xF1]+\\s+\\d{4})";
   try {
     const t = await bajar(URL_EMPLEO);
-    datos.desocupacion = extraer(t, new RegExp(`Tasa de desocupaci[o\xF3]n nacional\\s*(-?[\\d.,]+)\\s*%\\s*Trimestre m[o\xF3]vil\\s*${PERIODO_TRIM}`, "i"), URL_EMPLEO, hoy);
-    datos.informalidad = extraer(t, new RegExp(`Tasa de ocupaci[o\xF3]n informal nacional\\s*(-?[\\d.,]+)\\s*%\\s*Trimestre m[o\xF3]vil\\s*${PERIODO_TRIM}`, "i"), URL_EMPLEO, hoy);
+    datos.desocupacion = extraer(t, new RegExp(`Tasa de desocupaci[o\xF3]n nacional\\s*(-?[\\d.,]+)\\s*%\\s*Trimestre m[o\xF3]vil\\s*${PERIODO_TRIM}`, "i"), URL_EMPLEO, hoy2);
+    datos.informalidad = extraer(t, new RegExp(`Tasa de ocupaci[o\xF3]n informal nacional\\s*(-?[\\d.,]+)\\s*%\\s*Trimestre m[o\xF3]vil\\s*${PERIODO_TRIM}`, "i"), URL_EMPLEO, hoy2);
   } catch (e) {
     console.warn("[ine] empleo:", e?.message);
   }
   try {
     const t = await bajar(URL_IPC);
-    datos.ipcMensual = extraer(t, /[ÍI]ndice de Precios al Consumidor\s*-\s*IPC\s*(-?[\d.,]+)\s*%\s*Variaci[oó]n mensual\s*([A-Za-zÁÉÍÓÚáéíóúñ]+\s+\d{4})/i, URL_IPC, hoy);
+    datos.ipcMensual = extraer(t, /[ÍI]ndice de Precios al Consumidor\s*-\s*IPC\s*(-?[\d.,]+)\s*%\s*Variaci[oó]n mensual\s*([A-Za-zÁÉÍÓÚáéíóúñ]+\s+\d{4})/i, URL_IPC, hoy2);
   } catch (e) {
     console.warn("[ine] ipc:", e?.message);
   }
@@ -195948,9 +196243,9 @@ apiRouter.get("/proyecto/:id/comparado", async (req, res) => {
   if (!proyecto) {
     return res.json({ disponible: false, razon: "No se pudo obtener la ficha oficial del proyecto." });
   }
-  const normComision = comisionNombre.toLowerCase().replace(/^comisi[oó]n\s+de\s+/i, "");
+  const normComision2 = comisionNombre.toLowerCase().replace(/^comisi[oó]n\s+de\s+/i, "");
   const docs = proyecto.documentos || [];
-  const informes = docs.filter((d) => d.tipo === "Informe" && d.url && (!normComision || d.titulo.toLowerCase().includes(normComision))).sort((a, b) => (b.fecha || "").localeCompare(a.fecha || ""));
+  const informes = docs.filter((d) => d.tipo === "Informe" && d.url && (!normComision2 || d.titulo.toLowerCase().includes(normComision2))).sort((a, b) => (b.fecha || "").localeCompare(a.fecha || ""));
   const docsIndicaciones = docs.filter((d) => d.url && /indicaci/i.test(d.titulo)).slice(0, 3);
   const informe = informes[0];
   const textoMensaje = await textoMensajeMocion(proyecto.linkCongreso || "");
@@ -196052,8 +196347,8 @@ apiRouter.get("/proyecto/:id/indicaciones", async (req, res) => {
   if (!proyecto) {
     return res.json({ disponible: false, razon: "No se pudo obtener la ficha oficial del proyecto." });
   }
-  const normComision = comisionNombre.toLowerCase().replace(/^comisi[oó]n\s+de\s+/i, "");
-  const informes = (proyecto.documentos || []).filter((d) => d.tipo === "Informe" && d.url && (!normComision || d.titulo.toLowerCase().includes(normComision))).sort((a, b) => (b.fecha || "").localeCompare(a.fecha || ""));
+  const normComision2 = comisionNombre.toLowerCase().replace(/^comisi[oó]n\s+de\s+/i, "");
+  const informes = (proyecto.documentos || []).filter((d) => d.tipo === "Informe" && d.url && (!normComision2 || d.titulo.toLowerCase().includes(normComision2))).sort((a, b) => (b.fecha || "").localeCompare(a.fecha || ""));
   if (informes.length === 0) {
     return res.json({
       disponible: false,
@@ -196976,6 +197271,13 @@ apiRouter.get("/transcripcion/automatica/estado", async (_req, res) => {
     res.json(await estadoTranscripcionAutomatica());
   } catch (err) {
     res.json({ error: err?.message || String(err) });
+  }
+});
+apiRouter.get("/proyecto/:id/historial", async (req, res) => {
+  try {
+    res.json(await construirHistorial(String(req.params.id).slice(0, 20), { forzar: req.query.forzar === "1", soloGuardado: req.query.rapido === "1" }));
+  } catch (err) {
+    res.json({ disponible: false, motivo: err?.message || String(err), boletin: req.params.id, comisiones: [], sala: [] });
   }
 });
 apiRouter.get("/proyecto/:id/resumen-comisiones", async (req, res) => {

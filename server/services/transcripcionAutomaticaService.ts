@@ -16,6 +16,7 @@ import { buscarVideosSesion, detallesVideos, transcribirParteVideo, SEGUNDOS_POR
 import { generarInformeSesion } from "./informeSesionService";
 import { fichaEjecutivaProyecto } from "./senadoService";
 import { resumenComisionesBoletin } from "./resumenBoletinService";
+import { construirHistorial } from "./historialService";
 import { boletinesEnTexto } from "../../src/utils/boletines";
 
 const COLA = "cola_transcripcion";
@@ -179,8 +180,9 @@ async function redactarInforme(t: Trabajo): Promise<string> {
     fecha: t.fecha, tabla: t.tabla, boletines: Array.from(new Set([...previa.boletines, ...t.boletines])), automatica: true, updatedAt: new Date().toISOString(),
   });
   await guardarTrabajo(t, { estado: "informe_listo", intentos: 0, error: "" });
-  // Actualiza "lo visto en comisiones" de los boletines de la sesión (si queda tiempo, uno por uno).
-  for (const b of t.boletines.slice(0, 3)) await resumenComisionesBoletin(b).catch(() => undefined);
+  // Los boletines de la sesión quedan en espera para rehacer su historial (se hace en un paso con tiempo libre).
+  const pend = await leerDoc(`${COLA}/_historial_pendiente`).catch(() => null);
+  await escribirDoc(`${COLA}/_historial_pendiente`, { boletines: Array.from(new Set([...(pend?.boletines || []), ...t.boletines])) }).catch(() => undefined);
   return "Informe redactado.";
 }
 
@@ -223,7 +225,18 @@ export async function pasoTranscripcionAutomatica(): Promise<{ ok: boolean; acci
   // La precarga de fichas no depende de la transcripción automática: corre en cada paso (una por vez).
   const fichas = await Promise.race([precargarFichas(1).catch(() => [] as string[]), new Promise<string[]>((r) => setTimeout(() => r([]), 60_000))]);
   const r = await pasoTranscripcion();
-  return { ...r, fichas };
+  // Con tiempo libre (pasos livianos), rehace el historial de un boletín con informes nuevos.
+  let historial: string | undefined;
+  if (["sin_video", "nada", "tope", "ya_transcrita", "inactiva", "sin_youtube"].includes(r.accion)) {
+    const pend = await leerDoc(`${COLA}/_historial_pendiente`).catch(() => null);
+    const lista: string[] = pend?.boletines || [];
+    if (lista.length) {
+      historial = lista[0];
+      await escribirDoc(`${COLA}/_historial_pendiente`, { boletines: lista.slice(1) }).catch(() => undefined);
+      await Promise.race([construirHistorial(historial).catch(() => undefined), new Promise((res) => setTimeout(res, 170_000))]);
+    }
+  }
+  return { ...r, fichas, ...(historial ? { historial } : {}) };
 }
 
 async function pasoTranscripcion(): Promise<{ ok: boolean; accion: string; sesion?: string; detalle: string }> {
