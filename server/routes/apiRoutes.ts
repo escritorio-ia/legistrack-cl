@@ -1581,9 +1581,11 @@ Si no hay ninguna coincidencia real, responde exactamente: []`;
 
 // Transcripción automática en segundo plano: un paso por llamada (lo invoca un programador externo con CRON_SECRET).
 async function pasoAuto(req: Request, res: Response) {
-  const secreto = process.env.CRON_SECRET;
+  const secreto = String(process.env.CRON_SECRET || "").trim();
   if (!secreto) return res.status(503).json({ ok: false, error: "Falta CRON_SECRET en Vercel." });
-  if (req.headers.authorization !== `Bearer ${secreto}`) return res.status(401).json({ ok: false, error: "No autorizado." });
+  // Se toleran espacios o saltos de línea sobrantes al copiar la clave.
+  const recibido = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "").trim();
+  if (recibido !== secreto) return res.status(401).json({ ok: false, error: `No autorizado: la clave recibida no coincide con CRON_SECRET de Vercel (largo recibido ${recibido.length}, esperado ${secreto.length}).` });
   try { res.json(await pasoTranscripcionAutomatica()); }
   catch (err: any) { res.status(500).json({ ok: false, error: err?.message || String(err) }); }
 }

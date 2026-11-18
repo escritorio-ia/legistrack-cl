@@ -54,6 +54,7 @@ import DiscusionInformes from "../components/DiscusionInformes";
 import MetricasBoletin from "../components/MetricasBoletin";
 import SalaBoletin from "../components/SalaBoletin";
 import LoVistoEnComisiones from "../components/LoVistoEnComisiones";
+import LineaTiempoBoletin from "../components/LineaTiempoBoletin";
 import TranscripcionesProyecto from "../components/TranscripcionesProyecto";
 import { parseFechaFlexible, diasEntre, detectTramite, etapaActual, ultimoMovimiento } from "../utils/tramitacion";
 import SimuladorQuorum from "../components/SimuladorQuorum";
@@ -1720,6 +1721,8 @@ export default function ProyectoDetailView({
 
             {/* 2. Tramitacion Tab */}
             {activeTab === "tramitacion" && (
+              <>
+              <LineaTiempoBoletin proyecto={proyecto} votacionesCamara={camaraOficial?.votaciones || []} />
               <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 sm:p-8" id="tabpanel-tramitacion">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 pb-4 border-b border-slate-100">
                   <div>
@@ -1835,6 +1838,7 @@ export default function ProyectoDetailView({
                   </div>
                 </div>
               </div>
+              </>
             )}
 
             {/* 3. Comisiones Tab */}

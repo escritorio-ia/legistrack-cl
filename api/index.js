@@ -196959,9 +196959,10 @@ Si no hay ninguna coincidencia real, responde exactamente: []`;
   }
 });
 async function pasoAuto(req, res) {
-  const secreto = process.env.CRON_SECRET;
+  const secreto = String(process.env.CRON_SECRET || "").trim();
   if (!secreto) return res.status(503).json({ ok: false, error: "Falta CRON_SECRET en Vercel." });
-  if (req.headers.authorization !== `Bearer ${secreto}`) return res.status(401).json({ ok: false, error: "No autorizado." });
+  const recibido = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "").trim();
+  if (recibido !== secreto) return res.status(401).json({ ok: false, error: `No autorizado: la clave recibida no coincide con CRON_SECRET de Vercel (largo recibido ${recibido.length}, esperado ${secreto.length}).` });
   try {
     res.json(await pasoTranscripcionAutomatica());
   } catch (err) {
