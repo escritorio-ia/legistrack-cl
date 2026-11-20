@@ -1,9 +1,7 @@
 // Se ejecuta cuando abres la página de sesiones de una comisión en camara.cl (legislacion/comisiones/sesiones.aspx).
 // Por cada sesión celebrada reúne lo que la propia página ofrece: citación, cuenta, asistencia, acta, votación y
 // resultado (como si abrieras cada enlace tú), y lo envía a Legislación++. Solo reenvía si aparece algo nuevo.
-(async function () {
-  const prmID = (location.search.match(/prmID=(\d+)/i) || [])[1];
-  if (!prmID) return;
+async function enviarSesionesDeLaPagina(prmID) {
   const filas = [...document.querySelectorAll("tr")].filter((tr) => /prmIdSesion=\d+/.test(tr.innerHTML));
   const sesiones = filas.map((tr) => {
     const celdas = [...tr.querySelectorAll("td")].map((td) => td.innerText.trim());
@@ -74,4 +72,23 @@
   aviso.style.background = ok ? "#047857" : "#b91c1c";
   aviso.textContent = ok ? `Legislación++: ${ok} sesión(es) guardadas con citación, cuenta, asistencia, acta, votación y resultado${err ? ` (alguna falló: ${err})` : ""}.` : `Legislación++: no se pudieron enviar las sesiones (${err}).`;
   setTimeout(() => aviso.remove(), 8000);
+}
+
+// Recorrido automático (iniciado desde la ventanita de la extensión): al terminar esta página, pregunta qué sigue
+// (otro mes de esta comisión, otra comisión o terminar) y cambia el mes con el propio selector de la página.
+(async function () {
+  const prmID = (location.search.match(/prmID=(\d+)/i) || [])[1];
+  if (!prmID) return;
+  try { await enviarSesionesDeLaPagina(prmID); } catch (e) { /* se sigue con el recorrido */ }
+  const mes = document.querySelector("select[id$='ddlMes']"), anio = document.querySelector("select[id$='ddlAnnos']");
+  const r = await chrome.runtime.sendMessage({ tipo: "recorrido-siguiente", prmID, mes: mes?.value, anio: anio?.value }).catch(() => null);
+  if (r?.accion === "mes" && mes && anio) {
+    await new Promise((ok) => setTimeout(ok, 2500)); // pausa entre páginas, para no recargar el sitio
+    anio.value = String(r.anio);
+    mes.value = String(r.mes).padStart(2, "0");
+    const f = document.forms[0];
+    const objetivo = f.querySelector("input[name='__EVENTTARGET']");
+    if (objetivo) objetivo.value = mes.name;
+    f.submit();
+  }
 })();

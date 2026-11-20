@@ -69,6 +69,7 @@ export function rutaPublica(metodo: string, ruta: string): boolean {
   if (ruta.startsWith("/auth/")) return true;
   if (ruta === "/registro-sesiones/sincronizar") return true;
   if (ruta === "/senado/comisiones-ids") return true;
+  if (ruta === "/camara/comisiones-prm") return true; // lista pública de comisiones (sin datos sensibles)
   if (ruta === "/transcripcion/automatica/paso") return true; // exige CRON_SECRET
   if (metodo === "POST" && /\/importar$/.test(ruta)) return true;
   if (metodo === "POST" && ruta === "/transcripcion/automatica/extension") return true; // exige la clave de importación

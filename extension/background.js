@@ -234,3 +234,79 @@ chrome.runtime.onMessage.addListener((msg, _s, responder) => {
     return true;
   }
 });
+
+// ---------------------------------------------------------------------------
+// Recorrido de sesiones de la Cámara: abre en una pestaña la página "Sesiones" de cada comisión y, mes a mes
+// hacia atrás, deja que actas.js envíe citación, cuenta, asistencia, acta, votación y resultado de cada sesión.
+// Se inicia y detiene desde la ventanita de la extensión. Una página a la vez, con pausas.
+// ---------------------------------------------------------------------------
+const URL_SESIONES = (prm) => `https://www.camara.cl/legislacion/comisiones/sesiones.aspx?prmID=${prm}&prmIdTipo=2101`;
+function mesesHaciaAtras(n) {
+  const out = [], d = new Date();
+  for (let i = 1; i < n; i++) { const x = new Date(d.getFullYear(), d.getMonth() - i, 1); out.push({ mes: x.getMonth() + 1, anio: x.getFullYear() }); }
+  return out; // el mes actual es el que la página muestra al abrir
+}
+async function leerRecorrido() { return (await chrome.storage.local.get("recorrido")).recorrido || null; }
+async function guardarRecorrido(r) { await chrome.storage.local.set({ recorrido: r }); }
+async function iniciarRecorrido(meses) {
+  const { app } = await config();
+  const lista = await fetch(`${app}/api/camara/comisiones-prm`).then((r) => r.json()).then((d) => d.comisiones || []);
+  if (!lista.length) throw new Error("No se pudo obtener la lista de comisiones.");
+  const tab = await chrome.tabs.create({ url: URL_SESIONES(lista[0].prmID), active: false });
+  const r = { activo: true, meses, total: lista.length, hechas: 0, cola: lista.slice(1), actual: { ...lista[0], restantes: mesesHaciaAtras(meses) }, tabId: tab.id, inicio: new Date().toISOString(), ultimaSenal: Date.now() };
+  await guardarRecorrido(r);
+  chrome.alarms.create("recorrido-vigilancia", { periodInMinutes: 2 });
+  return r;
+}
+async function detenerRecorrido(motivo) {
+  const r = await leerRecorrido();
+  if (!r) return null;
+  r.activo = false; r.fin = new Date().toISOString(); r.motivo = motivo || "Detenido";
+  await guardarRecorrido(r);
+  chrome.alarms.clear("recorrido-vigilancia");
+  if (r.tabId) chrome.tabs.remove(r.tabId).catch(() => {});
+  return r;
+}
+async function avanzarComision(r) {
+  r.hechas++;
+  const sig = r.cola.shift();
+  if (!sig) { await guardarRecorrido(r); return detenerRecorrido(`Terminado: ${r.hechas} comisiones revisadas`); }
+  r.actual = { ...sig, restantes: mesesHaciaAtras(r.meses) };
+  r.ultimaSenal = Date.now();
+  await guardarRecorrido(r);
+  await new Promise((ok) => setTimeout(ok, 3000));
+  chrome.tabs.update(r.tabId, { url: URL_SESIONES(sig.prmID) }).catch(() => detenerRecorrido("Se cerró la pestaña del recorrido"));
+}
+chrome.runtime.onMessage.addListener((msg, sender, responder) => {
+  if (msg?.tipo === "recorrido-siguiente") {
+    (async () => {
+      const r = await leerRecorrido();
+      if (!r?.activo || sender.tab?.id !== r.tabId || r.actual?.prmID !== msg.prmID) return responder({ accion: "nada" });
+      r.ultimaSenal = Date.now();
+      const m = r.actual.restantes.shift();
+      await guardarRecorrido(r);
+      if (m) return responder({ accion: "mes", mes: m.mes, anio: m.anio });
+      responder({ accion: "nada" });
+      await avanzarComision(r);
+    })();
+    return true;
+  }
+  if (msg?.tipo === "recorrido") {
+    (async () => {
+      try {
+        if (msg.accion === "iniciar") return responder({ ok: true, recorrido: await iniciarRecorrido(Number(msg.meses) || 1) });
+        if (msg.accion === "detener") return responder({ ok: true, recorrido: await detenerRecorrido("Detenido por el usuario") });
+        responder({ ok: true, recorrido: await leerRecorrido() });
+      } catch (e) { responder({ ok: false, error: e.message }); }
+    })();
+    return true;
+  }
+});
+// Vigilancia: si una página no responde en 4 minutos (sin sesiones, error de carga), se pasa a la siguiente comisión.
+chrome.alarms.onAlarm.addListener(async (a) => {
+  if (a.name !== "recorrido-vigilancia") return;
+  const r = await leerRecorrido();
+  if (!r?.activo) return chrome.alarms.clear("recorrido-vigilancia");
+  if (Date.now() - (r.ultimaSenal || 0) > 4 * 60 * 1000) await avanzarComision(r);
+});
+chrome.tabs.onRemoved.addListener(async (id) => { const r = await leerRecorrido(); if (r?.activo && r.tabId === id) detenerRecorrido("Se cerró la pestaña del recorrido"); });

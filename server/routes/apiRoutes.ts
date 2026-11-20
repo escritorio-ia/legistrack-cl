@@ -916,6 +916,11 @@ apiRouter.post("/camara/sesion/importar", expressText({ type: "text/plain", limi
   try { res.json({ ok: true, ...(await importarSesionCamara(body)) }); }
   catch (err: any) { res.status(422).json({ ok: false, error: err?.message || String(err) }); }
 });
+// Comisiones de la Cámara (código de camara.cl y nombre): la usa la extensión para recorrer sus páginas de sesiones.
+apiRouter.get("/camara/comisiones-prm", async (_req: Request, res: Response) => {
+  const { DIPUTADOS_COMISIONES_DETALLE } = await import("../../src/data/comisionesData");
+  res.json({ comisiones: (DIPUTADOS_COMISIONES_DETALLE as any[]).filter((c) => /^\d+$/.test(String(c.prmID || ""))).map((c) => ({ prmID: String(c.prmID), nombre: c.nombre })) });
+});
 // Sesiones de la Cámara guardadas (actas, cuentas, votaciones) de una comisión.
 apiRouter.get("/comision/:id/sesiones-camara", async (req: Request, res: Response) => {
   try { res.json({ disponible: true, sesiones: await sesionesActasCamaraDeComision(String(req.params.id).slice(0, 80)) }); }

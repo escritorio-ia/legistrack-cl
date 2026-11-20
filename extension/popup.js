@@ -42,3 +42,21 @@ async function transcripcionPopup(accion) {
 document.getElementById("trIniciar").onclick = () => transcripcionPopup("iniciar");
 document.getElementById("trDetener").onclick = () => transcripcionPopup("detener");
 transcripcionPopup("estado");
+
+// Recorrido de sesiones de la Cámara
+function pintarRecorrido(r) {
+  const el = document.getElementById("recEstado");
+  if (!r) { el.textContent = "Sin recorridos todavía."; }
+  else if (r.activo) { el.className = "ok"; el.textContent = `● Recorriendo: ${r.actual?.nombre || ""} (${r.hechas + 1} de ${r.total} comisiones)`; }
+  else { el.className = "gris"; el.textContent = `${r.motivo || "Detenido"}${r.fin ? " · " + new Date(r.fin).toLocaleString("es-CL") : ""}`; }
+  document.getElementById("recIniciar").style.display = r?.activo ? "none" : "";
+  document.getElementById("recDetener").style.display = r?.activo ? "" : "none";
+}
+async function recorrido(accion) {
+  const r = await chrome.runtime.sendMessage({ tipo: "recorrido", accion, meses: document.getElementById("recMeses").value });
+  if (r && !r.ok) { document.getElementById("recEstado").className = "err"; document.getElementById("recEstado").textContent = `✗ ${r.error}`; return; }
+  pintarRecorrido(r?.recorrido);
+}
+document.getElementById("recIniciar").onclick = () => recorrido("iniciar");
+document.getElementById("recDetener").onclick = () => recorrido("detener");
+recorrido("estado");
