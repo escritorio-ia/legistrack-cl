@@ -250,7 +250,11 @@ async function leerRecorrido() { return (await chrome.storage.local.get("recorri
 async function guardarRecorrido(r) { await chrome.storage.local.set({ recorrido: r }); }
 async function iniciarRecorrido(meses) {
   const { app } = await config();
-  const lista = await fetch(`${app}/api/camara/comisiones-prm`).then((r) => r.json()).then((d) => d.comisiones || []);
+  const resp = await fetch(`${app}/api/camara/comisiones-prm`);
+  const cuerpo = await resp.text();
+  let lista = [];
+  try { lista = JSON.parse(cuerpo).comisiones || []; }
+  catch { throw new Error(`La app (${app}) no entregó la lista de comisiones (HTTP ${resp.status}). Revisa que esté publicada la última versión y la dirección en Opciones.`); }
   if (!lista.length) throw new Error("No se pudo obtener la lista de comisiones.");
   const tab = await chrome.tabs.create({ url: URL_SESIONES(lista[0].prmID), active: false });
   const r = { activo: true, meses, total: lista.length, hechas: 0, cola: lista.slice(1), actual: { ...lista[0], restantes: mesesHaciaAtras(meses) }, tabId: tab.id, inicio: new Date().toISOString(), ultimaSenal: Date.now() };
