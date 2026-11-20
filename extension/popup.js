@@ -21,3 +21,24 @@ document.getElementById("syncSes").onclick = async () => {
   await chrome.runtime.sendMessage({ tipo: "sesiones-ahora" });
   refrescar();
 };
+
+// Transcripción automática
+const ACCIONES = { transcribir: "Transcribió", informe: "Redactó informe", sin_video: "Sin video", ya_transcrita: "Ya estaba transcrita", nada: "No queda nada", tope: "Tope diario alcanzado", ocupado: "Paso en curso", error: "Error" };
+function pintarTranscripcion(t) {
+  const el = document.getElementById("trEstado");
+  if (!t) { el.textContent = "Sin consultar todavía."; return; }
+  if (!t.ok) { el.className = "err"; el.textContent = `✗ ${t.error}`; return; }
+  el.className = t.activa ? "ok" : "gris";
+  const u = t.ultimoPaso;
+  el.textContent = `${!t.servidor ? "Desactivada en el servidor" : t.activa ? "● En marcha" : "Detenida"} · hoy ${t.tramosHoy} de ${t.maxTramosDia} tramos`
+    + (u ? ` · último: ${ACCIONES[u.accion] || u.accion}${u.sesion ? " (" + u.sesion + ")" : ""}` : "");
+  document.getElementById("trIniciar").style.display = t.activa ? "none" : "";
+  document.getElementById("trDetener").style.display = t.activa ? "" : "none";
+}
+async function transcripcionPopup(accion) {
+  document.getElementById("trEstado").textContent = "Consultando…";
+  pintarTranscripcion(await chrome.runtime.sendMessage({ tipo: "transcripcion", accion }));
+}
+document.getElementById("trIniciar").onclick = () => transcripcionPopup("iniciar");
+document.getElementById("trDetener").onclick = () => transcripcionPopup("detener");
+transcripcionPopup("estado");

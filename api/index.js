@@ -188752,6 +188752,7 @@ function rutaPublica(metodo, ruta) {
   if (ruta === "/senado/comisiones-ids") return true;
   if (ruta === "/transcripcion/automatica/paso") return true;
   if (metodo === "POST" && /\/importar$/.test(ruta)) return true;
+  if (metodo === "POST" && ruta === "/transcripcion/automatica/extension") return true;
   return false;
 }
 function exigirSesion(req, res, next) {
@@ -197520,6 +197521,39 @@ apiRouter.post("/transcripcion/automatica/detener", async (_req, res) => {
   try {
     await fijarControl({ activa: false });
     res.json({ ok: true, ...await leerControl() });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err?.message || String(err) });
+  }
+});
+apiRouter.post("/transcripcion/automatica/extension", expressText({ type: "text/plain", limit: "100kb" }), async (req, res) => {
+  let body = req.body;
+  if (typeof body === "string") {
+    try {
+      body = JSON.parse(body);
+    } catch {
+      return res.status(400).json({ ok: false, error: "Cuerpo no es JSON v\xE1lido." });
+    }
+  }
+  const token = process.env.CITACIONES_IMPORT_TOKEN;
+  if (!token) return res.status(503).json({ ok: false, error: "Falta CITACIONES_IMPORT_TOKEN en Vercel." });
+  if (body?.token !== token) return res.status(401).json({ ok: false, error: "Clave de importaci\xF3n inv\xE1lida." });
+  const ctx = globalThis[Symbol.for("@vercel/request-context")]?.get?.();
+  const enFondo = (p) => {
+    if (ctx?.waitUntil) ctx.waitUntil(p);
+    return p;
+  };
+  try {
+    const base = baseDe(req);
+    if (body.accion === "iniciar") {
+      await fijarControl({ activa: true, base, iniciadaEn: (/* @__PURE__ */ new Date()).toISOString() });
+      enFondo(siguientePaso(base));
+    } else if (body.accion === "detener") await fijarControl({ activa: false });
+    else if (body.accion === "paso") {
+      const control = await leerControl();
+      if (control.activa) enFondo(pasoEncadenado(control.base || base));
+    }
+    const e = await estadoTranscripcionAutomatica();
+    res.json({ ok: true, activa: !!e.control?.activa, servidor: e.configuracion.activa, tramosHoy: e.tramosHoy, maxTramosDia: e.configuracion.maxTramosDia, porEstado: e.porEstado, ultimoPaso: e.control?.ultimoPaso || null });
   } catch (err) {
     res.status(500).json({ ok: false, error: err?.message || String(err) });
   }

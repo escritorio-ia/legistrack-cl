@@ -202,3 +202,25 @@ chrome.runtime.onStartup.addListener(() => chrome.alarms.create("sesiones-senado
 chrome.runtime.onMessage.addListener((msg, _s, responder) => {
   if (msg?.tipo === "sesiones-ahora") { sincronizarSesionesSenado().then(() => responder({ ok: true })); return true; }
 });
+
+// ---------------------------------------------------------------------------
+// Transcripción automática de sesiones: ver el estado, iniciar o detener desde la extensión.
+// Mientras el navegador está abierto, cada 10 minutos da un empujón a la cadena (por si se detuvo).
+// ---------------------------------------------------------------------------
+async function transcripcion(accion) {
+  try {
+    const j = await enviar("/api/transcripcion/automatica/extension", { accion });
+    await chrome.storage.local.set({ transcripcion: { ...j, fecha: new Date().toISOString() } });
+    return j;
+  } catch (e) {
+    const err = { ok: false, error: e.message, fecha: new Date().toISOString() };
+    await chrome.storage.local.set({ transcripcion: err });
+    return err;
+  }
+}
+chrome.alarms.onAlarm.addListener(a => { if (a.name === "transcripcion") transcripcion("paso"); });
+chrome.runtime.onInstalled.addListener(() => chrome.alarms.create("transcripcion", { periodInMinutes: 10 }));
+chrome.runtime.onStartup.addListener(() => { chrome.alarms.create("transcripcion", { periodInMinutes: 10 }); transcripcion("paso"); });
+chrome.runtime.onMessage.addListener((msg, _s, responder) => {
+  if (msg?.tipo === "transcripcion") { transcripcion(msg.accion || "estado").then(responder); return true; }
+});

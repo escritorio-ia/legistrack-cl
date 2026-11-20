@@ -1629,6 +1629,28 @@ apiRouter.post("/transcripcion/automatica/detener", async (_req: Request, res: R
   try { await fijarControl({ activa: false }); res.json({ ok: true, ...(await leerControl()) }); }
   catch (err: any) { res.status(500).json({ ok: false, error: err?.message || String(err) }); }
 });
+// La extensión de navegador: ver el estado, iniciar, detener o pedir un paso (con la clave de importación).
+apiRouter.post("/transcripcion/automatica/extension", expressText({ type: "text/plain", limit: "100kb" }), async (req: Request, res: Response) => {
+  let body: any = req.body;
+  if (typeof body === "string") { try { body = JSON.parse(body); } catch { return res.status(400).json({ ok: false, error: "Cuerpo no es JSON válido." }); } }
+  const token = process.env.CITACIONES_IMPORT_TOKEN;
+  if (!token) return res.status(503).json({ ok: false, error: "Falta CITACIONES_IMPORT_TOKEN en Vercel." });
+  if (body?.token !== token) return res.status(401).json({ ok: false, error: "Clave de importación inválida." });
+  const ctx = (globalThis as any)[Symbol.for("@vercel/request-context")]?.get?.();
+  const enFondo = (p: Promise<any>) => { if (ctx?.waitUntil) ctx.waitUntil(p); return p; };
+  try {
+    const base = baseDe(req);
+    if (body.accion === "iniciar") { await fijarControl({ activa: true, base, iniciadaEn: new Date().toISOString() }); enFondo(siguientePaso(base)); }
+    else if (body.accion === "detener") await fijarControl({ activa: false });
+    else if (body.accion === "paso") {
+      // Respaldo mientras el navegador está abierto: si está en marcha y no hay paso en curso, da un empujón a la cadena.
+      const control = await leerControl();
+      if (control.activa) enFondo(pasoEncadenado(control.base || base));
+    }
+    const e = await estadoTranscripcionAutomatica();
+    res.json({ ok: true, activa: !!e.control?.activa, servidor: e.configuracion.activa, tramosHoy: e.tramosHoy, maxTramosDia: e.configuracion.maxTramosDia, porEstado: e.porEstado, ultimoPaso: e.control?.ultimoPaso || null });
+  } catch (err: any) { res.status(500).json({ ok: false, error: err?.message || String(err) }); }
+});
 apiRouter.get("/transcripcion/automatica/paso", pasoAuto);
 apiRouter.post("/transcripcion/automatica/paso", pasoAuto);
 apiRouter.get("/transcripcion/automatica/estado", async (_req: Request, res: Response) => {
