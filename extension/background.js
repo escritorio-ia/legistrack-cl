@@ -314,3 +314,71 @@ chrome.alarms.onAlarm.addListener(async (a) => {
   if (Date.now() - (r.ultimaSenal || 0) > 4 * 60 * 1000) await avanzarComision(r);
 });
 chrome.tabs.onRemoved.addListener(async (id) => { const r = await leerRecorrido(); if (r?.activo && r.tabId === id) detenerRecorrido("Se cerró la pestaña del recorrido"); });
+
+// ---------------------------------------------------------------------------
+// Rescate de sesiones del Senado (equivalente al de la Cámara): el Senado publica cada sesión de comisión con sus
+// puntos (tabla, aspectos considerados y acuerdos) y las presentaciones de los invitados, en la misma API pública que
+// usa senado.cl. Aquí se envían TODAS las sesiones del período elegido (no solo los últimos 60 días), con su detalle.
+// ---------------------------------------------------------------------------
+async function rescatarSenado(meses) {
+  const { app } = await config();
+  const { ids } = await (await fetch(`${app}/api/senado/comisiones-ids`)).json();
+  const limite = new Date(); limite.setMonth(limite.getMonth() - meses); limite.setDate(1);
+  const estado = { activo: true, meses, total: (ids || []).length, hechas: 0, sesiones: 0, detalles: 0, errores: 0, inicio: new Date().toISOString() };
+  await chrome.storage.local.set({ rescateSenado: estado });
+  const { detallesSenado = {} } = await chrome.storage.local.get("detallesSenado");
+  for (const id of ids || []) {
+    if (!(await chrome.storage.local.get("rescateSenado")).rescateSenado?.activo) break;
+    try {
+      // Sesiones de la comisión, por páginas, hasta llegar a la fecha límite.
+      let filas = [];
+      for (let offset = 0; offset < 600; offset += 100) {
+        const r = await fetch(`https://web-back.senado.cl/api/commission_sessions?id_comision=${id}&limit=100&offset=${offset}&sort=fecha&order=desc`, { headers: { Accept: "application/json" } });
+        if (!r.ok) break;
+        const pag = (await r.json())?.data?.data || [];
+        filas.push(...pag);
+        const ultima = fechaDMY(pag[pag.length - 1]?.FECHA);
+        if (pag.length < 100 || (ultima && ultima < limite)) break;
+        await new Promise((ok) => setTimeout(ok, 500));
+      }
+      if (filas.length) {
+        const res = await enviar("/api/senado/sesiones/importar", { idComision: String(id), sesiones: filas });
+        estado.sesiones += res.sesiones || 0;
+        // Detalle (puntos, aspectos, acuerdos, presentaciones) de las sesiones realizadas del período, de a 10 por envío.
+        const pendientes = filas.filter((f) => { const d = fechaDMY(f.FECHA); return d && d >= limite && d.getTime() <= Date.now() && f.FRACASADA !== "Si" && !detallesSenado[f.ID_SESION]; });
+        for (let i = 0; i < pendientes.length; i += 10) {
+          const lote = [];
+          for (const f of pendientes.slice(i, i + 10)) {
+            try {
+              const r = await fetch(`https://web-back.senado.cl/api/commission_session?id_sesion=${f.ID_SESION}`, { headers: { Accept: "application/json" } });
+              if (r.ok) lote.push({ idComision: String(id), idSesion: String(f.ID_SESION), raw: await r.json() });
+            } catch { /* se reintenta en otro rescate */ }
+            await new Promise((ok) => setTimeout(ok, 400)); // sin apuro: no cargar el servidor del Senado
+          }
+          if (!lote.length) continue;
+          try {
+            const res2 = await enviar("/api/senado/sesiones/detalle/importar", { detalles: lote });
+            for (const x of lote) detallesSenado[x.idSesion] = Date.now();
+            await chrome.storage.local.set({ detallesSenado });
+            estado.detalles += res2.detalles || 0;
+          } catch { estado.errores++; }
+        }
+      }
+    } catch { estado.errores++; }
+    estado.hechas++;
+    await chrome.storage.local.set({ rescateSenado: { ...estado } });
+  }
+  estado.activo = false; estado.fin = new Date().toISOString();
+  await chrome.storage.local.set({ rescateSenado: estado });
+  return estado;
+}
+chrome.runtime.onMessage.addListener((msg, _s, responder) => {
+  if (msg?.tipo === "rescate-senado") {
+    (async () => {
+      if (msg.accion === "iniciar") { rescatarSenado(Number(msg.meses) || 3); await new Promise((ok) => setTimeout(ok, 800)); }
+      if (msg.accion === "detener") { const { rescateSenado: r } = await chrome.storage.local.get("rescateSenado"); if (r) await chrome.storage.local.set({ rescateSenado: { ...r, activo: false, fin: new Date().toISOString(), motivo: "Detenido por el usuario" } }); }
+      responder({ ok: true, estado: (await chrome.storage.local.get("rescateSenado")).rescateSenado || null });
+    })();
+    return true;
+  }
+});

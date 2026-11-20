@@ -60,3 +60,21 @@ async function recorrido(accion) {
 document.getElementById("recIniciar").onclick = () => recorrido("iniciar");
 document.getElementById("recDetener").onclick = () => recorrido("detener");
 recorrido("estado");
+
+// Rescate de sesiones del Senado
+function pintarSenado(e) {
+  const el = document.getElementById("senEstado");
+  if (!e) el.textContent = "Sin rescates todavía.";
+  else if (e.activo) { el.className = "ok"; el.textContent = `● Rescatando: ${e.hechas} de ${e.total} comisiones · ${e.sesiones} sesiones · ${e.detalles} detalles`; }
+  else { el.className = "gris"; el.textContent = `${e.motivo || "Terminado"}: ${e.hechas} de ${e.total} comisiones · ${e.sesiones} sesiones · ${e.detalles} detalles${e.errores ? ` · ${e.errores} con error` : ""}`; }
+  document.getElementById("senIniciar").style.display = e?.activo ? "none" : "";
+  document.getElementById("senDetener").style.display = e?.activo ? "" : "none";
+}
+async function rescateSenado(accion) {
+  const r = await chrome.runtime.sendMessage({ tipo: "rescate-senado", accion, meses: document.getElementById("recMeses").value });
+  pintarSenado(r?.estado);
+}
+document.getElementById("senIniciar").onclick = () => rescateSenado("iniciar");
+document.getElementById("senDetener").onclick = () => rescateSenado("detener");
+rescateSenado("estado");
+setInterval(() => rescateSenado("estado"), 5000);
