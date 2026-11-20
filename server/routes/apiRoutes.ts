@@ -4,6 +4,7 @@ import { generarInformeSesion } from "../services/informeSesionService";
 import { pasoTranscripcionAutomatica, estadoTranscripcionAutomatica, pasoEncadenado, leerControl, fijarControl, siguientePaso } from "../services/transcripcionAutomaticaService";
 import { resumenComisionesBoletin } from "../services/resumenBoletinService";
 import { construirHistorial } from "../services/historialService";
+import { importarActaCamara } from "../services/actasCamaraService";
 import { salaSemana, importarTablaSenado, sincronizarSala, sesionesSalaDeBoletin } from "../services/salaService";
 import { discusionDeProyecto } from "../services/discusionService";
 import { construirResumenSesion } from "../services/resumenSesionService";
@@ -904,6 +905,16 @@ apiRouter.get("/proyecto/:id/ficha-ejecutiva", async (req: Request, res: Respons
   } catch (err: any) {
     res.json({ disponible: false, motivo: err?.message || String(err) });
   }
+});
+
+// Acta oficial de una sesión de comisión de la Cámara, enviada por la extensión (PDF en base64).
+apiRouter.post("/camara/actas/importar", expressText({ type: "text/plain", limit: "8mb" }), async (req: Request, res: Response) => {
+  let body: any = req.body;
+  if (typeof body === "string") { try { body = JSON.parse(body); } catch { return res.status(400).json({ ok: false, error: "Cuerpo no es JSON válido." }); } }
+  const token = process.env.CITACIONES_IMPORT_TOKEN;
+  if (token && body?.token !== token) return res.status(401).json({ ok: false, error: "Token de importación inválido." });
+  try { res.json({ ok: true, ...(await importarActaCamara(body)) }); }
+  catch (err: any) { res.status(422).json({ ok: false, error: err?.message || String(err) }); }
 });
 
 // Citaciones del Senado enviadas por la extensión de navegador (JSON de web-back.senado.cl).

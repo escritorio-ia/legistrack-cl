@@ -14,6 +14,7 @@ import { sesionesSalaDeBoletin } from "./salaService";
 import { discusionDeProyecto, seccionesInforme } from "./discusionService";
 import { fetchTextoInformeDocx } from "./senadoService";
 import { geminiJSON } from "./informeSesionService";
+import { actasDeBoletin, tramoDeBoletin, type ActaCamara } from "./actasCamaraService";
 import { normalizarBoletin } from "../../src/utils/boletines";
 import { normalizarInforme, categoriaFinal } from "../../src/utils/informeSesion";
 import { type ComisionHistorial, type HistorialProyecto, tiempoEnVentana, normComision } from "../../src/utils/historial";
@@ -63,18 +64,20 @@ export function nombreEnTexto(nombre: string, corpus: string): boolean {
 export async function construirHistorial(boletin: string, opciones: { forzar?: boolean; soloGuardado?: boolean } = {}): Promise<HistorialProyecto> {
   const b = normalizarBoletin(boletin);
   if (!b.includes("-")) return { disponible: false, motivo: "Número de boletín no válido.", boletin: b, comisiones: [], sala: [] };
-  const [registro, informes, sala, discusion] = await Promise.all([
+  const [registro, informes, sala, discusion, actas] = await Promise.all([
     conTiempo(sesionesRegistradasDeBoletin(b), 15000, []),
     conTiempo(informesDeSesion(b), 15000, [] as InformeSesionLeido[]),
     conTiempo(sesionesSalaDeBoletin(b), 10000, []),
     conTiempo(discusionDeProyecto(b), 25000, { disponible: false, informes: [] } as any),
+    conTiempo(actasDeBoletin(b), 12000, [] as ActaCamara[]),
   ]);
   const informesOficiales: { titulo: string; url: string; fecha?: string }[] = (discusion?.informes || []).map((i: any) => ({ titulo: i.titulo, url: i.url, fecha: i.fecha }));
   const firma = [
-    "v3",
+    "v4",
     registro.map((s) => `${s.id}:${s.resultado ? 1 : 0}`).sort().join(","),
     informes.map((i) => `${i.videoId}:${i.inf.generado || ""}`).sort().join(","),
     informesOficiales.map((i) => i.url).sort().join(","),
+    actas.map((a) => a.sesionId).sort().join(","),
   ].join("|");
 
   const guardado = await leerDoc(`historial_proyectos/${b}`).catch(() => null);
@@ -107,6 +110,16 @@ export async function construirHistorial(boletin: string, opciones: { forzar?: b
     for (const p of puntos as any[]) if (p.acuerdos) c.acuerdos.push({ texto: p.acuerdos, fecha: s.fecha, fuente: "Detalle oficial de la sesión" });
     if (s.resultado) c.acuerdos.push({ texto: s.resultado, fecha: s.fecha, fuente: "Resultado oficial de la sesión" });
     if (!c.sesiones.some((x) => x.fecha === s.fecha)) c.sesiones.push({ fecha: s.fecha });
+  }
+
+  // --- Actas oficiales de la Cámara (enviadas por la extensión) ---
+  for (const a of actas) {
+    if (!a.fecha || a.fecha > H) continue;
+    const c = obtener(a.comision, "Cámara");
+    (c.actas ||= []).push({ fecha: a.fecha, numero: a.numero, url: a.url });
+    if (!c.sesiones.some((x) => x.fecha === a.fecha)) c.sesiones.push({ fecha: a.fecha });
+    if (!c.desde || a.fecha < c.desde) c.desde = a.fecha;
+    if (!c.hasta || a.fecha > c.hasta) c.hasta = a.fecha;
   }
 
   // --- Informes de sesión (transcripción) y estadística de tiempo ---
@@ -214,7 +227,9 @@ export async function construirHistorial(boletin: string, opciones: { forzar?: b
   const txt = (v: any) => String(v ?? "").replace(/\s+/g, " ").trim();
   const motivosIA: string[] = [];
   let objetivoOficial = "";
-  await Promise.all(comisiones.filter((c) => c.estadistica.sesionesConInforme > 0 || c.informeOficial).map(async (c) => {
+  await Promise.all(comisiones.filter((c) => c.estadistica.sesionesConInforme > 0 || c.informeOficial || (c.actas || []).length).map(async (c) => {
+    const actasCom = actas.filter((a) => mismaComision(a.comision, c.nombre)).slice(-8);
+    const textoActas = actasCom.map((a) => `### Acta de la sesión ${a.numero ? `N° ${a.numero} ` : ""}del ${a.fecha}\n${tramoDeBoletin(a.texto, b, 12000)}`).join("\n\n").slice(0, 60000);
     const oficial = c.informeOficial ? await textoInformeOficial(c.informeOficial.url) : { texto: "" };
     if (c.informeOficial && !oficial.texto) motivosIA.push(`${c.nombre}: ${oficial.motivo}`);
     const ses = informes.filter((i) => mismaComision(i.comision, c.nombre));
@@ -222,7 +237,7 @@ export async function construirHistorial(boletin: string, opciones: { forzar?: b
       const pts = i.inf.puntos.filter((p) => p.boletines.includes(b) || i.inf.puntos.length === 1);
       return `### Sesión ${i.fecha}\n${pts.map((p) => [p.sintesis, ...p.intervenciones.map((x) => `- ${x.orador}${x.cargo ? ` (${x.cargo}${x.institucion ? `, ${x.institucion}` : ""})` : ""} [${x.categoria}]: ${x.parrafos.join(" ").slice(0, 900)}`), ...p.acuerdos.map((a) => `Acuerdo: ${a.texto}`), ...p.votaciones.map((v) => `Votación: ${v.texto}: ${v.resultado}`)].filter(Boolean).join("\n")).join("\n")}`;
     }).join("\n\n").slice(0, 40000);
-    if (!oficial.texto && !textoSes) return;
+    if (!oficial.texto && !textoSes && !textoActas) return;
     const prompt = `Eres asesor parlamentario de la Biblioteca del Congreso Nacional de Chile. Lee el material sobre el boletín ${b} en la ${c.nombre}
 y extrae su historial en esa comisión, usando EXCLUSIVAMENTE ese material. No agregues nada externo. Redacción neutral, tercera persona, sin adjetivos valorativos.
 - "objetivo": el objetivo del proyecto tal como lo describe el informe oficial (2 a 4 oraciones); vacío si no hay informe oficial.
@@ -237,11 +252,11 @@ y extrae su historial en esa comisión, usando EXCLUSIVAMENTE ese material. No a
 - "contrapuntos": solo temas con posturas opuestas de personas identificadas.
 - "cierre" (solo con informe oficial): con qué texto recibió el proyecto, qué despachó (votación final), qué cambió en esta comisión y qué quedó pendiente.
 
-${oficial.texto ? `INFORME OFICIAL DE LA COMISIÓN (${c.informeOficial!.titulo}):\n${oficial.texto}\n\n` : ""}${textoSes ? `INFORMES DE SESIÓN (desde las transcripciones):\n${textoSes}` : ""}`;
+${oficial.texto ? `INFORME OFICIAL DE LA COMISIÓN (${c.informeOficial!.titulo}):\n${oficial.texto}\n\n` : ""}${textoActas ? `ACTAS OFICIALES DE LAS SESIONES (solo lo relativo a este boletín):\n${textoActas}\n\n` : ""}${textoSes ? `INFORMES DE SESIÓN (desde las transcripciones):\n${textoSes}` : ""}`;
     const r = await geminiJSON(prompt, esquema, { maxTokens: 12000, presupuestoMs: 140_000 });
     if (r.ok === false) { motivosIA.push(`${c.nombre}: ${(r as any).motivo}`); return; }
     const d: any = (r as any).datos;
-    const corpus = `${oficial.texto}\n${textoSes}`;
+    const corpus = `${oficial.texto}\n${textoActas}\n${textoSes}`;
     // Sesiones del informe oficial (solo fechas que aparecen en el texto) se suman a las del registro.
     for (const f of (d.sesiones || []).map(txt)) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(f) || !(fechaEnTexto(f, corpus) || ses.some((i) => i.fecha === f))) continue;
@@ -264,7 +279,7 @@ ${oficial.texto ? `INFORME OFICIAL DE LA COMISIÓN (${c.informeOficial!.titulo})
       if (!t || !res) continue;
       const f = txt(v?.fecha);
       if (c.votaciones.some((x) => x.texto.toLowerCase() === t.toLowerCase())) continue;
-      c.votaciones.push({ texto: t, resultado: res, fecha: /^\d{4}-\d{2}-\d{2}$/.test(f) ? f : (c.hasta || ""), fuente: oficial.texto ? "Informe oficial de la comisión" : "Informes de sesión" });
+      c.votaciones.push({ texto: t, resultado: res, fecha: /^\d{4}-\d{2}-\d{2}$/.test(f) ? f : (c.hasta || ""), fuente: oficial.texto ? "Informe oficial de la comisión" : textoActas ? "Actas oficiales de sesión" : "Informes de sesión" });
     }
     const fechas = new Set(c.sesiones.map((x) => x.fecha));
     c.temas = (d.temas || []).map((t: any, k: number) => ({ id: `${c.clave}-t${k}`, tema: txt(t?.tema), detalle: txt(t?.detalle), fechas: (t?.fechas || []).map(txt).filter((f: string) => fechas.has(f)), estado: txt(t?.estado),

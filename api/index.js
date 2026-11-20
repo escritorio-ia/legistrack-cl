@@ -188815,7 +188815,7 @@ function categoriaFinal(cat, orador, cargo, institucion) {
 }
 function textoOficial(o) {
   if (!o) return "";
-  return [o.resultado, o.invitados, ...o.puntos.flatMap((p) => [p.texto, p.acuerdos, p.invitados, p.asistentes])].filter(Boolean).join(" \n ");
+  return [o.resultado, o.invitados, o.acta, ...o.puntos.flatMap((p) => [p.texto, p.acuerdos, p.invitados, p.asistentes])].filter(Boolean).join(" \n ");
 }
 function respaldadoPorOficial(texto, corpus) {
   if (!corpus) return false;
@@ -188941,29 +188941,168 @@ function intervinientes(inf) {
   return Array.from(m.values()).sort((a, b) => a.primera - b.primera);
 }
 
+// server/services/firestoreRest.ts
+function conexionFirestore() {
+  const proy = process.env.VITE_FIREBASE_PROJECT_ID || "";
+  const key = process.env.VITE_FIREBASE_API_KEY || "";
+  if (!proy || !key) throw new Error("Faltan VITE_FIREBASE_PROJECT_ID o VITE_FIREBASE_API_KEY en el entorno del servidor.");
+  return { proy, key, base: `https://firestore.googleapis.com/v1/projects/${proy}/databases/(default)/documents` };
+}
+function aFirestore(v) {
+  if (v === null || v === void 0) return { nullValue: null };
+  if (typeof v === "boolean") return { booleanValue: v };
+  if (typeof v === "number") return Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v };
+  if (typeof v === "string") return { stringValue: v };
+  if (Array.isArray(v)) return { arrayValue: { values: v.map(aFirestore) } };
+  if (typeof v === "object") return { mapValue: { fields: Object.fromEntries(Object.entries(v).filter(([, x]) => x !== void 0).map(([k, x]) => [k, aFirestore(x)])) } };
+  return { stringValue: String(v) };
+}
+function deFirestore(v) {
+  if (!v || typeof v !== "object") return null;
+  if ("stringValue" in v) return v.stringValue;
+  if ("integerValue" in v) return Number(v.integerValue);
+  if ("doubleValue" in v) return Number(v.doubleValue);
+  if ("booleanValue" in v) return !!v.booleanValue;
+  if ("nullValue" in v) return null;
+  if ("timestampValue" in v) return v.timestampValue;
+  if ("arrayValue" in v) return (v.arrayValue.values || []).map(deFirestore);
+  if ("mapValue" in v) return Object.fromEntries(Object.entries(v.mapValue.fields || {}).map(([k, x]) => [k, deFirestore(x)]));
+  return null;
+}
+var camposAObjeto = (fields) => Object.fromEntries(Object.entries(fields || {}).map(([k, x]) => [k, deFirestore(x)]));
+async function leerDoc(ruta) {
+  const { base, key } = conexionFirestore();
+  const r = await fetch(`${base}/${ruta}?key=${key}`, { signal: AbortSignal.timeout(12e3) });
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error(`Firestore (${ruta}) respondi\xF3 HTTP ${r.status}`);
+  const d = await r.json();
+  return camposAObjeto(d.fields);
+}
+async function escribirDoc(ruta, datos) {
+  const { base, key } = conexionFirestore();
+  const qs = new URLSearchParams({ key });
+  for (const k of Object.keys(datos)) qs.append("updateMask.fieldPaths", k);
+  const r = await fetch(`${base}/${ruta}?${qs}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fields: Object.fromEntries(Object.entries(datos).map(([k, v]) => [k, aFirestore(v)])) }),
+    signal: AbortSignal.timeout(2e4)
+  });
+  if (!r.ok) throw new Error(`Firestore no acept\xF3 la escritura de ${ruta} (HTTP ${r.status}): ${(await r.text()).slice(0, 160)}`);
+}
+async function consultar(structuredQuery) {
+  const { base, key } = conexionFirestore();
+  const r = await fetch(`${base}:runQuery?key=${key}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ structuredQuery }),
+    signal: AbortSignal.timeout(15e3)
+  });
+  if (!r.ok) throw new Error(`Firestore respondi\xF3 HTTP ${r.status}`);
+  const filas = await r.json();
+  return filas.filter((x) => x.document).map((x) => ({ id: String(x.document.name).split("/").pop() || "", datos: x.document.fields }));
+}
+
+// server/services/actasCamaraService.ts
+var MESES4 = { ene: 1, feb: 2, mar: 3, abr: 4, may: 5, jun: 6, jul: 7, ago: 8, sep: 9, set: 9, oct: 10, nov: 11, dic: 12 };
+function fechaActaISO(t) {
+  const s = String(t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  let m = s.match(/(\d{1,2})\s+([a-z]{3})[a-z.]*\s+(\d{4})/);
+  if (m && MESES4[m[2]]) return `${m[3]}-${String(MESES4[m[2]]).padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+  m = s.match(/(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
+  return m ? `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}` : "";
+}
+async function importarActaCamara(p) {
+  if (!/^\d+$/.test(p.comisionPrmId) || !/^\d+$/.test(p.sesionId) || !/^\d+$/.test(p.docId)) throw new Error("Identificadores no v\xE1lidos.");
+  const fecha = fechaActaISO(p.fecha);
+  if (!fecha) throw new Error("Fecha de la sesi\xF3n no v\xE1lida.");
+  const buffer = Buffer.from(String(p.pdfBase64 || ""), "base64");
+  if (buffer.slice(0, 4).toString("latin1") !== "%PDF") throw new Error("El acta no es un PDF.");
+  const { extractText, getDocumentProxy } = await import("unpdf");
+  const pdf = await getDocumentProxy(new Uint8Array(buffer));
+  const texto = String((await extractText(pdf, { mergePages: true })).text || "").replace(/\s+/g, " ").trim();
+  if (texto.length < 200) throw new Error("No se pudo leer el texto del acta (\xBFPDF escaneado?).");
+  const c = DIPUTADOS_COMISIONES_DETALLE.find((x) => String(x.prmID) === p.comisionPrmId);
+  const boletines = boletinesEnTexto(texto);
+  await escribirDoc(`actas_camara/${p.sesionId}`, {
+    comisionPrmId: p.comisionPrmId,
+    comisionId: c ? `cd-${c.id}` : "",
+    comision: c?.nombre || `Comisi\xF3n de la C\xE1mara (${p.comisionPrmId})`,
+    sesionId: p.sesionId,
+    numero: String(p.numero || ""),
+    fecha,
+    hora: String(p.hora || ""),
+    docId: p.docId,
+    url: `https://www.camara.cl/verDoc.aspx?prmID=${p.docId}&prmTipo=DOCUMENTO_COMISIONSESIONACTA`,
+    texto: texto.slice(0, 3e5),
+    boletines,
+    importadoEn: (/* @__PURE__ */ new Date()).toISOString()
+  });
+  return { sesionId: p.sesionId, fecha, caracteres: texto.length, boletines };
+}
+async function actasDeBoletin(boletin) {
+  const filas = await consultar({ from: [{ collectionId: "actas_camara" }], where: { fieldFilter: { field: { fieldPath: "boletines" }, op: "ARRAY_CONTAINS", value: { stringValue: boletin } } } });
+  return filas.map((f) => camposAObjeto(f.datos)).sort((a, b) => a.fecha.localeCompare(b.fecha));
+}
+async function actasDeFecha(fecha) {
+  const filas = await consultar({ from: [{ collectionId: "actas_camara" }], where: { fieldFilter: { field: { fieldPath: "fecha" }, op: "EQUAL", value: { stringValue: fecha } } } });
+  return filas.map((f) => camposAObjeto(f.datos));
+}
+function tramoDeBoletin(texto, boletin, largo = 12e3) {
+  const num = boletin.split("-")[0];
+  const re = new RegExp(`${num.slice(0, -3)}\\.?${num.slice(-3)}-\\d{1,2}`, "g");
+  const pos = [];
+  let m;
+  while (m = re.exec(texto)) pos.push(m.index);
+  if (!pos.length) return texto.slice(0, largo);
+  const ini = Math.max(0, pos[0] - 1500);
+  return texto.slice(ini, Math.min(texto.length, Math.max(ini + largo, pos[pos.length - 1] + 3e3)));
+}
+
 // server/services/informeSesionService.ts
 var MAX_CARACTERES = 7e5;
 async function resultadoOficial(comision, fecha, hora) {
+  const normC = (x) => String(x || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\b(comision|de|del|la|el|y)\b/g, " ").replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+  let base = null;
   try {
     const s = await sesionRegistradaPorFecha(comision, fecha, hora);
-    if (!s) return null;
-    const puntos = s.puntos.map((p) => ({ numero: p.numero, texto: p.texto, acuerdos: p.acuerdos || null, invitados: p.invitados || null, asistentes: p.asistentes || null }));
-    if (!s.resultado && !s.invitados && !puntos.some((p) => p.acuerdos || p.invitados || p.asistentes)) return null;
-    return { fuentes: s.fuentes, resultado: s.resultado, invitados: s.invitados, puntos, enlaces: s.enlaces };
+    if (s) {
+      const puntos = s.puntos.map((p) => ({ numero: p.numero, texto: p.texto, acuerdos: p.acuerdos || null, invitados: p.invitados || null, asistentes: p.asistentes || null }));
+      base = { fuentes: s.fuentes, resultado: s.resultado, invitados: s.invitados, puntos, enlaces: s.enlaces };
+    }
   } catch {
-    return null;
   }
+  try {
+    const iso3 = /^\d{4}-\d{2}-\d{2}$/.test(fecha) ? fecha : fechaISO2(fecha);
+    const objetivo = normC(comision);
+    const acta = iso3 ? (await actasDeFecha(iso3)).find((a) => {
+      const n = normC(a.comision);
+      return n && objetivo && (n.includes(objetivo) || objetivo.includes(n));
+    }) : void 0;
+    if (acta) {
+      base = base || { fuentes: [], resultado: null, invitados: null, puntos: [], enlaces: [] };
+      base.acta = acta.texto.slice(0, 4e4);
+      base.fuentes = [...base.fuentes, "acta oficial de la sesi\xF3n"];
+      base.enlaces = [...base.enlaces, acta.url];
+    }
+  } catch {
+  }
+  if (!base) return null;
+  if (!base.resultado && !base.invitados && !base.acta && !base.puntos.some((p) => p.acuerdos || p.invitados || p.asistentes)) return null;
+  return base;
 }
 function bloqueOficial(o) {
   if (!o) return "No hay registro oficial de esta sesi\xF3n.";
   const L = [`Fuentes: ${o.fuentes.join(", ")}`];
   if (o.resultado) L.push(`Resultado oficial: ${o.resultado}`);
   if (o.invitados) L.push(`Invitados citados: ${o.invitados}`);
+  if (o.acta) L.push(`Acta oficial de la sesi\xF3n:
+${o.acta}`);
   for (const p of o.puntos) {
     const extra = [p.acuerdos && `Acuerdos: ${p.acuerdos}`, p.invitados && `Invitados: ${p.invitados}`, p.asistentes && `Asistentes: ${p.asistentes}`].filter(Boolean).join(" | ");
     if (extra) L.push(`Punto ${p.numero}: ${p.texto} | ${extra}`);
   }
-  return L.join("\n").slice(0, 3e4);
+  return L.join("\n").slice(0, 6e4);
 }
 function prompt(p) {
   return `Eres asesor parlamentario de la Biblioteca del Congreso Nacional de Chile. Redacta el informe de una sesi\xF3n de comisi\xF3n
@@ -189183,74 +189322,12 @@ async function geminiJSON(texto, esquema, opciones = {}) {
   return { ok: false, motivo: errores.join(" | ") || "Sin modelos disponibles." };
 }
 
-// server/services/firestoreRest.ts
-function conexionFirestore() {
-  const proy = process.env.VITE_FIREBASE_PROJECT_ID || "";
-  const key = process.env.VITE_FIREBASE_API_KEY || "";
-  if (!proy || !key) throw new Error("Faltan VITE_FIREBASE_PROJECT_ID o VITE_FIREBASE_API_KEY en el entorno del servidor.");
-  return { proy, key, base: `https://firestore.googleapis.com/v1/projects/${proy}/databases/(default)/documents` };
-}
-function aFirestore(v) {
-  if (v === null || v === void 0) return { nullValue: null };
-  if (typeof v === "boolean") return { booleanValue: v };
-  if (typeof v === "number") return Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v };
-  if (typeof v === "string") return { stringValue: v };
-  if (Array.isArray(v)) return { arrayValue: { values: v.map(aFirestore) } };
-  if (typeof v === "object") return { mapValue: { fields: Object.fromEntries(Object.entries(v).filter(([, x]) => x !== void 0).map(([k, x]) => [k, aFirestore(x)])) } };
-  return { stringValue: String(v) };
-}
-function deFirestore(v) {
-  if (!v || typeof v !== "object") return null;
-  if ("stringValue" in v) return v.stringValue;
-  if ("integerValue" in v) return Number(v.integerValue);
-  if ("doubleValue" in v) return Number(v.doubleValue);
-  if ("booleanValue" in v) return !!v.booleanValue;
-  if ("nullValue" in v) return null;
-  if ("timestampValue" in v) return v.timestampValue;
-  if ("arrayValue" in v) return (v.arrayValue.values || []).map(deFirestore);
-  if ("mapValue" in v) return Object.fromEntries(Object.entries(v.mapValue.fields || {}).map(([k, x]) => [k, deFirestore(x)]));
-  return null;
-}
-var camposAObjeto = (fields) => Object.fromEntries(Object.entries(fields || {}).map(([k, x]) => [k, deFirestore(x)]));
-async function leerDoc(ruta) {
-  const { base, key } = conexionFirestore();
-  const r = await fetch(`${base}/${ruta}?key=${key}`, { signal: AbortSignal.timeout(12e3) });
-  if (r.status === 404) return null;
-  if (!r.ok) throw new Error(`Firestore (${ruta}) respondi\xF3 HTTP ${r.status}`);
-  const d = await r.json();
-  return camposAObjeto(d.fields);
-}
-async function escribirDoc(ruta, datos) {
-  const { base, key } = conexionFirestore();
-  const qs = new URLSearchParams({ key });
-  for (const k of Object.keys(datos)) qs.append("updateMask.fieldPaths", k);
-  const r = await fetch(`${base}/${ruta}?${qs}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ fields: Object.fromEntries(Object.entries(datos).map(([k, v]) => [k, aFirestore(v)])) }),
-    signal: AbortSignal.timeout(2e4)
-  });
-  if (!r.ok) throw new Error(`Firestore no acept\xF3 la escritura de ${ruta} (HTTP ${r.status}): ${(await r.text()).slice(0, 160)}`);
-}
-async function consultar(structuredQuery) {
-  const { base, key } = conexionFirestore();
-  const r = await fetch(`${base}:runQuery?key=${key}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ structuredQuery }),
-    signal: AbortSignal.timeout(15e3)
-  });
-  if (!r.ok) throw new Error(`Firestore respondi\xF3 HTTP ${r.status}`);
-  const filas = await r.json();
-  return filas.filter((x) => x.document).map((x) => ({ id: String(x.document.name).split("/").pop() || "", datos: x.document.fields }));
-}
-
 // src/utils/sala.ts
-var MESES4 = { enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6, julio: 7, agosto: 8, septiembre: 9, setiembre: 9, octubre: 10, noviembre: 11, diciembre: 12 };
+var MESES5 = { enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6, julio: 7, agosto: 8, septiembre: 9, setiembre: 9, octubre: 10, noviembre: 11, diciembre: 12 };
 var dos = (n) => String(n).padStart(2, "0");
 function fechaLargaAISO(texto) {
   const m = String(texto || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").match(/(\d{1,2})\s+de\s+([a-z]+)\s+de\s+(\d{4})/);
-  return m && MESES4[m[2]] ? `${m[3]}-${dos(MESES4[m[2]])}-${dos(m[1])}` : "";
+  return m && MESES5[m[2]] ? `${m[3]}-${dos(MESES5[m[2]])}-${dos(m[1])}` : "";
 }
 var hhmm = (s) => {
   const m = String(s || "").match(/(\d{1,2}):(\d{2})/);
@@ -189831,18 +189908,20 @@ function nombreEnTexto(nombre, corpus) {
 async function construirHistorial(boletin, opciones = {}) {
   const b = normalizarBoletin(boletin);
   if (!b.includes("-")) return { disponible: false, motivo: "N\xFAmero de bolet\xEDn no v\xE1lido.", boletin: b, comisiones: [], sala: [] };
-  const [registro, informes, sala, discusion] = await Promise.all([
+  const [registro, informes, sala, discusion, actas] = await Promise.all([
     conTiempo(sesionesRegistradasDeBoletin(b), 15e3, []),
     conTiempo(informesDeSesion(b), 15e3, []),
     conTiempo(sesionesSalaDeBoletin(b), 1e4, []),
-    conTiempo(discusionDeProyecto(b), 25e3, { disponible: false, informes: [] })
+    conTiempo(discusionDeProyecto(b), 25e3, { disponible: false, informes: [] }),
+    conTiempo(actasDeBoletin(b), 12e3, [])
   ]);
   const informesOficiales = (discusion?.informes || []).map((i) => ({ titulo: i.titulo, url: i.url, fecha: i.fecha }));
   const firma2 = [
-    "v3",
+    "v4",
     registro.map((s) => `${s.id}:${s.resultado ? 1 : 0}`).sort().join(","),
     informes.map((i) => `${i.videoId}:${i.inf.generado || ""}`).sort().join(","),
-    informesOficiales.map((i) => i.url).sort().join(",")
+    informesOficiales.map((i) => i.url).sort().join(","),
+    actas.map((a) => a.sesionId).sort().join(",")
   ].join("|");
   const guardado = await leerDoc(`historial_proyectos/${b}`).catch(() => null);
   const prev = guardado?.historial;
@@ -189890,6 +189969,14 @@ async function construirHistorial(boletin, opciones = {}) {
     for (const p of puntos) if (p.acuerdos) c.acuerdos.push({ texto: p.acuerdos, fecha: s.fecha, fuente: "Detalle oficial de la sesi\xF3n" });
     if (s.resultado) c.acuerdos.push({ texto: s.resultado, fecha: s.fecha, fuente: "Resultado oficial de la sesi\xF3n" });
     if (!c.sesiones.some((x) => x.fecha === s.fecha)) c.sesiones.push({ fecha: s.fecha });
+  }
+  for (const a of actas) {
+    if (!a.fecha || a.fecha > H) continue;
+    const c = obtener(a.comision, "C\xE1mara");
+    (c.actas ||= []).push({ fecha: a.fecha, numero: a.numero, url: a.url });
+    if (!c.sesiones.some((x) => x.fecha === a.fecha)) c.sesiones.push({ fecha: a.fecha });
+    if (!c.desde || a.fecha < c.desde) c.desde = a.fecha;
+    if (!c.hasta || a.fecha > c.hasta) c.hasta = a.fecha;
   }
   const minutosPorCat = {};
   for (const i of informes) {
@@ -190008,7 +190095,10 @@ async function construirHistorial(boletin, opciones = {}) {
   const txt = (v) => String(v ?? "").replace(/\s+/g, " ").trim();
   const motivosIA = [];
   let objetivoOficial = "";
-  await Promise.all(comisiones.filter((c) => c.estadistica.sesionesConInforme > 0 || c.informeOficial).map(async (c) => {
+  await Promise.all(comisiones.filter((c) => c.estadistica.sesionesConInforme > 0 || c.informeOficial || (c.actas || []).length).map(async (c) => {
+    const actasCom = actas.filter((a) => mismaComision2(a.comision, c.nombre)).slice(-8);
+    const textoActas = actasCom.map((a) => `### Acta de la sesi\xF3n ${a.numero ? `N\xB0 ${a.numero} ` : ""}del ${a.fecha}
+${tramoDeBoletin(a.texto, b, 12e3)}`).join("\n\n").slice(0, 6e4);
     const oficial = c.informeOficial ? await textoInformeOficial(c.informeOficial.url) : { texto: "" };
     if (c.informeOficial && !oficial.texto) motivosIA.push(`${c.nombre}: ${oficial.motivo}`);
     const ses = informes.filter((i) => mismaComision2(i.comision, c.nombre));
@@ -190017,7 +190107,7 @@ async function construirHistorial(boletin, opciones = {}) {
       return `### Sesi\xF3n ${i.fecha}
 ${pts.map((p) => [p.sintesis, ...p.intervenciones.map((x) => `- ${x.orador}${x.cargo ? ` (${x.cargo}${x.institucion ? `, ${x.institucion}` : ""})` : ""} [${x.categoria}]: ${x.parrafos.join(" ").slice(0, 900)}`), ...p.acuerdos.map((a) => `Acuerdo: ${a.texto}`), ...p.votaciones.map((v) => `Votaci\xF3n: ${v.texto}: ${v.resultado}`)].filter(Boolean).join("\n")).join("\n")}`;
     }).join("\n\n").slice(0, 4e4);
-    if (!oficial.texto && !textoSes) return;
+    if (!oficial.texto && !textoSes && !textoActas) return;
     const prompt3 = `Eres asesor parlamentario de la Biblioteca del Congreso Nacional de Chile. Lee el material sobre el bolet\xEDn ${b} en la ${c.nombre}
 y extrae su historial en esa comisi\xF3n, usando EXCLUSIVAMENTE ese material. No agregues nada externo. Redacci\xF3n neutral, tercera persona, sin adjetivos valorativos.
 - "objetivo": el objetivo del proyecto tal como lo describe el informe oficial (2 a 4 oraciones); vac\xEDo si no hay informe oficial.
@@ -190035,6 +190125,9 @@ y extrae su historial en esa comisi\xF3n, usando EXCLUSIVAMENTE ese material. No
 ${oficial.texto ? `INFORME OFICIAL DE LA COMISI\xD3N (${c.informeOficial.titulo}):
 ${oficial.texto}
 
+` : ""}${textoActas ? `ACTAS OFICIALES DE LAS SESIONES (solo lo relativo a este bolet\xEDn):
+${textoActas}
+
 ` : ""}${textoSes ? `INFORMES DE SESI\xD3N (desde las transcripciones):
 ${textoSes}` : ""}`;
     const r = await geminiJSON(prompt3, esquema, { maxTokens: 12e3, presupuestoMs: 14e4 });
@@ -190044,6 +190137,7 @@ ${textoSes}` : ""}`;
     }
     const d = r.datos;
     const corpus = `${oficial.texto}
+${textoActas}
 ${textoSes}`;
     for (const f of (d.sesiones || []).map(txt)) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(f) || !(fechaEnTexto(f, corpus) || ses.some((i) => i.fecha === f))) continue;
@@ -190070,7 +190164,7 @@ ${textoSes}`;
       if (!t || !res) continue;
       const f = txt(v?.fecha);
       if (c.votaciones.some((x) => x.texto.toLowerCase() === t.toLowerCase())) continue;
-      c.votaciones.push({ texto: t, resultado: res, fecha: /^\d{4}-\d{2}-\d{2}$/.test(f) ? f : c.hasta || "", fuente: oficial.texto ? "Informe oficial de la comisi\xF3n" : "Informes de sesi\xF3n" });
+      c.votaciones.push({ texto: t, resultado: res, fecha: /^\d{4}-\d{2}-\d{2}$/.test(f) ? f : c.hasta || "", fuente: oficial.texto ? "Informe oficial de la comisi\xF3n" : textoActas ? "Actas oficiales de sesi\xF3n" : "Informes de sesi\xF3n" });
     }
     const fechas = new Set(c.sesiones.map((x) => x.fecha));
     c.temas = (d.temas || []).map((t, k) => ({
@@ -190132,7 +190226,7 @@ ${c.temas.map((t) => `- ${t.tema} (${t.estado}; ${t.fechas.join(", ")}): ${t.det
 // server/services/transcripcionAutomaticaService.ts
 var COLA = "cola_transcripcion";
 var VIDEOS = "analisis_videos_sesion";
-var MESES5 = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+var MESES6 = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 var norm4 = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 function hoyChileISO(d = /* @__PURE__ */ new Date()) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
@@ -190154,7 +190248,7 @@ function tituloConFecha(titulo, fechaISO4) {
   const [a, m, d] = fechaISO4.split("-").map(Number);
   if (!a || !m || !d) return false;
   const t = norm4(titulo);
-  return new RegExp(`(^|\\D)0?${d}\\s+(de\\s+)?${MESES5[m - 1]}`).test(t) || new RegExp(`(^|\\D)0?${d}[-/.]0?${m}[-/.](${a}|${String(a).slice(2)})(\\D|$)`).test(t);
+  return new RegExp(`(^|\\D)0?${d}\\s+(de\\s+)?${MESES6[m - 1]}`).test(t) || new RegExp(`(^|\\D)0?${d}[-/.]0?${m}[-/.](${a}|${String(a).slice(2)})(\\D|$)`).test(t);
 }
 async function contadorDia() {
   const ruta = `${COLA}/_contador_${hoyChileISO()}`;
@@ -190824,7 +190918,7 @@ function performUnifiedSearch(rawQuery) {
 }
 
 // src/utils/dateUtils.ts
-var MESES6 = {
+var MESES7 = {
   enero: 0,
   febrero: 1,
   marzo: 2,
@@ -190853,7 +190947,7 @@ function parseFechaSesion(fechaStr) {
     const day = Number(match[1]);
     const monthStr = match[2].toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
     const year = Number(match[3]);
-    const month = MESES6[monthStr] ?? 0;
+    const month = MESES7[monthStr] ?? 0;
     return new Date(year, month, day, 23, 59, 59);
   }
   return null;
@@ -195850,12 +195944,12 @@ function inicioDeSemana(ref) {
   d.setDate(d.getDate() - dow);
   return d;
 }
-var MESES7 = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+var MESES8 = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 function semanaActual(ref = /* @__PURE__ */ new Date()) {
   const desde = inicioDeSemana(ref);
   const hasta = new Date(desde);
   hasta.setDate(hasta.getDate() + 6);
-  const f = (d) => `${d.getDate()} ${MESES7[d.getMonth()].toUpperCase()}`;
+  const f = (d) => `${d.getDate()} ${MESES8[d.getMonth()].toUpperCase()}`;
   return { desde, hasta, etiqueta: `${f(desde)} \u2013 ${f(hasta)}` };
 }
 function iso2(base, diasOffset) {
@@ -196863,6 +196957,23 @@ apiRouter.get("/proyecto/:id/ficha-ejecutiva", async (req, res) => {
     res.json(await fichaEjecutivaProyecto(String(req.params.id)));
   } catch (err) {
     res.json({ disponible: false, motivo: err?.message || String(err) });
+  }
+});
+apiRouter.post("/camara/actas/importar", expressText({ type: "text/plain", limit: "8mb" }), async (req, res) => {
+  let body = req.body;
+  if (typeof body === "string") {
+    try {
+      body = JSON.parse(body);
+    } catch {
+      return res.status(400).json({ ok: false, error: "Cuerpo no es JSON v\xE1lido." });
+    }
+  }
+  const token = process.env.CITACIONES_IMPORT_TOKEN;
+  if (token && body?.token !== token) return res.status(401).json({ ok: false, error: "Token de importaci\xF3n inv\xE1lido." });
+  try {
+    res.json({ ok: true, ...await importarActaCamara(body) });
+  } catch (err) {
+    res.status(422).json({ ok: false, error: err?.message || String(err) });
   }
 });
 apiRouter.post("/senado/citaciones/importar", expressText({ type: "text/plain", limit: "5mb" }), async (req, res) => {

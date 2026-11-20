@@ -238,6 +238,7 @@ export default function HistorialProyecto({ proyecto, ficha, fichaCargando, info
                       <span className="ml-auto flex flex-wrap gap-1.5 text-[10px] font-bold">
                         <span className="px-1.5 py-0.5 rounded border bg-slate-50 border-slate-200 text-slate-700">{est.sesionesConInforme} de {Math.max(est.sesionesCitadas, est.sesionesConInforme)} sesiones con informe</span>
                         <span className={`px-1.5 py-0.5 rounded border ${c.informeOficial ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-amber-50 border-amber-200 text-amber-800"}`}>{c.informeOficial ? "Informe oficial publicado" : "Sin informe oficial aún"}</span>
+                        {(c.actas || []).length > 0 && <span className="px-1.5 py-0.5 rounded border bg-sky-50 border-sky-200 text-sky-800">{c.actas!.length} acta(s) oficial(es)</span>}
                       </span>
                     </button>
                     {abierta && (
@@ -251,6 +252,7 @@ export default function HistorialProyecto({ proyecto, ficha, fichaCargando, info
                             {c.cierre.pendientes.length > 0 && <p><b>Quedó pendiente:</b> {c.cierre.pendientes.join("; ")}</p>}
                           </div>
                         )}
+                        {(c.actas || []).length > 0 && <p className="text-xs text-slate-600">Actas oficiales: {c.actas!.map((a, k) => <a key={k} href={a.url} target="_blank" rel="noopener noreferrer" className="text-blue-700 hover:underline mr-2">{a.numero ? `N° ${a.numero} · ` : ""}{fmt(a.fecha)}</a>)}</p>}
                         {c.informeOficial && <p className="text-xs"><a href={c.informeOficial.url} target="_blank" rel="noopener noreferrer" className="text-blue-700 font-bold hover:underline inline-flex items-center gap-1">{c.informeOficial.titulo} <ExternalLink className="w-3 h-3" /></a></p>}
 
                         {(c.temas || []).length > 0 && (

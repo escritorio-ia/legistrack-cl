@@ -27,6 +27,8 @@ export interface ComisionHistorial {
   compromisos: { texto: string; responsable: string; fecha: string; videoId?: string; segundos?: number }[];
   pendientes: string[];
   informeOficial: { titulo: string; url: string; fecha?: string } | null;
+  /** Actas oficiales de sesión (Cámara) disponibles para esta comisión. */
+  actas?: { fecha: string; numero: string; url: string }[];
   sesiones: { fecha: string; videoId?: string; estado?: string; sintesis?: string }[];
   estadistica: EstadisticaComision;
   // Síntesis con IA (validada contra las fechas de las sesiones):

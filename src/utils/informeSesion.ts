@@ -45,6 +45,8 @@ export interface ResultadoOficialSesion {
   invitados: string | null;   // invitados según la citación
   puntos: { numero: number; texto: string; acuerdos?: string | null; invitados?: string | null; asistentes?: string | null }[];
   enlaces: string[];
+  /** Texto del acta oficial de la sesión (Cámara), si se importó. */
+  acta?: string;
 }
 
 export type FuenteDato = "transcripcion" | "oficial";
@@ -114,7 +116,7 @@ export function categoriaFinal(cat: unknown, orador: string, cargo: string, inst
 /** Texto completo del registro oficial (para comprobar que lo que se atribuye a él está ahí). */
 export function textoOficial(o: ResultadoOficialSesion | null | undefined): string {
   if (!o) return "";
-  return [o.resultado, o.invitados, ...o.puntos.flatMap((p) => [p.texto, p.acuerdos, p.invitados, p.asistentes])].filter(Boolean).join(" \n ");
+  return [o.resultado, o.invitados, o.acta, ...o.puntos.flatMap((p) => [p.texto, p.acuerdos, p.invitados, p.asistentes])].filter(Boolean).join(" \n ");
 }
 /** ¿El texto está respaldado por el registro oficial? (al menos la mitad de sus palabras significativas aparecen en él). */
 export function respaldadoPorOficial(texto: string, corpus: string): boolean {

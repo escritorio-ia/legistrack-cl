@@ -3,19 +3,37 @@
  * El resultado se valida contra la transcripción (minutos, oradores, boletines) antes de entregarlo.
  */
 import { InformeSesion, SegmentoInforme, ResultadoOficialSesion, transcripcionParaPrompt, validarInforme } from "../../src/utils/informeSesion";
-import { sesionRegistradaPorFecha } from "./registroSesionesService";
+import { sesionRegistradaPorFecha, fechaISO as fechaRegistroISO } from "./registroSesionesService";
+import { actasDeFecha } from "./actasCamaraService";
 
 const MAX_CARACTERES = 700_000;
 
 /** Registro oficial de la sesión (resultado de la comisión, detalle por punto, invitados), si existe. */
 async function resultadoOficial(comision: string, fecha: string, hora?: string): Promise<ResultadoOficialSesion | null> {
+  const normC = (x: string) => String(x || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\b(comision|de|del|la|el|y)\b/g, " ").replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+  let base: ResultadoOficialSesion | null = null;
   try {
     const s = await sesionRegistradaPorFecha(comision, fecha, hora);
-    if (!s) return null;
-    const puntos = s.puntos.map((p: any) => ({ numero: p.numero, texto: p.texto, acuerdos: p.acuerdos || null, invitados: p.invitados || null, asistentes: p.asistentes || null }));
-    if (!s.resultado && !s.invitados && !puntos.some((p) => p.acuerdos || p.invitados || p.asistentes)) return null;
-    return { fuentes: s.fuentes, resultado: s.resultado, invitados: s.invitados, puntos, enlaces: s.enlaces };
-  } catch { return null; }
+    if (s) {
+      const puntos = s.puntos.map((p: any) => ({ numero: p.numero, texto: p.texto, acuerdos: p.acuerdos || null, invitados: p.invitados || null, asistentes: p.asistentes || null }));
+      base = { fuentes: s.fuentes, resultado: s.resultado, invitados: s.invitados, puntos, enlaces: s.enlaces };
+    }
+  } catch { /* sin registro */ }
+  // Acta oficial de la Cámara (si la extensión la envió).
+  try {
+    const iso = /^\d{4}-\d{2}-\d{2}$/.test(fecha) ? fecha : fechaRegistroISO(fecha);
+    const objetivo = normC(comision);
+    const acta = iso ? (await actasDeFecha(iso)).find((a) => { const n = normC(a.comision); return n && objetivo && (n.includes(objetivo) || objetivo.includes(n)); }) : undefined;
+    if (acta) {
+      base = base || { fuentes: [], resultado: null, invitados: null, puntos: [], enlaces: [] };
+      base.acta = acta.texto.slice(0, 40000);
+      base.fuentes = [...base.fuentes, "acta oficial de la sesión"];
+      base.enlaces = [...base.enlaces, acta.url];
+    }
+  } catch { /* sin acta */ }
+  if (!base) return null;
+  if (!base.resultado && !base.invitados && !base.acta && !base.puntos.some((p) => p.acuerdos || p.invitados || p.asistentes)) return null;
+  return base;
 }
 
 function bloqueOficial(o: ResultadoOficialSesion | null): string {
@@ -23,11 +41,12 @@ function bloqueOficial(o: ResultadoOficialSesion | null): string {
   const L = [`Fuentes: ${o.fuentes.join(", ")}`];
   if (o.resultado) L.push(`Resultado oficial: ${o.resultado}`);
   if (o.invitados) L.push(`Invitados citados: ${o.invitados}`);
+  if (o.acta) L.push(`Acta oficial de la sesión:\n${o.acta}`);
   for (const p of o.puntos) {
     const extra = [p.acuerdos && `Acuerdos: ${p.acuerdos}`, p.invitados && `Invitados: ${p.invitados}`, p.asistentes && `Asistentes: ${p.asistentes}`].filter(Boolean).join(" | ");
     if (extra) L.push(`Punto ${p.numero}: ${p.texto} | ${extra}`);
   }
-  return L.join("\n").slice(0, 30000);
+  return L.join("\n").slice(0, 60000);
 }
 
 function prompt(p: { comision: string; fecha: string; tabla: string[]; boletines: string[]; transcripcion: string; oficial: ResultadoOficialSesion | null }): string {
