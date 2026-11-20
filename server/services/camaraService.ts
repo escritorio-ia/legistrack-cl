@@ -539,63 +539,68 @@ export async function fetchSesionComisionCompleta(comisionPrmId: string, sesionI
       fetchCamaraHtml(`asistencia.aspx?prmId=${comisionPrmId}&prmIdSesion=${sesionId}`)
     ]);
 
+    return parsearSesionComisionCamara(citacionHtml || "", resultadoHtml || "", votacionesHtml || "", asistenciaHtml || "");
+  });
+}
+
+/** Lee las páginas oficiales de una sesión (citación, resultado, votaciones, asistencia) ya descargadas. */
+export function parsearSesionComisionCamara(citacionHtml: string, resultadoHtml: string, votacionesHtml: string, asistenciaHtml: string): SesionComisionCompleta | null {
     if (!citacionHtml && !resultadoHtml) return null;
 
-    const filasCitacion = citacionHtml ? extraerFilasDosColumnas(citacionHtml) : [];
-    const filasResultado = resultadoHtml ? extraerFilasDosColumnas(resultadoHtml) : [];
+  const filasCitacion = citacionHtml ? extraerFilasDosColumnas(citacionHtml) : [];
+  const filasResultado = resultadoHtml ? extraerFilasDosColumnas(resultadoHtml) : [];
 
-    const puntos: PuntoTablaReal[] = filasCitacion.map((fc, idx) => {
-      const [horarioLinea, ...restoMateria] = fc.col1.split("\n").filter(Boolean);
-      const esHorario = /^De\s.*horas?:?$/i.test(horarioLinea || "");
-      const horario = esHorario ? horarioLinea : "";
-      const materia = (esHorario ? restoMateria.join(" ") : fc.col1).trim();
-      const boletines = Array.from(new Set(materia.match(BOLETIN_REGEX) || []));
-      const resultadoTexto = filasResultado[idx]?.col2 || "";
-      return {
-        horario,
-        materia,
-        boletines,
-        invitados: fc.col2.replace(/^Para este efecto se encuentran invitados:\s*/i, "").trim(),
-        resultado: resultadoTexto
-      };
-    });
-
-    // Asistencia: viene embebida como texto dentro de la última columna de
-    // resultado_detalle.aspx ("Diputados Asistentes: ...", "Reemplazos: ...",
-    // "Otros Diputados asistentes: ..."), agregada de todos los puntos.
-    const resultadoTextoCompleto = filasResultado.map(f => f.col2).join("\n\n");
-    const asistentesMatch = resultadoTextoCompleto.match(/Diputados? Asistentes?:\s*([^\n]+)/i);
-    const reemplazosMatch = resultadoTextoCompleto.match(/Reemplazos?:\s*([^\n]+)/i);
-    const otrosMatch = resultadoTextoCompleto.match(/Otros? Diputados? asistentes?:\s*([^\n]+)/i);
-    const asistencia: AsistenciaReal = {
-      asistentes: asistentesMatch ? asistentesMatch[1].split(";").map(s => s.trim()).filter(Boolean) : [],
-      reemplazos: reemplazosMatch ? reemplazosMatch[1].trim() : "",
-      otrosAsistentes: otrosMatch ? otrosMatch[1].trim() : ""
+  const puntos: PuntoTablaReal[] = filasCitacion.map((fc, idx) => {
+    const [horarioLinea, ...restoMateria] = fc.col1.split("\n").filter(Boolean);
+    const esHorario = /^De\s.*horas?:?$/i.test(horarioLinea || "");
+    const horario = esHorario ? horarioLinea : "";
+    const materia = (esHorario ? restoMateria.join(" ") : fc.col1).trim();
+    const boletines = Array.from(new Set(materia.match(BOLETIN_REGEX) || []));
+    const resultadoTexto = filasResultado[idx]?.col2 || "";
+    return {
+      horario,
+      materia,
+      boletines,
+      invitados: fc.col2.replace(/^Para este efecto se encuentran invitados:\s*/i, "").trim(),
+      resultado: resultadoTexto
     };
-    void asistenciaHtml; // reservado por si en el futuro se necesita el detalle completo de asistencia.aspx
-
-    const votaciones: VotacionReal[] = [];
-    if (votacionesHtml) {
-      const filasVot = votacionesHtml.match(/<tr>\s*<td align="center">\d{4,5}-\d{1,2}<\/td>[\s\S]*?<\/tr>/g) || [];
-      for (const fila of filasVot) {
-        const celdas = fila.match(/<td[^>]*>([\s\S]*?)<\/td>/g) || [];
-        if (celdas.length < 6) continue;
-        const clean = (c: string) => celdaHtmlATexto(c.replace(/^<td[^>]*>/, "").replace(/<\/td>$/, ""));
-        votaciones.push({
-          boletin: clean(celdas[0]),
-          materia: clean(celdas[1]),
-          tipo: clean(celdas[2]),
-          afirmativos: parseInt(clean(celdas[3]), 10) || 0,
-          negativos: parseInt(clean(celdas[4]), 10) || 0,
-          abstenciones: parseInt(clean(celdas[5]), 10) || 0
-        });
-      }
-    }
-
-    const boletinesVistos = Array.from(new Set(puntos.flatMap(p => p.boletines)));
-
-    return { puntos, asistencia, votaciones, boletinesVistos };
   });
+
+  // Asistencia: viene embebida como texto dentro de la última columna de
+  // resultado_detalle.aspx ("Diputados Asistentes: ...", "Reemplazos: ...",
+  // "Otros Diputados asistentes: ..."), agregada de todos los puntos.
+  const resultadoTextoCompleto = filasResultado.map(f => f.col2).join("\n\n");
+  const asistentesMatch = resultadoTextoCompleto.match(/Diputados? Asistentes?:\s*([^\n]+)/i);
+  const reemplazosMatch = resultadoTextoCompleto.match(/Reemplazos?:\s*([^\n]+)/i);
+  const otrosMatch = resultadoTextoCompleto.match(/Otros? Diputados? asistentes?:\s*([^\n]+)/i);
+  const asistencia: AsistenciaReal = {
+    asistentes: asistentesMatch ? asistentesMatch[1].split(";").map(s => s.trim()).filter(Boolean) : [],
+    reemplazos: reemplazosMatch ? reemplazosMatch[1].trim() : "",
+    otrosAsistentes: otrosMatch ? otrosMatch[1].trim() : ""
+  };
+  void asistenciaHtml; // reservado por si en el futuro se necesita el detalle completo de asistencia.aspx
+
+  const votaciones: VotacionReal[] = [];
+  if (votacionesHtml) {
+    const filasVot = votacionesHtml.match(/<tr>\s*<td align="center">\d{4,5}-\d{1,2}<\/td>[\s\S]*?<\/tr>/g) || [];
+    for (const fila of filasVot) {
+      const celdas = fila.match(/<td[^>]*>([\s\S]*?)<\/td>/g) || [];
+      if (celdas.length < 6) continue;
+      const clean = (c: string) => celdaHtmlATexto(c.replace(/^<td[^>]*>/, "").replace(/<\/td>$/, ""));
+      votaciones.push({
+        boletin: clean(celdas[0]),
+        materia: clean(celdas[1]),
+        tipo: clean(celdas[2]),
+        afirmativos: parseInt(clean(celdas[3]), 10) || 0,
+        negativos: parseInt(clean(celdas[4]), 10) || 0,
+        abstenciones: parseInt(clean(celdas[5]), 10) || 0
+      });
+    }
+  }
+
+  const boletinesVistos = Array.from(new Set(puntos.flatMap(p => p.boletines)));
+
+  return { puntos, asistencia, votaciones, boletinesVistos };
 }
 
 export async function getTodasComisiones(): Promise<ComisionReal[]> {

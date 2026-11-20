@@ -232,20 +232,68 @@ async function listarDocs(coleccion: string, mascara?: string[]): Promise<any[]>
   }
   return docs;
 }
+async function detallesRecientes(desde: string): Promise<any[]> {
+  const { base, key } = conexion();
+  const r = await fetch(`${base}:runQuery?key=${key}`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ structuredQuery: { from: [{ collectionId: "sesiones_senado_detalle" }], where: { fieldFilter: { field: { fieldPath: "actualizado" }, op: "GREATER_THAN_OR_EQUAL", value: { stringValue: desde } } } } }),
+    signal: AbortSignal.timeout(20000),
+  });
+  if (!r.ok) throw new Error(`Firestore (detalles recientes) respondió HTTP ${r.status}`);
+  return ((await r.json()) as any[]).filter((x) => x.document).map((x) => x.document);
+}
 const idDoc = (d: any) => String(d.name || "").split("/").pop() || "";
 const sv = (v: string) => ({ stringValue: v });
+
+const INDICE = "registro_indice/huellas";
+async function leerIndiceHuellas(): Promise<Map<string, Record<string, string>>> {
+  const { base, key } = conexion();
+  const r = await fetch(`${base}/${INDICE}?key=${key}`, { signal: AbortSignal.timeout(15000) });
+  if (r.ok) {
+    const d: any = await r.json();
+    try { return new Map(Object.entries(JSON.parse(d.fields?.json?.stringValue || "{}"))); } catch { /* se reconstruye */ }
+  } else if (r.status !== 404) throw new Error(`Firestore (índice) respondió HTTP ${r.status}`);
+  // Primera vez: se arma leyendo las sesiones (solo las huellas) y se guarda.
+  const m = new Map<string, Record<string, string>>();
+  for (const d of await listarDocs(COLECCION, FUENTES.map((f) => `h_${f}`))) {
+    const f: Record<string, string> = {};
+    for (const k of FUENTES) { const v = d.fields?.[`h_${k}`]?.stringValue; if (v) f[k] = v; }
+    m.set(idDoc(d), f);
+  }
+  await guardarIndiceHuellas(m);
+  return m;
+}
+async function guardarIndiceHuellas(m: Map<string, Record<string, string>>) {
+  const { base, key } = conexion();
+  await fetch(`${base}/${INDICE}?key=${key}`, {
+    method: "PATCH", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fields: { json: sv(JSON.stringify(Object.fromEntries(m))), actualizado: sv(new Date().toISOString()) } }),
+    signal: AbortSignal.timeout(20000),
+  }).catch(() => undefined);
+}
+async function ultimaSincronizacion(): Promise<number> {
+  const { base, key } = conexion();
+  const r = await fetch(`${base}/registro_indice/estado?key=${key}`, { signal: AbortSignal.timeout(8000) }).catch(() => null);
+  if (!r || !r.ok) return 0;
+  const d: any = await r.json();
+  return Date.parse(d.fields?.ultima?.stringValue || "") || 0;
+}
+async function marcarSincronizacion() {
+  const { base, key } = conexion();
+  await fetch(`${base}/registro_indice/estado?key=${key}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fields: { ultima: sv(new Date().toISOString()) } }), signal: AbortSignal.timeout(8000) }).catch(() => undefined);
+}
+
+/** Registra aportes de una fuente puntual (p. ej. una sesión de la Cámara enviada por la extensión). */
+export async function registrarAportes(aportes: AporteSesion[]) { return escribirAportes(aportes); }
 
 /** Agrupa los aportes por sesión y escribe solo las fuentes que cambiaron. */
 async function escribirAportes(aportes: AporteSesion[]): Promise<{ sesiones: number; escrituras: number }> {
   const { base, proy, key } = conexion();
   const porSesion = new Map<string, AporteSesion[]>();
   for (const a of aportes) porSesion.set(a.id, [...(porSesion.get(a.id) || []), a]);
-  const existentes = new Map<string, Record<string, string>>();
-  for (const d of await listarDocs(COLECCION, FUENTES.map((f) => `h_${f}`))) {
-    const f: Record<string, string> = {};
-    for (const k of FUENTES) { const v = d.fields?.[`h_${k}`]?.stringValue; if (v) f[k] = v; }
-    existentes.set(idDoc(d), f);
-  }
+  // Índice de huellas en UN documento (registro_indice/huellas): evita leer las miles de sesiones en cada
+  // sincronización (cada lectura de documento cuenta para la cuota diaria de Firestore).
+  const existentes = await leerIndiceHuellas();
   const writes: any[] = [];
   const ahora = new Date().toISOString();
   for (const [id, lista] of porSesion) {
@@ -257,6 +305,7 @@ async function escribirAportes(aportes: AporteSesion[]): Promise<{ sesiones: num
       if (previas[a.fuente] === h || fields[a.fuente]) continue;
       fields[a.fuente] = sv(JSON.stringify(a.datos));
       fields[`h_${a.fuente}`] = sv(h);
+      existentes.set(id, { ...(existentes.get(id) || {}), [a.fuente]: h });
       mask.push(a.fuente, `h_${a.fuente}`);
     }
     if (mask.length === 0) continue;
@@ -279,6 +328,7 @@ async function escribirAportes(aportes: AporteSesion[]): Promise<{ sesiones: num
     });
     if (!r.ok) throw new Error(`Firestore no aceptó la escritura (HTTP ${r.status}): ${(await r.text()).slice(0, 200)}`);
   }
+  if (writes.length) await guardarIndiceHuellas(existentes);
   return { sesiones: porSesion.size, escrituras: writes.length };
 }
 
@@ -297,12 +347,13 @@ export interface ResultadoSincronizacion {
 
 let enCurso: Promise<ResultadoSincronizacion> | null = null;
 let ultima = 0;
-const INTERVALO_MIN_MS = 5 * 60 * 1000;
+const INTERVALO_MIN_MS = 60 * 60 * 1000; // la sincronización completa lee varias colecciones: como máximo una vez por hora
 
 export async function sincronizarRegistroSesiones(opciones: { forzar?: boolean } = {}): Promise<ResultadoSincronizacion> {
   if (enCurso) return enCurso;
-  if (!opciones.forzar && Date.now() - ultima < INTERVALO_MIN_MS) {
-    return { ok: true, sesiones: 0, escrituras: 0, porFuente: {}, errores: [], duracionMs: 0, omitida: "Se sincronizó hace menos de 5 minutos." };
+  if (!opciones.forzar) {
+    const previa = Math.max(ultima, await ultimaSincronizacion().catch(() => 0));
+    if (Date.now() - previa < INTERVALO_MIN_MS) return { ok: true, sesiones: 0, escrituras: 0, porFuente: {}, errores: [], duracionMs: 0, omitida: "Se sincronizó hace menos de una hora." };
   }
   enCurso = (async () => {
     const t0 = Date.now();
@@ -322,7 +373,10 @@ export async function sincronizarRegistroSesiones(opciones: { forzar?: boolean }
       const historias = await listarDocs("sesiones_senado");
       const detalles = new Map<string, any>();
       try {
-        for (const d of await listarDocs("sesiones_senado_detalle")) {
+        // Sin "forzar" solo se leen los detalles actualizados en los últimos 2 días (los demás no cambiaron).
+        const desdeDet = new Date(Date.now() - 2 * 86400000).toISOString();
+        const docsDet = opciones.forzar ? await listarDocs("sesiones_senado_detalle") : await detallesRecientes(desdeDet);
+        for (const d of docsDet) {
           try { detalles.set(idDoc(d), JSON.parse(d.fields?.payload?.stringValue || "null")); } catch { /* ilegible */ }
         }
       } catch (e: any) { errores.push(`Detalle Senado: ${e?.message || e}`); }
@@ -346,6 +400,7 @@ export async function sincronizarRegistroSesiones(opciones: { forzar?: boolean }
     try { r = await escribirAportes(unirResultadosConCitaciones(aportes.filter((a) => a.fecha))); }
     catch (e: any) { errores.push(`Escritura: ${e?.message || e}`); }
     ultima = Date.now();
+    await marcarSincronizacion();
     return { ok: errores.length === 0, ...r, porFuente, errores, duracionMs: Date.now() - t0 };
   })().finally(() => { enCurso = null; });
   return enCurso;

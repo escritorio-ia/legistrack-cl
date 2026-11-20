@@ -229,7 +229,10 @@ export async function construirHistorial(boletin: string, opciones: { forzar?: b
   let objetivoOficial = "";
   await Promise.all(comisiones.filter((c) => c.estadistica.sesionesConInforme > 0 || c.informeOficial || (c.actas || []).length).map(async (c) => {
     const actasCom = actas.filter((a) => mismaComision(a.comision, c.nombre)).slice(-8);
-    const textoActas = actasCom.map((a) => `### Acta de la sesión ${a.numero ? `N° ${a.numero} ` : ""}del ${a.fecha}\n${tramoDeBoletin(a.texto, b, 12000)}`).join("\n\n").slice(0, 60000);
+    const textoActas = actasCom.map((a) => [
+      a.texto ? `### Acta de la sesión ${a.numero ? `N° ${a.numero} ` : ""}del ${a.fecha}\n${tramoDeBoletin(a.texto, b, 12000)}` : "",
+      a.cuenta && a.cuenta.includes(b.split("-")[0].slice(-3)) ? `### Cuenta de la sesión del ${a.fecha} (documentos recibidos)\n${tramoDeBoletin(a.cuenta, b, 3000)}` : "",
+    ].filter(Boolean).join("\n")).join("\n\n").slice(0, 60000);
     const oficial = c.informeOficial ? await textoInformeOficial(c.informeOficial.url) : { texto: "" };
     if (c.informeOficial && !oficial.texto) motivosIA.push(`${c.nombre}: ${oficial.motivo}`);
     const ses = informes.filter((i) => mismaComision(i.comision, c.nombre));

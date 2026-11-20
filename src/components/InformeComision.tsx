@@ -20,9 +20,17 @@ const PERIODOS = [
 ] as const;
 
 /** Informe resumen de la comisión, compilado de sesiones registradas y análisis de video guardados. */
-export default function InformeComision({ nombre, camara, registro, onAbrirBoletin }: {
-  nombre: string; camara: string; registro: SesionRegistradaUI[] | null; onAbrirBoletin?: (b: string) => void;
+export default function InformeComision({ nombre, camara, registro, onAbrirBoletin, comisionId }: {
+  nombre: string; camara: string; registro: SesionRegistradaUI[] | null; onAbrirBoletin?: (b: string) => void; comisionId?: string;
 }) {
+  // Sesiones de la Cámara con sus documentos oficiales (acta, cuenta, asistencia, votaciones), enviadas por la extensión.
+  const [oficiales, setOficiales] = useState<any[]>([]);
+  useEffect(() => {
+    if (!comisionId || !comisionId.startsWith("cd-")) { setOficiales([]); return; }
+    let vigente = true;
+    fetch(`/api/comision/${encodeURIComponent(comisionId)}/sesiones-camara`).then((r) => r.json()).then((d) => { if (vigente) setOficiales(d?.sesiones || []); }).catch(() => {});
+    return () => { vigente = false; };
+  }, [comisionId]);
   const [videos, setVideos] = useState<AnalisisVideoUI[]>([]);
   const [periodo, setPeriodo] = useState<string>("90");
   const [copiado, setCopiado] = useState(false);
@@ -89,7 +97,7 @@ export default function InformeComision({ nombre, camara, registro, onAbrirBolet
               <Kpi t="Sesiones realizadas" v={inf.realizadas} s={inf.programadas ? `${inf.programadas} programada(s)` : undefined} />
               <Kpi t="Boletines tratados" v={inf.boletines.length} />
               <Kpi t="Última sesión" v={fmt(inf.ultima)} s={inf.proxima ? `próxima: ${fmt(inf.proxima)}` : undefined} />
-              <Kpi t="Con informe de sesión" v={`${inf.sesionesConVideo} de ${inf.realizadas}`} />
+              <Kpi t="Con informe de sesión" v={`${inf.sesionesConVideo} de ${inf.realizadas}`} s={oficiales.length ? `${oficiales.filter((o) => o.tieneActa).length} con acta oficial · ${oficiales.filter((o) => o.tieneCuenta).length} con cuenta` : undefined} />
             </div>
 
             {inf.boletines.length > 0 && (
@@ -126,6 +134,16 @@ export default function InformeComision({ nombre, camara, registro, onAbrirBolet
                       </ol>
                     )}
                     {s.resultado && <p className="mt-1 text-emerald-800"><b>Resultado oficial:</b> {s.resultado}</p>}
+                    {oficiales.filter((o) => o.fecha === s.fecha).map((o) => (
+                      <div key={o.sesionId} className="mt-1.5 bg-sky-50/70 border border-sky-100 rounded-lg p-2 space-y-0.5">
+                        <p className="text-sky-900"><b>Documentos oficiales{o.numero ? ` · sesión N° ${o.numero}` : ""}:</b>{" "}
+                          {o.tieneActa && <a href={o.url} target="_blank" rel="noopener noreferrer" className="text-blue-700 hover:underline mr-2">Acta</a>}
+                          {o.tieneCuenta && o.cuentaUrl && <a href={o.cuentaUrl} target="_blank" rel="noopener noreferrer" className="text-blue-700 hover:underline mr-2">Cuenta</a>}
+                          {o.asistentes > 0 && <span className="text-slate-600">{o.asistentes} diputados asistentes</span>}
+                        </p>
+                        {o.votaciones.length > 0 && <ul className="space-y-0.5">{o.votaciones.map((v: any, k: number) => <li key={k} className="text-slate-700"><b>Votación{v.boletin ? ` ${v.boletin}` : ""}:</b> {v.materia}{v.tipo ? ` (${v.tipo})` : ""} · A favor {v.afirmativos} · En contra {v.negativos} · Abst. {v.abstenciones}</li>)}</ul>}
+                      </div>
+                    ))}
                     {s.invitados && <p className="mt-1 text-slate-600"><b>Invitados:</b> {s.invitados}</p>}
                     {s.video && s.video.resumenes.length > 0 && (
                       <div className="mt-1.5 text-slate-700 bg-rose-50/60 border border-rose-100 rounded-lg p-2">

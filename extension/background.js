@@ -227,9 +227,9 @@ chrome.runtime.onMessage.addListener((msg, _s, responder) => {
 
 // Actas oficiales de sesiones de comisión de la Cámara (las lee actas.js al abrir la página de sesiones).
 chrome.runtime.onMessage.addListener((msg, _s, responder) => {
-  if (msg?.tipo === "camara-acta") {
-    enviar("/api/camara/actas/importar", msg.acta)
-      .then(async (j) => { await registrar("actas", { ok: true, detalle: `Acta del ${j.fecha} (${j.boletines.length} boletín/es)` }); responder({ ok: true, ...j }); })
+  if (msg?.tipo === "camara-sesion") {
+    enviar("/api/camara/sesion/importar", msg.sesion)
+      .then(async (j) => { await registrar("actas", { ok: true, detalle: `Sesión del ${j.fecha}: ${j.puntos} punto(s), ${j.votaciones} votación(es)${j.acta ? ", acta" : ""}${j.cuenta ? ", cuenta" : ""}` }); responder({ ok: true, ...j }); })
       .catch(async (e) => { await registrar("actas", { ok: false, detalle: e.message }); responder({ ok: false, error: e.message }); });
     return true;
   }

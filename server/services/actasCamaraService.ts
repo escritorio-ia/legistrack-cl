@@ -7,6 +7,8 @@
 import { DIPUTADOS_COMISIONES_DETALLE } from "../../src/data/comisionesData";
 import { boletinesEnTexto } from "../../src/utils/boletines";
 import { escribirDoc, consultar, camposAObjeto } from "./firestoreRest";
+import { parsearSesionComisionCamara } from "./camaraService";
+import { registrarAportes, idSesion } from "./registroSesionesService";
 
 const MESES: Record<string, number> = { ene: 1, feb: 2, mar: 3, abr: 4, may: 5, jun: 6, jul: 7, ago: 8, sep: 9, set: 9, oct: 10, nov: 11, dic: 12 };
 /** "17 nov. 2026" o "17/11/2026" -> "2026-11-17". */
@@ -40,7 +42,7 @@ export async function importarActaCamara(p: { comisionPrmId: string; sesionId: s
   return { sesionId: p.sesionId, fecha, caracteres: texto.length, boletines };
 }
 
-export interface ActaCamara { sesionId: string; comision: string; comisionId: string; fecha: string; numero: string; url: string; texto: string; boletines: string[] }
+export interface ActaCamara { sesionId: string; comision: string; comisionId: string; fecha: string; numero: string; url: string; texto: string; cuenta?: string; boletines: string[] }
 
 export async function actasDeBoletin(boletin: string): Promise<ActaCamara[]> {
   const filas = await consultar({ from: [{ collectionId: "actas_camara" }], where: { fieldFilter: { field: { fieldPath: "boletines" }, op: "ARRAY_CONTAINS", value: { stringValue: boletin } } } });
@@ -62,4 +64,65 @@ export function tramoDeBoletin(texto: string, boletin: string, largo = 12000): s
   if (!pos.length) return texto.slice(0, largo);
   const ini = Math.max(0, pos[0] - 1500);
   return texto.slice(ini, Math.min(texto.length, Math.max(ini + largo, pos[pos.length - 1] + 3000)));
+}
+
+async function textoPdf(b64?: string): Promise<string> {
+  if (!b64) return "";
+  const buffer = Buffer.from(String(b64), "base64");
+  if (buffer.slice(0, 4).toString("latin1") !== "%PDF") return "";
+  const { extractText, getDocumentProxy } = await import("unpdf");
+  const pdf = await getDocumentProxy(new Uint8Array(buffer));
+  return String((await extractText(pdf, { mergePages: true })).text || "").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Sesión completa de una comisión de la Cámara, como aparece en camara.cl: citación, cuenta, asistencia, acta,
+ * votaciones y resultado. La envía la extensión al abrir la página de sesiones de la comisión.
+ * Se guarda en actas_camara/<sesionId> y además se registra como "detalle oficial" en el registro de sesiones,
+ * para que aparezca en la comisión, en el resumen de la comisión y en el historial de cada boletín.
+ */
+export async function importarSesionCamara(p: {
+  comisionPrmId: string; sesionId: string; numero?: string; fecha: string; hora?: string; termino?: string; estado?: string;
+  citacionHtml?: string; resultadoHtml?: string; votacionesHtml?: string; asistenciaTexto?: string;
+  actaDocId?: string; actaBase64?: string; cuentaDocId?: string; cuentaBase64?: string;
+}) {
+  if (!/^\d+$/.test(p.comisionPrmId) || !/^\d+$/.test(p.sesionId)) throw new Error("Identificadores no válidos.");
+  const fecha = fechaActaISO(p.fecha);
+  if (!fecha) throw new Error("Fecha de la sesión no válida.");
+  const c: any = DIPUTADOS_COMISIONES_DETALLE.find((x: any) => String(x.prmID) === p.comisionPrmId);
+  const comision = c?.nombre || `Comisión de la Cámara (${p.comisionPrmId})`;
+  const [acta, cuenta] = await Promise.all([textoPdf(p.actaBase64).catch(() => ""), textoPdf(p.cuentaBase64).catch(() => "")]);
+  const det = parsearSesionComisionCamara(p.citacionHtml || "", p.resultadoHtml || "", p.votacionesHtml || "", "") || { puntos: [], asistencia: { asistentes: [], reemplazos: "", otrosAsistentes: "" }, votaciones: [], boletinesVistos: [] };
+  const asistencia = String(p.asistenciaTexto || "").replace(/\s+/g, " ").trim().slice(0, 8000);
+  const boletines = Array.from(new Set([...det.puntos.flatMap((x: any) => (x.boletines || []).map((b: string) => b)), ...boletinesEnTexto(`${acta} ${cuenta}`)]
+    .map((b) => b.replace(/\./g, "")).filter((b) => /^\d{3,6}-\d{1,2}$/.test(b)).map((b) => { const [n, s] = b.split("-"); return `${n}-${s.padStart(2, "0")}`; })));
+  const url = `https://www.camara.cl/legislacion/comisiones/sesiones.aspx?prmID=${p.comisionPrmId}&prmIdTipo=2101`;
+  await escribirDoc(`actas_camara/${p.sesionId}`, {
+    comisionPrmId: p.comisionPrmId, comisionId: c ? `cd-${c.id}` : "", comision, sesionId: p.sesionId, numero: String(p.numero || ""), fecha,
+    hora: String(p.hora || ""), termino: String(p.termino || ""), estado: String(p.estado || ""),
+    docId: p.actaDocId || "", url: p.actaDocId ? `https://www.camara.cl/verDoc.aspx?prmID=${p.actaDocId}&prmTipo=DOCUMENTO_COMISIONSESIONACTA` : url,
+    cuentaUrl: p.cuentaDocId ? `https://www.camara.cl/verDoc.aspx?prmID=${p.cuentaDocId}&prmTipo=DOCUMENTO_COMISIONSESIONCUENTA` : "",
+    texto: acta.slice(0, 300000), cuenta: cuenta.slice(0, 100000), asistencia,
+    puntos: det.puntos.map((x: any, i: number) => ({ numero: i + 1, texto: x.materia, boletines: x.boletines, invitados: x.invitados || "", resultado: x.resultado || "" })),
+    votaciones: det.votaciones, diputadosAsistentes: det.asistencia.asistentes,
+    boletines, importadoEn: new Date().toISOString(),
+  });
+  // Registro de sesiones: "detalle oficial" de la sesión (puntos con acuerdos e invitados).
+  if (c && det.puntos.length) {
+    await registrarAportes([{
+      id: idSesion("Cámara", c.id, fecha, p.hora || ""), fuente: "detalle", camara: "Cámara", comisionId: `cd-${c.id}`, comisionNombre: comision, fecha, boletines,
+      datos: {
+        inicio: p.hora || null, termino: p.termino || null, url,
+        puntos: det.puntos.map((x: any, i: number) => ({ numero: i + 1, texto: x.materia, boletines: x.boletines, acuerdos: x.resultado || null, invitados: x.invitados || null, asistentes: det.asistencia.asistentes.join("; ") || null })),
+      },
+    }]).catch(() => undefined);
+  }
+  return { sesionId: p.sesionId, fecha, boletines, acta: acta.length > 0, cuenta: cuenta.length > 0, puntos: det.puntos.length, votaciones: det.votaciones.length };
+}
+
+/** Sesiones de la Cámara guardadas de una comisión (por su identificador de la app, "cd-<slug>"). */
+export async function sesionesActasCamaraDeComision(comisionId: string) {
+  const filas = await consultar({ from: [{ collectionId: "actas_camara" }], where: { fieldFilter: { field: { fieldPath: "comisionId" }, op: "EQUAL", value: { stringValue: comisionId } } } });
+  return filas.map((f) => { const d: any = camposAObjeto(f.datos); return { sesionId: d.sesionId, numero: d.numero, fecha: d.fecha, hora: d.hora, url: d.url, cuentaUrl: d.cuentaUrl, tieneActa: !!d.texto, tieneCuenta: !!d.cuenta, asistentes: (d.diputadosAsistentes || []).length, votaciones: d.votaciones || [], puntos: d.puntos || [] }; })
+    .sort((a, b) => b.fecha.localeCompare(a.fecha));
 }

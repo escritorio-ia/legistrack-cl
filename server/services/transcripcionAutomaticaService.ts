@@ -192,21 +192,28 @@ async function redactarInforme(t: Trabajo): Promise<string> {
  * historial_proyectos/<boletín>.fichaEjecutiva, que es donde la app la lee al abrir el proyecto.
  */
 export async function precargarFichas(maximo = 1): Promise<string[]> {
+  // Como máximo cada 30 minutos (cada revisión lee documentos y cuenta para la cuota diaria de Firestore).
+  const marca = await leerDoc(`${COLA}/_precarga`).catch(() => null);
+  if (marca?.ultima && Date.now() - Date.parse(marca.ultima) < 30 * 60 * 1000) return [];
+  await escribirDoc(`${COLA}/_precarga`, { ultima: new Date().toISOString() }).catch(() => undefined);
   const desde = sumarDias(hoyChileISO(), -45);
   const filas = await consultar({
     from: [{ collectionId: "registro_sesiones" }],
     where: { fieldFilter: { field: { fieldPath: "fecha" }, op: "GREATER_THAN_OR_EQUAL", value: { stringValue: desde } } },
-    orderBy: [{ field: { fieldPath: "fecha" }, direction: "DESCENDING" }], limit: 300,
+    orderBy: [{ field: { fieldPath: "fecha" }, direction: "DESCENDING" }], limit: 80,
+    select: { fields: [{ fieldPath: "boletines" }] },
   }).catch(() => []);
   const sala = await consultar({
     from: [{ collectionId: "sesiones_sala" }],
-    where: { fieldFilter: { field: { fieldPath: "fecha" }, op: "GREATER_THAN_OR_EQUAL", value: { stringValue: desde } } }, limit: 100,
+    where: { fieldFilter: { field: { fieldPath: "fecha" }, op: "GREATER_THAN_OR_EQUAL", value: { stringValue: desde } } }, limit: 30,
+    select: { fields: [{ fieldPath: "boletines" }] },
   }).catch(() => []);
   const boletines = Array.from(new Set([...filas, ...sala].flatMap((f) => (camposAObjeto(f.datos).boletines || []) as string[]).filter((b) => /^\d{3,6}-\d{2}$/.test(b))));
   const hechos: string[] = [];
   const hoy = hoyChileISO();
+  let revisados = 0;
   for (const b of boletines) {
-    if (hechos.length >= maximo) break;
+    if (hechos.length >= maximo || ++revisados > 15) break;
     const g = await leerDoc(`historial_proyectos/${b}`).catch(() => null);
     if (g?.fichaEjecutiva?.ficha) continue;
     if (g?.fichaIntento && g.fichaIntento >= sumarDias(hoy, -7)) continue; // no reintentar a diario si el texto no se pudo leer
@@ -326,14 +333,27 @@ async function pasoTranscripcion(): Promise<{ ok: boolean; accion: string; sesio
 /** Resumen del avance para mostrar en la app. */
 export async function estadoTranscripcionAutomatica() {
   const conf = configuracionAuto();
-  const filas = await consultar({ from: [{ collectionId: COLA }], orderBy: [{ field: { fieldPath: "actualizado" }, direction: "DESCENDING" }], limit: 300 });
-  const trabajos = filas.filter((f) => !f.id.startsWith("_")).map((f) => ({ id: f.id, ...camposAObjeto(f.datos) } as any));
+  const { base, key } = conexionFirestore();
+  // Conteo por estado con consultas de agregación (cuestan 1 lectura por cada 1.000 documentos contados).
+  const estados = ["transcribiendo", "transcrita", "informe_pendiente", "informe_listo", "sin_video", "error", "buscando_video"];
   const porEstado: Record<string, number> = {};
-  for (const t of trabajos) porEstado[t.estado] = (porEstado[t.estado] || 0) + 1;
+  await Promise.all(estados.map(async (e) => {
+    const r = await fetch(`${base}:runAggregationQuery?key=${key}`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ structuredAggregationQuery: { structuredQuery: { from: [{ collectionId: COLA }], where: { fieldFilter: { field: { fieldPath: "estado" }, op: "EQUAL", value: { stringValue: e } } } }, aggregations: [{ alias: "n", count: {} }] } }),
+      signal: AbortSignal.timeout(10000),
+    }).catch(() => null);
+    if (!r?.ok) return;
+    const d: any = await r.json();
+    const n = Number(d?.[0]?.result?.aggregateFields?.n?.integerValue || 0);
+    if (n) porEstado[e] = n;
+  }));
+  const filas = await consultar({ from: [{ collectionId: COLA }], orderBy: [{ field: { fieldPath: "actualizado" }, direction: "DESCENDING" }], limit: 15 }).catch(() => []);
+  const recientes = filas.filter((f) => !f.id.startsWith("_")).map((f) => ({ id: f.id, ...camposAObjeto(f.datos) } as any));
   const cont = await contadorDia();
   const control = await leerControl();
   return {
     configuracion: conf, tramosHoy: cont.tramos, porEstado, control,
-    recientes: trabajos.slice(0, 15).map((t) => ({ comision: t.comision, fecha: t.fecha, estado: t.estado, videoId: t.videoId || null, error: t.error || null, actualizado: t.actualizado })),
+    recientes: recientes.map((t) => ({ comision: t.comision, fecha: t.fecha, estado: t.estado, videoId: t.videoId || null, error: t.error || null, actualizado: t.actualizado })),
   };
 }

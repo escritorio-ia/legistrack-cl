@@ -15,7 +15,7 @@ export default function EstadoTranscripcionAuto() {
   const [d, setD] = useState<any>(null);
   const [enviando, setEnviando] = useState(false);
   const leer = () => fetch("/api/transcripcion/automatica/estado").then((r) => r.json()).then(setD).catch(() => setD({ error: "sin conexión" }));
-  useEffect(() => { leer(); const t = setInterval(leer, 30000); return () => clearInterval(t); }, []);
+  useEffect(() => { leer(); const t = setInterval(leer, 120000); return () => clearInterval(t); }, []);
   const accion = async (que: "iniciar" | "detener") => {
     setEnviando(true);
     await fetch(`/api/transcripcion/automatica/${que}`, { method: "POST" }).catch(() => {});

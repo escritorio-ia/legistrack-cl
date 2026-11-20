@@ -4,7 +4,7 @@ import { generarInformeSesion } from "../services/informeSesionService";
 import { pasoTranscripcionAutomatica, estadoTranscripcionAutomatica, pasoEncadenado, leerControl, fijarControl, siguientePaso } from "../services/transcripcionAutomaticaService";
 import { resumenComisionesBoletin } from "../services/resumenBoletinService";
 import { construirHistorial } from "../services/historialService";
-import { importarActaCamara } from "../services/actasCamaraService";
+import { importarActaCamara, importarSesionCamara, sesionesActasCamaraDeComision } from "../services/actasCamaraService";
 import { salaSemana, importarTablaSenado, sincronizarSala, sesionesSalaDeBoletin } from "../services/salaService";
 import { discusionDeProyecto } from "../services/discusionService";
 import { construirResumenSesion } from "../services/resumenSesionService";
@@ -905,6 +905,21 @@ apiRouter.get("/proyecto/:id/ficha-ejecutiva", async (req: Request, res: Respons
   } catch (err: any) {
     res.json({ disponible: false, motivo: err?.message || String(err) });
   }
+});
+
+// Sesión completa de una comisión de la Cámara (citación, cuenta, asistencia, acta, votaciones y resultado).
+apiRouter.post("/camara/sesion/importar", expressText({ type: "text/plain", limit: "10mb" }), async (req: Request, res: Response) => {
+  let body: any = req.body;
+  if (typeof body === "string") { try { body = JSON.parse(body); } catch { return res.status(400).json({ ok: false, error: "Cuerpo no es JSON válido." }); } }
+  const token = process.env.CITACIONES_IMPORT_TOKEN;
+  if (token && body?.token !== token) return res.status(401).json({ ok: false, error: "Token de importación inválido." });
+  try { res.json({ ok: true, ...(await importarSesionCamara(body)) }); }
+  catch (err: any) { res.status(422).json({ ok: false, error: err?.message || String(err) }); }
+});
+// Sesiones de la Cámara guardadas (actas, cuentas, votaciones) de una comisión.
+apiRouter.get("/comision/:id/sesiones-camara", async (req: Request, res: Response) => {
+  try { res.json({ disponible: true, sesiones: await sesionesActasCamaraDeComision(String(req.params.id).slice(0, 80)) }); }
+  catch (err: any) { res.json({ disponible: false, motivo: err?.message || String(err), sesiones: [] }); }
 });
 
 // Acta oficial de una sesión de comisión de la Cámara, enviada por la extensión (PDF en base64).

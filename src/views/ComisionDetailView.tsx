@@ -2977,7 +2977,7 @@ ${ses.tabla.map((t, i) => `${i + 1}. ${t}`).join("\n")}
                   ))}
                 </div>
               </div>
-              <InformeComision nombre={comision.nombre} camara={isSenado ? "Senado" : "Cámara"} registro={registroComision} onAbrirBoletin={(b) => setSelectedProyectoId(b)} />
+              <InformeComision nombre={comision.nombre} camara={isSenado ? "Senado" : "Cámara"} registro={registroComision} onAbrirBoletin={(b) => setSelectedProyectoId(b)} comisionId={comisionId} />
             </div>
           )}
 

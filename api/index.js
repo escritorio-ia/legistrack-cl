@@ -188469,21 +188469,70 @@ async function listarDocs(coleccion, mascara) {
   }
   return docs;
 }
+async function detallesRecientes(desde) {
+  const { base, key } = conexion();
+  const r = await fetch(`${base}:runQuery?key=${key}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ structuredQuery: { from: [{ collectionId: "sesiones_senado_detalle" }], where: { fieldFilter: { field: { fieldPath: "actualizado" }, op: "GREATER_THAN_OR_EQUAL", value: { stringValue: desde } } } } }),
+    signal: AbortSignal.timeout(2e4)
+  });
+  if (!r.ok) throw new Error(`Firestore (detalles recientes) respondi\xF3 HTTP ${r.status}`);
+  return (await r.json()).filter((x) => x.document).map((x) => x.document);
+}
 var idDoc = (d) => String(d.name || "").split("/").pop() || "";
 var sv = (v) => ({ stringValue: v });
-async function escribirAportes(aportes) {
-  const { base, proy, key } = conexion();
-  const porSesion = /* @__PURE__ */ new Map();
-  for (const a of aportes) porSesion.set(a.id, [...porSesion.get(a.id) || [], a]);
-  const existentes = /* @__PURE__ */ new Map();
+var INDICE = "registro_indice/huellas";
+async function leerIndiceHuellas() {
+  const { base, key } = conexion();
+  const r = await fetch(`${base}/${INDICE}?key=${key}`, { signal: AbortSignal.timeout(15e3) });
+  if (r.ok) {
+    const d = await r.json();
+    try {
+      return new Map(Object.entries(JSON.parse(d.fields?.json?.stringValue || "{}")));
+    } catch {
+    }
+  } else if (r.status !== 404) throw new Error(`Firestore (\xEDndice) respondi\xF3 HTTP ${r.status}`);
+  const m = /* @__PURE__ */ new Map();
   for (const d of await listarDocs(COLECCION, FUENTES.map((f) => `h_${f}`))) {
     const f = {};
     for (const k of FUENTES) {
       const v = d.fields?.[`h_${k}`]?.stringValue;
       if (v) f[k] = v;
     }
-    existentes.set(idDoc(d), f);
+    m.set(idDoc(d), f);
   }
+  await guardarIndiceHuellas(m);
+  return m;
+}
+async function guardarIndiceHuellas(m) {
+  const { base, key } = conexion();
+  await fetch(`${base}/${INDICE}?key=${key}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fields: { json: sv(JSON.stringify(Object.fromEntries(m))), actualizado: sv((/* @__PURE__ */ new Date()).toISOString()) } }),
+    signal: AbortSignal.timeout(2e4)
+  }).catch(() => void 0);
+}
+async function ultimaSincronizacion() {
+  const { base, key } = conexion();
+  const r = await fetch(`${base}/registro_indice/estado?key=${key}`, { signal: AbortSignal.timeout(8e3) }).catch(() => null);
+  if (!r || !r.ok) return 0;
+  const d = await r.json();
+  return Date.parse(d.fields?.ultima?.stringValue || "") || 0;
+}
+async function marcarSincronizacion() {
+  const { base, key } = conexion();
+  await fetch(`${base}/registro_indice/estado?key=${key}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fields: { ultima: sv((/* @__PURE__ */ new Date()).toISOString()) } }), signal: AbortSignal.timeout(8e3) }).catch(() => void 0);
+}
+async function registrarAportes(aportes) {
+  return escribirAportes(aportes);
+}
+async function escribirAportes(aportes) {
+  const { base, proy, key } = conexion();
+  const porSesion = /* @__PURE__ */ new Map();
+  for (const a of aportes) porSesion.set(a.id, [...porSesion.get(a.id) || [], a]);
+  const existentes = await leerIndiceHuellas();
   const writes = [];
   const ahora = (/* @__PURE__ */ new Date()).toISOString();
   for (const [id, lista3] of porSesion) {
@@ -188495,6 +188544,7 @@ async function escribirAportes(aportes) {
       if (previas[a.fuente] === h || fields[a.fuente]) continue;
       fields[a.fuente] = sv(JSON.stringify(a.datos));
       fields[`h_${a.fuente}`] = sv(h);
+      existentes.set(id, { ...existentes.get(id) || {}, [a.fuente]: h });
       mask.push(a.fuente, `h_${a.fuente}`);
     }
     if (mask.length === 0) continue;
@@ -188522,15 +188572,17 @@ async function escribirAportes(aportes) {
     });
     if (!r.ok) throw new Error(`Firestore no acept\xF3 la escritura (HTTP ${r.status}): ${(await r.text()).slice(0, 200)}`);
   }
+  if (writes.length) await guardarIndiceHuellas(existentes);
   return { sesiones: porSesion.size, escrituras: writes.length };
 }
 var enCurso = null;
 var ultima = 0;
-var INTERVALO_MIN_MS = 5 * 60 * 1e3;
+var INTERVALO_MIN_MS = 60 * 60 * 1e3;
 async function sincronizarRegistroSesiones(opciones = {}) {
   if (enCurso) return enCurso;
-  if (!opciones.forzar && Date.now() - ultima < INTERVALO_MIN_MS) {
-    return { ok: true, sesiones: 0, escrituras: 0, porFuente: {}, errores: [], duracionMs: 0, omitida: "Se sincroniz\xF3 hace menos de 5 minutos." };
+  if (!opciones.forzar) {
+    const previa = Math.max(ultima, await ultimaSincronizacion().catch(() => 0));
+    if (Date.now() - previa < INTERVALO_MIN_MS) return { ok: true, sesiones: 0, escrituras: 0, porFuente: {}, errores: [], duracionMs: 0, omitida: "Se sincroniz\xF3 hace menos de una hora." };
   }
   enCurso = (async () => {
     const t0 = Date.now();
@@ -188565,7 +188617,9 @@ async function sincronizarRegistroSesiones(opciones = {}) {
       const historias = await listarDocs("sesiones_senado");
       const detalles = /* @__PURE__ */ new Map();
       try {
-        for (const d of await listarDocs("sesiones_senado_detalle")) {
+        const desdeDet = new Date(Date.now() - 2 * 864e5).toISOString();
+        const docsDet = opciones.forzar ? await listarDocs("sesiones_senado_detalle") : await detallesRecientes(desdeDet);
+        for (const d of docsDet) {
           try {
             detalles.set(idDoc(d), JSON.parse(d.fields?.payload?.stringValue || "null"));
           } catch {
@@ -188602,6 +188656,7 @@ async function sincronizarRegistroSesiones(opciones = {}) {
       errores.push(`Escritura: ${e?.message || e}`);
     }
     ultima = Date.now();
+    await marcarSincronizacion();
     return { ok: errores.length === 0, ...r, porFuente, errores, duracionMs: Date.now() - t0 };
   })().finally(() => {
     enCurso = null;
@@ -189003,6 +189058,474 @@ async function consultar(structuredQuery) {
   return filas.filter((x) => x.document).map((x) => ({ id: String(x.document.name).split("/").pop() || "", datos: x.document.fields }));
 }
 
+// server/services/camaraService.ts
+var SENADO_COMISIONES_REALES = SENADO_COMISIONES_DETALLE.map((c) => ({
+  id: `${c.prefix}${c.id}`,
+  nombre: c.nombre,
+  descripcion: c.descripcion,
+  senado: true
+}));
+var DIPUTADOS_COMISIONES_REALES = DIPUTADOS_COMISIONES_DETALLE.map((c) => ({
+  id: `${c.prefix}${c.id}`,
+  nombre: c.nombre,
+  descripcion: c.descripcion,
+  senado: false
+}));
+function getCommissionSlugFromName(name) {
+  const n = (name || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (n.includes("gobierno interior")) return "gobierno-interior";
+  if (n.includes("relaciones exteriores")) return "rree";
+  if (n.includes("constitucion")) return "constitucion";
+  if (n.includes("educacion")) return "educacion";
+  if (n.includes("hacienda")) return "hacienda";
+  if (n.includes("defensa")) return "defensa";
+  if (n.includes("obras publicas") || n.includes("transportes")) return "obras-publicas";
+  if (n.includes("agricultura")) return "agricultura";
+  if (n.includes("medio ambiente")) return "medio-ambiente";
+  if (n.includes("salud")) return "salud";
+  if (n.includes("trabajo")) return "trabajo-y-prevision";
+  if (n.includes("mineria") || n.includes("energia")) return "mineria";
+  if (n.includes("economia")) return "economia";
+  if (n.includes("vivienda")) return "vivienda";
+  if (n.includes("derechos humanos")) return "derechos-humanos";
+  if (n.includes("familia")) return "familias";
+  if (n.includes("futuro") || n.includes("ciencia") || n.includes("tecnologia")) return "ciencias";
+  if (n.includes("pesca")) return "pesca";
+  if (n.includes("deportes")) return "deportes";
+  if (n.includes("zonas extremas") || n.includes("antartica")) return "zonas-extremas";
+  if (n.includes("seguridad ciudadana")) return "seguridad";
+  if (n.includes("cultura") || n.includes("artes")) return "cultura";
+  if (n.includes("desarrollo social")) return "desarrollo-social";
+  if (n.includes("recursos hidricos") || n.includes("desertificacion")) return "recursos-hidricos";
+  if (n.includes("emergencia") || n.includes("bomberos")) return "emergencias";
+  if (n.includes("mujeres") || n.includes("equidad de genero")) return "mujeres-genero";
+  if (n.includes("personas mayores") || n.includes("discapacidad")) return "personas-mayores";
+  if (n.includes("inteligencia")) return "inteligencia-estado";
+  if (n.includes("revisora de cuentas")) return "revisora-cuentas";
+  if (n.includes("etica")) return "etica";
+  if (n.includes("regimen interno")) return "regimen-interno";
+  return null;
+}
+var estadoCitacionesCamara = {
+  fuente: "respaldo",
+  detalle: "Sin consultar todav\xEDa",
+  actualizado: ""
+};
+function respaldoCamara(detalle) {
+  estadoCitacionesCamara.fuente = "respaldo";
+  estadoCitacionesCamara.detalle = detalle;
+  estadoCitacionesCamara.actualizado = (/* @__PURE__ */ new Date()).toISOString();
+  return { porDia: [], porComision: {}, todas: [] };
+}
+function parsearCitacionesCamaraHtml(html) {
+  const articleRegex = /<article class="grid-12 citaciones">([\s\S]*?)<\/article>/gi;
+  let artMatch;
+  const daysList = [];
+  const porComision = {};
+  const todas = [];
+  let totalCount = 0;
+  while ((artMatch = articleRegex.exec(html)) !== null) {
+    const artContent = artMatch[1];
+    const dateMatch = artContent.match(/<p class="fecha">([\s\S]*?)<\/p>/i);
+    const fechaStr = dateMatch ? dateMatch[1].replace(/<[^>]+>/g, "").trim() : "Fecha no especificada";
+    const trRegex = /<tr>\s*<td>([\s\S]*?)<\/td>\s*<td>([\s\S]*?)<\/td>\s*<td>([\s\S]*?)<\/td>\s*<td colspan="2">\s*(<table[\s\S]*?<\/table>|[\s\S]*?)\s*<\/td>\s*<\/tr>/gi;
+    let trMatch;
+    const dayCitaciones = [];
+    while ((trMatch = trRegex.exec(artContent)) !== null) {
+      totalCount++;
+      const rawComision = trMatch[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+      const rawHora = trMatch[2].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+      const rawLugar = trMatch[3].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+      const rawContent = trMatch[4];
+      const subRows = [];
+      const subTrRegex = /<tr>\s*<td class="w40"[^>]*>([\s\S]*?)<\/td>\s*<td class="w30"[^>]*>([\s\S]*?)<\/td>\s*<\/tr>/gi;
+      let subMatch;
+      while ((subMatch = subTrRegex.exec(rawContent)) !== null) {
+        const mat = subMatch[1].replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "").trim();
+        const inv = subMatch[2].replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "").trim();
+        subRows.push({ materia: mat, invitados: inv });
+      }
+      let materia = "";
+      let invitados = "";
+      if (subRows.length > 0) {
+        materia = subRows.map((sr, idx) => subRows.length > 1 ? `[Parte ${idx + 1}] ${sr.materia}` : sr.materia).join("\n\n");
+        invitados = subRows.map((sr) => sr.invitados).filter(Boolean).join("\n---\n");
+      } else {
+        materia = rawContent.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+      }
+      const boletines = materia.match(/\b\d{4,5}-\d{2}\b|\b\d{1,2}\.\d{3}-\d{2}\b/g) || [];
+      const slug3 = getCommissionSlugFromName(rawComision);
+      const citObj = {
+        id: `cit-live-${totalCount}`,
+        fecha: fechaStr,
+        comisionNombre: rawComision,
+        comisionSlug: slug3 || void 0,
+        citacionNumero: `Citaci\xF3n Oficial N\xB0 ${totalCount}`,
+        hora: rawHora,
+        lugar: rawLugar,
+        tipo: rawComision.startsWith("CEI") ? "Comisi\xF3n Especial Investigadora" : "Sesi\xF3n de Comisi\xF3n",
+        materia,
+        invitados: invitados || "No informado en la citaci\xF3n.",
+        tabla: subRows.length > 0 ? subRows.map((sr, i) => `${i + 1}. ${sr.materia.slice(0, 140)}...`) : [materia.slice(0, 140) + "..."],
+        boletinesRelacionados: Array.from(new Set(boletines)),
+        acuerdosCount: 0,
+        completada: false
+      };
+      dayCitaciones.push(citObj);
+      todas.push(citObj);
+      if (slug3) {
+        if (!porComision[slug3]) porComision[slug3] = [];
+        porComision[slug3].push(citObj);
+      }
+    }
+    daysList.push({
+      fecha: fechaStr,
+      totalCitaciones: dayCitaciones.length,
+      citaciones: dayCitaciones
+    });
+  }
+  return { porDia: daysList, porComision, todas };
+}
+var FS_PROYECTO = process.env.VITE_FIREBASE_PROJECT_ID || "legistrack-d75bc";
+var FS_KEY2 = process.env.VITE_FIREBASE_API_KEY || "AIzaSyAZvd-S6AmPpV05UYEkRRULgDezD7mAkaE";
+var FS_DOC = (id) => `https://firestore.googleapis.com/v1/projects/${FS_PROYECTO}/databases/(default)/documents/citaciones_camara/${id}?key=${FS_KEY2}`;
+var semanasImportadas = null;
+var semanasLeidasEn = 0;
+async function leerSemanasImportadas() {
+  if (semanasImportadas && Date.now() - semanasLeidasEn < 5 * 60 * 1e3) return semanasImportadas;
+  try {
+    const r = await fetch(FS_DOC("actual"), { signal: AbortSignal.timeout(8e3) });
+    if (r.ok) {
+      const d = await r.json();
+      const txt = d?.fields?.payload?.stringValue;
+      semanasImportadas = txt ? JSON.parse(txt) : {};
+    } else if (r.status === 404) {
+      semanasImportadas = {};
+    }
+    semanasLeidasEn = Date.now();
+  } catch (err) {
+    console.warn("No se pudieron leer las citaciones importadas de Firestore:", err);
+  }
+  return semanasImportadas || {};
+}
+async function guardarDocFirestore(id, campos) {
+  const fields = {};
+  for (const [k, v] of Object.entries(campos)) fields[k] = { stringValue: v };
+  const r = await fetch(FS_DOC(id), {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fields }),
+    signal: AbortSignal.timeout(1e4)
+  });
+  if (!r.ok) throw new Error(`Firestore respondi\xF3 HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 200)}`);
+}
+async function importarCitacionesCamara(html, semana) {
+  const datos = parsearCitacionesCamaraHtml(html);
+  if (datos.todas.length === 0) throw new Error("El HTML recibido no contiene citaciones legibles.");
+  const clave = /^\d{4}-\d{1,2}$/.test(semana) ? semana : (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+  const registro = { semana: clave, importadoEn: (/* @__PURE__ */ new Date()).toISOString(), datos };
+  const actuales = { ...await leerSemanasImportadas() };
+  actuales[clave] = registro;
+  const claves = Object.keys(actuales).sort().slice(-3);
+  const recortado = {};
+  for (const k of claves) recortado[k] = actuales[k];
+  await guardarDocFirestore(`semana_${clave}`, { semana: clave, importadoEn: registro.importadoEn, payload: JSON.stringify(registro) });
+  await guardarDocFirestore("actual", { actualizado: registro.importadoEn, payload: JSON.stringify(recortado) });
+  semanasImportadas = recortado;
+  semanasLeidasEn = Date.now();
+  cache.delete("camara_citaciones_semanales_live");
+  return { semana: clave, citaciones: datos.todas.length, dias: datos.porDia.length };
+}
+async function importarResultadosCamara(html, semana) {
+  const datos = parsearCitacionesCamaraHtml(html);
+  if (datos.todas.length === 0) throw new Error("El HTML recibido no contiene resultados legibles.");
+  const clave = /^\d{4}-\d{1,2}$/.test(semana) ? semana : (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+  const resultados = datos.todas.map((c) => ({
+    fecha: c.fecha,
+    comisionNombre: c.comisionNombre,
+    comisionSlug: c.comisionSlug,
+    hora: c.hora,
+    lugar: c.lugar,
+    materia: c.materia,
+    resultado: c.invitados && !/^No informado/i.test(c.invitados) ? c.invitados : "",
+    boletines: c.boletinesRelacionados || []
+  }));
+  await guardarDocFirestore(`resultados_${clave}`, { semana: clave, importadoEn: (/* @__PURE__ */ new Date()).toISOString(), payload: JSON.stringify({ semana: clave, resultados }) });
+  return { semana: clave, sesiones: resultados.length };
+}
+async function citacionesImportadasVigentes() {
+  const semanas = Object.values(await leerSemanasImportadas()).filter((s) => Date.now() - new Date(s.importadoEn).getTime() < 10 * 864e5).sort((a, b) => a.semana.localeCompare(b.semana));
+  if (semanas.length === 0) return null;
+  const porDia = [];
+  const todas = [];
+  const porComision = {};
+  for (const s of semanas) {
+    porDia.push(...s.datos.porDia);
+    for (const c of s.datos.todas) {
+      const cit = { ...c, id: `cit-${s.semana}-${c.id}` };
+      todas.push(cit);
+      if (cit.comisionSlug) (porComision[cit.comisionSlug] ||= []).push(cit);
+    }
+  }
+  const importadoEn = semanas.map((s) => s.importadoEn).sort().slice(-1)[0];
+  return { datos: { porDia, porComision, todas }, importadoEn };
+}
+async function respaldoOImportadas(detalle) {
+  const imp = await citacionesImportadasVigentes().catch(() => null);
+  if (imp && imp.datos.todas.length > 0) {
+    estadoCitacionesCamara.fuente = "vivo";
+    estadoCitacionesCamara.detalle = `Le\xEDdas de camara.cl con navegador (\xFAltima lectura: ${imp.importadoEn})`;
+    estadoCitacionesCamara.actualizado = imp.importadoEn;
+    return imp.datos;
+  }
+  return respaldoCamara(detalle);
+}
+async function fetchCamaraCitacionesSemanalesLive(forceRefresh = false) {
+  const cacheKey = "camara_citaciones_semanales_live";
+  if (forceRefresh) {
+    cache.delete(cacheKey);
+  }
+  return cache.wrap(cacheKey, 15 * 60 * 1e3, async () => {
+    try {
+      const response = await fetch("https://www.camara.cl/legislacion/comisiones/citaciones_semana.aspx", {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+        },
+        signal: AbortSignal.timeout(9e3)
+      });
+      if (!response.ok) {
+        return respaldoOImportadas(`camara.cl respondi\xF3 HTTP ${response.status}`);
+      }
+      const html = await response.text();
+      const { porDia: daysList, porComision, todas } = parsearCitacionesCamaraHtml(html);
+      if (todas.length > 0) {
+        estadoCitacionesCamara.fuente = "vivo";
+        estadoCitacionesCamara.detalle = "Le\xEDdas de camara.cl";
+        estadoCitacionesCamara.actualizado = (/* @__PURE__ */ new Date()).toISOString();
+        return {
+          porDia: daysList,
+          porComision,
+          todas
+        };
+      }
+      return respaldoOImportadas(
+        /challenge|cf_chl|cloudflare/i.test(html) ? "camara.cl bloque\xF3 la consulta del servidor (desaf\xEDo anti-bots de Cloudflare)" : "La p\xE1gina de citaciones de camara.cl no trajo citaciones legibles"
+      );
+    } catch (err) {
+      console.warn("Could not fetch live citaciones from Camara, using fallback:", err);
+      return respaldoOImportadas(`Error de conexi\xF3n con camara.cl: ${err?.message || err}`);
+    }
+  });
+}
+async function fetchComisionesCamaraReal() {
+  return cache.wrap("camara_comisiones_vigentes", 30 * 60 * 1e3, async () => {
+    try {
+      const response = await fetch("https://opendata.camara.cl/wscamaradiputados.asmx/getComisiones_Vigentes", {
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; LegisTrackCL/1.0)" },
+        signal: AbortSignal.timeout(8e3)
+      });
+      if (!response.ok) return [];
+      const xml = await response.text();
+      const blocks = xml.match(/<Comision>[\s\S]*?<\/Comision>/gi) || [];
+      return blocks.map((block) => {
+        const get = (tag) => {
+          const m = block.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, "i"));
+          return m ? m[1].trim() : "";
+        };
+        const id = get("ID");
+        const nombreRaw = get("Nombre");
+        const tipo = get("Tipo") || "Permanente";
+        if (!id || !nombreRaw) return null;
+        const nombre = /^comisi[oó]n/i.test(nombreRaw) ? nombreRaw : `Comisi\xF3n de ${nombreRaw}`;
+        return {
+          id: `cd-${id}`,
+          nombre,
+          descripcion: `Comisi\xF3n ${tipo.toLowerCase()} de la C\xE1mara de Diputadas y Diputados de Chile.`,
+          senado: false
+        };
+      }).filter((c) => c !== null);
+    } catch (error) {
+      console.error("Error fetching real C\xE1mara commissions:", error);
+      return [];
+    }
+  });
+}
+function celdaHtmlATexto(html) {
+  return html.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&ntilde;/gi, "\xF1").replace(/&aacute;/gi, "\xE1").replace(/&eacute;/gi, "\xE9").replace(/&iacute;/gi, "\xED").replace(/&oacute;/gi, "\xF3").replace(/&uacute;/gi, "\xFA").replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n))).replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/\n{3,}/g, "\n\n").trim();
+}
+function extraerFilasDosColumnas(html) {
+  const filas = html.match(/<tr>\s*<td style="width: 50%;">[\s\S]*?<\/tr>/g) || [];
+  return filas.map((fila) => {
+    const celdas = fila.match(/<td style="width: 50%;">([\s\S]*?)<\/td>/g) || [];
+    return {
+      col1: celdas[0] ? celdaHtmlATexto(celdas[0].replace(/^<td[^>]*>/, "").replace(/<\/td>$/, "")) : "",
+      col2: celdas[1] ? celdaHtmlATexto(celdas[1].replace(/^<td[^>]*>/, "").replace(/<\/td>$/, "")) : ""
+    };
+  });
+}
+var BOLETIN_REGEX = /\b\d{4,5}-\d{1,2}\b/g;
+function parsearSesionComisionCamara(citacionHtml, resultadoHtml, votacionesHtml, asistenciaHtml) {
+  if (!citacionHtml && !resultadoHtml) return null;
+  const filasCitacion = citacionHtml ? extraerFilasDosColumnas(citacionHtml) : [];
+  const filasResultado = resultadoHtml ? extraerFilasDosColumnas(resultadoHtml) : [];
+  const puntos = filasCitacion.map((fc, idx) => {
+    const [horarioLinea, ...restoMateria] = fc.col1.split("\n").filter(Boolean);
+    const esHorario = /^De\s.*horas?:?$/i.test(horarioLinea || "");
+    const horario = esHorario ? horarioLinea : "";
+    const materia = (esHorario ? restoMateria.join(" ") : fc.col1).trim();
+    const boletines = Array.from(new Set(materia.match(BOLETIN_REGEX) || []));
+    const resultadoTexto = filasResultado[idx]?.col2 || "";
+    return {
+      horario,
+      materia,
+      boletines,
+      invitados: fc.col2.replace(/^Para este efecto se encuentran invitados:\s*/i, "").trim(),
+      resultado: resultadoTexto
+    };
+  });
+  const resultadoTextoCompleto = filasResultado.map((f) => f.col2).join("\n\n");
+  const asistentesMatch = resultadoTextoCompleto.match(/Diputados? Asistentes?:\s*([^\n]+)/i);
+  const reemplazosMatch = resultadoTextoCompleto.match(/Reemplazos?:\s*([^\n]+)/i);
+  const otrosMatch = resultadoTextoCompleto.match(/Otros? Diputados? asistentes?:\s*([^\n]+)/i);
+  const asistencia = {
+    asistentes: asistentesMatch ? asistentesMatch[1].split(";").map((s) => s.trim()).filter(Boolean) : [],
+    reemplazos: reemplazosMatch ? reemplazosMatch[1].trim() : "",
+    otrosAsistentes: otrosMatch ? otrosMatch[1].trim() : ""
+  };
+  void asistenciaHtml;
+  const votaciones = [];
+  if (votacionesHtml) {
+    const filasVot = votacionesHtml.match(/<tr>\s*<td align="center">\d{4,5}-\d{1,2}<\/td>[\s\S]*?<\/tr>/g) || [];
+    for (const fila of filasVot) {
+      const celdas = fila.match(/<td[^>]*>([\s\S]*?)<\/td>/g) || [];
+      if (celdas.length < 6) continue;
+      const clean = (c) => celdaHtmlATexto(c.replace(/^<td[^>]*>/, "").replace(/<\/td>$/, ""));
+      votaciones.push({
+        boletin: clean(celdas[0]),
+        materia: clean(celdas[1]),
+        tipo: clean(celdas[2]),
+        afirmativos: parseInt(clean(celdas[3]), 10) || 0,
+        negativos: parseInt(clean(celdas[4]), 10) || 0,
+        abstenciones: parseInt(clean(celdas[5]), 10) || 0
+      });
+    }
+  }
+  const boletinesVistos = Array.from(new Set(puntos.flatMap((p) => p.boletines)));
+  return { puntos, asistencia, votaciones, boletinesVistos };
+}
+async function getTodasComisiones() {
+  const camaraLive = await fetchComisionesCamaraReal();
+  const byId = /* @__PURE__ */ new Map();
+  for (const c of DIPUTADOS_COMISIONES_REALES) byId.set(c.id, c);
+  for (const c of SENADO_COMISIONES_REALES) byId.set(c.id, c);
+  for (const c of camaraLive) byId.set(c.id, c);
+  return Array.from(byId.values());
+}
+var OPENDATA_WS = "https://opendata.camara.cl/camaradiputados/WServices";
+function xmlTag(xml, tag) {
+  const m = xml.match(new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</${tag}>`, "i"));
+  return m ? m[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() : "";
+}
+function xmlBloques(xml, tag) {
+  return xml.match(new RegExp(`<${tag}(?:\\s[^>]*)?>[\\s\\S]*?</${tag}>`, "gi")) || [];
+}
+async function opendataGet(path2) {
+  const res = await fetch(`${OPENDATA_WS}/${path2}`, {
+    headers: { "User-Agent": "LegisTrackCL/1.0 (datos abiertos)" },
+    signal: AbortSignal.timeout(15e3)
+  });
+  if (!res.ok) throw new Error(`opendata.camara.cl HTTP ${res.status}`);
+  return res.text();
+}
+async function fetchCamaraProyectoOficial(boletinRaw) {
+  const m = String(boletinRaw).replace(/\./g, "").match(/(\d{3,6})-(\d{1,2})/);
+  const fuente = "Datos Abiertos de la C\xE1mara de Diputadas y Diputados (opendata.camara.cl)";
+  if (!m) return { disponible: false, motivo: "N\xFAmero de bolet\xEDn no v\xE1lido", votaciones: [], fuente };
+  const boletin = `${m[1]}-${m[2].padStart(2, "0")}`;
+  return cache.wrap(`camara_opendata_proyecto_${boletin}`, 30 * 60 * 1e3, async () => {
+    try {
+      const [xmlProy, xmlVot] = await Promise.all([
+        opendataGet(`WSLegislativo.asmx/retornarProyectoLey?prmNumeroBoletin=${boletin}`),
+        opendataGet(`WSLegislativo.asmx/retornarVotacionesXProyectoLey?prmNumeroBoletin=${boletin}`).catch(() => "")
+      ]);
+      const vacio2 = /xsi:nil="true"\s*\/?>\s*$/.test(xmlProy.trim()) || !xmlTag(xmlProy, "NumeroBoletin");
+      const proyecto = vacio2 ? void 0 : {
+        id: xmlTag(xmlProy, "Id"),
+        boletin: xmlTag(xmlProy, "NumeroBoletin"),
+        nombre: xmlTag(xmlProy, "Nombre"),
+        fechaIngreso: xmlTag(xmlProy, "FechaIngreso").slice(0, 10),
+        iniciativa: xmlTag(xmlProy, "TipoIniciativa"),
+        camaraOrigen: xmlTag(xmlProy, "CamaraOrigen"),
+        ministerios: xmlBloques(xmlProy, "Ministerio").map((b) => xmlTag(b, "Nombre")).filter(Boolean),
+        autores: xmlBloques(xmlProy, "ParlamentarioAutor").map((b) => {
+          const esSenador = /<Senador/i.test(b);
+          const nombre = [xmlTag(b, "Nombre"), xmlTag(b, "ApellidoPaterno"), xmlTag(b, "ApellidoMaterno")].filter(Boolean).join(" ");
+          return nombre ? `${nombre}${esSenador ? " (senador/a)" : " (diputado/a)"}` : "";
+        }).filter(Boolean)
+      };
+      let bloquesVot = xmlBloques(xmlVot, "VotacionProyectoLey");
+      if (bloquesVot.length === 0) {
+        const anioActual = (/* @__PURE__ */ new Date()).getFullYear();
+        const digitos = m[1];
+        for (const anio of [anioActual, anioActual - 1]) {
+          try {
+            const xmlAnio = await cache.wrap(
+              `camara_opendata_votaciones_${anio}`,
+              30 * 60 * 1e3,
+              () => opendataGet(`WSLegislativo.asmx/retornarVotacionesXAnno?prmAnno=${anio}`)
+            );
+            bloquesVot.push(...xmlBloques(xmlAnio, "Votacion").filter((b) => {
+              const d = xmlTag(b, "Descripcion").replace(/\./g, "");
+              return new RegExp(`\\b${digitos}-\\d{1,2}\\b`).test(d);
+            }));
+          } catch {
+          }
+        }
+      }
+      const votaciones = bloquesVot.map((b) => ({
+        id: xmlTag(b, "Id"),
+        fecha: xmlTag(b, "Fecha"),
+        descripcion: xmlTag(b, "Articulo") || xmlTag(b, "Descripcion") || "Votaci\xF3n",
+        si: parseInt(xmlTag(b, "TotalSi")) || 0,
+        no: parseInt(xmlTag(b, "TotalNo")) || 0,
+        abstencion: parseInt(xmlTag(b, "TotalAbstencion")) || 0,
+        dispensado: parseInt(xmlTag(b, "TotalDispensado")) || 0,
+        quorum: xmlTag(b, "Quorum"),
+        resultado: xmlTag(b, "Resultado") || "Resultado no informado",
+        tipo: xmlTag(b, "TipoVotacionProyectoLey") || xmlTag(b, "Tipo"),
+        tramite: [xmlTag(b, "TramiteConstitucional"), xmlTag(b, "TramiteReglamentario")].filter(Boolean).join(" \xB7 ")
+      })).filter((v) => v.id);
+      votaciones.sort((a, b) => b.fecha.localeCompare(a.fecha));
+      if (!proyecto && votaciones.length === 0) {
+        return { disponible: false, motivo: "La C\xE1mara no registra este bolet\xEDn en sus datos abiertos", votaciones: [], fuente };
+      }
+      return { disponible: true, proyecto, votaciones, fuente };
+    } catch (err) {
+      return { disponible: false, motivo: `No se pudo consultar la API de la C\xE1mara: ${err?.message || err}`, votaciones: [], fuente };
+    }
+  });
+}
+async function fetchCamaraVotacionDetalle(votacionId) {
+  const id = String(votacionId).replace(/[^0-9]/g, "");
+  if (!id) return { disponible: false, motivo: "Id de votaci\xF3n no v\xE1lido", votos: [] };
+  return cache.wrap(`camara_opendata_votacion_${id}`, 6 * 60 * 60 * 1e3, async () => {
+    try {
+      const xml = await opendataGet(`WSLegislativo.asmx/retornarVotacionDetalle?prmVotacionId=${id}`);
+      const votos = xmlBloques(xml, "Voto").map((b) => {
+        const dip = xmlBloques(b, "Diputado")[0] || b;
+        const nombre = [xmlTag(dip, "Nombre"), xmlTag(dip, "ApellidoPaterno"), xmlTag(dip, "ApellidoMaterno")].filter(Boolean).join(" ");
+        return { nombre, opcion: xmlTag(b, "OpcionVoto") || xmlTag(b, "Opcion") || "No informado" };
+      }).filter((v) => v.nombre);
+      if (votos.length === 0) return { disponible: false, motivo: "La API no trae el detalle nominal de esta votaci\xF3n", votos: [] };
+      votos.sort((a, b) => a.opcion.localeCompare(b.opcion) || a.nombre.localeCompare(b.nombre));
+      return { disponible: true, votos };
+    } catch (err) {
+      return { disponible: false, motivo: `No se pudo consultar la API de la C\xE1mara: ${err?.message || err}`, votos: [] };
+    }
+  });
+}
+
 // server/services/actasCamaraService.ts
 var MESES4 = { ene: 1, feb: 2, mar: 3, abr: 4, may: 5, jun: 6, jul: 7, ago: 8, sep: 9, set: 9, oct: 10, nov: 11, dic: 12 };
 function fechaActaISO(t) {
@@ -189057,6 +189580,76 @@ function tramoDeBoletin(texto, boletin, largo = 12e3) {
   if (!pos.length) return texto.slice(0, largo);
   const ini = Math.max(0, pos[0] - 1500);
   return texto.slice(ini, Math.min(texto.length, Math.max(ini + largo, pos[pos.length - 1] + 3e3)));
+}
+async function textoPdf(b64) {
+  if (!b64) return "";
+  const buffer = Buffer.from(String(b64), "base64");
+  if (buffer.slice(0, 4).toString("latin1") !== "%PDF") return "";
+  const { extractText, getDocumentProxy } = await import("unpdf");
+  const pdf = await getDocumentProxy(new Uint8Array(buffer));
+  return String((await extractText(pdf, { mergePages: true })).text || "").replace(/\s+/g, " ").trim();
+}
+async function importarSesionCamara(p) {
+  if (!/^\d+$/.test(p.comisionPrmId) || !/^\d+$/.test(p.sesionId)) throw new Error("Identificadores no v\xE1lidos.");
+  const fecha = fechaActaISO(p.fecha);
+  if (!fecha) throw new Error("Fecha de la sesi\xF3n no v\xE1lida.");
+  const c = DIPUTADOS_COMISIONES_DETALLE.find((x) => String(x.prmID) === p.comisionPrmId);
+  const comision = c?.nombre || `Comisi\xF3n de la C\xE1mara (${p.comisionPrmId})`;
+  const [acta, cuenta] = await Promise.all([textoPdf(p.actaBase64).catch(() => ""), textoPdf(p.cuentaBase64).catch(() => "")]);
+  const det = parsearSesionComisionCamara(p.citacionHtml || "", p.resultadoHtml || "", p.votacionesHtml || "", "") || { puntos: [], asistencia: { asistentes: [], reemplazos: "", otrosAsistentes: "" }, votaciones: [], boletinesVistos: [] };
+  const asistencia = String(p.asistenciaTexto || "").replace(/\s+/g, " ").trim().slice(0, 8e3);
+  const boletines = Array.from(new Set([...det.puntos.flatMap((x) => (x.boletines || []).map((b) => b)), ...boletinesEnTexto(`${acta} ${cuenta}`)].map((b) => b.replace(/\./g, "")).filter((b) => /^\d{3,6}-\d{1,2}$/.test(b)).map((b) => {
+    const [n, s] = b.split("-");
+    return `${n}-${s.padStart(2, "0")}`;
+  })));
+  const url = `https://www.camara.cl/legislacion/comisiones/sesiones.aspx?prmID=${p.comisionPrmId}&prmIdTipo=2101`;
+  await escribirDoc(`actas_camara/${p.sesionId}`, {
+    comisionPrmId: p.comisionPrmId,
+    comisionId: c ? `cd-${c.id}` : "",
+    comision,
+    sesionId: p.sesionId,
+    numero: String(p.numero || ""),
+    fecha,
+    hora: String(p.hora || ""),
+    termino: String(p.termino || ""),
+    estado: String(p.estado || ""),
+    docId: p.actaDocId || "",
+    url: p.actaDocId ? `https://www.camara.cl/verDoc.aspx?prmID=${p.actaDocId}&prmTipo=DOCUMENTO_COMISIONSESIONACTA` : url,
+    cuentaUrl: p.cuentaDocId ? `https://www.camara.cl/verDoc.aspx?prmID=${p.cuentaDocId}&prmTipo=DOCUMENTO_COMISIONSESIONCUENTA` : "",
+    texto: acta.slice(0, 3e5),
+    cuenta: cuenta.slice(0, 1e5),
+    asistencia,
+    puntos: det.puntos.map((x, i) => ({ numero: i + 1, texto: x.materia, boletines: x.boletines, invitados: x.invitados || "", resultado: x.resultado || "" })),
+    votaciones: det.votaciones,
+    diputadosAsistentes: det.asistencia.asistentes,
+    boletines,
+    importadoEn: (/* @__PURE__ */ new Date()).toISOString()
+  });
+  if (c && det.puntos.length) {
+    await registrarAportes([{
+      id: idSesion("C\xE1mara", c.id, fecha, p.hora || ""),
+      fuente: "detalle",
+      camara: "C\xE1mara",
+      comisionId: `cd-${c.id}`,
+      comisionNombre: comision,
+      fecha,
+      boletines,
+      datos: {
+        inicio: p.hora || null,
+        termino: p.termino || null,
+        url,
+        puntos: det.puntos.map((x, i) => ({ numero: i + 1, texto: x.materia, boletines: x.boletines, acuerdos: x.resultado || null, invitados: x.invitados || null, asistentes: det.asistencia.asistentes.join("; ") || null }))
+      }
+    }]).catch(() => void 0);
+  }
+  return { sesionId: p.sesionId, fecha, boletines, acta: acta.length > 0, cuenta: cuenta.length > 0, puntos: det.puntos.length, votaciones: det.votaciones.length };
+}
+async function sesionesActasCamaraDeComision(comisionId) {
+  const filas = await consultar({ from: [{ collectionId: "actas_camara" }], where: { fieldFilter: { field: { fieldPath: "comisionId" }, op: "EQUAL", value: { stringValue: comisionId } } } });
+  return filas.map((f) => {
+    const d = camposAObjeto(f.datos);
+    return { sesionId: d.sesionId, numero: d.numero, fecha: d.fecha, hora: d.hora, url: d.url, cuentaUrl: d.cuentaUrl, tieneActa: !!d.texto, tieneCuenta: !!d.cuenta, asistentes: (d.diputadosAsistentes || []).length, votaciones: d.votaciones || [], puntos: d.puntos || [] };
+  }).sort((a, b) => b.fecha.localeCompare(a.fecha));
 }
 
 // server/services/informeSesionService.ts
@@ -189365,25 +189958,25 @@ function parsearTablaSenado(raw) {
     };
   }).filter((s) => s.id !== "sr-" && s.fecha);
 }
-function xmlTag(xml, tag) {
+function xmlTag2(xml, tag) {
   const m = xml.match(new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</${tag}>`, "i"));
   return m ? m[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() : "";
 }
-function xmlBloques(xml, tag) {
+function xmlBloques2(xml, tag) {
   return xml.match(new RegExp(`<${tag}(?:\\s[^>]*)?>[\\s\\S]*?</${tag}>`, "gi")) || [];
 }
 function parsearSesionesCamara(xml) {
-  return xmlBloques(xml, "Sesion").map((b) => {
-    const ini = xmlTag(b, "FechaInicio"), fin = xmlTag(b, "FechaTermino");
+  return xmlBloques2(xml, "Sesion").map((b) => {
+    const ini = xmlTag2(b, "FechaInicio"), fin = xmlTag2(b, "FechaTermino");
     return {
-      id: `cd-${xmlTag(b, "Id")}`,
+      id: `cd-${xmlTag2(b, "Id")}`,
       camara: "C\xE1mara",
-      numero: xmlTag(b, "Numero"),
+      numero: xmlTag2(b, "Numero"),
       fecha: ini.slice(0, 10),
       horaInicio: hhmm(ini.slice(11)),
       horaTermino: hhmm(fin.slice(11)),
-      tipo: xmlTag(b, "Tipo"),
-      estado: xmlTag(b, "Estado"),
+      tipo: xmlTag2(b, "Tipo"),
+      estado: xmlTag2(b, "Estado"),
       puntos: [],
       votaciones: [],
       boletines: [],
@@ -189393,24 +189986,24 @@ function parsearSesionesCamara(xml) {
   }).filter((s) => s.id !== "cd-" && /^\d{4}-\d{2}-\d{2}$/.test(s.fecha));
 }
 function parsearVotacionesCamara(xml) {
-  return xmlBloques(xml, "Votacion").map((b) => {
-    const descripcion = xmlTag(b, "Descripcion");
+  return xmlBloques2(xml, "Votacion").map((b) => {
+    const descripcion = xmlTag2(b, "Descripcion");
     return {
-      id: xmlTag(b, "Id"),
-      fecha: xmlTag(b, "Fecha"),
+      id: xmlTag2(b, "Id"),
+      fecha: xmlTag2(b, "Fecha"),
       descripcion,
       boletin: boletinDeDescripcion(descripcion),
-      si: parseInt(xmlTag(b, "TotalSi")) || 0,
-      no: parseInt(xmlTag(b, "TotalNo")) || 0,
-      abstencion: parseInt(xmlTag(b, "TotalAbstencion")) || 0,
-      quorum: xmlTag(b, "Quorum"),
-      resultado: xmlTag(b, "Resultado"),
-      tipo: xmlTag(b, "Tipo")
+      si: parseInt(xmlTag2(b, "TotalSi")) || 0,
+      no: parseInt(xmlTag2(b, "TotalNo")) || 0,
+      abstencion: parseInt(xmlTag2(b, "TotalAbstencion")) || 0,
+      quorum: xmlTag2(b, "Quorum"),
+      resultado: xmlTag2(b, "Resultado"),
+      tipo: xmlTag2(b, "Tipo")
     };
   }).filter((v) => v.id && v.fecha);
 }
 function contarAsistencia(xml) {
-  const filas = xmlBloques(xml, "Asistencia");
+  const filas = xmlBloques2(xml, "Asistencia");
   if (filas.length === 0) return void 0;
   return { asisten: filas.filter((f) => /<TipoAsistencia[^>]*Valor="1"/i.test(f)).length, total: filas.length };
 }
@@ -190097,8 +190690,12 @@ async function construirHistorial(boletin, opciones = {}) {
   let objetivoOficial = "";
   await Promise.all(comisiones.filter((c) => c.estadistica.sesionesConInforme > 0 || c.informeOficial || (c.actas || []).length).map(async (c) => {
     const actasCom = actas.filter((a) => mismaComision2(a.comision, c.nombre)).slice(-8);
-    const textoActas = actasCom.map((a) => `### Acta de la sesi\xF3n ${a.numero ? `N\xB0 ${a.numero} ` : ""}del ${a.fecha}
-${tramoDeBoletin(a.texto, b, 12e3)}`).join("\n\n").slice(0, 6e4);
+    const textoActas = actasCom.map((a) => [
+      a.texto ? `### Acta de la sesi\xF3n ${a.numero ? `N\xB0 ${a.numero} ` : ""}del ${a.fecha}
+${tramoDeBoletin(a.texto, b, 12e3)}` : "",
+      a.cuenta && a.cuenta.includes(b.split("-")[0].slice(-3)) ? `### Cuenta de la sesi\xF3n del ${a.fecha} (documentos recibidos)
+${tramoDeBoletin(a.cuenta, b, 3e3)}` : ""
+    ].filter(Boolean).join("\n")).join("\n\n").slice(0, 6e4);
     const oficial = c.informeOficial ? await textoInformeOficial(c.informeOficial.url) : { texto: "" };
     if (c.informeOficial && !oficial.texto) motivosIA.push(`${c.nombre}: ${oficial.motivo}`);
     const ses = informes.filter((i) => mismaComision2(i.comision, c.nombre));
@@ -190393,23 +190990,29 @@ async function redactarInforme(t) {
   return "Informe redactado.";
 }
 async function precargarFichas(maximo = 1) {
+  const marca = await leerDoc(`${COLA}/_precarga`).catch(() => null);
+  if (marca?.ultima && Date.now() - Date.parse(marca.ultima) < 30 * 60 * 1e3) return [];
+  await escribirDoc(`${COLA}/_precarga`, { ultima: (/* @__PURE__ */ new Date()).toISOString() }).catch(() => void 0);
   const desde = sumarDias2(hoyChileISO(), -45);
   const filas = await consultar({
     from: [{ collectionId: "registro_sesiones" }],
     where: { fieldFilter: { field: { fieldPath: "fecha" }, op: "GREATER_THAN_OR_EQUAL", value: { stringValue: desde } } },
     orderBy: [{ field: { fieldPath: "fecha" }, direction: "DESCENDING" }],
-    limit: 300
+    limit: 80,
+    select: { fields: [{ fieldPath: "boletines" }] }
   }).catch(() => []);
   const sala = await consultar({
     from: [{ collectionId: "sesiones_sala" }],
     where: { fieldFilter: { field: { fieldPath: "fecha" }, op: "GREATER_THAN_OR_EQUAL", value: { stringValue: desde } } },
-    limit: 100
+    limit: 30,
+    select: { fields: [{ fieldPath: "boletines" }] }
   }).catch(() => []);
   const boletines = Array.from(new Set([...filas, ...sala].flatMap((f) => camposAObjeto(f.datos).boletines || []).filter((b) => /^\d{3,6}-\d{2}$/.test(b))));
   const hechos = [];
   const hoy2 = hoyChileISO();
+  let revisados = 0;
   for (const b of boletines) {
-    if (hechos.length >= maximo) break;
+    if (hechos.length >= maximo || ++revisados > 15) break;
     const g = await leerDoc(`historial_proyectos/${b}`).catch(() => null);
     if (g?.fichaEjecutiva?.ficha) continue;
     if (g?.fichaIntento && g.fichaIntento >= sumarDias2(hoy2, -7)) continue;
@@ -190514,10 +191117,23 @@ async function pasoTranscripcion() {
 }
 async function estadoTranscripcionAutomatica() {
   const conf = configuracionAuto();
-  const filas = await consultar({ from: [{ collectionId: COLA }], orderBy: [{ field: { fieldPath: "actualizado" }, direction: "DESCENDING" }], limit: 300 });
-  const trabajos = filas.filter((f) => !f.id.startsWith("_")).map((f) => ({ id: f.id, ...camposAObjeto(f.datos) }));
+  const { base, key } = conexionFirestore();
+  const estados = ["transcribiendo", "transcrita", "informe_pendiente", "informe_listo", "sin_video", "error", "buscando_video"];
   const porEstado = {};
-  for (const t of trabajos) porEstado[t.estado] = (porEstado[t.estado] || 0) + 1;
+  await Promise.all(estados.map(async (e) => {
+    const r = await fetch(`${base}:runAggregationQuery?key=${key}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ structuredAggregationQuery: { structuredQuery: { from: [{ collectionId: COLA }], where: { fieldFilter: { field: { fieldPath: "estado" }, op: "EQUAL", value: { stringValue: e } } } }, aggregations: [{ alias: "n", count: {} }] } }),
+      signal: AbortSignal.timeout(1e4)
+    }).catch(() => null);
+    if (!r?.ok) return;
+    const d = await r.json();
+    const n = Number(d?.[0]?.result?.aggregateFields?.n?.integerValue || 0);
+    if (n) porEstado[e] = n;
+  }));
+  const filas = await consultar({ from: [{ collectionId: COLA }], orderBy: [{ field: { fieldPath: "actualizado" }, direction: "DESCENDING" }], limit: 15 }).catch(() => []);
+  const recientes = filas.filter((f) => !f.id.startsWith("_")).map((f) => ({ id: f.id, ...camposAObjeto(f.datos) }));
   const cont = await contadorDia();
   const control = await leerControl();
   return {
@@ -190525,7 +191141,7 @@ async function estadoTranscripcionAutomatica() {
     tramosHoy: cont.tramos,
     porEstado,
     control,
-    recientes: trabajos.slice(0, 15).map((t) => ({ comision: t.comision, fecha: t.fecha, estado: t.estado, videoId: t.videoId || null, error: t.error || null, actualizado: t.actualizado }))
+    recientes: recientes.map((t) => ({ comision: t.comision, fecha: t.fecha, estado: t.estado, videoId: t.videoId || null, error: t.error || null, actualizado: t.actualizado }))
   };
 }
 
@@ -191018,411 +191634,6 @@ function mergeSesionesDuplicadas(sesiones) {
     resultado.push(merged);
   }
   return resultado;
-}
-
-// server/services/camaraService.ts
-var SENADO_COMISIONES_REALES = SENADO_COMISIONES_DETALLE.map((c) => ({
-  id: `${c.prefix}${c.id}`,
-  nombre: c.nombre,
-  descripcion: c.descripcion,
-  senado: true
-}));
-var DIPUTADOS_COMISIONES_REALES = DIPUTADOS_COMISIONES_DETALLE.map((c) => ({
-  id: `${c.prefix}${c.id}`,
-  nombre: c.nombre,
-  descripcion: c.descripcion,
-  senado: false
-}));
-function getCommissionSlugFromName(name) {
-  const n = (name || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  if (n.includes("gobierno interior")) return "gobierno-interior";
-  if (n.includes("relaciones exteriores")) return "rree";
-  if (n.includes("constitucion")) return "constitucion";
-  if (n.includes("educacion")) return "educacion";
-  if (n.includes("hacienda")) return "hacienda";
-  if (n.includes("defensa")) return "defensa";
-  if (n.includes("obras publicas") || n.includes("transportes")) return "obras-publicas";
-  if (n.includes("agricultura")) return "agricultura";
-  if (n.includes("medio ambiente")) return "medio-ambiente";
-  if (n.includes("salud")) return "salud";
-  if (n.includes("trabajo")) return "trabajo-y-prevision";
-  if (n.includes("mineria") || n.includes("energia")) return "mineria";
-  if (n.includes("economia")) return "economia";
-  if (n.includes("vivienda")) return "vivienda";
-  if (n.includes("derechos humanos")) return "derechos-humanos";
-  if (n.includes("familia")) return "familias";
-  if (n.includes("futuro") || n.includes("ciencia") || n.includes("tecnologia")) return "ciencias";
-  if (n.includes("pesca")) return "pesca";
-  if (n.includes("deportes")) return "deportes";
-  if (n.includes("zonas extremas") || n.includes("antartica")) return "zonas-extremas";
-  if (n.includes("seguridad ciudadana")) return "seguridad";
-  if (n.includes("cultura") || n.includes("artes")) return "cultura";
-  if (n.includes("desarrollo social")) return "desarrollo-social";
-  if (n.includes("recursos hidricos") || n.includes("desertificacion")) return "recursos-hidricos";
-  if (n.includes("emergencia") || n.includes("bomberos")) return "emergencias";
-  if (n.includes("mujeres") || n.includes("equidad de genero")) return "mujeres-genero";
-  if (n.includes("personas mayores") || n.includes("discapacidad")) return "personas-mayores";
-  if (n.includes("inteligencia")) return "inteligencia-estado";
-  if (n.includes("revisora de cuentas")) return "revisora-cuentas";
-  if (n.includes("etica")) return "etica";
-  if (n.includes("regimen interno")) return "regimen-interno";
-  return null;
-}
-var estadoCitacionesCamara = {
-  fuente: "respaldo",
-  detalle: "Sin consultar todav\xEDa",
-  actualizado: ""
-};
-function respaldoCamara(detalle) {
-  estadoCitacionesCamara.fuente = "respaldo";
-  estadoCitacionesCamara.detalle = detalle;
-  estadoCitacionesCamara.actualizado = (/* @__PURE__ */ new Date()).toISOString();
-  return { porDia: [], porComision: {}, todas: [] };
-}
-function parsearCitacionesCamaraHtml(html) {
-  const articleRegex = /<article class="grid-12 citaciones">([\s\S]*?)<\/article>/gi;
-  let artMatch;
-  const daysList = [];
-  const porComision = {};
-  const todas = [];
-  let totalCount = 0;
-  while ((artMatch = articleRegex.exec(html)) !== null) {
-    const artContent = artMatch[1];
-    const dateMatch = artContent.match(/<p class="fecha">([\s\S]*?)<\/p>/i);
-    const fechaStr = dateMatch ? dateMatch[1].replace(/<[^>]+>/g, "").trim() : "Fecha no especificada";
-    const trRegex = /<tr>\s*<td>([\s\S]*?)<\/td>\s*<td>([\s\S]*?)<\/td>\s*<td>([\s\S]*?)<\/td>\s*<td colspan="2">\s*(<table[\s\S]*?<\/table>|[\s\S]*?)\s*<\/td>\s*<\/tr>/gi;
-    let trMatch;
-    const dayCitaciones = [];
-    while ((trMatch = trRegex.exec(artContent)) !== null) {
-      totalCount++;
-      const rawComision = trMatch[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-      const rawHora = trMatch[2].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-      const rawLugar = trMatch[3].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-      const rawContent = trMatch[4];
-      const subRows = [];
-      const subTrRegex = /<tr>\s*<td class="w40"[^>]*>([\s\S]*?)<\/td>\s*<td class="w30"[^>]*>([\s\S]*?)<\/td>\s*<\/tr>/gi;
-      let subMatch;
-      while ((subMatch = subTrRegex.exec(rawContent)) !== null) {
-        const mat = subMatch[1].replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "").trim();
-        const inv = subMatch[2].replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "").trim();
-        subRows.push({ materia: mat, invitados: inv });
-      }
-      let materia = "";
-      let invitados = "";
-      if (subRows.length > 0) {
-        materia = subRows.map((sr, idx) => subRows.length > 1 ? `[Parte ${idx + 1}] ${sr.materia}` : sr.materia).join("\n\n");
-        invitados = subRows.map((sr) => sr.invitados).filter(Boolean).join("\n---\n");
-      } else {
-        materia = rawContent.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-      }
-      const boletines = materia.match(/\b\d{4,5}-\d{2}\b|\b\d{1,2}\.\d{3}-\d{2}\b/g) || [];
-      const slug3 = getCommissionSlugFromName(rawComision);
-      const citObj = {
-        id: `cit-live-${totalCount}`,
-        fecha: fechaStr,
-        comisionNombre: rawComision,
-        comisionSlug: slug3 || void 0,
-        citacionNumero: `Citaci\xF3n Oficial N\xB0 ${totalCount}`,
-        hora: rawHora,
-        lugar: rawLugar,
-        tipo: rawComision.startsWith("CEI") ? "Comisi\xF3n Especial Investigadora" : "Sesi\xF3n de Comisi\xF3n",
-        materia,
-        invitados: invitados || "No informado en la citaci\xF3n.",
-        tabla: subRows.length > 0 ? subRows.map((sr, i) => `${i + 1}. ${sr.materia.slice(0, 140)}...`) : [materia.slice(0, 140) + "..."],
-        boletinesRelacionados: Array.from(new Set(boletines)),
-        acuerdosCount: 0,
-        completada: false
-      };
-      dayCitaciones.push(citObj);
-      todas.push(citObj);
-      if (slug3) {
-        if (!porComision[slug3]) porComision[slug3] = [];
-        porComision[slug3].push(citObj);
-      }
-    }
-    daysList.push({
-      fecha: fechaStr,
-      totalCitaciones: dayCitaciones.length,
-      citaciones: dayCitaciones
-    });
-  }
-  return { porDia: daysList, porComision, todas };
-}
-var FS_PROYECTO = process.env.VITE_FIREBASE_PROJECT_ID || "legistrack-d75bc";
-var FS_KEY2 = process.env.VITE_FIREBASE_API_KEY || "AIzaSyAZvd-S6AmPpV05UYEkRRULgDezD7mAkaE";
-var FS_DOC = (id) => `https://firestore.googleapis.com/v1/projects/${FS_PROYECTO}/databases/(default)/documents/citaciones_camara/${id}?key=${FS_KEY2}`;
-var semanasImportadas = null;
-var semanasLeidasEn = 0;
-async function leerSemanasImportadas() {
-  if (semanasImportadas && Date.now() - semanasLeidasEn < 5 * 60 * 1e3) return semanasImportadas;
-  try {
-    const r = await fetch(FS_DOC("actual"), { signal: AbortSignal.timeout(8e3) });
-    if (r.ok) {
-      const d = await r.json();
-      const txt = d?.fields?.payload?.stringValue;
-      semanasImportadas = txt ? JSON.parse(txt) : {};
-    } else if (r.status === 404) {
-      semanasImportadas = {};
-    }
-    semanasLeidasEn = Date.now();
-  } catch (err) {
-    console.warn("No se pudieron leer las citaciones importadas de Firestore:", err);
-  }
-  return semanasImportadas || {};
-}
-async function guardarDocFirestore(id, campos) {
-  const fields = {};
-  for (const [k, v] of Object.entries(campos)) fields[k] = { stringValue: v };
-  const r = await fetch(FS_DOC(id), {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ fields }),
-    signal: AbortSignal.timeout(1e4)
-  });
-  if (!r.ok) throw new Error(`Firestore respondi\xF3 HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 200)}`);
-}
-async function importarCitacionesCamara(html, semana) {
-  const datos = parsearCitacionesCamaraHtml(html);
-  if (datos.todas.length === 0) throw new Error("El HTML recibido no contiene citaciones legibles.");
-  const clave = /^\d{4}-\d{1,2}$/.test(semana) ? semana : (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
-  const registro = { semana: clave, importadoEn: (/* @__PURE__ */ new Date()).toISOString(), datos };
-  const actuales = { ...await leerSemanasImportadas() };
-  actuales[clave] = registro;
-  const claves = Object.keys(actuales).sort().slice(-3);
-  const recortado = {};
-  for (const k of claves) recortado[k] = actuales[k];
-  await guardarDocFirestore(`semana_${clave}`, { semana: clave, importadoEn: registro.importadoEn, payload: JSON.stringify(registro) });
-  await guardarDocFirestore("actual", { actualizado: registro.importadoEn, payload: JSON.stringify(recortado) });
-  semanasImportadas = recortado;
-  semanasLeidasEn = Date.now();
-  cache.delete("camara_citaciones_semanales_live");
-  return { semana: clave, citaciones: datos.todas.length, dias: datos.porDia.length };
-}
-async function importarResultadosCamara(html, semana) {
-  const datos = parsearCitacionesCamaraHtml(html);
-  if (datos.todas.length === 0) throw new Error("El HTML recibido no contiene resultados legibles.");
-  const clave = /^\d{4}-\d{1,2}$/.test(semana) ? semana : (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
-  const resultados = datos.todas.map((c) => ({
-    fecha: c.fecha,
-    comisionNombre: c.comisionNombre,
-    comisionSlug: c.comisionSlug,
-    hora: c.hora,
-    lugar: c.lugar,
-    materia: c.materia,
-    resultado: c.invitados && !/^No informado/i.test(c.invitados) ? c.invitados : "",
-    boletines: c.boletinesRelacionados || []
-  }));
-  await guardarDocFirestore(`resultados_${clave}`, { semana: clave, importadoEn: (/* @__PURE__ */ new Date()).toISOString(), payload: JSON.stringify({ semana: clave, resultados }) });
-  return { semana: clave, sesiones: resultados.length };
-}
-async function citacionesImportadasVigentes() {
-  const semanas = Object.values(await leerSemanasImportadas()).filter((s) => Date.now() - new Date(s.importadoEn).getTime() < 10 * 864e5).sort((a, b) => a.semana.localeCompare(b.semana));
-  if (semanas.length === 0) return null;
-  const porDia = [];
-  const todas = [];
-  const porComision = {};
-  for (const s of semanas) {
-    porDia.push(...s.datos.porDia);
-    for (const c of s.datos.todas) {
-      const cit = { ...c, id: `cit-${s.semana}-${c.id}` };
-      todas.push(cit);
-      if (cit.comisionSlug) (porComision[cit.comisionSlug] ||= []).push(cit);
-    }
-  }
-  const importadoEn = semanas.map((s) => s.importadoEn).sort().slice(-1)[0];
-  return { datos: { porDia, porComision, todas }, importadoEn };
-}
-async function respaldoOImportadas(detalle) {
-  const imp = await citacionesImportadasVigentes().catch(() => null);
-  if (imp && imp.datos.todas.length > 0) {
-    estadoCitacionesCamara.fuente = "vivo";
-    estadoCitacionesCamara.detalle = `Le\xEDdas de camara.cl con navegador (\xFAltima lectura: ${imp.importadoEn})`;
-    estadoCitacionesCamara.actualizado = imp.importadoEn;
-    return imp.datos;
-  }
-  return respaldoCamara(detalle);
-}
-async function fetchCamaraCitacionesSemanalesLive(forceRefresh = false) {
-  const cacheKey = "camara_citaciones_semanales_live";
-  if (forceRefresh) {
-    cache.delete(cacheKey);
-  }
-  return cache.wrap(cacheKey, 15 * 60 * 1e3, async () => {
-    try {
-      const response = await fetch("https://www.camara.cl/legislacion/comisiones/citaciones_semana.aspx", {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
-        },
-        signal: AbortSignal.timeout(9e3)
-      });
-      if (!response.ok) {
-        return respaldoOImportadas(`camara.cl respondi\xF3 HTTP ${response.status}`);
-      }
-      const html = await response.text();
-      const { porDia: daysList, porComision, todas } = parsearCitacionesCamaraHtml(html);
-      if (todas.length > 0) {
-        estadoCitacionesCamara.fuente = "vivo";
-        estadoCitacionesCamara.detalle = "Le\xEDdas de camara.cl";
-        estadoCitacionesCamara.actualizado = (/* @__PURE__ */ new Date()).toISOString();
-        return {
-          porDia: daysList,
-          porComision,
-          todas
-        };
-      }
-      return respaldoOImportadas(
-        /challenge|cf_chl|cloudflare/i.test(html) ? "camara.cl bloque\xF3 la consulta del servidor (desaf\xEDo anti-bots de Cloudflare)" : "La p\xE1gina de citaciones de camara.cl no trajo citaciones legibles"
-      );
-    } catch (err) {
-      console.warn("Could not fetch live citaciones from Camara, using fallback:", err);
-      return respaldoOImportadas(`Error de conexi\xF3n con camara.cl: ${err?.message || err}`);
-    }
-  });
-}
-async function fetchComisionesCamaraReal() {
-  return cache.wrap("camara_comisiones_vigentes", 30 * 60 * 1e3, async () => {
-    try {
-      const response = await fetch("https://opendata.camara.cl/wscamaradiputados.asmx/getComisiones_Vigentes", {
-        headers: { "User-Agent": "Mozilla/5.0 (compatible; LegisTrackCL/1.0)" },
-        signal: AbortSignal.timeout(8e3)
-      });
-      if (!response.ok) return [];
-      const xml = await response.text();
-      const blocks = xml.match(/<Comision>[\s\S]*?<\/Comision>/gi) || [];
-      return blocks.map((block) => {
-        const get = (tag) => {
-          const m = block.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, "i"));
-          return m ? m[1].trim() : "";
-        };
-        const id = get("ID");
-        const nombreRaw = get("Nombre");
-        const tipo = get("Tipo") || "Permanente";
-        if (!id || !nombreRaw) return null;
-        const nombre = /^comisi[oó]n/i.test(nombreRaw) ? nombreRaw : `Comisi\xF3n de ${nombreRaw}`;
-        return {
-          id: `cd-${id}`,
-          nombre,
-          descripcion: `Comisi\xF3n ${tipo.toLowerCase()} de la C\xE1mara de Diputadas y Diputados de Chile.`,
-          senado: false
-        };
-      }).filter((c) => c !== null);
-    } catch (error) {
-      console.error("Error fetching real C\xE1mara commissions:", error);
-      return [];
-    }
-  });
-}
-async function getTodasComisiones() {
-  const camaraLive = await fetchComisionesCamaraReal();
-  const byId = /* @__PURE__ */ new Map();
-  for (const c of DIPUTADOS_COMISIONES_REALES) byId.set(c.id, c);
-  for (const c of SENADO_COMISIONES_REALES) byId.set(c.id, c);
-  for (const c of camaraLive) byId.set(c.id, c);
-  return Array.from(byId.values());
-}
-var OPENDATA_WS = "https://opendata.camara.cl/camaradiputados/WServices";
-function xmlTag2(xml, tag) {
-  const m = xml.match(new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</${tag}>`, "i"));
-  return m ? m[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() : "";
-}
-function xmlBloques2(xml, tag) {
-  return xml.match(new RegExp(`<${tag}(?:\\s[^>]*)?>[\\s\\S]*?</${tag}>`, "gi")) || [];
-}
-async function opendataGet(path2) {
-  const res = await fetch(`${OPENDATA_WS}/${path2}`, {
-    headers: { "User-Agent": "LegisTrackCL/1.0 (datos abiertos)" },
-    signal: AbortSignal.timeout(15e3)
-  });
-  if (!res.ok) throw new Error(`opendata.camara.cl HTTP ${res.status}`);
-  return res.text();
-}
-async function fetchCamaraProyectoOficial(boletinRaw) {
-  const m = String(boletinRaw).replace(/\./g, "").match(/(\d{3,6})-(\d{1,2})/);
-  const fuente = "Datos Abiertos de la C\xE1mara de Diputadas y Diputados (opendata.camara.cl)";
-  if (!m) return { disponible: false, motivo: "N\xFAmero de bolet\xEDn no v\xE1lido", votaciones: [], fuente };
-  const boletin = `${m[1]}-${m[2].padStart(2, "0")}`;
-  return cache.wrap(`camara_opendata_proyecto_${boletin}`, 30 * 60 * 1e3, async () => {
-    try {
-      const [xmlProy, xmlVot] = await Promise.all([
-        opendataGet(`WSLegislativo.asmx/retornarProyectoLey?prmNumeroBoletin=${boletin}`),
-        opendataGet(`WSLegislativo.asmx/retornarVotacionesXProyectoLey?prmNumeroBoletin=${boletin}`).catch(() => "")
-      ]);
-      const vacio2 = /xsi:nil="true"\s*\/?>\s*$/.test(xmlProy.trim()) || !xmlTag2(xmlProy, "NumeroBoletin");
-      const proyecto = vacio2 ? void 0 : {
-        id: xmlTag2(xmlProy, "Id"),
-        boletin: xmlTag2(xmlProy, "NumeroBoletin"),
-        nombre: xmlTag2(xmlProy, "Nombre"),
-        fechaIngreso: xmlTag2(xmlProy, "FechaIngreso").slice(0, 10),
-        iniciativa: xmlTag2(xmlProy, "TipoIniciativa"),
-        camaraOrigen: xmlTag2(xmlProy, "CamaraOrigen"),
-        ministerios: xmlBloques2(xmlProy, "Ministerio").map((b) => xmlTag2(b, "Nombre")).filter(Boolean),
-        autores: xmlBloques2(xmlProy, "ParlamentarioAutor").map((b) => {
-          const esSenador = /<Senador/i.test(b);
-          const nombre = [xmlTag2(b, "Nombre"), xmlTag2(b, "ApellidoPaterno"), xmlTag2(b, "ApellidoMaterno")].filter(Boolean).join(" ");
-          return nombre ? `${nombre}${esSenador ? " (senador/a)" : " (diputado/a)"}` : "";
-        }).filter(Boolean)
-      };
-      let bloquesVot = xmlBloques2(xmlVot, "VotacionProyectoLey");
-      if (bloquesVot.length === 0) {
-        const anioActual = (/* @__PURE__ */ new Date()).getFullYear();
-        const digitos = m[1];
-        for (const anio of [anioActual, anioActual - 1]) {
-          try {
-            const xmlAnio = await cache.wrap(
-              `camara_opendata_votaciones_${anio}`,
-              30 * 60 * 1e3,
-              () => opendataGet(`WSLegislativo.asmx/retornarVotacionesXAnno?prmAnno=${anio}`)
-            );
-            bloquesVot.push(...xmlBloques2(xmlAnio, "Votacion").filter((b) => {
-              const d = xmlTag2(b, "Descripcion").replace(/\./g, "");
-              return new RegExp(`\\b${digitos}-\\d{1,2}\\b`).test(d);
-            }));
-          } catch {
-          }
-        }
-      }
-      const votaciones = bloquesVot.map((b) => ({
-        id: xmlTag2(b, "Id"),
-        fecha: xmlTag2(b, "Fecha"),
-        descripcion: xmlTag2(b, "Articulo") || xmlTag2(b, "Descripcion") || "Votaci\xF3n",
-        si: parseInt(xmlTag2(b, "TotalSi")) || 0,
-        no: parseInt(xmlTag2(b, "TotalNo")) || 0,
-        abstencion: parseInt(xmlTag2(b, "TotalAbstencion")) || 0,
-        dispensado: parseInt(xmlTag2(b, "TotalDispensado")) || 0,
-        quorum: xmlTag2(b, "Quorum"),
-        resultado: xmlTag2(b, "Resultado") || "Resultado no informado",
-        tipo: xmlTag2(b, "TipoVotacionProyectoLey") || xmlTag2(b, "Tipo"),
-        tramite: [xmlTag2(b, "TramiteConstitucional"), xmlTag2(b, "TramiteReglamentario")].filter(Boolean).join(" \xB7 ")
-      })).filter((v) => v.id);
-      votaciones.sort((a, b) => b.fecha.localeCompare(a.fecha));
-      if (!proyecto && votaciones.length === 0) {
-        return { disponible: false, motivo: "La C\xE1mara no registra este bolet\xEDn en sus datos abiertos", votaciones: [], fuente };
-      }
-      return { disponible: true, proyecto, votaciones, fuente };
-    } catch (err) {
-      return { disponible: false, motivo: `No se pudo consultar la API de la C\xE1mara: ${err?.message || err}`, votaciones: [], fuente };
-    }
-  });
-}
-async function fetchCamaraVotacionDetalle(votacionId) {
-  const id = String(votacionId).replace(/[^0-9]/g, "");
-  if (!id) return { disponible: false, motivo: "Id de votaci\xF3n no v\xE1lido", votos: [] };
-  return cache.wrap(`camara_opendata_votacion_${id}`, 6 * 60 * 60 * 1e3, async () => {
-    try {
-      const xml = await opendataGet(`WSLegislativo.asmx/retornarVotacionDetalle?prmVotacionId=${id}`);
-      const votos = xmlBloques2(xml, "Voto").map((b) => {
-        const dip = xmlBloques2(b, "Diputado")[0] || b;
-        const nombre = [xmlTag2(dip, "Nombre"), xmlTag2(dip, "ApellidoPaterno"), xmlTag2(dip, "ApellidoMaterno")].filter(Boolean).join(" ");
-        return { nombre, opcion: xmlTag2(b, "OpcionVoto") || xmlTag2(b, "Opcion") || "No informado" };
-      }).filter((v) => v.nombre);
-      if (votos.length === 0) return { disponible: false, motivo: "La API no trae el detalle nominal de esta votaci\xF3n", votos: [] };
-      votos.sort((a, b) => a.opcion.localeCompare(b.opcion) || a.nombre.localeCompare(b.nombre));
-      return { disponible: true, votos };
-    } catch (err) {
-      return { disponible: false, motivo: `No se pudo consultar la API de la C\xE1mara: ${err?.message || err}`, votos: [] };
-    }
-  });
 }
 
 // server/services/dipresService.ts
@@ -196957,6 +197168,30 @@ apiRouter.get("/proyecto/:id/ficha-ejecutiva", async (req, res) => {
     res.json(await fichaEjecutivaProyecto(String(req.params.id)));
   } catch (err) {
     res.json({ disponible: false, motivo: err?.message || String(err) });
+  }
+});
+apiRouter.post("/camara/sesion/importar", expressText({ type: "text/plain", limit: "10mb" }), async (req, res) => {
+  let body = req.body;
+  if (typeof body === "string") {
+    try {
+      body = JSON.parse(body);
+    } catch {
+      return res.status(400).json({ ok: false, error: "Cuerpo no es JSON v\xE1lido." });
+    }
+  }
+  const token = process.env.CITACIONES_IMPORT_TOKEN;
+  if (token && body?.token !== token) return res.status(401).json({ ok: false, error: "Token de importaci\xF3n inv\xE1lido." });
+  try {
+    res.json({ ok: true, ...await importarSesionCamara(body) });
+  } catch (err) {
+    res.status(422).json({ ok: false, error: err?.message || String(err) });
+  }
+});
+apiRouter.get("/comision/:id/sesiones-camara", async (req, res) => {
+  try {
+    res.json({ disponible: true, sesiones: await sesionesActasCamaraDeComision(String(req.params.id).slice(0, 80)) });
+  } catch (err) {
+    res.json({ disponible: false, motivo: err?.message || String(err), sesiones: [] });
   }
 });
 apiRouter.post("/camara/actas/importar", expressText({ type: "text/plain", limit: "8mb" }), async (req, res) => {
