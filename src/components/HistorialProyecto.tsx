@@ -3,6 +3,8 @@ import { BookOpenCheck, Loader2, RefreshCw, Copy, Check, Printer, ChevronDown, C
 import type { HistorialProyecto as H, ComisionHistorial } from "../utils/historial";
 import { CATEGORIAS } from "../utils/informeSesion";
 import { fechaISO } from "../utils/lineaTiempo";
+import { buscarPersona, cargoEnFecha, type Persona } from "../utils/personas";
+import { X } from "lucide-react";
 
 const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 const fmt = (iso?: string | null) => { if (!iso) return "No informado"; const [y, m, d] = String(iso).split("-").map(Number); return y && m && d ? `${d} ${MESES[m - 1]} ${y}` : String(iso); };
@@ -31,6 +33,7 @@ export default function HistorialProyecto({ proyecto, ficha, fichaCargando, info
   const [actualizando, setActualizando] = useState(false);
   const [abiertas, setAbiertas] = useState<Record<string, boolean>>({});
   const [copiado, setCopiado] = useState(false);
+  const [panel, setPanel] = useState<{ tipo: "persona"; p: Persona } | { tipo: "tema"; c: ComisionHistorial; t: NonNullable<ComisionHistorial["temas"]>[number] } | null>(null);
   const id = proyecto.id;
 
   const cargar = (forzar = false) => {
@@ -135,6 +138,14 @@ export default function HistorialProyecto({ proyecto, ficha, fichaCargando, info
   );
   const Fila = ({ k, v }: { k: string; v: React.ReactNode }) => <tr className="border-b border-slate-100"><td className="py-1.5 pr-3 w-44 text-slate-500 font-semibold align-top text-[13px]">{k}</td><td className="py-1.5 text-[13px]">{v || "No informado"}</td></tr>;
   const Min = ({ v, s }: { v?: string; s?: number | null }) => v ? <a href={ytLink(v, s)} target="_blank" rel="noopener noreferrer" className="font-mono text-[11px] text-[#a4243b] hover:underline whitespace-nowrap">video{s != null ? ` ${Math.floor(s / 60)}′` : ""}</a> : null;
+
+  const personas: Persona[] = h?.personas || [];
+  /** Nombre que abre el panel de la persona (si se pudo identificar sin ambigüedad). */
+  const Nombre = ({ n, cat, children }: { n: string; cat?: string; children?: React.ReactNode }) => {
+    const p = buscarPersona(personas, n, cat) || personas.find((x) => x.variantes.includes(n));
+    return p ? <button type="button" onClick={() => setPanel({ tipo: "persona", p })} className="font-bold text-[#0b3a6e] hover:underline cursor-pointer text-left">{children || n}</button> : <b>{children || n}</b>;
+  };
+  const temasDe = (p: Persona) => comisiones.flatMap((c) => (c.temas || []).filter((t) => (t.actoresIds || []).includes(p.id)).map((t) => ({ c, t })));
 
   return (
     <article className="bg-white text-[#1d2733] rounded-3xl border border-slate-200 shadow-sm px-5 sm:px-8 py-6" id="historial-proyecto">
@@ -244,7 +255,7 @@ export default function HistorialProyecto({ proyecto, ficha, fichaCargando, info
 
                         {(c.temas || []).length > 0 && (
                           <div><p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Temas debatidos</p>
-                            <ul className="space-y-1">{c.temas!.map((t, k) => <li key={k}><span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded mr-1.5 ${t.estado === "resuelto" ? "bg-emerald-100 text-emerald-800" : t.estado === "pendiente" ? "bg-amber-100 text-amber-800" : "bg-blue-100 text-blue-800"}`}>{t.estado}</span><b>{t.tema}:</b> {t.detalle} <span className="text-[11px] text-slate-400">{t.fechas.map(fmt).join(" · ")}</span></li>)}</ul>
+                            <ul className="space-y-1">{c.temas!.map((t, k) => <li key={k}><span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded mr-1.5 ${t.estado === "resuelto" ? "bg-emerald-100 text-emerald-800" : t.estado === "pendiente" ? "bg-amber-100 text-amber-800" : "bg-blue-100 text-blue-800"}`}>{t.estado}</span><button type="button" onClick={() => setPanel({ tipo: "tema", c, t })} className="font-bold text-[#0b3a6e] hover:underline cursor-pointer text-left">{t.tema}:</button> {t.detalle} <span className="text-[11px] text-slate-400">{t.fechas.map(fmt).join(" · ")}</span>{(t.actoresIds || []).length > 0 && <span className="text-[11px] text-slate-500"> · {t.actoresIds!.length} persona(s)</span>}</li>)}</ul>
                           </div>
                         )}
 
@@ -252,7 +263,7 @@ export default function HistorialProyecto({ proyecto, ficha, fichaCargando, info
                           <div><p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Expositores</p>
                             {(["ESP", "ESC", "EEA", "ND"]).filter((cat) => c.expositores.some((e) => e.categoria === cat)).map((cat) => (
                               <div key={cat} className="mb-1.5"><p className="text-[11px] font-bold text-[#0b3a6e]">{(CATEGORIAS as any)[cat]?.largo || cat}{cat !== "ND" ? ` (${cat})` : ""}</p>
-                                <ul className="space-y-1">{c.expositores.filter((e) => e.categoria === cat).map((e) => <li key={e.orador}><b>{e.orador}</b>{e.cargo ? ` · ${e.cargo}` : ""}{e.institucion ? ` · ${e.institucion}` : ""} <span className="text-[11px] text-slate-400">{e.fechas.map(fmt).join(", ")}</span> <Min v={e.videoId} s={e.segundos} />{e.planteo && <p className="text-xs text-slate-600 line-clamp-2">{e.planteo}</p>}</li>)}</ul>
+                                <ul className="space-y-1">{c.expositores.filter((e) => e.categoria === cat).map((e) => <li key={e.orador}><Nombre n={e.orador} cat={e.categoria} />{e.cargo ? ` · ${e.cargo}` : ""}{e.institucion ? ` · ${e.institucion}` : ""} <span className="text-[11px] text-slate-400">{e.fechas.map(fmt).join(", ")}</span> <Min v={e.videoId} s={e.segundos} />{e.planteo && <p className="text-xs text-slate-600 line-clamp-2">{e.planteo}</p>}</li>)}</ul>
                               </div>
                             ))}
                           </div>
@@ -260,7 +271,7 @@ export default function HistorialProyecto({ proyecto, ficha, fichaCargando, info
 
                         {(c.posiciones || []).length > 0 && (
                           <div><p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Posiciones de los parlamentarios</p>
-                            <ul className="space-y-0.5">{c.posiciones!.map((p, k) => <li key={k}><b>{p.actor}:</b> {p.postura} <span className="text-[11px] text-slate-400">{fmt(p.fecha)}</span></li>)}</ul>
+                            <ul className="space-y-0.5">{c.posiciones!.map((p, k) => <li key={k}><Nombre n={p.actor} cat="PARL" />: {p.postura} <span className="text-[11px] text-slate-400">{fmt(p.fecha)}</span></li>)}</ul>
                           </div>
                         )}
 
@@ -341,6 +352,62 @@ export default function HistorialProyecto({ proyecto, ficha, fichaCargando, info
           ))}</ul>
         )}
       </Sec>
+
+      {panel && (
+        <div className="fixed inset-0 z-50 flex justify-end" onClick={() => setPanel(null)}>
+          <div className="absolute inset-0 bg-slate-900/30" />
+          <aside className="relative w-full max-w-md h-full bg-white shadow-2xl overflow-y-auto p-5 text-[13px]" onClick={(e) => e.stopPropagation()}>
+            <button onClick={() => setPanel(null)} className="absolute top-3 right-3 p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer"><X className="w-4 h-4" /></button>
+            {panel.tipo === "persona" ? (() => {
+              const p = panel.p;
+              const porComision = p.intervenciones.reduce((acc: Record<string, typeof p.intervenciones>, i) => { (acc[i.comision || "Sin comisión"] ||= []).push(i); return acc; }, {});
+              return (
+                <>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{(CATEGORIAS as any)[p.categoria]?.largo || "Persona"}{p.sinNombre ? " · identificada solo por su cargo" : ""}</p>
+                  <h3 className="font-serif text-lg font-bold text-[#0b3a6e] pr-8">{p.nombre}</h3>
+                  {p.variantes.length > 1 && <p className="text-[11px] text-slate-500">También aparece como: {p.variantes.filter((v) => v !== p.nombre).join("; ")}</p>}
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mt-4 mb-1">Cargos con que aparece</p>
+                  {p.cargos.length === 0 ? <p className="text-slate-500">Cargo no mencionado en las fuentes.</p> : (
+                    <ul className="space-y-1">{p.cargos.map((c, k) => <li key={k}>{[c.cargo, c.institucion].filter(Boolean).join(", ") || "Sin cargo"} <span className="text-[11px] text-slate-400">{c.desde ? (c.hasta && c.hasta !== c.desde ? `${fmt(c.desde)} a ${fmt(c.hasta)}` : fmt(c.desde)) : ""}</span></li>)}</ul>
+                  )}
+                  {p.cargos.length > 1 && <p className="text-[10.5px] text-amber-700 mt-1">Esta persona aparece con distintos cargos según la fecha; en cada intervención se muestra el que tenía en ese momento.</p>}
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mt-4 mb-1">Intervenciones en este proyecto ({p.intervenciones.length})</p>
+                  {Object.entries(porComision).map(([com, lista]) => (
+                    <div key={com} className="mb-3"><p className="text-xs font-bold text-[#0b3a6e]">{com}</p>
+                      <ul className="space-y-2 mt-1">{lista.map((i, k) => {
+                        const cargo = i.cargo || [cargoEnFecha(p, i.fecha)?.cargo, cargoEnFecha(p, i.fecha)?.institucion].filter(Boolean).join(", ");
+                        return <li key={k} className="border-l-2 border-slate-200 pl-2"><p className="text-[11px] text-slate-500">{fmt(i.fecha)}{cargo ? ` · como ${cargo}` : ""} · {i.fuente} <Min v={i.videoId} s={i.segundos} /></p><p className="text-slate-700">{i.texto}</p></li>;
+                      })}</ul>
+                    </div>
+                  ))}
+                  {temasDe(p).length > 0 && (<><p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mt-4 mb-1">Temas en que participó</p>
+                    <ul className="space-y-1">{temasDe(p).map(({ c, t }, k) => <li key={k}><button type="button" onClick={() => setPanel({ tipo: "tema", c, t })} className="text-[#0b3a6e] font-semibold hover:underline cursor-pointer text-left">{t.tema}</button> <span className="text-[11px] text-slate-400">· {c.nombre}</span></li>)}</ul></>)}
+                </>
+              );
+            })() : (() => {
+              const { c, t } = panel;
+              const actores = (t.actoresIds || []).map((x) => personas.find((p) => p.id === x)).filter(Boolean) as Persona[];
+              const posturas = (c.posiciones || []).filter((p) => actores.some((a) => buscarPersona([a], p.actor, "PARL")));
+              const votosRel = c.votaciones.filter((v) => (t.votacionesRel || []).some((x) => x && (v.texto.toLowerCase().includes(x.toLowerCase().slice(0, 25)) || x.toLowerCase().includes(v.texto.toLowerCase().slice(0, 25)))));
+              const hilo = (h?.hilo || []).find((x) => x.tema.toLowerCase().split(/\s+/).filter((w) => w.length > 4).some((w) => t.tema.toLowerCase().includes(w)));
+              return (
+                <>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Tema · {c.nombre}</p>
+                  <h3 className="font-serif text-lg font-bold text-[#0b3a6e] pr-8">{t.tema}</h3>
+                  <p className="mt-1"><span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded mr-1.5 ${t.estado === "resuelto" ? "bg-emerald-100 text-emerald-800" : t.estado === "pendiente" ? "bg-amber-100 text-amber-800" : "bg-blue-100 text-blue-800"}`}>{t.estado}</span>{t.detalle}</p>
+                  {t.fechas.length > 0 && <p className="text-[11px] text-slate-500 mt-1">Sesiones: {t.fechas.map(fmt).join(" · ")}</p>}
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mt-4 mb-1">Quiénes hablaron de este tema</p>
+                  {actores.length === 0 ? <p className="text-slate-500">No identificado.</p> : <ul className="space-y-1">{actores.map((a) => <li key={a.id}><button type="button" onClick={() => setPanel({ tipo: "persona", p: a })} className="font-bold text-[#0b3a6e] hover:underline cursor-pointer">{a.nombre}</button> <span className="text-[11px] text-slate-500">{[(CATEGORIAS as any)[a.categoria]?.corto, a.cargos[a.cargos.length - 1]?.cargo].filter(Boolean).join(" · ")}</span></li>)}</ul>}
+                  {posturas.length > 0 && (<><p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mt-4 mb-1">Posturas de parlamentarios</p><ul className="space-y-1">{posturas.map((p, k) => <li key={k}><b>{p.actor}:</b> {p.postura}</li>)}</ul></>)}
+                  {votosRel.length > 0 && (<><p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mt-4 mb-1">Votaciones relacionadas</p><ul className="space-y-1">{votosRel.map((v, k) => <li key={k}>{fmt(v.fecha)} · {v.texto}: <b>{v.resultado}</b></li>)}</ul></>)}
+                  {hilo && (<><p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mt-4 mb-1">Recorrido del tema entre comisiones</p><p>{hilo.pasos.map((x) => `${x.comision} (${fmt(x.fecha)}): ${x.estado}`).join(" → ")}</p></>)}
+                </>
+              );
+            })()}
+            <p className="text-[10.5px] text-slate-400 mt-6">Las personas se identifican por su nombre, no por su cargo. Una mención solo por cargo se asocia a una persona únicamente dentro de la misma sesión.</p>
+          </aside>
+        </div>
+      )}
 
       <footer className="mt-6 pt-2.5 border-t border-slate-200 text-[11px] text-slate-500">
         Armado con la tramitación oficial, el registro oficial de sesiones, los informes oficiales de comisión y los informes de sesión hechos desde la transcripción automática de los videos oficiales. Temas, posiciones, contrapuntos y cierres se redactan con IA y solo se aceptan si corresponden a sesiones reales. No es un documento oficial.

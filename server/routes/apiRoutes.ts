@@ -1587,6 +1587,14 @@ async function pasoAuto(req: Request, res: Response) {
   // Se toleran espacios o saltos de línea sobrantes al copiar la clave.
   const recibido = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "").trim();
   if (recibido !== secreto) return res.status(401).json({ ok: false, error: `No autorizado: la clave recibida no coincide con CRON_SECRET de Vercel (largo recibido ${recibido.length}, esperado ${secreto.length}).` });
+  // Con ?segundoPlano=1 responde al instante y sigue trabajando (para programadores con límite de espera corto,
+  // como cron-job.org). Usa el "waitUntil" de Vercel para que la función no se detenga al responder.
+  if (req.query.segundoPlano === "1") {
+    const trabajo = pasoTranscripcionAutomatica().catch((e) => console.warn("Paso automático:", e?.message || e));
+    const ctx = (globalThis as any)[Symbol.for("@vercel/request-context")]?.get?.();
+    if (ctx?.waitUntil) ctx.waitUntil(trabajo);
+    return res.status(202).json({ ok: true, aceptado: true, detalle: "Paso iniciado en segundo plano." });
+  }
   try { res.json(await pasoTranscripcionAutomatica()); }
   catch (err: any) { res.status(500).json({ ok: false, error: err?.message || String(err) }); }
 }

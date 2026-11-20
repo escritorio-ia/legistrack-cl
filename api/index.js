@@ -168395,7 +168395,7 @@ function mismaComision(nombreVideo, nombreComision) {
   if (v.length === 0) return false;
   return v.slice(0, 2).every((w) => c.includes(w));
 }
-async function sesionesCamaraDeComision(slug2, nombre) {
+async function sesionesCamaraDeComision(slug3, nombre) {
   const [videos, citas, resultados] = await Promise.all([
     videosSesionesCamara().catch(() => []),
     citacionesCamaraHistoricas().catch(() => []),
@@ -168404,7 +168404,7 @@ async function sesionesCamaraDeComision(slug2, nombre) {
   const porFecha = /* @__PURE__ */ new Map();
   const hoy2 = fechaISO(/* @__PURE__ */ new Date());
   for (const c of citas) {
-    if (c.comisionSlug !== slug2) continue;
+    if (c.comisionSlug !== slug3) continue;
     const f = fechaCitacion(c.fecha);
     if (!f) continue;
     porFecha.set(f, {
@@ -168422,7 +168422,7 @@ async function sesionesCamaraDeComision(slug2, nombre) {
     });
   }
   for (const r of resultados) {
-    if (r.comisionSlug !== slug2) continue;
+    if (r.comisionSlug !== slug3) continue;
     const f = fechaCitacion(r.fecha);
     if (!f || !r.resultado) continue;
     const previa = porFecha.get(f);
@@ -189679,6 +189679,114 @@ function tiempoEnVentana(segmentos, ini, fin) {
 }
 var normComision = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\b(comision|comisiones|permanente|especial|de|del|la|las|el|los|y|e|senado|camara|diputados|diputadas)\b/g, " ").replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
 
+// src/utils/personas.ts
+var quitarTildes = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "");
+var TRATAMIENTOS = /\b(el|la|los|las|senor|senora|senorita|don|dona|sr|sra|srta|h|hon|honorable|honorables|sen|senador|senadora|dip|diputado|diputada|presidente|presidenta|ministro|ministra|subsecretario|subsecretaria|doctor|doctora|dr|dra|abogado|abogada|profesor|profesora)\b\.?/g;
+var VACIAS = /* @__PURE__ */ new Set(["de", "del", "la", "las", "los", "y", "e", "von", "van", "da", "do", "dos", "san"]);
+var DE_CARGO = /\b(ministerio|ministro|ministra|subsecretari[oa]|servicio|direcci[oó]n|director|directora|jef[ea]|asesor|asesora|secretari[oa]|presidente|presidenta|gerente|representante|investigador|investigadora|biblioteca|instituto|asociaci[oó]n|sociedad|comit[eé]|ejecutivo|gobierno|superintendente|fiscal|contralor|alcalde|alcaldesa|intendente|delegad[oa]|coordinador|coordinadora|encargad[oa]|profesional|abogad[oa] secretari[oa]|orador no identificado)\b/i;
+function palabrasNombre(nombre) {
+  return quitarTildes(nombre).toLowerCase().replace(/[^a-zñ\s.]/g, " ").replace(TRATAMIENTOS, " ").split(/\s+/).map((w) => w.replace(/\./g, "")).filter((w) => w.length >= 2 && !VACIAS.has(w));
+}
+function esSoloCargo(nombre) {
+  const t = String(nombre || "").trim().replace(/^(el|la|los|las)\s+/i, "");
+  const w = t.split(/\s+/).filter(Boolean);
+  if (!w.length || !DE_CARGO.test(quitarTildes(w[0]))) return false;
+  for (let k = 1; k < w.length; k++) {
+    const prev = w[k - 1].toLowerCase();
+    if (/^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+$/.test(w[k]) && !["de", "del", "la", "las", "los", "y", "e"].includes(prev) && !DE_CARGO.test(quitarTildes(w[k]))) return false;
+  }
+  return true;
+}
+var PARL = (c) => c === "PARL";
+function mismaPersona(a, b) {
+  if (a.categoria && b.categoria && a.categoria !== "ND" && b.categoria !== "ND" && PARL(a.categoria) !== PARL(b.categoria)) return false;
+  const A = palabrasNombre(a.nombre), B = palabrasNombre(b.nombre);
+  if (!A.length || !B.length) return false;
+  const [corta, larga] = A.length <= B.length ? [A, B] : [B, A];
+  if (!corta.every((w) => larga.includes(w))) return false;
+  if (corta.length === 1) return corta[0].length >= 4 && larga.indexOf(corta[0]) > 0;
+  return true;
+}
+var claveCargo = (c, i) => `${quitarTildes(c).toLowerCase().trim()}|${quitarTildes(i).toLowerCase().trim()}`;
+var slug2 = (s) => quitarTildes(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+function unirPersonas(obs) {
+  const personas = [];
+  const conNombre = obs.filter((o) => o.nombre && !esSoloCargo(o.nombre) && !/no identificad/i.test(o.nombre));
+  const soloCargo = obs.filter((o) => o.nombre && esSoloCargo(o.nombre));
+  conNombre.sort((x, y) => palabrasNombre(y.nombre).length - palabrasNombre(x.nombre).length);
+  const agregar = (p, o) => {
+    if (!p.variantes.includes(o.nombre)) p.variantes.push(o.nombre);
+    if (palabrasNombre(o.nombre).length > palabrasNombre(p.nombre).length) p.nombre = o.nombre;
+    if ((p.categoria === "ND" || !p.categoria) && o.categoria) p.categoria = o.categoria;
+    if (o.cargo || o.institucion) {
+      const k = claveCargo(o.cargo || "", o.institucion || "");
+      let c = p.cargos.find((x) => claveCargo(x.cargo, x.institucion) === k);
+      if (!c) {
+        c = { cargo: o.cargo || "", institucion: o.institucion || "", desde: null, hasta: null, veces: 0 };
+        p.cargos.push(c);
+      }
+      c.veces++;
+      if (o.fecha) {
+        if (!c.desde || o.fecha < c.desde) c.desde = o.fecha;
+        if (!c.hasta || o.fecha > c.hasta) c.hasta = o.fecha;
+      }
+    }
+    if (o.texto) p.intervenciones.push({ comision: o.comision || "", fecha: o.fecha || "", cargo: [o.cargo, o.institucion].filter(Boolean).join(", "), texto: o.texto, videoId: o.videoId, segundos: o.segundos ?? null, fuente: o.fuente || "" });
+  };
+  for (const o of conNombre) {
+    const candidatos = personas.filter((p2) => !p2.sinNombre && mismaPersona({ nombre: p2.nombre, categoria: p2.categoria }, o));
+    if (candidatos.length === 1) {
+      agregar(candidatos[0], o);
+      continue;
+    }
+    if (candidatos.length > 1 && palabrasNombre(o.nombre).length === 1) {
+      const p2 = { id: `${slug2(o.nombre)}-${personas.length}`, nombre: o.nombre, variantes: [], categoria: o.categoria || "ND", cargos: [], intervenciones: [] };
+      agregar(p2, o);
+      personas.push(p2);
+      continue;
+    }
+    if (candidatos.length > 1) {
+      agregar(candidatos[0], o);
+      continue;
+    }
+    const p = { id: slug2(o.nombre) || `p${personas.length}`, nombre: o.nombre, variantes: [], categoria: o.categoria || "ND", cargos: [], intervenciones: [] };
+    if (personas.some((x) => x.id === p.id)) p.id = `${p.id}-${personas.length}`;
+    agregar(p, o);
+    personas.push(p);
+  }
+  for (const o of soloCargo) {
+    const cargo = quitarTildes(`${o.cargo || ""} ${o.nombre}`).toLowerCase();
+    const mismo = personas.filter((p2) => !p2.sinNombre && p2.intervenciones.some((i) => o.contexto && i.videoId === o.contexto) && p2.cargos.some((c) => {
+      const k = quitarTildes(`${c.cargo} ${c.institucion}`).toLowerCase();
+      const w = palabrasCargo(cargo);
+      return w.length > 0 && w.every((x) => k.includes(x));
+    }));
+    if (mismo.length === 1) {
+      agregar(mismo[0], { ...o, nombre: mismo[0].nombre, cargo: o.cargo || o.nombre });
+      continue;
+    }
+    const id = `cargo-${slug2(o.nombre)}-${slug2(o.contexto || o.fecha || "")}`;
+    let p = personas.find((x) => x.id === id);
+    if (!p) {
+      p = { id, nombre: o.nombre, variantes: [], categoria: o.categoria || "ND", sinNombre: true, cargos: [], intervenciones: [] };
+      personas.push(p);
+    }
+    agregar(p, { ...o, cargo: o.cargo || o.nombre });
+  }
+  for (const p of personas) {
+    p.cargos.sort((x, y) => String(x.desde || "").localeCompare(String(y.desde || "")));
+    p.intervenciones.sort((x, y) => x.fecha.localeCompare(y.fecha) || (x.segundos ?? 0) - (y.segundos ?? 0));
+  }
+  return personas;
+}
+function palabrasCargo(s) {
+  return s.replace(/[^a-z\s]/g, " ").split(/\s+/).filter((w) => w.length >= 5 && !["senor", "senora"].includes(w));
+}
+function buscarPersona(personas, nombre, categoria) {
+  const c = personas.filter((p) => !p.sinNombre && mismaPersona({ nombre: p.nombre, categoria: p.categoria }, { nombre, categoria }));
+  return c.length === 1 ? c[0] : null;
+}
+
 // server/services/historialService.ts
 var hoy = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago", year: "numeric", month: "2-digit", day: "2-digit" }).format(/* @__PURE__ */ new Date());
 var isoDe = (f) => {
@@ -189730,7 +189838,7 @@ async function construirHistorial(boletin, opciones = {}) {
   ]);
   const informesOficiales = (discusion?.informes || []).map((i) => ({ titulo: i.titulo, url: i.url, fecha: i.fecha }));
   const firma2 = [
-    "v2",
+    "v3",
     registro.map((s) => `${s.id}:${s.resultado ? 1 : 0}`).sort().join(","),
     informes.map((i) => `${i.videoId}:${i.inf.generado || ""}`).sort().join(","),
     informesOficiales.map((i) => i.url).sort().join(",")
@@ -189891,7 +189999,7 @@ async function construirHistorial(boletin, opciones = {}) {
     sesiones: S3("ARRAY", { items: S3("STRING") }),
     expositores: S3("ARRAY", { items: S3("OBJECT", { properties: { nombre: S3("STRING"), cargo: S3("STRING"), institucion: S3("STRING"), categoria: S3("STRING", { enum: ["ESP", "ESC", "EEA"] }), planteo: S3("STRING") }, required: ["nombre", "categoria"] }) }),
     votaciones: S3("ARRAY", { items: S3("OBJECT", { properties: { texto: S3("STRING"), resultado: S3("STRING"), fecha: S3("STRING") }, required: ["texto", "resultado"] }) }),
-    temas: S3("ARRAY", { items: S3("OBJECT", { properties: { tema: S3("STRING"), detalle: S3("STRING"), fechas: S3("ARRAY", { items: S3("STRING") }), estado: S3("STRING", { enum: ["resuelto", "pendiente", "en debate"] }) }, required: ["tema", "detalle", "estado"] }) }),
+    temas: S3("ARRAY", { items: S3("OBJECT", { properties: { tema: S3("STRING"), detalle: S3("STRING"), fechas: S3("ARRAY", { items: S3("STRING") }), estado: S3("STRING", { enum: ["resuelto", "pendiente", "en debate"] }), actores: S3("ARRAY", { items: S3("STRING") }), votaciones: S3("ARRAY", { items: S3("STRING") }) }, required: ["tema", "detalle", "estado"] }) }),
     posiciones: S3("ARRAY", { items: S3("OBJECT", { properties: { actor: S3("STRING"), postura: S3("STRING"), fecha: S3("STRING") }, required: ["actor", "postura"] }) }),
     contrapuntos: S3("ARRAY", { items: S3("OBJECT", { properties: { tema: S3("STRING"), aFavor: S3("ARRAY", { items: S3("STRING") }), enContra: S3("ARRAY", { items: S3("STRING") }), fecha: S3("STRING") }, required: ["tema", "aFavor", "enContra"] }) }),
     cierre: S3("OBJECT", { properties: { recibio: S3("STRING"), despacho: S3("STRING"), cambios: S3("STRING"), pendientes: S3("ARRAY", { items: S3("STRING") }) } })
@@ -189917,7 +190025,8 @@ y extrae su historial en esa comisi\xF3n, usando EXCLUSIVAMENTE ese material. No
    ESP = sector p\xFAblico (cargo en representaci\xF3n del Estado o misi\xF3n diplom\xE1tica); ESC = sociedad civil (ONG, partido, fundaci\xF3n, gremio, sindicato, asociaci\xF3n, empresa);
    EEA = expertos y acad\xE9micos (incluida la Biblioteca del Congreso Nacional). "planteo": lo principal que plante\xF3, en 1 a 2 oraciones.
 - "votaciones": cada votaci\xF3n (en general, en particular, indicaciones) con su resultado y votos si se indican, y la fecha si se indica.
-- "temas": 3 a 6 temas del debate (1 a 2 oraciones), con fechas si se conocen y su estado ("resuelto", "pendiente", "en debate").
+- "temas": 3 a 6 temas del debate (1 a 2 oraciones), con fechas si se conocen, su estado ("resuelto", "pendiente", "en debate"),
+   "actores": nombres de las personas que hablaron de ese tema (tal como aparecen) y "votaciones": textos de las votaciones que lo resolvieron.
 - "posiciones": posturas de los PARLAMENTARIOS (actor y postura en una oraci\xF3n, con fecha si se conoce).
 - "contrapuntos": solo temas con posturas opuestas de personas identificadas.
 - "cierre" (solo con informe oficial): con qu\xE9 texto recibi\xF3 el proyecto, qu\xE9 despach\xF3 (votaci\xF3n final), qu\xE9 cambi\xF3 en esta comisi\xF3n y qu\xE9 qued\xF3 pendiente.
@@ -189963,7 +190072,15 @@ ${textoSes}`;
       c.votaciones.push({ texto: t, resultado: res, fecha: /^\d{4}-\d{2}-\d{2}$/.test(f) ? f : c.hasta || "", fuente: oficial.texto ? "Informe oficial de la comisi\xF3n" : "Informes de sesi\xF3n" });
     }
     const fechas = new Set(c.sesiones.map((x) => x.fecha));
-    c.temas = (d.temas || []).map((t) => ({ tema: txt(t?.tema), detalle: txt(t?.detalle), fechas: (t?.fechas || []).map(txt).filter((f) => fechas.has(f)), estado: txt(t?.estado) })).filter((t) => t.tema && t.detalle);
+    c.temas = (d.temas || []).map((t, k) => ({
+      id: `${c.clave}-t${k}`,
+      tema: txt(t?.tema),
+      detalle: txt(t?.detalle),
+      fechas: (t?.fechas || []).map(txt).filter((f) => fechas.has(f)),
+      estado: txt(t?.estado),
+      actores: (t?.actores || []).map(txt).filter((n) => n && nombreEnTexto(n, corpus)),
+      votacionesRel: (t?.votaciones || []).map(txt).filter(Boolean)
+    })).filter((t) => t.tema && t.detalle);
     c.posiciones = (d.posiciones || []).map((p) => ({ actor: txt(p?.actor), postura: txt(p?.postura), fecha: fechas.has(txt(p?.fecha)) ? txt(p?.fecha) : "" })).filter((p) => p.actor && p.postura && nombreEnTexto(p.actor, corpus));
     c.contrapuntos = (d.contrapuntos || []).map((p) => ({ tema: txt(p?.tema), aFavor: (p?.aFavor || []).map(txt).filter((n) => n && nombreEnTexto(n, corpus)), enContra: (p?.enContra || []).map(txt).filter((n) => n && nombreEnTexto(n, corpus)), fecha: fechas.has(txt(p?.fecha)) ? txt(p?.fecha) : "" })).filter((p) => p.tema && p.aFavor.length && p.enContra.length);
     const ci = d.cierre || {};
@@ -189978,6 +190095,20 @@ ${textoSes}`;
   comisiones.sort((x, y) => String(x.desde || "9999").localeCompare(String(y.desde || "9999")));
   historial.objetivoOficial = objetivoOficial || void 0;
   historial.sintesisIA = motivosIA.length ? { disponible: false, motivo: motivosIA.join(" | ") } : { disponible: true };
+  const obs = [];
+  for (const i of informes) {
+    let pts = i.inf.puntos.filter((p) => p.boletines.includes(b));
+    if (pts.length === 0 && i.inf.puntos.length === 1) pts = i.inf.puntos;
+    for (const p of pts) for (const it of p.intervenciones) obs.push({ nombre: it.orador, cargo: it.cargo, institucion: it.institucion, categoria: it.categoria, fecha: i.fecha, comision: i.comision, contexto: i.videoId, texto: it.parrafos.join(" ").slice(0, 700), videoId: i.videoId, segundos: it.segundos, fuente: "Transcripci\xF3n de la sesi\xF3n" });
+  }
+  for (const c of comisiones) {
+    for (const e of c.expositores) if (!e.videoId) obs.push({ nombre: e.orador, cargo: e.cargo, institucion: e.institucion, categoria: e.categoria, fecha: c.desde || void 0, comision: c.nombre, contexto: c.informeOficial?.url, texto: e.planteo, fuente: "Informe oficial de la comisi\xF3n" });
+    for (const p of c.posiciones || []) obs.push({ nombre: p.actor, categoria: "PARL", fecha: p.fecha || c.hasta || void 0, comision: c.nombre, contexto: c.informeOficial?.url || c.clave, texto: p.postura, fuente: c.informeOficial ? "Informe oficial (s\xEDntesis con IA)" : "Informes de sesi\xF3n (s\xEDntesis con IA)" });
+  }
+  historial.personas = unirPersonas(obs);
+  for (const c of comisiones) for (const t of c.temas || []) {
+    t.actoresIds = Array.from(new Set((t.actores || []).map((n) => buscarPersona(historial.personas, n)?.id).filter(Boolean)));
+  }
   const conTemas = comisiones.filter((c) => (c.temas || []).length);
   if (conTemas.length >= 2) {
     const r = await geminiJSON(
@@ -190198,6 +190329,16 @@ async function precargarFichas(maximo = 1) {
   return hechos;
 }
 async function pasoTranscripcionAutomatica() {
+  const bloqueo = await leerDoc(`${COLA}/_bloqueo`).catch(() => null);
+  if (bloqueo?.hasta && Date.parse(bloqueo.hasta) > Date.now()) return { ok: true, accion: "ocupado", detalle: "Hay otro paso en curso." };
+  await escribirDoc(`${COLA}/_bloqueo`, { hasta: new Date(Date.now() + 28e4).toISOString() }).catch(() => void 0);
+  try {
+    return await pasoConBloqueo();
+  } finally {
+    await escribirDoc(`${COLA}/_bloqueo`, { hasta: (/* @__PURE__ */ new Date(0)).toISOString() }).catch(() => void 0);
+  }
+}
+async function pasoConBloqueo() {
   const fichas = await Promise.race([precargarFichas(1).catch(() => []), new Promise((r2) => setTimeout(() => r2([]), 6e4))]);
   const r = await pasoTranscripcion();
   let historial;
@@ -190857,12 +190998,12 @@ function parsearCitacionesCamaraHtml(html) {
         materia = rawContent.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
       }
       const boletines = materia.match(/\b\d{4,5}-\d{2}\b|\b\d{1,2}\.\d{3}-\d{2}\b/g) || [];
-      const slug2 = getCommissionSlugFromName(rawComision);
+      const slug3 = getCommissionSlugFromName(rawComision);
       const citObj = {
         id: `cit-live-${totalCount}`,
         fecha: fechaStr,
         comisionNombre: rawComision,
-        comisionSlug: slug2 || void 0,
+        comisionSlug: slug3 || void 0,
         citacionNumero: `Citaci\xF3n Oficial N\xB0 ${totalCount}`,
         hora: rawHora,
         lugar: rawLugar,
@@ -190876,9 +191017,9 @@ function parsearCitacionesCamaraHtml(html) {
       };
       dayCitaciones.push(citObj);
       todas.push(citObj);
-      if (slug2) {
-        if (!porComision[slug2]) porComision[slug2] = [];
-        porComision[slug2].push(citObj);
+      if (slug3) {
+        if (!porComision[slug3]) porComision[slug3] = [];
+        porComision[slug3].push(citObj);
       }
     }
     daysList.push({
@@ -195059,9 +195200,9 @@ async function getIneVigente() {
 
 // server/services/datosAbiertosService.ts
 var SLUG = /^[a-z0-9][a-z0-9_\-]{2,160}$/i;
-async function ckanDataset(slug2) {
-  if (!SLUG.test(slug2)) throw new Error("slug inv\xE1lido");
-  const r = await fetch(`https://datos.gob.cl/api/3/action/package_show?id=${encodeURIComponent(slug2)}`, {
+async function ckanDataset(slug3) {
+  if (!SLUG.test(slug3)) throw new Error("slug inv\xE1lido");
+  const r = await fetch(`https://datos.gob.cl/api/3/action/package_show?id=${encodeURIComponent(slug3)}`, {
     headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0 (compatible; Legislacion++)" },
     signal: AbortSignal.timeout(2e4)
   });
@@ -195070,7 +195211,7 @@ async function ckanDataset(slug2) {
   const d = j?.result;
   if (!d) throw new Error("dataset no encontrado");
   return {
-    slug: slug2,
+    slug: slug3,
     titulo: d.title,
     organizacion: d.organization?.title || "",
     actualizado: d.metadata_modified,
@@ -197314,6 +197455,12 @@ async function pasoAuto(req, res) {
   if (!secreto) return res.status(503).json({ ok: false, error: "Falta CRON_SECRET en Vercel." });
   const recibido = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "").trim();
   if (recibido !== secreto) return res.status(401).json({ ok: false, error: `No autorizado: la clave recibida no coincide con CRON_SECRET de Vercel (largo recibido ${recibido.length}, esperado ${secreto.length}).` });
+  if (req.query.segundoPlano === "1") {
+    const trabajo = pasoTranscripcionAutomatica().catch((e) => console.warn("Paso autom\xE1tico:", e?.message || e));
+    const ctx = globalThis[Symbol.for("@vercel/request-context")]?.get?.();
+    if (ctx?.waitUntil) ctx.waitUntil(trabajo);
+    return res.status(202).json({ ok: true, aceptado: true, detalle: "Paso iniciado en segundo plano." });
+  }
   try {
     res.json(await pasoTranscripcionAutomatica());
   } catch (err) {

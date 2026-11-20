@@ -222,6 +222,15 @@ export async function precargarFichas(maximo = 1): Promise<string[]> {
 }
 
 export async function pasoTranscripcionAutomatica(): Promise<{ ok: boolean; accion: string; sesion?: string; detalle: string; fichas?: string[] }> {
+  // Un paso a la vez: si otro sigue en curso (dos programadores, o uno que se adelantó), este no hace nada.
+  const bloqueo = await leerDoc(`${COLA}/_bloqueo`).catch(() => null);
+  if (bloqueo?.hasta && Date.parse(bloqueo.hasta) > Date.now()) return { ok: true, accion: "ocupado", detalle: "Hay otro paso en curso." };
+  await escribirDoc(`${COLA}/_bloqueo`, { hasta: new Date(Date.now() + 280_000).toISOString() }).catch(() => undefined);
+  try { return await pasoConBloqueo(); }
+  finally { await escribirDoc(`${COLA}/_bloqueo`, { hasta: new Date(0).toISOString() }).catch(() => undefined); }
+}
+
+async function pasoConBloqueo(): Promise<{ ok: boolean; accion: string; sesion?: string; detalle: string; fichas?: string[] }> {
   // La precarga de fichas no depende de la transcripción automática: corre en cada paso (una por vez).
   const fichas = await Promise.race([precargarFichas(1).catch(() => [] as string[]), new Promise<string[]>((r) => setTimeout(() => r([]), 60_000))]);
   const r = await pasoTranscripcion();

@@ -30,7 +30,7 @@ export interface ComisionHistorial {
   sesiones: { fecha: string; videoId?: string; estado?: string; sintesis?: string }[];
   estadistica: EstadisticaComision;
   // Síntesis con IA (validada contra las fechas de las sesiones):
-  temas?: { tema: string; detalle: string; fechas: string[]; estado: string }[];
+  temas?: { id?: string; tema: string; detalle: string; fechas: string[]; estado: string; actores?: string[]; actoresIds?: string[]; votacionesRel?: string[] }[];
   posiciones?: { actor: string; postura: string; fecha: string }[];
   contrapuntos?: { tema: string; aFavor: string[]; enContra: string[]; fecha: string }[];
   cierre?: { recibio: string; despacho: string; cambios: string; pendientes: string[] } | null;
@@ -46,6 +46,8 @@ export interface HistorialProyecto {
   hilo?: { tema: string; pasos: { comision: string; fecha: string; estado: string }[] }[];
   /** Objetivo del proyecto según el informe oficial de comisión (para el motivo de ingreso si no se leyó el mensaje o moción). */
   objetivoOficial?: string;
+  /** Personas unificadas entre fuentes, con su historial de cargos e intervenciones en este proyecto. */
+  personas?: import("./personas").Persona[];
   sintesisIA?: { disponible: boolean; motivo?: string; modelo?: string };
 }
 

@@ -17,6 +17,7 @@ import { geminiJSON } from "./informeSesionService";
 import { normalizarBoletin } from "../../src/utils/boletines";
 import { normalizarInforme, categoriaFinal } from "../../src/utils/informeSesion";
 import { type ComisionHistorial, type HistorialProyecto, tiempoEnVentana, normComision } from "../../src/utils/historial";
+import { unirPersonas, buscarPersona, type ObservacionPersona } from "../../src/utils/personas";
 
 const hoy = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 const isoDe = (f: any) => { const t = String(f || ""); const m = t.match(/(\d{4})-(\d{2})-(\d{2})/); if (m) return m[0]; const d = t.match(/(\d{1,2})[/-](\d{1,2})[/-](\d{4})/); return d ? `${d[3]}-${d[2].padStart(2, "0")}-${d[1].padStart(2, "0")}` : ""; };
@@ -70,7 +71,7 @@ export async function construirHistorial(boletin: string, opciones: { forzar?: b
   ]);
   const informesOficiales: { titulo: string; url: string; fecha?: string }[] = (discusion?.informes || []).map((i: any) => ({ titulo: i.titulo, url: i.url, fecha: i.fecha }));
   const firma = [
-    "v2",
+    "v3",
     registro.map((s) => `${s.id}:${s.resultado ? 1 : 0}`).sort().join(","),
     informes.map((i) => `${i.videoId}:${i.inf.generado || ""}`).sort().join(","),
     informesOficiales.map((i) => i.url).sort().join(","),
@@ -205,7 +206,7 @@ export async function construirHistorial(boletin: string, opciones: { forzar?: b
     sesiones: S("ARRAY", { items: S("STRING") }),
     expositores: S("ARRAY", { items: S("OBJECT", { properties: { nombre: S("STRING"), cargo: S("STRING"), institucion: S("STRING"), categoria: S("STRING", { enum: ["ESP", "ESC", "EEA"] }), planteo: S("STRING") }, required: ["nombre", "categoria"] }) }),
     votaciones: S("ARRAY", { items: S("OBJECT", { properties: { texto: S("STRING"), resultado: S("STRING"), fecha: S("STRING") }, required: ["texto", "resultado"] }) }),
-    temas: S("ARRAY", { items: S("OBJECT", { properties: { tema: S("STRING"), detalle: S("STRING"), fechas: S("ARRAY", { items: S("STRING") }), estado: S("STRING", { enum: ["resuelto", "pendiente", "en debate"] }) }, required: ["tema", "detalle", "estado"] }) }),
+    temas: S("ARRAY", { items: S("OBJECT", { properties: { tema: S("STRING"), detalle: S("STRING"), fechas: S("ARRAY", { items: S("STRING") }), estado: S("STRING", { enum: ["resuelto", "pendiente", "en debate"] }), actores: S("ARRAY", { items: S("STRING") }), votaciones: S("ARRAY", { items: S("STRING") }) }, required: ["tema", "detalle", "estado"] }) }),
     posiciones: S("ARRAY", { items: S("OBJECT", { properties: { actor: S("STRING"), postura: S("STRING"), fecha: S("STRING") }, required: ["actor", "postura"] }) }),
     contrapuntos: S("ARRAY", { items: S("OBJECT", { properties: { tema: S("STRING"), aFavor: S("ARRAY", { items: S("STRING") }), enContra: S("ARRAY", { items: S("STRING") }), fecha: S("STRING") }, required: ["tema", "aFavor", "enContra"] }) }),
     cierre: S("OBJECT", { properties: { recibio: S("STRING"), despacho: S("STRING"), cambios: S("STRING"), pendientes: S("ARRAY", { items: S("STRING") }) } }),
@@ -230,7 +231,8 @@ y extrae su historial en esa comisión, usando EXCLUSIVAMENTE ese material. No a
    ESP = sector público (cargo en representación del Estado o misión diplomática); ESC = sociedad civil (ONG, partido, fundación, gremio, sindicato, asociación, empresa);
    EEA = expertos y académicos (incluida la Biblioteca del Congreso Nacional). "planteo": lo principal que planteó, en 1 a 2 oraciones.
 - "votaciones": cada votación (en general, en particular, indicaciones) con su resultado y votos si se indican, y la fecha si se indica.
-- "temas": 3 a 6 temas del debate (1 a 2 oraciones), con fechas si se conocen y su estado ("resuelto", "pendiente", "en debate").
+- "temas": 3 a 6 temas del debate (1 a 2 oraciones), con fechas si se conocen, su estado ("resuelto", "pendiente", "en debate"),
+   "actores": nombres de las personas que hablaron de ese tema (tal como aparecen) y "votaciones": textos de las votaciones que lo resolvieron.
 - "posiciones": posturas de los PARLAMENTARIOS (actor y postura en una oración, con fecha si se conoce).
 - "contrapuntos": solo temas con posturas opuestas de personas identificadas.
 - "cierre" (solo con informe oficial): con qué texto recibió el proyecto, qué despachó (votación final), qué cambió en esta comisión y qué quedó pendiente.
@@ -265,7 +267,8 @@ ${oficial.texto ? `INFORME OFICIAL DE LA COMISIÓN (${c.informeOficial!.titulo})
       c.votaciones.push({ texto: t, resultado: res, fecha: /^\d{4}-\d{2}-\d{2}$/.test(f) ? f : (c.hasta || ""), fuente: oficial.texto ? "Informe oficial de la comisión" : "Informes de sesión" });
     }
     const fechas = new Set(c.sesiones.map((x) => x.fecha));
-    c.temas = (d.temas || []).map((t: any) => ({ tema: txt(t?.tema), detalle: txt(t?.detalle), fechas: (t?.fechas || []).map(txt).filter((f: string) => fechas.has(f)), estado: txt(t?.estado) })).filter((t: any) => t.tema && t.detalle);
+    c.temas = (d.temas || []).map((t: any, k: number) => ({ id: `${c.clave}-t${k}`, tema: txt(t?.tema), detalle: txt(t?.detalle), fechas: (t?.fechas || []).map(txt).filter((f: string) => fechas.has(f)), estado: txt(t?.estado),
+      actores: (t?.actores || []).map(txt).filter((n: string) => n && nombreEnTexto(n, corpus)), votacionesRel: (t?.votaciones || []).map(txt).filter(Boolean) })).filter((t: any) => t.tema && t.detalle);
     c.posiciones = (d.posiciones || []).map((p: any) => ({ actor: txt(p?.actor), postura: txt(p?.postura), fecha: fechas.has(txt(p?.fecha)) ? txt(p?.fecha) : "" }))
       .filter((p: any) => p.actor && p.postura && nombreEnTexto(p.actor, corpus));
     c.contrapuntos = (d.contrapuntos || []).map((p: any) => ({ tema: txt(p?.tema), aFavor: (p?.aFavor || []).map(txt).filter((n: string) => n && nombreEnTexto(n, corpus)), enContra: (p?.enContra || []).map(txt).filter((n: string) => n && nombreEnTexto(n, corpus)), fecha: fechas.has(txt(p?.fecha)) ? txt(p?.fecha) : "" }))
@@ -283,6 +286,22 @@ ${oficial.texto ? `INFORME OFICIAL DE LA COMISIÓN (${c.informeOficial!.titulo})
   comisiones.sort((x, y) => String(x.desde || "9999").localeCompare(String(y.desde || "9999")));
   historial.objetivoOficial = objetivoOficial || undefined;
   historial.sintesisIA = motivosIA.length ? { disponible: false, motivo: motivosIA.join(" | ") } : { disponible: true };
+  // --- Personas: la misma persona en todas las fuentes, con su historial de cargos (el cargo puede cambiar en el tiempo) ---
+  const obs: ObservacionPersona[] = [];
+  for (const i of informes) {
+    let pts = i.inf.puntos.filter((p) => p.boletines.includes(b));
+    if (pts.length === 0 && i.inf.puntos.length === 1) pts = i.inf.puntos;
+    for (const p of pts) for (const it of p.intervenciones) obs.push({ nombre: it.orador, cargo: it.cargo, institucion: it.institucion, categoria: it.categoria, fecha: i.fecha, comision: i.comision, contexto: i.videoId, texto: it.parrafos.join(" ").slice(0, 700), videoId: i.videoId, segundos: it.segundos, fuente: "Transcripción de la sesión" });
+  }
+  for (const c of comisiones) {
+    for (const e of c.expositores) if (!e.videoId) obs.push({ nombre: e.orador, cargo: e.cargo, institucion: e.institucion, categoria: e.categoria, fecha: c.desde || undefined, comision: c.nombre, contexto: c.informeOficial?.url, texto: e.planteo, fuente: "Informe oficial de la comisión" });
+    for (const p of c.posiciones || []) obs.push({ nombre: p.actor, categoria: "PARL", fecha: p.fecha || c.hasta || undefined, comision: c.nombre, contexto: c.informeOficial?.url || c.clave, texto: p.postura, fuente: c.informeOficial ? "Informe oficial (síntesis con IA)" : "Informes de sesión (síntesis con IA)" });
+  }
+  historial.personas = unirPersonas(obs);
+  for (const c of comisiones) for (const t of c.temas || []) {
+    t.actoresIds = Array.from(new Set((t.actores || []).map((n) => buscarPersona(historial.personas!, n)?.id).filter(Boolean) as string[]));
+  }
+
   // Hilo de temas entre comisiones (si hay más de una con temas).
   const conTemas = comisiones.filter((c) => (c.temas || []).length);
   if (conTemas.length >= 2) {
