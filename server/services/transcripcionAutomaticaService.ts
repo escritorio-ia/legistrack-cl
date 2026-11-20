@@ -221,6 +221,36 @@ export async function precargarFichas(maximo = 1): Promise<string[]> {
   return hechos;
 }
 
+// ---------------------------------------------------------------------------
+// Control desde el navegador: el analista inicia o detiene la transcripción automática. Mientras está iniciada,
+// cada paso dispara el siguiente (la app se llama a sí misma) hasta el tope diario o hasta que no quede trabajo;
+// la tarea diaria de Vercel la retoma cada mañana.
+// ---------------------------------------------------------------------------
+export interface ControlAuto { activa: boolean; base?: string; iniciadaEn?: string; ultimoPaso?: { accion: string; sesion?: string; detalle: string; fecha: string }; cadena?: string }
+export async function leerControl(): Promise<ControlAuto> {
+  const d = await leerDoc(`${COLA}/_control`).catch(() => null);
+  return { activa: !!d?.activa, base: d?.base, iniciadaEn: d?.iniciadaEn, ultimoPaso: d?.ultimoPaso, cadena: d?.cadena };
+}
+export async function fijarControl(cambios: Partial<ControlAuto>) {
+  await escribirDoc(`${COLA}/_control`, cambios as any);
+}
+const SIN_TRABAJO = new Set(["nada", "tope", "inactiva", "sin_youtube", "ocupado"]);
+/** Pide el siguiente paso a la propia app (no espera el trabajo: responde al instante y sigue por detrás). */
+export async function siguientePaso(base: string): Promise<void> {
+  const secreto = String(process.env.CRON_SECRET || "").trim();
+  if (!secreto || !base) return;
+  await fetch(`${base}/api/transcripcion/automatica/paso?segundoPlano=1&cadena=1`, { headers: { Authorization: `Bearer ${secreto}` }, signal: AbortSignal.timeout(15000) }).catch(() => undefined);
+}
+/** Ejecuta un paso y, si la transcripción está iniciada y queda trabajo, encadena el siguiente. */
+export async function pasoEncadenado(baseRespaldo?: string): Promise<void> {
+  const r = await pasoTranscripcionAutomatica().catch((e: any) => ({ ok: false, accion: "error", detalle: e?.message || String(e) }));
+  const control = await leerControl();
+  if (r.accion !== "ocupado") await fijarControl({ ultimoPaso: { accion: r.accion, sesion: (r as any).sesion || "", detalle: r.detalle, fecha: new Date().toISOString() } }).catch(() => undefined);
+  if (!control.activa || !r.ok || SIN_TRABAJO.has(r.accion)) return;
+  await new Promise((res) => setTimeout(res, 5000));
+  await siguientePaso(control.base || baseRespaldo || "");
+}
+
 export async function pasoTranscripcionAutomatica(): Promise<{ ok: boolean; accion: string; sesion?: string; detalle: string; fichas?: string[] }> {
   // Un paso a la vez: si otro sigue en curso (dos programadores, o uno que se adelantó), este no hace nada.
   const bloqueo = await leerDoc(`${COLA}/_bloqueo`).catch(() => null);
@@ -301,8 +331,9 @@ export async function estadoTranscripcionAutomatica() {
   const porEstado: Record<string, number> = {};
   for (const t of trabajos) porEstado[t.estado] = (porEstado[t.estado] || 0) + 1;
   const cont = await contadorDia();
+  const control = await leerControl();
   return {
-    configuracion: conf, tramosHoy: cont.tramos, porEstado,
+    configuracion: conf, tramosHoy: cont.tramos, porEstado, control,
     recientes: trabajos.slice(0, 15).map((t) => ({ comision: t.comision, fecha: t.fecha, estado: t.estado, videoId: t.videoId || null, error: t.error || null, actualizado: t.actualizado })),
   };
 }

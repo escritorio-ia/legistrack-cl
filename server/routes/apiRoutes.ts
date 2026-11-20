@@ -1,7 +1,7 @@
 import { sincronizarRegistroSesiones, sesionesRegistradasDeBoletin, sesionesRegistradasDeComision } from "../services/registroSesionesService";
 import { exigirSesion, credencialesValidas, fijarSesion, cerrarSesion, sesionActual, authConfigurada, demasiadosIntentos, registrarFallo, limpiarFallos } from "../services/authService";
 import { generarInformeSesion } from "../services/informeSesionService";
-import { pasoTranscripcionAutomatica, estadoTranscripcionAutomatica } from "../services/transcripcionAutomaticaService";
+import { pasoTranscripcionAutomatica, estadoTranscripcionAutomatica, pasoEncadenado, leerControl, fijarControl, siguientePaso } from "../services/transcripcionAutomaticaService";
 import { resumenComisionesBoletin } from "../services/resumenBoletinService";
 import { construirHistorial } from "../services/historialService";
 import { salaSemana, importarTablaSenado, sincronizarSala, sesionesSalaDeBoletin } from "../services/salaService";
@@ -1590,14 +1590,45 @@ async function pasoAuto(req: Request, res: Response) {
   // Con ?segundoPlano=1 responde al instante y sigue trabajando (para programadores con límite de espera corto,
   // como cron-job.org). Usa el "waitUntil" de Vercel para que la función no se detenga al responder.
   if (req.query.segundoPlano === "1") {
-    const trabajo = pasoTranscripcionAutomatica().catch((e) => console.warn("Paso automático:", e?.message || e));
+    const trabajo = pasoEncadenado(baseDe(req)).catch((e) => console.warn("Paso automático:", e?.message || e));
     const ctx = (globalThis as any)[Symbol.for("@vercel/request-context")]?.get?.();
     if (ctx?.waitUntil) ctx.waitUntil(trabajo);
     return res.status(202).json({ ok: true, aceptado: true, detalle: "Paso iniciado en segundo plano." });
   }
-  try { res.json(await pasoTranscripcionAutomatica()); }
+  try {
+    const r = await pasoTranscripcionAutomatica();
+    // Si la transcripción está iniciada desde el navegador, la tarea diaria retoma la cadena.
+    const control = await leerControl();
+    if (control.activa && r.ok && !["nada", "tope", "inactiva", "sin_youtube", "ocupado"].includes(r.accion)) {
+      const sig = siguientePaso(control.base || baseDe(req));
+      const ctx = (globalThis as any)[Symbol.for("@vercel/request-context")]?.get?.();
+      if (ctx?.waitUntil) ctx.waitUntil(sig); else await sig;
+    }
+    res.json(r);
+  }
   catch (err: any) { res.status(500).json({ ok: false, error: err?.message || String(err) }); }
 }
+/** Dirección pública de la app (para que se llame a sí misma). */
+function baseDe(req: Request): string {
+  const host = String(req.headers["x-forwarded-host"] || req.headers.host || "");
+  return host ? `https://${host.split(",")[0].trim()}` : (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "");
+}
+// Iniciar y detener desde el navegador (exige sesión iniciada en la app).
+apiRouter.post("/transcripcion/automatica/iniciar", async (req: Request, res: Response) => {
+  try {
+    if (!String(process.env.CRON_SECRET || "").trim()) return res.status(503).json({ ok: false, error: "Falta CRON_SECRET en Vercel." });
+    const base = baseDe(req);
+    await fijarControl({ activa: true, base, iniciadaEn: new Date().toISOString() });
+    const sig = siguientePaso(base);
+    const ctx = (globalThis as any)[Symbol.for("@vercel/request-context")]?.get?.();
+    if (ctx?.waitUntil) ctx.waitUntil(sig); else await sig;
+    res.json({ ok: true, ...(await leerControl()) });
+  } catch (err: any) { res.status(500).json({ ok: false, error: err?.message || String(err) }); }
+});
+apiRouter.post("/transcripcion/automatica/detener", async (_req: Request, res: Response) => {
+  try { await fijarControl({ activa: false }); res.json({ ok: true, ...(await leerControl()) }); }
+  catch (err: any) { res.status(500).json({ ok: false, error: err?.message || String(err) }); }
+});
 apiRouter.get("/transcripcion/automatica/paso", pasoAuto);
 apiRouter.post("/transcripcion/automatica/paso", pasoAuto);
 apiRouter.get("/transcripcion/automatica/estado", async (_req: Request, res: Response) => {

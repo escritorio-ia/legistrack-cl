@@ -190328,6 +190328,27 @@ async function precargarFichas(maximo = 1) {
   }
   return hechos;
 }
+async function leerControl() {
+  const d = await leerDoc(`${COLA}/_control`).catch(() => null);
+  return { activa: !!d?.activa, base: d?.base, iniciadaEn: d?.iniciadaEn, ultimoPaso: d?.ultimoPaso, cadena: d?.cadena };
+}
+async function fijarControl(cambios) {
+  await escribirDoc(`${COLA}/_control`, cambios);
+}
+var SIN_TRABAJO = /* @__PURE__ */ new Set(["nada", "tope", "inactiva", "sin_youtube", "ocupado"]);
+async function siguientePaso(base) {
+  const secreto = String(process.env.CRON_SECRET || "").trim();
+  if (!secreto || !base) return;
+  await fetch(`${base}/api/transcripcion/automatica/paso?segundoPlano=1&cadena=1`, { headers: { Authorization: `Bearer ${secreto}` }, signal: AbortSignal.timeout(15e3) }).catch(() => void 0);
+}
+async function pasoEncadenado(baseRespaldo) {
+  const r = await pasoTranscripcionAutomatica().catch((e) => ({ ok: false, accion: "error", detalle: e?.message || String(e) }));
+  const control = await leerControl();
+  if (r.accion !== "ocupado") await fijarControl({ ultimoPaso: { accion: r.accion, sesion: r.sesion || "", detalle: r.detalle, fecha: (/* @__PURE__ */ new Date()).toISOString() } }).catch(() => void 0);
+  if (!control.activa || !r.ok || SIN_TRABAJO.has(r.accion)) return;
+  await new Promise((res) => setTimeout(res, 5e3));
+  await siguientePaso(control.base || baseRespaldo || "");
+}
 async function pasoTranscripcionAutomatica() {
   const bloqueo = await leerDoc(`${COLA}/_bloqueo`).catch(() => null);
   if (bloqueo?.hasta && Date.parse(bloqueo.hasta) > Date.now()) return { ok: true, accion: "ocupado", detalle: "Hay otro paso en curso." };
@@ -190403,10 +190424,12 @@ async function estadoTranscripcionAutomatica() {
   const porEstado = {};
   for (const t of trabajos) porEstado[t.estado] = (porEstado[t.estado] || 0) + 1;
   const cont = await contadorDia();
+  const control = await leerControl();
   return {
     configuracion: conf,
     tramosHoy: cont.tramos,
     porEstado,
+    control,
     recientes: trabajos.slice(0, 15).map((t) => ({ comision: t.comision, fecha: t.fecha, estado: t.estado, videoId: t.videoId || null, error: t.error || null, actualizado: t.actualizado }))
   };
 }
@@ -197456,17 +197479,51 @@ async function pasoAuto(req, res) {
   const recibido = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "").trim();
   if (recibido !== secreto) return res.status(401).json({ ok: false, error: `No autorizado: la clave recibida no coincide con CRON_SECRET de Vercel (largo recibido ${recibido.length}, esperado ${secreto.length}).` });
   if (req.query.segundoPlano === "1") {
-    const trabajo = pasoTranscripcionAutomatica().catch((e) => console.warn("Paso autom\xE1tico:", e?.message || e));
+    const trabajo = pasoEncadenado(baseDe(req)).catch((e) => console.warn("Paso autom\xE1tico:", e?.message || e));
     const ctx = globalThis[Symbol.for("@vercel/request-context")]?.get?.();
     if (ctx?.waitUntil) ctx.waitUntil(trabajo);
     return res.status(202).json({ ok: true, aceptado: true, detalle: "Paso iniciado en segundo plano." });
   }
   try {
-    res.json(await pasoTranscripcionAutomatica());
+    const r = await pasoTranscripcionAutomatica();
+    const control = await leerControl();
+    if (control.activa && r.ok && !["nada", "tope", "inactiva", "sin_youtube", "ocupado"].includes(r.accion)) {
+      const sig = siguientePaso(control.base || baseDe(req));
+      const ctx = globalThis[Symbol.for("@vercel/request-context")]?.get?.();
+      if (ctx?.waitUntil) ctx.waitUntil(sig);
+      else await sig;
+    }
+    res.json(r);
   } catch (err) {
     res.status(500).json({ ok: false, error: err?.message || String(err) });
   }
 }
+function baseDe(req) {
+  const host = String(req.headers["x-forwarded-host"] || req.headers.host || "");
+  return host ? `https://${host.split(",")[0].trim()}` : process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "";
+}
+apiRouter.post("/transcripcion/automatica/iniciar", async (req, res) => {
+  try {
+    if (!String(process.env.CRON_SECRET || "").trim()) return res.status(503).json({ ok: false, error: "Falta CRON_SECRET en Vercel." });
+    const base = baseDe(req);
+    await fijarControl({ activa: true, base, iniciadaEn: (/* @__PURE__ */ new Date()).toISOString() });
+    const sig = siguientePaso(base);
+    const ctx = globalThis[Symbol.for("@vercel/request-context")]?.get?.();
+    if (ctx?.waitUntil) ctx.waitUntil(sig);
+    else await sig;
+    res.json({ ok: true, ...await leerControl() });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err?.message || String(err) });
+  }
+});
+apiRouter.post("/transcripcion/automatica/detener", async (_req, res) => {
+  try {
+    await fijarControl({ activa: false });
+    res.json({ ok: true, ...await leerControl() });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err?.message || String(err) });
+  }
+});
 apiRouter.get("/transcripcion/automatica/paso", pasoAuto);
 apiRouter.post("/transcripcion/automatica/paso", pasoAuto);
 apiRouter.get("/transcripcion/automatica/estado", async (_req, res) => {
