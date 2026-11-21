@@ -14,7 +14,7 @@ import { sesionesSalaDeBoletin } from "./salaService";
 import { discusionDeProyecto, seccionesInforme } from "./discusionService";
 import { fetchTextoInformeDocx, presentacionesDeBoletin } from "./senadoService";
 import { geminiJSON } from "./informeSesionService";
-import { actasDeBoletin, tramoDeBoletin, type ActaCamara } from "./actasCamaraService";
+import { actasDeBoletin, tramoDeBoletin, documentosCamaraDeBoletin, type ActaCamara } from "./actasCamaraService";
 import { normalizarBoletin } from "../../src/utils/boletines";
 import { normalizarInforme, categoriaFinal } from "../../src/utils/informeSesion";
 import { type ComisionHistorial, type HistorialProyecto, tiempoEnVentana, normComision } from "../../src/utils/historial";
@@ -70,11 +70,11 @@ export async function construirHistorial(boletin: string, opciones: { forzar?: b
     conTiempo(sesionesSalaDeBoletin(b), 10000, []),
     conTiempo(discusionDeProyecto(b), 25000, { disponible: false, informes: [] } as any),
     conTiempo(actasDeBoletin(b), 12000, [] as ActaCamara[]),
-    conTiempo(presentacionesDeBoletin(b), 10000, [] as any[]),
+    conTiempo(Promise.all([presentacionesDeBoletin(b), documentosCamaraDeBoletin(b)]).then(([sen, cam]) => [...sen, ...cam.map((d: any) => ({ ...d, organizacion: d.tipo && !/presentaci/i.test(d.tipo) ? d.tipo : "", autor: "" }))]), 10000, [] as any[]),
   ]);
   const informesOficiales: { titulo: string; url: string; fecha?: string }[] = (discusion?.informes || []).map((i: any) => ({ titulo: i.titulo, url: i.url, fecha: i.fecha }));
   const firma = [
-    "v5",
+    "v6",
     registro.map((s) => `${s.id}:${s.resultado ? 1 : 0}`).sort().join(","),
     informes.map((i) => `${i.videoId}:${i.inf.generado || ""}`).sort().join(","),
     informesOficiales.map((i) => i.url).sort().join(","),
@@ -127,7 +127,7 @@ export async function construirHistorial(boletin: string, opciones: { forzar?: b
   // --- Presentaciones de invitados (Senado) ---
   for (const p of presentaciones as any[]) {
     if (!p.comision) continue;
-    const c = obtener(p.comision, "Senado");
+    const c = obtener(p.comision, p.comisionPrmId ? "Cámara" : "Senado");
     (c.presentaciones ||= []).push({ titulo: p.titulo, organizacion: p.organizacion || "", autor: p.autor || "", fecha: p.fecha || "", url: p.url });
   }
 

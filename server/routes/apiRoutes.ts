@@ -4,7 +4,7 @@ import { generarInformeSesion } from "../services/informeSesionService";
 import { pasoTranscripcionAutomatica, estadoTranscripcionAutomatica, pasoEncadenado, leerControl, fijarControl, siguientePaso } from "../services/transcripcionAutomaticaService";
 import { resumenComisionesBoletin } from "../services/resumenBoletinService";
 import { construirHistorial } from "../services/historialService";
-import { importarActaCamara, importarSesionCamara, sesionesActasCamaraDeComision } from "../services/actasCamaraService";
+import { importarActaCamara, importarSesionCamara, sesionesActasCamaraDeComision, importarDocumentosCamara, documentosCamaraDeComision } from "../services/actasCamaraService";
 import { procesarPresentacionesPendientes } from "../services/senadoService";
 import { salaSemana, importarTablaSenado, sincronizarSala, sesionesSalaDeBoletin } from "../services/salaService";
 import { discusionDeProyecto } from "../services/discusionService";
@@ -921,6 +921,19 @@ apiRouter.post("/camara/sesion/importar", expressText({ type: "text/plain", limi
 apiRouter.get("/camara/comisiones-prm", async (_req: Request, res: Response) => {
   const { DIPUTADOS_COMISIONES_DETALLE } = await import("../../src/data/comisionesData");
   res.json({ comisiones: (DIPUTADOS_COMISIONES_DETALLE as any[]).filter((c) => /^\d+$/.test(String(c.prmID || ""))).map((c) => ({ prmID: String(c.prmID), nombre: c.nombre })) });
+});
+// Documentos de comisión de la Cámara (presentaciones, comparados...), enviados por la extensión.
+apiRouter.post("/camara/documentos/importar", expressText({ type: "text/plain", limit: "10mb" }), async (req: Request, res: Response) => {
+  let body: any = req.body;
+  if (typeof body === "string") { try { body = JSON.parse(body); } catch { return res.status(400).json({ ok: false, error: "Cuerpo no es JSON válido." }); } }
+  const token = process.env.CITACIONES_IMPORT_TOKEN;
+  if (token && body?.token !== token) return res.status(401).json({ ok: false, error: "Token de importación inválido." });
+  try { res.json({ ok: true, ...(await importarDocumentosCamara(body)) }); }
+  catch (err: any) { res.status(422).json({ ok: false, error: err?.message || String(err) }); }
+});
+apiRouter.get("/comision/:id/documentos-camara", async (req: Request, res: Response) => {
+  try { res.json({ disponible: true, documentos: await documentosCamaraDeComision(String(req.params.id).slice(0, 80)) }); }
+  catch (err: any) { res.json({ disponible: false, motivo: err?.message || String(err), documentos: [] }); }
 });
 // Sesiones de la Cámara guardadas (actas, cuentas, votaciones) de una comisión.
 apiRouter.get("/comision/:id/sesiones-camara", async (req: Request, res: Response) => {

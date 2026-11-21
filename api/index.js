@@ -191942,6 +191942,60 @@ async function sesionesActasCamaraDeComision(comisionId) {
     return { sesionId: d.sesionId, numero: d.numero, fecha: d.fecha, hora: d.hora, url: d.url, cuentaUrl: d.cuentaUrl, tieneActa: !!d.texto, tieneCuenta: !!d.cuenta, asistentes: (d.diputadosAsistentes || []).length, votaciones: d.votaciones || [], puntos: d.puntos || [] };
   }).sort((a, b) => b.fecha.localeCompare(a.fecha));
 }
+async function textoArchivo(b64) {
+  if (!b64) return { texto: "", formato: "" };
+  const buf = Buffer.from(String(b64), "base64");
+  try {
+    if (buf.slice(0, 4).toString("latin1") === "%PDF") {
+      const { extractText, getDocumentProxy } = await import("unpdf");
+      const pdf = await getDocumentProxy(new Uint8Array(buf));
+      return { texto: String((await extractText(pdf, { mergePages: true })).text || "").replace(/\s+/g, " ").trim(), formato: "pdf" };
+    }
+    if (buf.slice(0, 2).toString("latin1") === "PK") {
+      const mammoth = await import("mammoth");
+      const t = ((await mammoth.extractRawText({ buffer: buf })).value || "").replace(/\s+/g, " ").trim();
+      return { texto: t, formato: t ? "docx" : "zip" };
+    }
+  } catch {
+  }
+  return { texto: "", formato: "otro" };
+}
+async function importarDocumentosCamara(p) {
+  if (!/^\d+$/.test(p.comisionPrmId)) throw new Error("Comisi\xF3n no v\xE1lida.");
+  const c = DIPUTADOS_COMISIONES_DETALLE.find((x) => String(x.prmID) === p.comisionPrmId);
+  let n = 0;
+  for (const d of (p.docs || []).slice(0, 10)) {
+    if (!/^\d+$/.test(String(d.docId))) continue;
+    const { texto, formato } = await textoArchivo(d.base64);
+    const bol = String(d.boletin || "").replace(/\./g, "").match(/(\d{3,6})-(\d{1,2})/);
+    await escribirDoc(`documentos_camara/${d.docId}`, {
+      docId: String(d.docId),
+      comisionPrmId: p.comisionPrmId,
+      comisionId: c ? `cd-${c.id}` : "",
+      comision: c?.nombre || "",
+      fecha: fechaActaISO(d.fecha),
+      sesion: String(d.sesion || ""),
+      tipo: String(d.tipo || ""),
+      boletin: bol ? `${bol[1]}-${bol[2].padStart(2, "0")}` : "",
+      titulo: String(d.titulo || "").slice(0, 600),
+      url: `https://www.camara.cl/verDoc.aspx?prmID=${d.docId}&prmTipo=DOCUMENTO_COMISIONDOCUMENTO`,
+      texto: texto.slice(0, 8e4),
+      formato,
+      sinArchivo: !d.base64,
+      importadoEn: (/* @__PURE__ */ new Date()).toISOString()
+    });
+    n++;
+  }
+  return { documentos: n };
+}
+async function documentosCamaraDeBoletin(boletin) {
+  const filas = await consultar({ from: [{ collectionId: "documentos_camara" }], where: { fieldFilter: { field: { fieldPath: "boletin" }, op: "EQUAL", value: { stringValue: boletin } } } }).catch(() => []);
+  return filas.map((f) => camposAObjeto(f.datos)).sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)));
+}
+async function documentosCamaraDeComision(comisionId) {
+  const filas = await consultar({ from: [{ collectionId: "documentos_camara" }], where: { fieldFilter: { field: { fieldPath: "comisionId" }, op: "EQUAL", value: { stringValue: comisionId } } }, select: { fields: ["docId", "fecha", "sesion", "tipo", "boletin", "titulo", "url"].map((f) => ({ fieldPath: f })) } }).catch(() => []);
+  return filas.map((f) => camposAObjeto(f.datos)).sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)));
+}
 
 // server/services/informeSesionService.ts
 var MAX_CARACTERES = 7e5;
@@ -192804,11 +192858,11 @@ async function construirHistorial(boletin, opciones = {}) {
     conTiempo(sesionesSalaDeBoletin(b), 1e4, []),
     conTiempo(discusionDeProyecto(b), 25e3, { disponible: false, informes: [] }),
     conTiempo(actasDeBoletin(b), 12e3, []),
-    conTiempo(presentacionesDeBoletin(b), 1e4, [])
+    conTiempo(Promise.all([presentacionesDeBoletin(b), documentosCamaraDeBoletin(b)]).then(([sen, cam]) => [...sen, ...cam.map((d) => ({ ...d, organizacion: d.tipo && !/presentaci/i.test(d.tipo) ? d.tipo : "", autor: "" }))]), 1e4, [])
   ]);
   const informesOficiales = (discusion?.informes || []).map((i) => ({ titulo: i.titulo, url: i.url, fecha: i.fecha }));
   const firma2 = [
-    "v5",
+    "v6",
     registro.map((s) => `${s.id}:${s.resultado ? 1 : 0}`).sort().join(","),
     informes.map((i) => `${i.videoId}:${i.inf.generado || ""}`).sort().join(","),
     informesOficiales.map((i) => i.url).sort().join(","),
@@ -192872,7 +192926,7 @@ async function construirHistorial(boletin, opciones = {}) {
   }
   for (const p of presentaciones) {
     if (!p.comision) continue;
-    const c = obtener(p.comision, "Senado");
+    const c = obtener(p.comision, p.comisionPrmId ? "C\xE1mara" : "Senado");
     (c.presentaciones ||= []).push({ titulo: p.titulo, organizacion: p.organizacion || "", autor: p.autor || "", fecha: p.fecha || "", url: p.url });
   }
   const minutosPorCat = {};
@@ -199507,6 +199561,30 @@ apiRouter.post("/camara/sesion/importar", expressText({ type: "text/plain", limi
 apiRouter.get("/camara/comisiones-prm", async (_req, res) => {
   const { DIPUTADOS_COMISIONES_DETALLE: DIPUTADOS_COMISIONES_DETALLE3 } = await Promise.resolve().then(() => (init_comisionesData(), comisionesData_exports));
   res.json({ comisiones: DIPUTADOS_COMISIONES_DETALLE3.filter((c) => /^\d+$/.test(String(c.prmID || ""))).map((c) => ({ prmID: String(c.prmID), nombre: c.nombre })) });
+});
+apiRouter.post("/camara/documentos/importar", expressText({ type: "text/plain", limit: "10mb" }), async (req, res) => {
+  let body = req.body;
+  if (typeof body === "string") {
+    try {
+      body = JSON.parse(body);
+    } catch {
+      return res.status(400).json({ ok: false, error: "Cuerpo no es JSON v\xE1lido." });
+    }
+  }
+  const token = process.env.CITACIONES_IMPORT_TOKEN;
+  if (token && body?.token !== token) return res.status(401).json({ ok: false, error: "Token de importaci\xF3n inv\xE1lido." });
+  try {
+    res.json({ ok: true, ...await importarDocumentosCamara(body) });
+  } catch (err) {
+    res.status(422).json({ ok: false, error: err?.message || String(err) });
+  }
+});
+apiRouter.get("/comision/:id/documentos-camara", async (req, res) => {
+  try {
+    res.json({ disponible: true, documentos: await documentosCamaraDeComision(String(req.params.id).slice(0, 80)) });
+  } catch (err) {
+    res.json({ disponible: false, motivo: err?.message || String(err), documentos: [] });
+  }
 });
 apiRouter.get("/comision/:id/sesiones-camara", async (req, res) => {
   try {

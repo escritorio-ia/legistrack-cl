@@ -241,28 +241,38 @@ chrome.runtime.onMessage.addListener((msg, _s, responder) => {
 // Se inicia y detiene desde la ventanita de la extensión. Una página a la vez, con pausas.
 // ---------------------------------------------------------------------------
 const URL_SESIONES = (prm) => `https://www.camara.cl/legislacion/comisiones/sesiones.aspx?prmID=${prm}&prmIdTipo=2101`;
+const URL_DOCUMENTOS = (prm) => `https://www.camara.cl/legislacion/comisiones/documentos.aspx?prmID=${prm}`;
 function mesesHaciaAtras(n) {
   const out = [], d = new Date();
   for (let i = 1; i < n; i++) { const x = new Date(d.getFullYear(), d.getMonth() - i, 1); out.push({ mes: x.getMonth() + 1, anio: x.getFullYear() }); }
   return out; // el mes actual es el que la página muestra al abrir
 }
-const clavePagina = (prm, mes, anio) => `${prm}:${anio}-${String(mes).padStart(2, "0")}`;
+const clavePagina = (prm, mes, anio, fase) => `${prm}:${fase === "documentos" ? "doc:" : ""}${anio}-${String(mes).padStart(2, "0")}`;
 /** Meses pendientes de una comisión: los meses pasados ya recorridos no se repiten; el mes en curso, una vez al día. */
-async function mesesPendientes(prm, meses) {
+async function mesesPendientes(prm, meses, fase) {
   const { camaraPaginasHechas = {} } = await chrome.storage.local.get("camaraPaginasHechas");
-  return mesesHaciaAtras(meses).filter((m) => !camaraPaginasHechas[clavePagina(prm, m.mes, m.anio)]);
+  return mesesHaciaAtras(meses).filter((m) => !camaraPaginasHechas[clavePagina(prm, m.mes, m.anio, fase)]);
 }
-async function marcarPagina(prm, mes, anio) {
+async function marcarPagina(prm, mes, anio, fase) {
   if (!prm || !mes || !anio) return;
   const { camaraPaginasHechas = {} } = await chrome.storage.local.get("camaraPaginasHechas");
-  camaraPaginasHechas[clavePagina(prm, mes, anio)] = new Date().toISOString();
+  camaraPaginasHechas[clavePagina(prm, mes, anio, fase)] = new Date().toISOString();
   await chrome.storage.local.set({ camaraPaginasHechas });
 }
-async function mesActualHecho(prm) {
+async function mesActualHecho(prm, fase) {
   const d = new Date();
   const { camaraPaginasHechas = {} } = await chrome.storage.local.get("camaraPaginasHechas");
-  const f = camaraPaginasHechas[clavePagina(prm, d.getMonth() + 1, d.getFullYear())];
+  const f = camaraPaginasHechas[clavePagina(prm, d.getMonth() + 1, d.getFullYear(), fase)];
   return f && Date.now() - Date.parse(f) < 20 * 3600 * 1000;
+}
+/** Plan de una comisión: primero sus páginas de sesiones, después las de documentos (solo lo pendiente). */
+async function planComision(c, meses) {
+  const ses = await mesesPendientes(c.prmID, meses, "sesiones");
+  const doc = await mesesPendientes(c.prmID, meses, "documentos");
+  const sesHoy = !(await mesActualHecho(c.prmID, "sesiones")), docHoy = !(await mesActualHecho(c.prmID, "documentos"));
+  if (!ses.length && !doc.length && !sesHoy && !docHoy) return null;
+  const empiezaEnSesiones = ses.length || sesHoy;
+  return { prmID: c.prmID, nombre: c.nombre, fase: empiezaEnSesiones ? "sesiones" : "documentos", restantes: empiezaEnSesiones ? ses : doc, restantesDoc: (doc.length || docHoy) ? doc : null };
 }
 async function leerRecorrido() { return (await chrome.storage.local.get("recorrido")).recorrido || null; }
 async function guardarRecorrido(r) { await chrome.storage.local.set({ recorrido: r }); }
@@ -281,16 +291,14 @@ async function iniciarRecorrido(meses) {
   }
   // Solo comisiones con algo pendiente (un mes pasado no recorrido, o el mes en curso no revisado hoy).
   const conPendientes = [];
-  for (const c of lista) {
-    const restantes = await mesesPendientes(c.prmID, meses);
-    if (restantes.length || !(await mesActualHecho(c.prmID))) conPendientes.push({ prmID: c.prmID, nombre: c.nombre, restantes });
-  }
+  for (const c of lista) { const pl = await planComision(c, meses); if (pl) conPendientes.push(pl); }
   if (!conPendientes.length) {
     const r = { activo: false, meses, total: 0, hechas: 0, cola: [], motivo: "Terminado: no hay páginas nuevas por revisar en ese período", fin: new Date().toISOString() };
     await guardarRecorrido(r);
     return r;
   }
-  const tab = await chrome.tabs.create({ url: URL_SESIONES(conPendientes[0].prmID), active: false });
+  const p0 = conPendientes[0];
+  const tab = await chrome.tabs.create({ url: p0.fase === "documentos" ? URL_DOCUMENTOS(p0.prmID) : URL_SESIONES(p0.prmID), active: false });
   const r = { activo: true, meses, total: conPendientes.length, hechas: 0, cola: conPendientes.slice(1), actual: conPendientes[0], tabId: tab.id, inicio: new Date().toISOString(), ultimaSenal: Date.now() };
   await guardarRecorrido(r);
   chrome.alarms.create("recorrido-vigilancia", { periodInMinutes: 2 });
@@ -309,11 +317,13 @@ async function avanzarComision(r) {
   r.hechas++;
   const sig = r.cola.shift();
   if (!sig) { await guardarRecorrido(r); return detenerRecorrido(`Terminado: ${r.hechas} comisiones revisadas`); }
-  r.actual = { ...sig, restantes: sig.restantes || await mesesPendientes(sig.prmID, r.meses) };
+  const pl = sig.fase ? sig : await planComision(sig, r.meses);
+  if (!pl) return avanzarComision(r);
+  r.actual = pl;
   r.ultimaSenal = Date.now();
   await guardarRecorrido(r);
   await new Promise((ok) => setTimeout(ok, 3000));
-  chrome.tabs.update(r.tabId, { url: URL_SESIONES(sig.prmID) }).catch(() => detenerRecorrido("Se cerró la pestaña del recorrido"));
+  chrome.tabs.update(r.tabId, { url: pl.fase === "documentos" ? URL_DOCUMENTOS(pl.prmID) : URL_SESIONES(pl.prmID) }).catch(() => detenerRecorrido("Se cerró la pestaña del recorrido"));
 }
 chrome.runtime.onMessage.addListener((msg, sender, responder) => {
   if (msg?.tipo === "recorrido-siguiente") {
@@ -321,12 +331,22 @@ chrome.runtime.onMessage.addListener((msg, sender, responder) => {
       const r = await leerRecorrido();
       if (!r?.activo || sender.tab?.id !== r.tabId || r.actual?.prmID !== msg.prmID) return responder({ accion: "nada" });
       // La página (comisión y mes) queda como revisada solo si todo se guardó bien; si algo falló, se repite otro día.
-      if (msg.completo) await marcarPagina(msg.prmID, msg.mes, msg.anio);
+      const fase = msg.fase || "sesiones";
+      if ((r.actual.fase || "sesiones") !== fase) return responder({ accion: "nada" });
+      if (msg.completo) await marcarPagina(msg.prmID, msg.mes, msg.anio, fase);
       r.ultimaSenal = Date.now();
       const m = r.actual.restantes.shift();
       await guardarRecorrido(r);
       if (m) return responder({ accion: "mes", mes: m.mes, anio: m.anio });
       responder({ accion: "nada" });
+      // Terminadas las sesiones de esta comisión, sigue con su página de documentos (presentaciones, comparados).
+      if (fase === "sesiones" && r.actual.restantesDoc) {
+        r.actual.fase = "documentos"; r.actual.restantes = r.actual.restantesDoc; r.actual.restantesDoc = null;
+        await guardarRecorrido(r);
+        await new Promise((ok) => setTimeout(ok, 2500));
+        chrome.tabs.update(r.tabId, { url: URL_DOCUMENTOS(r.actual.prmID) }).catch(() => detenerRecorrido("Se cerró la pestaña del recorrido"));
+        return;
+      }
       await avanzarComision(r);
     })();
     return true;
@@ -424,6 +444,16 @@ chrome.runtime.onMessage.addListener((msg, _s, responder) => {
       if (msg.accion === "detener") { const { rescateSenado: r } = await chrome.storage.local.get("rescateSenado"); if (r) await chrome.storage.local.set({ rescateSenado: { ...r, activo: false, fin: new Date().toISOString(), motivo: "Detenido por el usuario" } }); }
       responder({ ok: true, estado: (await chrome.storage.local.get("rescateSenado")).rescateSenado || null });
     })();
+    return true;
+  }
+});
+
+// Documentos de comisión de la Cámara (los lee documentos.js al abrir la página "Documentos" de una comisión).
+chrome.runtime.onMessage.addListener((msg, _s, responder) => {
+  if (msg?.tipo === "camara-documentos") {
+    enviar("/api/camara/documentos/importar", msg.datos)
+      .then(async (j) => { await registrar("documentos", { ok: true, detalle: `${j.documentos} documento(s) de comisión` }); responder({ ok: true, ...j }); })
+      .catch(async (e) => { await registrar("documentos", { ok: false, detalle: e.message }); responder({ ok: false, error: e.message }); });
     return true;
   }
 });

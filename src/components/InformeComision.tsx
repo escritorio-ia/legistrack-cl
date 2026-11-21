@@ -25,10 +25,12 @@ export default function InformeComision({ nombre, camara, registro, onAbrirBolet
 }) {
   // Sesiones de la Cámara con sus documentos oficiales (acta, cuenta, asistencia, votaciones), enviadas por la extensión.
   const [oficiales, setOficiales] = useState<any[]>([]);
+  const [documentos, setDocumentos] = useState<any[]>([]);
   useEffect(() => {
     if (!comisionId || !comisionId.startsWith("cd-")) { setOficiales([]); return; }
     let vigente = true;
     fetch(`/api/comision/${encodeURIComponent(comisionId)}/sesiones-camara`).then((r) => r.json()).then((d) => { if (vigente) setOficiales(d?.sesiones || []); }).catch(() => {});
+    fetch(`/api/comision/${encodeURIComponent(comisionId)}/documentos-camara`).then((r) => r.json()).then((d) => { if (vigente) setDocumentos(d?.documentos || []); }).catch(() => {});
     return () => { vigente = false; };
   }, [comisionId]);
   const [videos, setVideos] = useState<AnalisisVideoUI[]>([]);
@@ -134,6 +136,11 @@ export default function InformeComision({ nombre, camara, registro, onAbrirBolet
                       </ol>
                     )}
                     {s.resultado && <p className="mt-1 text-emerald-800"><b>Resultado oficial:</b> {s.resultado}</p>}
+                    {documentos.filter((d) => d.fecha === s.fecha).length > 0 && (
+                      <div className="mt-1.5 text-slate-700"><b>Presentaciones y documentos:</b>
+                        <ul className="mt-0.5 space-y-0.5">{documentos.filter((d) => d.fecha === s.fecha).map((d) => <li key={d.docId}><span className="text-[10px] font-bold uppercase text-slate-500 mr-1">{d.tipo}</span><a href={d.url} target="_blank" rel="noopener noreferrer" className="text-blue-700 hover:underline">{d.titulo || "Documento"}</a>{d.boletin ? <span className="ml-1">{chip(d.boletin)}</span> : null}</li>)}</ul>
+                      </div>
+                    )}
                     {oficiales.filter((o) => o.fecha === s.fecha).map((o) => (
                       <div key={o.sesionId} className="mt-1.5 bg-sky-50/70 border border-sky-100 rounded-lg p-2 space-y-0.5">
                         <p className="text-sky-900"><b>Documentos oficiales{o.numero ? ` · sesión N° ${o.numero}` : ""}:</b>{" "}

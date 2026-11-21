@@ -126,3 +126,53 @@ export async function sesionesActasCamaraDeComision(comisionId: string) {
   return filas.map((f) => { const d: any = camposAObjeto(f.datos); return { sesionId: d.sesionId, numero: d.numero, fecha: d.fecha, hora: d.hora, url: d.url, cuentaUrl: d.cuentaUrl, tieneActa: !!d.texto, tieneCuenta: !!d.cuenta, asistentes: (d.diputadosAsistentes || []).length, votaciones: d.votaciones || [], puntos: d.puntos || [] }; })
     .sort((a, b) => b.fecha.localeCompare(a.fecha));
 }
+
+// ---------------------------------------------------------------------------
+// Documentos de comisión de la Cámara (documentos.aspx): presentaciones de invitados, comparados, minutas, etc.
+// Los envía la extensión al abrir esa página; se extrae el texto si viene el archivo (PDF o Word).
+// ---------------------------------------------------------------------------
+async function textoArchivo(b64?: string): Promise<{ texto: string; formato: string }> {
+  if (!b64) return { texto: "", formato: "" };
+  const buf = Buffer.from(String(b64), "base64");
+  try {
+    if (buf.slice(0, 4).toString("latin1") === "%PDF") {
+      const { extractText, getDocumentProxy } = await import("unpdf");
+      const pdf = await getDocumentProxy(new Uint8Array(buf));
+      return { texto: String((await extractText(pdf, { mergePages: true })).text || "").replace(/\s+/g, " ").trim(), formato: "pdf" };
+    }
+    if (buf.slice(0, 2).toString("latin1") === "PK") {
+      const mammoth = await import("mammoth");
+      const t = ((await mammoth.extractRawText({ buffer: buf })).value || "").replace(/\s+/g, " ").trim();
+      return { texto: t, formato: t ? "docx" : "zip" };
+    }
+  } catch { /* sin texto */ }
+  return { texto: "", formato: "otro" };
+}
+
+export async function importarDocumentosCamara(p: { comisionPrmId: string; docs: { docId: string; fecha: string; sesion?: string; tipo?: string; boletin?: string; titulo?: string; base64?: string }[] }) {
+  if (!/^\d+$/.test(p.comisionPrmId)) throw new Error("Comisión no válida.");
+  const c: any = DIPUTADOS_COMISIONES_DETALLE.find((x: any) => String(x.prmID) === p.comisionPrmId);
+  let n = 0;
+  for (const d of (p.docs || []).slice(0, 10)) {
+    if (!/^\d+$/.test(String(d.docId))) continue;
+    const { texto, formato } = await textoArchivo(d.base64);
+    const bol = String(d.boletin || "").replace(/\./g, "").match(/(\d{3,6})-(\d{1,2})/);
+    await escribirDoc(`documentos_camara/${d.docId}`, {
+      docId: String(d.docId), comisionPrmId: p.comisionPrmId, comisionId: c ? `cd-${c.id}` : "", comision: c?.nombre || "",
+      fecha: fechaActaISO(d.fecha), sesion: String(d.sesion || ""), tipo: String(d.tipo || ""), boletin: bol ? `${bol[1]}-${bol[2].padStart(2, "0")}` : "",
+      titulo: String(d.titulo || "").slice(0, 600), url: `https://www.camara.cl/verDoc.aspx?prmID=${d.docId}&prmTipo=DOCUMENTO_COMISIONDOCUMENTO`,
+      texto: texto.slice(0, 80000), formato, sinArchivo: !d.base64, importadoEn: new Date().toISOString(),
+    });
+    n++;
+  }
+  return { documentos: n };
+}
+
+export async function documentosCamaraDeBoletin(boletin: string) {
+  const filas = await consultar({ from: [{ collectionId: "documentos_camara" }], where: { fieldFilter: { field: { fieldPath: "boletin" }, op: "EQUAL", value: { stringValue: boletin } } } }).catch(() => []);
+  return filas.map((f) => camposAObjeto(f.datos) as any).sort((a: any, b: any) => String(a.fecha).localeCompare(String(b.fecha)));
+}
+export async function documentosCamaraDeComision(comisionId: string) {
+  const filas = await consultar({ from: [{ collectionId: "documentos_camara" }], where: { fieldFilter: { field: { fieldPath: "comisionId" }, op: "EQUAL", value: { stringValue: comisionId } } }, select: { fields: ["docId", "fecha", "sesion", "tipo", "boletin", "titulo", "url"].map((f) => ({ fieldPath: f })) } }).catch(() => []);
+  return filas.map((f) => camposAObjeto(f.datos) as any).sort((a: any, b: any) => String(b.fecha).localeCompare(String(a.fecha)));
+}

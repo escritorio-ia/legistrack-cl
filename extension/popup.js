@@ -5,8 +5,8 @@ function pintar(id, v) {
   el.textContent = `${v.ok ? "✓" : "✗"} ${v.detalle} · ${new Date(v.fecha).toLocaleString("es-CL")}`;
 }
 async function refrescar() {
-  const d = await chrome.storage.local.get(["senado", "camara", "sesiones", "resultados", "sala", "actas"]);
-  pintar("senado", d.senado); pintar("camara", d.camara); pintar("sesiones", d.sesiones); pintar("resultados", d.resultados); pintar("sala", d.sala); pintar("actas", d.actas);
+  const d = await chrome.storage.local.get(["senado", "camara", "sesiones", "resultados", "sala", "actas", "documentos"]);
+  pintar("senado", d.senado); pintar("camara", d.camara); pintar("sesiones", d.sesiones); pintar("resultados", d.resultados); pintar("sala", d.sala); pintar("actas", d.actas); pintar("documentos", d.documentos);
 }
 document.getElementById("sync").onclick = async () => {
   document.getElementById("senado").textContent = "Sincronizando…";
@@ -47,7 +47,7 @@ transcripcionPopup("estado");
 function pintarRecorrido(r) {
   const el = document.getElementById("recEstado");
   if (!r) { el.textContent = "Sin recorridos todavía."; }
-  else if (r.activo) { el.className = "ok"; el.textContent = `● Recorriendo: ${r.actual?.nombre || ""} (${r.hechas + 1} de ${r.total} comisiones)`; }
+  else if (r.activo) { el.className = "ok"; el.textContent = `● Recorriendo ${r.actual?.fase === "documentos" ? "documentos" : "sesiones"}: ${r.actual?.nombre || ""} (${r.hechas + 1} de ${r.total} comisiones)`; }
   else { el.className = "gris"; el.textContent = `${r.motivo || "Detenido"}${r.fin ? " · " + new Date(r.fin).toLocaleString("es-CL") : ""}`; }
   document.getElementById("recIniciar").style.display = r?.activo ? "none" : "";
   document.getElementById("recDetener").style.display = r?.activo ? "" : "none";
