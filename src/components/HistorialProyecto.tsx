@@ -253,6 +253,11 @@ export default function HistorialProyecto({ proyecto, ficha, fichaCargando, info
                           </div>
                         )}
                         {(c.actas || []).length > 0 && <p className="text-xs text-slate-600">Actas oficiales: {c.actas!.map((a, k) => <a key={k} href={a.url} target="_blank" rel="noopener noreferrer" className="text-blue-700 hover:underline mr-2">{a.numero ? `N° ${a.numero} · ` : ""}{fmt(a.fecha)}</a>)}</p>}
+                        {(c.presentaciones || []).length > 0 && (
+                          <div><p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Presentaciones de los invitados ({c.presentaciones!.length})</p>
+                            <ul className="space-y-0.5 text-xs">{c.presentaciones!.map((p, k) => <li key={k}><a href={p.url} target="_blank" rel="noopener noreferrer" className="text-blue-700 hover:underline">{p.titulo}</a>{p.organizacion ? ` · ${p.organizacion}` : ""}{p.autor ? ` · ${p.autor}` : ""} <span className="text-slate-400">{fmt(p.fecha)}</span></li>)}</ul>
+                          </div>
+                        )}
                         {c.informeOficial && <p className="text-xs"><a href={c.informeOficial.url} target="_blank" rel="noopener noreferrer" className="text-blue-700 font-bold hover:underline inline-flex items-center gap-1">{c.informeOficial.titulo} <ExternalLink className="w-3 h-3" /></a></p>}
 
                         {(c.temas || []).length > 0 && (

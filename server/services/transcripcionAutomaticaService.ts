@@ -14,7 +14,7 @@ import { conexionFirestore, leerDoc, escribirDoc, consultar, camposAObjeto } fro
 import { combinarSesion, unirSesionesLeidas, type SesionRegistrada } from "./registroSesionesService";
 import { buscarVideosSesion, detallesVideos, transcribirParteVideo, SEGUNDOS_POR_PARTE_TRANSCRIPCION, youtubeApiConfigurada } from "./youtubeService";
 import { generarInformeSesion } from "./informeSesionService";
-import { fichaEjecutivaProyecto } from "./senadoService";
+import { fichaEjecutivaProyecto, procesarPresentacionesPendientes } from "./senadoService";
 import { resumenComisionesBoletin } from "./resumenBoletinService";
 import { construirHistorial } from "./historialService";
 import { boletinesEnTexto } from "../../src/utils/boletines";
@@ -282,7 +282,10 @@ async function pasoConBloqueo(): Promise<{ ok: boolean; accion: string; sesion?:
       await Promise.race([construirHistorial(historial).catch(() => undefined), new Promise((res) => setTimeout(res, 170_000))]);
     }
   }
-  return { ...r, fichas, ...(historial ? { historial } : {}) };
+  // También con tiempo libre: texto de presentaciones del Senado pendientes.
+  let presentaciones = 0;
+  if (!historial && ["sin_video", "nada", "tope", "ya_transcrita", "inactiva", "sin_youtube"].includes(r.accion)) presentaciones = await procesarPresentacionesPendientes(3, 60000).catch(() => 0);
+  return { ...r, fichas, ...(historial ? { historial } : {}), ...(presentaciones ? { presentaciones } : {}) };
 }
 
 async function pasoTranscripcion(): Promise<{ ok: boolean; accion: string; sesion?: string; detalle: string }> {

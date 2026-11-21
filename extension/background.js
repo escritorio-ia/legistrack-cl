@@ -153,7 +153,7 @@ function fechaDMY(f) { const m = String(f || "").match(/(\d{1,2})\/(\d{1,2})\/(\
 
 async function enviarDetallesRecientes(idComision, filas) {
   const limite = Date.now() - 60 * 86400000;
-  const { detallesSenado = {} } = await chrome.storage.local.get("detallesSenado");
+  const { detallesSenadoV2: detallesSenado = {} } = await chrome.storage.local.get("detallesSenadoV2");
   const pendientes = filas.filter(f => { const d = fechaDMY(f.FECHA); return d && d.getTime() >= limite && d.getTime() <= Date.now() && !detallesSenado[f.ID_SESION]; }).slice(0, 15);
   const lote = [];
   for (const f of pendientes) {
@@ -167,7 +167,7 @@ async function enviarDetallesRecientes(idComision, filas) {
   try {
     const res = await enviar("/api/senado/sesiones/detalle/importar", { detalles: lote });
     for (const x of lote) detallesSenado[x.idSesion] = Date.now();
-    await chrome.storage.local.set({ detallesSenado });
+    await chrome.storage.local.set({ detallesSenadoV2: detallesSenado });
     return res.detalles || 0;
   } catch { return 0; }
 }
@@ -362,8 +362,8 @@ async function rescatarSenado(meses) {
   const limite = new Date(); limite.setMonth(limite.getMonth() - meses); limite.setDate(1);
   const estado = { activo: true, meses, total: (ids || []).length, hechas: 0, sesiones: 0, detalles: 0, errores: 0, inicio: new Date().toISOString() };
   await chrome.storage.local.set({ rescateSenado: estado });
-  const { detallesSenado = {} } = await chrome.storage.local.get("detallesSenado");
-  const { senadoComisionesHechas = {} } = await chrome.storage.local.get("senadoComisionesHechas");
+  const { detallesSenadoV2: detallesSenado = {} } = await chrome.storage.local.get("detallesSenadoV2");
+  const { senadoComisionesHechasV2: senadoComisionesHechas = {} } = await chrome.storage.local.get("senadoComisionesHechasV2");
   for (const id of ids || []) {
     if (!(await chrome.storage.local.get("rescateSenado")).rescateSenado?.activo) break;
     // Comisión ya rescatada en los últimos 3 días con al menos los mismos meses: no se repite.
@@ -400,7 +400,7 @@ async function rescatarSenado(meses) {
           try {
             const res2 = await enviar("/api/senado/sesiones/detalle/importar", { detalles: lote });
             for (const x of lote) detallesSenado[x.idSesion] = Date.now();
-            await chrome.storage.local.set({ detallesSenado });
+            await chrome.storage.local.set({ detallesSenadoV2: detallesSenado });
             estado.detalles += res2.detalles || 0;
           } catch { estado.errores++; }
         }
@@ -409,7 +409,7 @@ async function rescatarSenado(meses) {
     estado.hechas++;
     if (estado.errores === erroresAntes) {
       senadoComisionesHechas[id] = { fecha: new Date().toISOString(), meses };
-      await chrome.storage.local.set({ senadoComisionesHechas });
+      await chrome.storage.local.set({ senadoComisionesHechasV2: senadoComisionesHechas });
     }
     await chrome.storage.local.set({ rescateSenado: { ...estado } });
   }

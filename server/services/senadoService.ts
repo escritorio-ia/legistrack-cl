@@ -1462,7 +1462,7 @@ export interface DetalleSesionSenado {
   comision?: string;
   fecha?: string; inicio?: string; termino?: string; lugar?: string;
   puntos?: { numero: string; boletin: string; tema: string; aspectos: string; acuerdos: string; invitados: string; asistentes: string }[];
-  presentaciones?: { titulo: string; url: string }[];
+  presentaciones?: { titulo: string; url: string; autor?: string; organizacion?: string; boletin?: string }[];
   url?: string;
 }
 
@@ -1483,7 +1483,15 @@ export function parsearDetalleSesionSenado(d: any, url: string): DetalleSesionSe
       invitados: textoPlano(p.INVITADOS && p.INVITADOS !== "null" ? p.INVITADOS : (p.OTROS_ASISTENTES && p.OTROS_ASISTENTES !== "null" ? p.OTROS_ASISTENTES : "")),
       asistentes: nombresDe(p.INTEGRANTES && (Array.isArray(p.INTEGRANTES) ? p.INTEGRANTES.length : 1) ? p.INTEGRANTES : p.ASISTENTES)
     })),
-    presentaciones: (d.PRESENTACIONES || []).map((x: any) => ({ titulo: String(x.TITULO || x.NOMBRE || "Presentación"), url: String(x.URL || x.LINK || "") })).filter((x: any) => x.url)
+    // Campos reales de la API del Senado: TITULO_PRESENTACION/TEMA, AUTOR, ORGANIZACION, BOLETIN y LINK_DOCUMENTO
+    // (antes se leían TITULO/URL, que no existen, y las presentaciones se perdían).
+    presentaciones: (Array.isArray(d.PRESENTACIONES) ? d.PRESENTACIONES : []).filter((x: any) => x && typeof x === "object").map((x: any) => ({
+      titulo: textoPlano(x.TITULO_PRESENTACION || x.TEMA || x.TITULO || x.NOMBRE || "Presentación"),
+      url: String(x.LINK_DOCUMENTO || x.URL || x.LINK || ""),
+      autor: x.AUTOR && x.AUTOR !== "null" ? textoPlano(x.AUTOR) : "",
+      organizacion: x.ORGANIZACION && x.ORGANIZACION !== "null" ? textoPlano(x.ORGANIZACION) : "",
+      boletin: x.BOLETIN ? String(x.BOLETIN) : "",
+    })).filter((x: any) => /^https:\/\/microservicio-documentos[\w.-]*\.senado\.cl\//.test(x.url))
   };
 }
 
@@ -1501,7 +1509,10 @@ export async function importarDetallesSesionesSenado(items: { idComision: string
       body: JSON.stringify({ fields: { payload: { stringValue: JSON.stringify(det) }, actualizado: { stringValue: new Date().toISOString() } } }),
       signal: AbortSignal.timeout(10000)
     });
-    if (r.ok) { n++; cache.set(`detalle_sesion_senado_${it.idComision}_${it.idSesion}`, det, 7 * 24 * 60 * 60 * 1000); }
+    if (r.ok) {
+      n++; cache.set(`detalle_sesion_senado_${it.idComision}_${it.idSesion}`, det, 7 * 24 * 60 * 60 * 1000);
+      await registrarPresentaciones(String(it.idComision), String(it.idSesion), det).catch(() => undefined);
+    }
   }
   return n;
 }
@@ -1535,4 +1546,62 @@ export async function detalleSesionSenado(idComision: string, idSesion: string):
   } catch (err: any) {
     return { disponible: false, motivo: `No se pudo consultar senado.cl: ${err?.message || err}`, url };
   }
+}
+
+// ---------------------------------------------------------------------------
+// Presentaciones de los invitados en sesiones de comisión del Senado (PDF en microservicio-documentos-lectura.senado.cl).
+// Se registran al importar el detalle de la sesión y su texto se extrae después, de a pocas, en segundo plano.
+// ---------------------------------------------------------------------------
+const idPresentacion = (url: string) => (url.match(/archivos\/([0-9a-f-]{36})/i) || [])[1] || "";
+async function registrarPresentaciones(idComision: string, idSesion: string, det: DetalleSesionSenado) {
+  const { escribirDoc, leerDoc } = await import("./firestoreRest");
+  const m = String(det.fecha || "").match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  const fecha = m ? `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}` : "";
+  const comision = (await import("../../src/data/comisionesData")).SENADO_COMISIONES_DETALLE.find((c: any) => String(c.senadoId) === idComision)?.nombre || (det.comision ? `Comisión ${det.comision}` : "");
+  for (const x of det.presentaciones || []) {
+    const id = idPresentacion(x.url);
+    if (!id) continue;
+    const previa = await leerDoc(`presentaciones_senado/${id}`).catch(() => null);
+    if (previa) continue;
+    const boletin = String(x.boletin || "").replace(/\./g, "");
+    await escribirDoc(`presentaciones_senado/${id}`, { titulo: x.titulo, autor: x.autor || "", organizacion: x.organizacion || "", boletin, url: x.url, idSesion, idComision, comision, fecha, pendiente: true, texto: "", registrado: new Date().toISOString() });
+  }
+}
+
+/** Extrae el texto de hasta `maximo` presentaciones pendientes (se llama en segundo plano). */
+export async function procesarPresentacionesPendientes(maximo = 3, presupuestoMs = 60000): Promise<number> {
+  const { consultar, escribirDoc, camposAObjeto } = await import("./firestoreRest");
+  const fin = Date.now() + presupuestoMs;
+  const filas = await consultar({ from: [{ collectionId: "presentaciones_senado" }], where: { fieldFilter: { field: { fieldPath: "pendiente" }, op: "EQUAL", value: { booleanValue: true } } }, limit: maximo }).catch(() => []);
+  let n = 0;
+  for (const f of filas) {
+    if (Date.now() > fin) break;
+    const d: any = camposAObjeto(f.datos);
+    let texto = "", error = "";
+    try {
+      const r = await fetch(d.url, { headers: { "User-Agent": "Mozilla/5.0 LegisTrackCL" }, signal: AbortSignal.timeout(Math.max(5000, Math.min(30000, fin - Date.now()))) });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const buf = Buffer.from(await r.arrayBuffer());
+      if (buf.length > 25 * 1024 * 1024) throw new Error("documento demasiado grande");
+      if (buf.slice(0, 4).toString("latin1") === "%PDF") {
+        const { extractText, getDocumentProxy } = await import("unpdf");
+        const pdf = await getDocumentProxy(new Uint8Array(buf));
+        texto = String((await extractText(pdf, { mergePages: true })).text || "").replace(/\s+/g, " ").trim();
+      } else if (buf.slice(0, 2).toString("latin1") === "PK") {
+        const mammoth = await import("mammoth");
+        texto = ((await mammoth.extractRawText({ buffer: buf })).value || "").replace(/\s+/g, " ").trim();
+      } else throw new Error("formato no reconocido");
+      if (texto.length < 50) error = "sin texto legible (posible imagen escaneada)";
+    } catch (e: any) { error = e?.message || String(e); }
+    await escribirDoc(`presentaciones_senado/${f.id}`, { texto: texto.slice(0, 80000), pendiente: false, error, procesado: new Date().toISOString() }).catch(() => undefined);
+    n++;
+  }
+  return n;
+}
+
+/** Presentaciones de invitados sobre un boletín (con su texto, si ya se extrajo). */
+export async function presentacionesDeBoletin(boletin: string) {
+  const { consultar, camposAObjeto } = await import("./firestoreRest");
+  const filas = await consultar({ from: [{ collectionId: "presentaciones_senado" }], where: { fieldFilter: { field: { fieldPath: "boletin" }, op: "EQUAL", value: { stringValue: boletin } } } }).catch(() => []);
+  return filas.map((f) => camposAObjeto(f.datos) as any).sort((a: any, b: any) => String(a.fecha).localeCompare(String(b.fecha)));
 }

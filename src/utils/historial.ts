@@ -29,6 +29,8 @@ export interface ComisionHistorial {
   informeOficial: { titulo: string; url: string; fecha?: string } | null;
   /** Actas oficiales de sesión (Cámara) disponibles para esta comisión. */
   actas?: { fecha: string; numero: string; url: string }[];
+  /** Presentaciones de invitados (Senado), con enlace al documento. */
+  presentaciones?: { titulo: string; organizacion: string; autor: string; fecha: string; url: string }[];
   sesiones: { fecha: string; videoId?: string; estado?: string; sintesis?: string }[];
   estadistica: EstadisticaComision;
   // Síntesis con IA (validada contra las fechas de las sesiones):

@@ -5,6 +5,7 @@ import { pasoTranscripcionAutomatica, estadoTranscripcionAutomatica, pasoEncaden
 import { resumenComisionesBoletin } from "../services/resumenBoletinService";
 import { construirHistorial } from "../services/historialService";
 import { importarActaCamara, importarSesionCamara, sesionesActasCamaraDeComision } from "../services/actasCamaraService";
+import { procesarPresentacionesPendientes } from "../services/senadoService";
 import { salaSemana, importarTablaSenado, sincronizarSala, sesionesSalaDeBoletin } from "../services/salaService";
 import { discusionDeProyecto } from "../services/discusionService";
 import { construirResumenSesion } from "../services/resumenSesionService";
@@ -972,7 +973,14 @@ apiRouter.post("/senado/sesiones/detalle/importar", expressText({ type: "text/pl
   const token = process.env.CITACIONES_IMPORT_TOKEN;
   if (token && body?.token !== token) return res.status(401).json({ ok: false, error: "Token de importación inválido." });
   if (!Array.isArray(body?.detalles)) return res.status(400).json({ ok: false, error: "Faltan detalles." });
-  try { const n = await importarDetallesSesionesSenado(body.detalles.slice(0, 60)); res.json({ ok: true, detalles: n, registro: await registrarTrasImportar() }); }
+  try {
+    const n = await importarDetallesSesionesSenado(body.detalles.slice(0, 60));
+    // Texto de las presentaciones nuevas, por detrás (sin hacer esperar a la extensión).
+    const ctx = (globalThis as any)[Symbol.for("@vercel/request-context")]?.get?.();
+    const fondo = procesarPresentacionesPendientes(4, 50000).catch(() => 0);
+    if (ctx?.waitUntil) ctx.waitUntil(fondo);
+    res.json({ ok: true, detalles: n, registro: await registrarTrasImportar() });
+  }
   catch (err: any) { res.status(422).json({ ok: false, error: err?.message || String(err) }); }
 });
 
