@@ -190570,9 +190570,14 @@ async function procesarPresentacionesPendientes(maximo = 3, presupuestoMs = 6e4)
   const { consultar: consultar2, escribirDoc: escribirDoc2, camposAObjeto: camposAObjeto2 } = await Promise.resolve().then(() => (init_firestoreRest(), firestoreRest_exports));
   const fin = Date.now() + presupuestoMs;
   const filas = await consultar2({ from: [{ collectionId: "presentaciones_senado" }], where: { fieldFilter: { field: { fieldPath: "pendiente" }, op: "EQUAL", value: { booleanValue: true } } }, limit: maximo }).catch(() => []);
+  if (filas.length < maximo) {
+    const reintentos = await consultar2({ from: [{ collectionId: "presentaciones_senado" }], where: { fieldFilter: { field: { fieldPath: "error" }, op: "EQUAL", value: { stringValue: "HTTP 429" } } }, limit: maximo - filas.length }).catch(() => []);
+    filas.push(...reintentos);
+  }
   let n = 0;
   for (const f of filas) {
     if (Date.now() > fin) break;
+    if (n > 0) await new Promise((ok) => setTimeout(ok, 2e3));
     const d = camposAObjeto2(f.datos);
     let texto = "", error = "";
     try {
@@ -190592,7 +190597,15 @@ async function procesarPresentacionesPendientes(maximo = 3, presupuestoMs = 6e4)
     } catch (e) {
       error = e?.message || String(e);
     }
-    await escribirDoc2(`presentaciones_senado/${f.id}`, { texto: texto.slice(0, 8e4), pendiente: false, error, procesado: (/* @__PURE__ */ new Date()).toISOString() }).catch(() => void 0);
+    const intentos2 = Number(d.intentos || 0) + 1;
+    const pasajero = /HTTP (429|5\d\d)|timeout|aborted|fetch failed/i.test(error);
+    if (pasajero && intentos2 < 6) {
+      await escribirDoc2(`presentaciones_senado/${f.id}`, { pendiente: true, error, intentos: intentos2 }).catch(() => void 0);
+      n++;
+      if (/429/.test(error)) break;
+      continue;
+    }
+    await escribirDoc2(`presentaciones_senado/${f.id}`, { texto: texto.slice(0, 8e4), pendiente: false, error, intentos: intentos2, procesado: (/* @__PURE__ */ new Date()).toISOString() }).catch(() => void 0);
     n++;
   }
   return n;

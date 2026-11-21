@@ -1573,9 +1573,15 @@ export async function procesarPresentacionesPendientes(maximo = 3, presupuestoMs
   const { consultar, escribirDoc, camposAObjeto } = await import("./firestoreRest");
   const fin = Date.now() + presupuestoMs;
   const filas = await consultar({ from: [{ collectionId: "presentaciones_senado" }], where: { fieldFilter: { field: { fieldPath: "pendiente" }, op: "EQUAL", value: { booleanValue: true } } }, limit: maximo }).catch(() => []);
+  // Las que fallaron antes por saturación del servidor del Senado (HTTP 429) se reintentan cuando no hay otras pendientes.
+  if (filas.length < maximo) {
+    const reintentos = await consultar({ from: [{ collectionId: "presentaciones_senado" }], where: { fieldFilter: { field: { fieldPath: "error" }, op: "EQUAL", value: { stringValue: "HTTP 429" } } }, limit: maximo - filas.length }).catch(() => []);
+    filas.push(...reintentos);
+  }
   let n = 0;
   for (const f of filas) {
     if (Date.now() > fin) break;
+    if (n > 0) await new Promise((ok) => setTimeout(ok, 2000)); // sin apuro: no saturar el servidor del Senado
     const d: any = camposAObjeto(f.datos);
     let texto = "", error = "";
     try {
@@ -1593,7 +1599,16 @@ export async function procesarPresentacionesPendientes(maximo = 3, presupuestoMs
       } else throw new Error("formato no reconocido");
       if (texto.length < 50) error = "sin texto legible (posible imagen escaneada)";
     } catch (e: any) { error = e?.message || String(e); }
-    await escribirDoc(`presentaciones_senado/${f.id}`, { texto: texto.slice(0, 80000), pendiente: false, error, procesado: new Date().toISOString() }).catch(() => undefined);
+    // Error pasajero (saturación, caída o tiempo agotado): queda pendiente para otro intento, hasta 6 veces.
+    const intentos = Number(d.intentos || 0) + 1;
+    const pasajero = /HTTP (429|5\d\d)|timeout|aborted|fetch failed/i.test(error);
+    if (pasajero && intentos < 6) {
+      await escribirDoc(`presentaciones_senado/${f.id}`, { pendiente: true, error, intentos }).catch(() => undefined);
+      n++;
+      if (/429/.test(error)) break; // el Senado pidió esperar: se sigue en el próximo paso
+      continue;
+    }
+    await escribirDoc(`presentaciones_senado/${f.id}`, { texto: texto.slice(0, 80000), pendiente: false, error, intentos, procesado: new Date().toISOString() }).catch(() => undefined);
     n++;
   }
   return n;
