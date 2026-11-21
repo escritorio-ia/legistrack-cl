@@ -14,12 +14,13 @@ async function enviarSesionesDeLaPagina(prmID) {
       asistencia: /asistencia\.aspx/i.test(html), votacion: /votaciones_sesion\.aspx/i.test(html), resultado: /resultado_detalle\.aspx/i.test(html),
     };
   }).filter((s) => s.sesionId && /celebrada/i.test(s.estado));
-  if (sesiones.length === 0) return;
+  if (sesiones.length === 0) return true;
 
   const firma = (s) => [s.sesionId, s.actaDocId, s.cuentaDocId, s.asistencia, s.votacion, s.resultado].join(":");
   const { sesionesCamaraEnviadas = [] } = await chrome.storage.local.get("sesionesCamaraEnviadas");
-  const pendientes = sesiones.filter((s) => !sesionesCamaraEnviadas.includes(firma(s))).slice(0, 10);
-  if (pendientes.length === 0) return;
+  const todasPendientes = sesiones.filter((s) => !sesionesCamaraEnviadas.includes(firma(s)));
+  const pendientes = todasPendientes.slice(0, 10);
+  if (pendientes.length === 0) return true;
 
   const aviso = document.createElement("div");
   aviso.style.cssText = "position:fixed;right:16px;bottom:16px;z-index:99999;background:#0f172a;color:#fff;padding:10px 14px;border-radius:10px;font:600 13px system-ui;box-shadow:0 4px 16px rgba(0,0,0,.3);max-width:360px";
@@ -72,6 +73,8 @@ async function enviarSesionesDeLaPagina(prmID) {
   aviso.style.background = ok ? "#047857" : "#b91c1c";
   aviso.textContent = ok ? `Legislación++: ${ok} sesión(es) guardadas con citación, cuenta, asistencia, acta, votación y resultado${err ? ` (alguna falló: ${err})` : ""}.` : `Legislación++: no se pudieron enviar las sesiones (${err}).`;
   setTimeout(() => aviso.remove(), 8000);
+  // Página completa: nada falló y no quedaron sesiones sin enviar (se envían hasta 10 por visita).
+  return !err && todasPendientes.length <= pendientes.length;
 }
 
 // Recorrido automático (iniciado desde la ventanita de la extensión): al terminar esta página, pregunta qué sigue
@@ -79,9 +82,10 @@ async function enviarSesionesDeLaPagina(prmID) {
 (async function () {
   const prmID = (location.search.match(/prmID=(\d+)/i) || [])[1];
   if (!prmID) return;
-  try { await enviarSesionesDeLaPagina(prmID); } catch (e) { /* se sigue con el recorrido */ }
+  let completo = false;
+  try { completo = (await enviarSesionesDeLaPagina(prmID)) === true; } catch (e) { /* se sigue con el recorrido */ }
   const mes = document.querySelector("select[id$='ddlMes']"), anio = document.querySelector("select[id$='ddlAnnos']");
-  const r = await chrome.runtime.sendMessage({ tipo: "recorrido-siguiente", prmID, mes: mes?.value, anio: anio?.value }).catch(() => null);
+  const r = await chrome.runtime.sendMessage({ tipo: "recorrido-siguiente", prmID, mes: mes?.value, anio: anio?.value, completo }).catch(() => null);
   if (r?.accion === "mes" && mes && anio) {
     await new Promise((ok) => setTimeout(ok, 2500)); // pausa entre páginas, para no recargar el sitio
     anio.value = String(r.anio);

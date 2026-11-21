@@ -246,18 +246,52 @@ function mesesHaciaAtras(n) {
   for (let i = 1; i < n; i++) { const x = new Date(d.getFullYear(), d.getMonth() - i, 1); out.push({ mes: x.getMonth() + 1, anio: x.getFullYear() }); }
   return out; // el mes actual es el que la página muestra al abrir
 }
+const clavePagina = (prm, mes, anio) => `${prm}:${anio}-${String(mes).padStart(2, "0")}`;
+/** Meses pendientes de una comisión: los meses pasados ya recorridos no se repiten; el mes en curso, una vez al día. */
+async function mesesPendientes(prm, meses) {
+  const { camaraPaginasHechas = {} } = await chrome.storage.local.get("camaraPaginasHechas");
+  return mesesHaciaAtras(meses).filter((m) => !camaraPaginasHechas[clavePagina(prm, m.mes, m.anio)]);
+}
+async function marcarPagina(prm, mes, anio) {
+  if (!prm || !mes || !anio) return;
+  const { camaraPaginasHechas = {} } = await chrome.storage.local.get("camaraPaginasHechas");
+  camaraPaginasHechas[clavePagina(prm, mes, anio)] = new Date().toISOString();
+  await chrome.storage.local.set({ camaraPaginasHechas });
+}
+async function mesActualHecho(prm) {
+  const d = new Date();
+  const { camaraPaginasHechas = {} } = await chrome.storage.local.get("camaraPaginasHechas");
+  const f = camaraPaginasHechas[clavePagina(prm, d.getMonth() + 1, d.getFullYear())];
+  return f && Date.now() - Date.parse(f) < 20 * 3600 * 1000;
+}
 async function leerRecorrido() { return (await chrome.storage.local.get("recorrido")).recorrido || null; }
 async function guardarRecorrido(r) { await chrome.storage.local.set({ recorrido: r }); }
 async function iniciarRecorrido(meses) {
-  const { app } = await config();
-  const resp = await fetch(`${app}/api/camara/comisiones-prm`);
-  const cuerpo = await resp.text();
-  let lista = [];
-  try { lista = JSON.parse(cuerpo).comisiones || []; }
-  catch { throw new Error(`La app (${app}) no entregó la lista de comisiones (HTTP ${resp.status}). Revisa que esté publicada la última versión y la dirección en Opciones.`); }
-  if (!lista.length) throw new Error("No se pudo obtener la lista de comisiones.");
-  const tab = await chrome.tabs.create({ url: URL_SESIONES(lista[0].prmID), active: false });
-  const r = { activo: true, meses, total: lista.length, hechas: 0, cola: lista.slice(1), actual: { ...lista[0], restantes: mesesHaciaAtras(meses) }, tabId: tab.id, inicio: new Date().toISOString(), ultimaSenal: Date.now() };
+  // Si hay un recorrido que se detuvo antes de terminar con los mismos meses, se continúa donde quedó.
+  const previo = await leerRecorrido();
+  let lista;
+  if (previo && !previo.activo && previo.meses === meses && previo.actual && previo.cola && !/^Terminado/.test(previo.motivo || "")) {
+    lista = [previo.actual, ...previo.cola];
+  } else {
+    const { app } = await config();
+    const resp = await fetch(`${app}/api/camara/comisiones-prm`);
+    const cuerpo = await resp.text();
+    try { lista = JSON.parse(cuerpo).comisiones || []; }
+    catch { throw new Error(`La app (${app}) no entregó la lista de comisiones (HTTP ${resp.status}). Revisa que esté publicada la última versión y la dirección en Opciones.`); }
+  }
+  // Solo comisiones con algo pendiente (un mes pasado no recorrido, o el mes en curso no revisado hoy).
+  const conPendientes = [];
+  for (const c of lista) {
+    const restantes = await mesesPendientes(c.prmID, meses);
+    if (restantes.length || !(await mesActualHecho(c.prmID))) conPendientes.push({ prmID: c.prmID, nombre: c.nombre, restantes });
+  }
+  if (!conPendientes.length) {
+    const r = { activo: false, meses, total: 0, hechas: 0, cola: [], motivo: "Terminado: no hay páginas nuevas por revisar en ese período", fin: new Date().toISOString() };
+    await guardarRecorrido(r);
+    return r;
+  }
+  const tab = await chrome.tabs.create({ url: URL_SESIONES(conPendientes[0].prmID), active: false });
+  const r = { activo: true, meses, total: conPendientes.length, hechas: 0, cola: conPendientes.slice(1), actual: conPendientes[0], tabId: tab.id, inicio: new Date().toISOString(), ultimaSenal: Date.now() };
   await guardarRecorrido(r);
   chrome.alarms.create("recorrido-vigilancia", { periodInMinutes: 2 });
   return r;
@@ -275,7 +309,7 @@ async function avanzarComision(r) {
   r.hechas++;
   const sig = r.cola.shift();
   if (!sig) { await guardarRecorrido(r); return detenerRecorrido(`Terminado: ${r.hechas} comisiones revisadas`); }
-  r.actual = { ...sig, restantes: mesesHaciaAtras(r.meses) };
+  r.actual = { ...sig, restantes: sig.restantes || await mesesPendientes(sig.prmID, r.meses) };
   r.ultimaSenal = Date.now();
   await guardarRecorrido(r);
   await new Promise((ok) => setTimeout(ok, 3000));
@@ -286,6 +320,8 @@ chrome.runtime.onMessage.addListener((msg, sender, responder) => {
     (async () => {
       const r = await leerRecorrido();
       if (!r?.activo || sender.tab?.id !== r.tabId || r.actual?.prmID !== msg.prmID) return responder({ accion: "nada" });
+      // La página (comisión y mes) queda como revisada solo si todo se guardó bien; si algo falló, se repite otro día.
+      if (msg.completo) await marcarPagina(msg.prmID, msg.mes, msg.anio);
       r.ultimaSenal = Date.now();
       const m = r.actual.restantes.shift();
       await guardarRecorrido(r);
@@ -327,8 +363,13 @@ async function rescatarSenado(meses) {
   const estado = { activo: true, meses, total: (ids || []).length, hechas: 0, sesiones: 0, detalles: 0, errores: 0, inicio: new Date().toISOString() };
   await chrome.storage.local.set({ rescateSenado: estado });
   const { detallesSenado = {} } = await chrome.storage.local.get("detallesSenado");
+  const { senadoComisionesHechas = {} } = await chrome.storage.local.get("senadoComisionesHechas");
   for (const id of ids || []) {
     if (!(await chrome.storage.local.get("rescateSenado")).rescateSenado?.activo) break;
+    // Comisión ya rescatada en los últimos 3 días con al menos los mismos meses: no se repite.
+    const hecha = senadoComisionesHechas[id];
+    if (hecha && hecha.meses >= meses && Date.now() - Date.parse(hecha.fecha) < 3 * 86400000) { estado.hechas++; estado.omitidas = (estado.omitidas || 0) + 1; continue; }
+    let erroresAntes = estado.errores;
     try {
       // Sesiones de la comisión, por páginas, hasta llegar a la fecha límite.
       let filas = [];
@@ -366,6 +407,10 @@ async function rescatarSenado(meses) {
       }
     } catch { estado.errores++; }
     estado.hechas++;
+    if (estado.errores === erroresAntes) {
+      senadoComisionesHechas[id] = { fecha: new Date().toISOString(), meses };
+      await chrome.storage.local.set({ senadoComisionesHechas });
+    }
     await chrome.storage.local.set({ rescateSenado: { ...estado } });
   }
   estado.activo = false; estado.fin = new Date().toISOString();

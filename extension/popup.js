@@ -66,7 +66,7 @@ function pintarSenado(e) {
   const el = document.getElementById("senEstado");
   if (!e) el.textContent = "Sin rescates todavía.";
   else if (e.activo) { el.className = "ok"; el.textContent = `● Rescatando: ${e.hechas} de ${e.total} comisiones · ${e.sesiones} sesiones · ${e.detalles} detalles`; }
-  else { el.className = "gris"; el.textContent = `${e.motivo || "Terminado"}: ${e.hechas} de ${e.total} comisiones · ${e.sesiones} sesiones · ${e.detalles} detalles${e.errores ? ` · ${e.errores} con error` : ""}`; }
+  else { el.className = "gris"; el.textContent = `${e.motivo || "Terminado"}: ${e.hechas} de ${e.total} comisiones${e.omitidas ? ` (${e.omitidas} ya estaban al día)` : ""} · ${e.sesiones} sesiones · ${e.detalles} detalles${e.errores ? ` · ${e.errores} con error` : ""}`; }
   document.getElementById("senIniciar").style.display = e?.activo ? "none" : "";
   document.getElementById("senDetener").style.display = e?.activo ? "" : "none";
 }
