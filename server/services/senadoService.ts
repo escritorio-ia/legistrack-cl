@@ -1568,6 +1568,8 @@ async function registrarPresentaciones(idComision: string, idSesion: string, det
   }
 }
 
+/** true si en la última pasada el Senado pidió esperar (HTTP 429). */
+export let senadoSaturado = false;
 /** Extrae el texto de hasta `maximo` presentaciones pendientes (se llama en segundo plano). */
 export async function procesarPresentacionesPendientes(maximo = 3, presupuestoMs = 60000): Promise<number> {
   const { consultar, escribirDoc, camposAObjeto } = await import("./firestoreRest");
@@ -1579,6 +1581,7 @@ export async function procesarPresentacionesPendientes(maximo = 3, presupuestoMs
     filas.push(...reintentos);
   }
   let n = 0;
+  senadoSaturado = false;
   for (const f of filas) {
     if (Date.now() > fin) break;
     if (n > 0) await new Promise((ok) => setTimeout(ok, 2000)); // sin apuro: no saturar el servidor del Senado
@@ -1605,7 +1608,7 @@ export async function procesarPresentacionesPendientes(maximo = 3, presupuestoMs
     if (pasajero && intentos < 6) {
       await escribirDoc(`presentaciones_senado/${f.id}`, { pendiente: true, error, intentos }).catch(() => undefined);
       n++;
-      if (/429/.test(error)) break; // el Senado pidió esperar: se sigue en el próximo paso
+      if (/429/.test(error)) { senadoSaturado = true; break; } // el Senado pidió esperar: se sigue en el próximo paso
       continue;
     }
     await escribirDoc(`presentaciones_senado/${f.id}`, { texto: texto.slice(0, 80000), pendiente: false, error, intentos, procesado: new Date().toISOString() }).catch(() => undefined);

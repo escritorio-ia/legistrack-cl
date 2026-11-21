@@ -14,6 +14,7 @@ import { conexionFirestore, leerDoc, escribirDoc, consultar, camposAObjeto } fro
 import { combinarSesion, unirSesionesLeidas, type SesionRegistrada } from "./registroSesionesService";
 import { buscarVideosSesion, detallesVideos, transcribirParteVideo, SEGUNDOS_POR_PARTE_TRANSCRIPCION, youtubeApiConfigurada } from "./youtubeService";
 import { generarInformeSesion } from "./informeSesionService";
+import * as senado from "./senadoService";
 import { fichaEjecutivaProyecto, procesarPresentacionesPendientes } from "./senadoService";
 import { resumenComisionesBoletin } from "./resumenBoletinService";
 import { construirHistorial } from "./historialService";
@@ -253,7 +254,10 @@ export async function pasoEncadenado(baseRespaldo?: string): Promise<void> {
   const r = await pasoTranscripcionAutomatica().catch((e: any) => ({ ok: false, accion: "error", detalle: e?.message || String(e) }));
   const control = await leerControl();
   if (r.accion !== "ocupado") await fijarControl({ ultimoPaso: { accion: r.accion, sesion: (r as any).sesion || "", detalle: r.detalle, fecha: new Date().toISOString() } }).catch(() => undefined);
-  if (!control.activa || !r.ok || SIN_TRABAJO.has(r.accion)) return;
+  // Sin sesiones por transcribir (o con el tope del día), la cadena sigue mientras haya trabajo de fondo:
+  // historiales pendientes o texto de presentaciones del Senado (salvo que el Senado haya pedido esperar).
+  const fondo = !!(r as any).historial || (Number((r as any).presentaciones || 0) > 0 && !senado.senadoSaturado);
+  if (!control.activa || !r.ok || (SIN_TRABAJO.has(r.accion) && !(fondo && r.accion !== "ocupado" && r.accion !== "inactiva"))) return;
   await new Promise((res) => setTimeout(res, 5000));
   await siguientePaso(control.base || baseRespaldo || "");
 }
@@ -284,7 +288,7 @@ async function pasoConBloqueo(): Promise<{ ok: boolean; accion: string; sesion?:
   }
   // También con tiempo libre: texto de presentaciones del Senado pendientes.
   let presentaciones = 0;
-  if (!historial && ["sin_video", "nada", "tope", "ya_transcrita", "inactiva", "sin_youtube"].includes(r.accion)) presentaciones = await procesarPresentacionesPendientes(3, 60000).catch(() => 0);
+  if (!historial && ["sin_video", "nada", "tope", "ya_transcrita", "inactiva", "sin_youtube"].includes(r.accion)) presentaciones = await procesarPresentacionesPendientes(5, 90000).catch(() => 0);
   return { ...r, fichas, ...(historial ? { historial } : {}), ...(presentaciones ? { presentaciones } : {}) };
 }
 

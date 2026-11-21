@@ -190566,6 +190566,7 @@ async function registrarPresentaciones(idComision, idSesion2, det) {
     await escribirDoc2(`presentaciones_senado/${id}`, { titulo: x.titulo, autor: x.autor || "", organizacion: x.organizacion || "", boletin, url: x.url, idSesion: idSesion2, idComision, comision, fecha, pendiente: true, texto: "", registrado: (/* @__PURE__ */ new Date()).toISOString() });
   }
 }
+var senadoSaturado = false;
 async function procesarPresentacionesPendientes(maximo = 3, presupuestoMs = 6e4) {
   const { consultar: consultar2, escribirDoc: escribirDoc2, camposAObjeto: camposAObjeto2 } = await Promise.resolve().then(() => (init_firestoreRest(), firestoreRest_exports));
   const fin = Date.now() + presupuestoMs;
@@ -190575,6 +190576,7 @@ async function procesarPresentacionesPendientes(maximo = 3, presupuestoMs = 6e4)
     filas.push(...reintentos);
   }
   let n = 0;
+  senadoSaturado = false;
   for (const f of filas) {
     if (Date.now() > fin) break;
     if (n > 0) await new Promise((ok) => setTimeout(ok, 2e3));
@@ -190602,7 +190604,10 @@ async function procesarPresentacionesPendientes(maximo = 3, presupuestoMs = 6e4)
     if (pasajero && intentos2 < 6) {
       await escribirDoc2(`presentaciones_senado/${f.id}`, { pendiente: true, error, intentos: intentos2 }).catch(() => void 0);
       n++;
-      if (/429/.test(error)) break;
+      if (/429/.test(error)) {
+        senadoSaturado = true;
+        break;
+      }
       continue;
     }
     await escribirDoc2(`presentaciones_senado/${f.id}`, { texto: texto.slice(0, 8e4), pendiente: false, error, intentos: intentos2, procesado: (/* @__PURE__ */ new Date()).toISOString() }).catch(() => void 0);
@@ -193422,7 +193427,8 @@ async function pasoEncadenado(baseRespaldo) {
   const r = await pasoTranscripcionAutomatica().catch((e) => ({ ok: false, accion: "error", detalle: e?.message || String(e) }));
   const control = await leerControl();
   if (r.accion !== "ocupado") await fijarControl({ ultimoPaso: { accion: r.accion, sesion: r.sesion || "", detalle: r.detalle, fecha: (/* @__PURE__ */ new Date()).toISOString() } }).catch(() => void 0);
-  if (!control.activa || !r.ok || SIN_TRABAJO.has(r.accion)) return;
+  const fondo = !!r.historial || Number(r.presentaciones || 0) > 0 && !senadoSaturado;
+  if (!control.activa || !r.ok || SIN_TRABAJO.has(r.accion) && !(fondo && r.accion !== "ocupado" && r.accion !== "inactiva")) return;
   await new Promise((res) => setTimeout(res, 5e3));
   await siguientePaso(control.base || baseRespaldo || "");
 }
@@ -193450,7 +193456,7 @@ async function pasoConBloqueo() {
     }
   }
   let presentaciones = 0;
-  if (!historial && ["sin_video", "nada", "tope", "ya_transcrita", "inactiva", "sin_youtube"].includes(r.accion)) presentaciones = await procesarPresentacionesPendientes(3, 6e4).catch(() => 0);
+  if (!historial && ["sin_video", "nada", "tope", "ya_transcrita", "inactiva", "sin_youtube"].includes(r.accion)) presentaciones = await procesarPresentacionesPendientes(5, 9e4).catch(() => 0);
   return { ...r, fichas, ...historial ? { historial } : {}, ...presentaciones ? { presentaciones } : {} };
 }
 async function pasoTranscripcion() {
