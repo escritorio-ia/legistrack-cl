@@ -130,6 +130,27 @@ async function buscarVideo(t: Trabajo): Promise<string | null> {
   return v.id;
 }
 
+/** Gemini sin saldo (prepago agotado o facturación): no es culpa de la sesión, no debe contar como intento. */
+export const esSinCredito = (m?: string) => /HTTP 402|credits are depleted|billing|RESOURCE_EXHAUSTED.*prepay/i.test(String(m || ""));
+const PAUSA_SIN_CREDITO_MS = 60 * 60 * 1000;
+async function pausarPorCredito(motivo: string) {
+  await escribirDoc(`${COLA}/_control`, { sinCreditoHasta: new Date(Date.now() + PAUSA_SIN_CREDITO_MS).toISOString(), sinCreditoMotivo: motivo.slice(0, 300) }).catch(() => undefined);
+}
+class SinCredito extends Error {}
+
+/** Sesiones que quedaron en "error" solo por falta de saldo en Gemini: vuelven a la cola. */
+async function recuperarErroresPorCredito(): Promise<number> {
+  const filas = await consultar({ from: [{ collectionId: COLA }], where: { fieldFilter: { field: { fieldPath: "estado" }, op: "EQUAL", value: { stringValue: "error" } } }, limit: 100 }).catch(() => []);
+  let n = 0;
+  for (const f of filas) {
+    const t = { id: f.id, ...camposAObjeto(f.datos) } as Trabajo;
+    if (!esSinCredito(t.error) || !t.videoId) continue;
+    await guardarTrabajo(t, { estado: "transcribiendo", intentos: 0, error: "" });
+    n++;
+  }
+  return n;
+}
+
 /** Transcribe los tramos que falten (hasta que se acabe el tiempo de esta llamada o el tope diario). */
 async function avanzarTranscripcion(t: Trabajo, limite: number): Promise<string> {
   const previa = await leerTranscripcion(t.videoId!);
@@ -142,7 +163,12 @@ async function avanzarTranscripcion(t: Trabajo, limite: number): Promise<string>
     const cont = await contadorDia();
     if (cont.tramos >= configuracionAuto().maxTramosDia) return `Tope diario alcanzado (${cont.tramos} tramos).`;
     const r = await transcribirParteVideo({ videoId: t.videoId!, parte, duracion: t.duracion ?? undefined, comision: t.comision, fecha: t.fecha, materia: t.tabla.join(" ") });
-    await escribirDoc(cont.ruta, { tramos: cont.tramos + 1, fecha: hoyChileISO() });
+    if (!r.disponible && esSinCredito(r.motivo)) {
+      await guardarTrabajo(t, { error: r.motivo || "" });
+      await pausarPorCredito(r.motivo || "");
+      throw new SinCredito(r.motivo || "Gemini sin saldo");
+    }
+    if (r.disponible) await escribirDoc(cont.ruta, { tramos: cont.tramos + 1, fecha: hoyChileISO() });
     if (!r.disponible) {
       const intentos = (t.intentos || 0) + 1;
       await guardarTrabajo(t, { intentos, error: r.motivo || "No se pudo transcribir el tramo", estado: intentos >= 3 ? "error" : "transcribiendo" });
@@ -172,6 +198,7 @@ async function redactarInforme(t: Trabajo): Promise<string> {
   const r = await generarInformeSesion({ segmentos, tabla: t.tabla, boletines: t.boletines, comision: t.comision, fecha: t.fecha, parcial: !previa.completo });
   if (r.disponible === false) {
     const motivo = (r as { motivo: string }).motivo;
+    if (esSinCredito(motivo)) { await guardarTrabajo(t, { error: motivo }); await pausarPorCredito(motivo); throw new SinCredito(motivo); }
     const intentos = (t.intentos || 0) + 1;
     await guardarTrabajo(t, { intentos, error: motivo, estado: intentos >= 3 ? "transcrita" : "informe_pendiente" });
     return `No se pudo redactar el informe: ${motivo}`;
@@ -242,7 +269,7 @@ export async function leerControl(): Promise<ControlAuto> {
 export async function fijarControl(cambios: Partial<ControlAuto>) {
   await escribirDoc(`${COLA}/_control`, cambios as any);
 }
-const SIN_TRABAJO = new Set(["nada", "tope", "inactiva", "sin_youtube", "ocupado"]);
+const SIN_TRABAJO = new Set(["nada", "tope", "inactiva", "sin_youtube", "ocupado", "sin_credito"]);
 /** Pide el siguiente paso a la propia app (no espera el trabajo: responde al instante y sigue por detrás). */
 export async function siguientePaso(base: string): Promise<void> {
   const secreto = String(process.env.CRON_SECRET || "").trim();
@@ -277,7 +304,7 @@ async function pasoConBloqueo(): Promise<{ ok: boolean; accion: string; sesion?:
   const r = await pasoTranscripcion();
   // Con tiempo libre (pasos livianos), rehace el historial de un boletín con informes nuevos.
   let historial: string | undefined;
-  if (["sin_video", "nada", "tope", "ya_transcrita", "inactiva", "sin_youtube"].includes(r.accion)) {
+  if (["sin_video", "nada", "tope", "ya_transcrita", "inactiva", "sin_youtube", "sin_credito"].includes(r.accion)) {
     const pend = await leerDoc(`${COLA}/_historial_pendiente`).catch(() => null);
     const lista: string[] = pend?.boletines || [];
     if (lista.length) {
@@ -288,15 +315,34 @@ async function pasoConBloqueo(): Promise<{ ok: boolean; accion: string; sesion?:
   }
   // También con tiempo libre: texto de presentaciones del Senado pendientes.
   let presentaciones = 0;
-  if (!historial && ["sin_video", "nada", "tope", "ya_transcrita", "inactiva", "sin_youtube"].includes(r.accion)) presentaciones = await procesarPresentacionesPendientes(5, 90000).catch(() => 0);
+  if (!historial && ["sin_video", "nada", "tope", "ya_transcrita", "inactiva", "sin_youtube", "sin_credito"].includes(r.accion)) presentaciones = await procesarPresentacionesPendientes(5, 90000).catch(() => 0);
   return { ...r, fichas, ...(historial ? { historial } : {}), ...(presentaciones ? { presentaciones } : {}) };
 }
 
 async function pasoTranscripcion(): Promise<{ ok: boolean; accion: string; sesion?: string; detalle: string }> {
+  // Si Gemini se quedó sin saldo hace poco, no se gasta el paso: se reintenta una vez por hora.
+  const ctrl: any = await leerDoc(`${COLA}/_control`).catch(() => null);
+  if (ctrl?.sinCreditoHasta && Date.parse(ctrl.sinCreditoHasta) > Date.now()) {
+    return { ok: true, accion: "sin_credito", detalle: `Gemini sin saldo (prepago agotado). Se reintenta automáticamente después de ${new Date(ctrl.sinCreditoHasta).toLocaleTimeString("es-CL", { timeZone: "America/Santiago", hour: "2-digit", minute: "2-digit" })}. Recarga el saldo en Google AI Studio.` };
+  }
+  try { return await pasoTranscripcionConCredito(ctrl); }
+  catch (e: any) {
+    if (e instanceof SinCredito) return { ok: true, accion: "sin_credito", detalle: "Gemini sin saldo (prepago agotado). Pausado 1 hora; la sesión no pierde intentos. Recarga el saldo en Google AI Studio." };
+    throw e;
+  }
+}
+
+async function pasoTranscripcionConCredito(ctrl: any): Promise<{ ok: boolean; accion: string; sesion?: string; detalle: string }> {
   const conf = configuracionAuto();
   if (!conf.activa) return { ok: true, accion: "inactiva", detalle: `La transcripción automática está desactivada: TRANSCRIPCION_AUTO ${process.env.TRANSCRIPCION_AUTO === undefined ? "no existe en este despliegue" : `tiene un valor distinto de 1 (${String(process.env.TRANSCRIPCION_AUTO).length} caracteres)`}.` };
   if (!youtubeApiConfigurada()) return { ok: false, accion: "sin_youtube", detalle: "Falta YOUTUBE_API_KEY para encontrar los videos." };
   const limite = Date.now() + 100_000; // deja margen dentro de los 300 s de Vercel (la precarga de fichas usa hasta 60 s)
+
+  // 0) Con saldo de nuevo: las sesiones que fallaron solo por falta de saldo vuelven a la cola.
+  if (ctrl?.sinCreditoHasta || !ctrl?.erroresCreditoRecuperados) {
+    await recuperarErroresPorCredito().catch(() => 0);
+    await escribirDoc(`${COLA}/_control`, { sinCreditoHasta: "", erroresCreditoRecuperados: true }).catch(() => undefined);
+  }
 
   // 1) Sesión en curso.
   let t = await trabajoEnEstado("transcribiendo");

@@ -19,18 +19,25 @@ async function enviarDocumentosDeLaPagina(prmID) {
   for (const [i, d] of pendientes.entries()) {
     aviso.textContent = `Legislación++: enviando documentos (${i + 1} de ${pendientes.length})…`;
     let base64 = "";
-    try {
-      const r = await fetch(`/verDoc.aspx?prmID=${d.docId}&prmTipo=DOCUMENTO_COMISIONDOCUMENTO`);
-      if (r.ok) {
+    // La Cámara a veces rechaza la primera descarga (HTTP 403) y entrega el archivo al segundo intento.
+    for (let intento = 0; intento < 2 && !base64; intento++) {
+      if (intento) await new Promise((ok) => setTimeout(ok, 2000));
+      try {
+        const r = await fetch(`/verDoc.aspx?prmID=${d.docId}&prmTipo=DOCUMENTO_COMISIONDOCUMENTO`);
+        if (!r.ok) continue;
         const bytes = new Uint8Array(await r.arrayBuffer());
-        if (bytes.length <= 3 * 1024 * 1024) {
-          let bin = "";
-          for (let k = 0; k < bytes.length; k += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(k, k + 0x8000));
-          base64 = btoa(bin);
-        }
-      }
-    } catch { /* se envía sin archivo */ }
-    const resp = await chrome.runtime.sendMessage({ tipo: "camara-documentos", datos: { comisionPrmId: prmID, docs: [{ ...d, base64 }] } }).catch((e) => ({ ok: false, error: e.message }));
+        const cabeza = String.fromCharCode(...bytes.slice(0, 4));
+        if (!/^%PDF|^PK/.test(cabeza)) continue; // no es un PDF ni un Word: se envía sin archivo
+        if (bytes.length > 2.5 * 1024 * 1024) break; // Vercel no acepta envíos de más de 4,5 MB
+        let bin = "";
+        for (let k = 0; k < bytes.length; k += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(k, k + 0x8000));
+        base64 = btoa(bin);
+      } catch { /* se reintenta o se envía sin archivo */ }
+    }
+    const mandar = (b64) => chrome.runtime.sendMessage({ tipo: "camara-documentos", datos: { comisionPrmId: prmID, docs: [{ ...d, base64: b64 }] } }).catch((e) => ({ ok: false, error: e.message }));
+    let resp = await mandar(base64);
+    // Si falló con el archivo, al menos se guardan los datos y el enlace.
+    if (!resp?.ok && base64) resp = await mandar("");
     if (resp?.ok) { ok++; camaraDocsEnviados.push(d.docId); await chrome.storage.local.set({ camaraDocsEnviados: camaraDocsEnviados.slice(-8000) }); }
     else err = resp?.error || "sin respuesta";
   }
