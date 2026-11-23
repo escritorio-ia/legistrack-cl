@@ -248,10 +248,17 @@ function mesesHaciaAtras(n) {
   return out; // el mes actual es el que la página muestra al abrir
 }
 const clavePagina = (prm, mes, anio, fase) => `${prm}:${fase === "documentos" ? "doc:" : ""}${anio}-${String(mes).padStart(2, "0")}`;
-/** Meses pendientes de una comisión: los meses pasados ya recorridos no se repiten; el mes en curso, una vez al día. */
+/** Meses pendientes de una comisión: los meses pasados ya recorridos no se repiten; el mes en curso, una vez al día.
+ *  Un mes pasado cuenta como recorrido solo si se revisó al menos 10 días después de terminar (las actas se publican
+ *  días después de la sesión: así las de fin de mes no se pierden). */
 async function mesesPendientes(prm, meses, fase) {
   const { camaraPaginasHechas = {} } = await chrome.storage.local.get("camaraPaginasHechas");
-  return mesesHaciaAtras(meses).filter((m) => !camaraPaginasHechas[clavePagina(prm, m.mes, m.anio, fase)]);
+  return mesesHaciaAtras(meses).filter((m) => {
+    const f = camaraPaginasHechas[clavePagina(prm, m.mes, m.anio, fase)];
+    if (!f) return true;
+    const finMes = new Date(m.anio, m.mes, 1).getTime(); // primer día del mes siguiente
+    return Date.parse(f) < finMes + 10 * 86400000;
+  });
 }
 async function marcarPagina(prm, mes, anio, fase) {
   if (!prm || !mes || !anio) return;
@@ -276,7 +283,7 @@ async function planComision(c, meses) {
 }
 async function leerRecorrido() { return (await chrome.storage.local.get("recorrido")).recorrido || null; }
 async function guardarRecorrido(r) { await chrome.storage.local.set({ recorrido: r }); }
-async function iniciarRecorrido(meses) {
+async function iniciarRecorrido(meses, auto = false) {
   // Si hay un recorrido que se detuvo antes de terminar con los mismos meses, se continúa donde quedó.
   const previo = await leerRecorrido();
   let lista;
@@ -299,7 +306,7 @@ async function iniciarRecorrido(meses) {
   }
   const p0 = conPendientes[0];
   const tab = await chrome.tabs.create({ url: p0.fase === "documentos" ? URL_DOCUMENTOS(p0.prmID) : URL_SESIONES(p0.prmID), active: false });
-  const r = { activo: true, meses, total: conPendientes.length, hechas: 0, cola: conPendientes.slice(1), actual: conPendientes[0], tabId: tab.id, inicio: new Date().toISOString(), ultimaSenal: Date.now() };
+  const r = { activo: true, auto, meses, total: conPendientes.length, hechas: 0, cola: conPendientes.slice(1), actual: conPendientes[0], tabId: tab.id, inicio: new Date().toISOString(), ultimaSenal: Date.now() };
   await guardarRecorrido(r);
   chrome.alarms.create("recorrido-vigilancia", { periodInMinutes: 2 });
   return r;
@@ -370,6 +377,34 @@ chrome.alarms.onAlarm.addListener(async (a) => {
   if (Date.now() - (r.ultimaSenal || 0) > 4 * 60 * 1000) await avanzarComision(r);
 });
 chrome.tabs.onRemoved.addListener(async (id) => { const r = await leerRecorrido(); if (r?.activo && r.tabId === id) detenerRecorrido("Se cerró la pestaña del recorrido"); });
+
+// Revisión diaria automática de la Cámara: una vez al día, con el navegador abierto, recorre en una pestaña de fondo
+// el mes en curso y el anterior (actas y documentos nuevos) y la cierra al terminar. Sin botones.
+// Se puede apagar en la ventanita de la extensión ("Revisión diaria automática").
+const hoyLocal = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+async function revisionDiariaCamara() {
+  const { camaraAuto = true, camaraAutoUltima = "" } = await chrome.storage.local.get(["camaraAuto", "camaraAutoUltima"]);
+  if (!camaraAuto || camaraAutoUltima === hoyLocal()) return;
+  if (new Date().getHours() < 8) return; // no antes de las 8 de la mañana
+  const previo = await leerRecorrido();
+  if (previo?.activo) return; // hay un recorrido en curso (manual o automático)
+  await chrome.storage.local.set({ camaraAutoUltima: hoyLocal() });
+  try { await iniciarRecorrido(2, true); }
+  catch (e) { await registrar("actas", { ok: false, detalle: `Revisión diaria: ${e.message}` }); }
+}
+chrome.alarms.onAlarm.addListener((a) => { if (a.name === "camara-diaria") revisionDiariaCamara(); });
+chrome.runtime.onInstalled.addListener(() => chrome.alarms.create("camara-diaria", { delayInMinutes: 3, periodInMinutes: 30 }));
+chrome.runtime.onStartup.addListener(() => chrome.alarms.create("camara-diaria", { delayInMinutes: 3, periodInMinutes: 30 }));
+chrome.runtime.onMessage.addListener((msg, _s, responder) => {
+  if (msg?.tipo === "camara-auto") {
+    (async () => {
+      if (typeof msg.activo === "boolean") await chrome.storage.local.set({ camaraAuto: msg.activo });
+      const { camaraAuto = true, camaraAutoUltima = "" } = await chrome.storage.local.get(["camaraAuto", "camaraAutoUltima"]);
+      responder({ ok: true, activo: camaraAuto, ultima: camaraAutoUltima });
+    })();
+    return true;
+  }
+});
 
 // ---------------------------------------------------------------------------
 // Rescate de sesiones del Senado (equivalente al de la Cámara): el Senado publica cada sesión de comisión con sus

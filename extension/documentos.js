@@ -1,6 +1,6 @@
 // Se ejecuta al abrir la página "Documentos" de una comisión en camara.cl (legislacion/comisiones/documentos.aspx):
 // presentaciones de invitados, comparados y otros documentos por sesión. Envía a Legislación++ los que aún no se
-// han enviado (los archivos de más de 3 MB se envían solo con sus datos y enlace).
+// han enviado (los archivos de más de 2,5 MB se envían solo con sus datos y enlace).
 async function enviarDocumentosDeLaPagina(prmID) {
   const filas = [...document.querySelectorAll("tr")].filter((tr) => /DOCUMENTO_COMISIONDOCUMENTO/i.test(tr.innerHTML));
   const docs = filas.map((tr) => {
@@ -10,13 +10,14 @@ async function enviarDocumentosDeLaPagina(prmID) {
   if (!docs.length) return true;
   const { camaraDocsEnviados = [] } = await chrome.storage.local.get("camaraDocsEnviados");
   const todos = docs.filter((d) => !camaraDocsEnviados.includes(d.docId));
-  const pendientes = todos.slice(0, 8);
+  const pendientes = todos; // todos los de la página, con una pausa breve entre cada uno
   if (!pendientes.length) return true;
   const aviso = document.createElement("div");
   aviso.style.cssText = "position:fixed;right:16px;bottom:16px;z-index:99999;background:#0f172a;color:#fff;padding:10px 14px;border-radius:10px;font:600 13px system-ui;box-shadow:0 4px 16px rgba(0,0,0,.3);max-width:360px";
   document.body.appendChild(aviso);
   let ok = 0, err = "";
   for (const [i, d] of pendientes.entries()) {
+    if (i) await new Promise((ok) => setTimeout(ok, 1000)); // sin apuro: no cargar el servidor de la Cámara
     aviso.textContent = `Legislación++: enviando documentos (${i + 1} de ${pendientes.length})…`;
     let base64 = "";
     // La Cámara a veces rechaza la primera descarga (HTTP 403) y entrega el archivo al segundo intento.

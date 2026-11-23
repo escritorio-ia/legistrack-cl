@@ -804,7 +804,13 @@ apiRouter.get("/registro-sesiones/sincronizar", async (req: Request, res: Respon
   try {
     const registro = await sincronizarRegistroSesiones({ forzar: autorizado });
     const sala = await sincronizarSala().catch((e: any) => ({ error: e?.message || String(e) }));
-    res.json({ ...registro, sala });
+    // Sesiones y asistencia de la Cámara desde sus datos abiertos (por detrás, sin hacer esperar la respuesta).
+    if (autorizado) {
+      const ctx = (globalThis as any)[Symbol.for("@vercel/request-context")]?.get?.();
+      const fondo = import("../services/actasCamaraService").then((m) => m.sincronizarSesionesCamaraOpendata()).catch(() => undefined);
+      if (ctx?.waitUntil) ctx.waitUntil(fondo);
+    }
+    res.json({ ...registro, sala, camaraOpendata: autorizado ? "en curso" : "solo con el programador diario" });
   } catch (err: any) {
     res.status(500).json({ ok: false, errores: [err?.message || String(err)] });
   }

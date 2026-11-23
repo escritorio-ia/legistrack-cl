@@ -30,8 +30,10 @@ a.sec{background:#e2e8f0;color:#0f172a}
 <div class="caja"><b>Rescatar sesiones (Cámara y Senado)</b>
 <div class="gris">Cámara: recorre "Sesiones" (citación, cuenta, asistencia, acta, votación, resultado) y "Documentos" (presentaciones, comparados) de cada comisión.</div>
 <label class="gris">Meses hacia atrás: <select id="recMeses"><option value="1">Solo este mes</option><option value="3" selected>3 meses</option><option value="6">6 meses</option><option value="12">12 meses</option></select></label>
+<label class="gris" style="display:block;margin:4px 0"><input type="checkbox" id="recAuto" checked> Revisión diaria automática (actas y documentos nuevos, en segundo plano)</label>
+<div id="recAutoInfo" class="gris"></div>
 <div id="recEstado" class="gris">—</div>
-<button id="recIniciar">Rescatar Cámara</button>
+<button id="recIniciar">Rescatar Cámara (hacia atrás)</button>
 <button id="recDetener" class="sec">Detener Cámara</button>
 <div style="margin-top:6px"><b>Senado</b> <span class="gris">(sesiones con puntos, aspectos, acuerdos y presentaciones)</span></div>
 <div id="senEstado" class="gris">—</div>

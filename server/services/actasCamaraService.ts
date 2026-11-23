@@ -6,7 +6,7 @@
  */
 import { DIPUTADOS_COMISIONES_DETALLE } from "../../src/data/comisionesData";
 import { boletinesEnTexto } from "../../src/utils/boletines";
-import { escribirDoc, consultar, camposAObjeto } from "./firestoreRest";
+import { escribirDoc, consultar, camposAObjeto, leerDoc } from "./firestoreRest";
 import { parsearSesionComisionCamara } from "./camaraService";
 import { registrarAportes, idSesion } from "./registroSesionesService";
 
@@ -120,10 +120,69 @@ export async function importarSesionCamara(p: {
   return { sesionId: p.sesionId, fecha, boletines, acta: acta.length > 0, cuenta: cuenta.length > 0, puntos: det.puntos.length, votaciones: det.votaciones.length };
 }
 
+// ---------------------------------------------------------------------------
+// Sesiones y asistencia desde los datos abiertos de la Cámara (opendata.camara.cl, accesible desde el servidor).
+// Completa actas_camara/<Id de sesión> (el mismo identificador que usa camara.cl) sin necesidad del navegador.
+// No trae actas, cuenta, votaciones ni documentos: eso solo está en camara.cl y lo envía la extensión.
+// ---------------------------------------------------------------------------
+const OPENDATA_SESIONES = "https://opendata.camara.cl/camaradiputados/WServices/WSComision.asmx/retornarSesionesXComisionYAnno";
+const etiqueta = (x: string, t: string) => (x.match(new RegExp(`<${t}(?:\\s[^>]*)?>([^<]*)</${t}>`)) || [])[1]?.trim() || "";
+const nombrePropio = (s: string) => s.toLowerCase().replace(/(^|[\s-])(\p{L})/gu, (_m, a, b) => a + b.toUpperCase());
+
+export function parsearSesionesOpendata(xml: string) {
+  return xml.split("<SesionComision>").slice(1).map((b0) => {
+    const b = b0.split("</SesionComision>")[0];
+    const inicio = etiqueta(b, "FechaInicio"), termino = etiqueta(b, "FechaTermino");
+    const asistencia = Array.from(b.matchAll(/<TipoAsistencia[^>]*>([^<]*)<\/TipoAsistencia>\s*<Diputado>[\s\S]*?<Nombre>([^<]*)<\/Nombre>\s*<ApellidoPaterno>([^<]*)<\/ApellidoPaterno>\s*<ApellidoMaterno>([^<]*)<\/ApellidoMaterno>[\s\S]*?<\/Diputado>(?:\s*<TipoTitularAsistencia[^>]*>([^<]*)<\/TipoTitularAsistencia>)?/g))
+      .map((m) => ({ nombre: nombrePropio(`${m[2]} ${m[3]} ${m[4]}`.replace(/\s+/g, " ").trim()), tipo: m[1].trim(), titular: (m[5] || "").trim() }));
+    return {
+      sesionId: etiqueta(b, "Id"), numero: etiqueta(b, "Numero"), tipoSesion: etiqueta(b, "Tipo"), estado: etiqueta(b, "Estado"),
+      fecha: inicio.slice(0, 10), hora: inicio.slice(11, 16), termino: termino.slice(11, 16), asistencia,
+    };
+  }).filter((x) => /^\d+$/.test(x.sesionId) && /^\d{4}-\d{2}-\d{2}$/.test(x.fecha));
+}
+
+/** Trae las sesiones recientes (y, la primera vez, las de todo el año) de cada comisión de la Cámara. */
+export async function sincronizarSesionesCamaraOpendata(opciones: { dias?: number; presupuestoMs?: number } = {}) {
+  const fin = Date.now() + (opciones.presupuestoMs ?? 200_000);
+  const estado: any = await leerDoc("registro_indice/opendata_camara").catch(() => null);
+  const hoy = new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10); // hora de Chile, aprox.
+  const desde = estado?.historicoHecho ? new Date(Date.now() - (opciones.dias ?? 21) * 86400000).toISOString().slice(0, 10) : `${hoy.slice(0, 4)}-01-01`;
+  const anios = Array.from(new Set([desde.slice(0, 4), hoy.slice(0, 4)]));
+  const cola = (DIPUTADOS_COMISIONES_DETALLE as any[]).filter((c) => /^\d+$/.test(String(c.prmID || "")));
+  let sesiones = 0, errores = 0, comisiones = 0, incompleto = false;
+  const trabajador = async () => {
+    while (cola.length) {
+      if (Date.now() > fin) { incompleto = true; return; }
+      const c = cola.shift();
+      for (const anio of anios) {
+        try {
+          const r = await fetch(`${OPENDATA_SESIONES}?prmComisionId=${c.prmID}&prmAnno=${anio}`, { signal: AbortSignal.timeout(30000) });
+          if (!r.ok) { errores++; continue; }
+          for (const x of parsearSesionesOpendata(await r.text())) {
+            if (x.fecha < desde || x.fecha > hoy) continue;
+            await escribirDoc(`actas_camara/${x.sesionId}`, {
+              comisionPrmId: String(c.prmID), comisionId: `cd-${c.id}`, comision: c.nombre, sesionId: x.sesionId, numero: x.numero,
+              fecha: x.fecha, hora: x.hora, termino: x.termino, estado: x.estado, tipoSesion: x.tipoSesion,
+              asistenciaOficial: x.asistencia, opendataActualizado: new Date().toISOString(),
+            });
+            sesiones++;
+          }
+        } catch { errores++; }
+      }
+      comisiones++;
+    }
+  };
+  await Promise.all([trabajador(), trabajador(), trabajador(), trabajador()]);
+  if (!incompleto) await escribirDoc("registro_indice/opendata_camara", { historicoHecho: true, ultima: new Date().toISOString(), sesiones, errores }).catch(() => undefined);
+  return { ok: true, desde, comisiones, sesiones, errores, incompleto };
+}
+
 /** Sesiones de la Cámara guardadas de una comisión (por su identificador de la app, "cd-<slug>"). */
 export async function sesionesActasCamaraDeComision(comisionId: string) {
   const filas = await consultar({ from: [{ collectionId: "actas_camara" }], where: { fieldFilter: { field: { fieldPath: "comisionId" }, op: "EQUAL", value: { stringValue: comisionId } } } });
-  return filas.map((f) => { const d: any = camposAObjeto(f.datos); return { sesionId: d.sesionId, numero: d.numero, fecha: d.fecha, hora: d.hora, url: d.url, cuentaUrl: d.cuentaUrl, tieneActa: !!d.texto, tieneCuenta: !!d.cuenta, asistentes: (d.diputadosAsistentes || []).length, votaciones: d.votaciones || [], puntos: d.puntos || [] }; })
+  return filas.map((f) => { const d: any = camposAObjeto(f.datos); return { sesionId: d.sesionId, numero: d.numero, fecha: d.fecha, hora: d.hora, url: d.url, cuentaUrl: d.cuentaUrl, tieneActa: !!d.texto, tieneCuenta: !!d.cuenta, asistentes: Math.max((d.diputadosAsistentes || []).length, (d.asistenciaOficial || []).filter((x: any) => /^asiste/i.test(x.tipo || "")).length),
+      asistenciaOficial: d.asistenciaOficial || [], estado: d.estado || "", votaciones: d.votaciones || [], puntos: d.puntos || [] }; })
     .sort((a, b) => b.fecha.localeCompare(a.fecha));
 }
 

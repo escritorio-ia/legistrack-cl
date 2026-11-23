@@ -47,7 +47,7 @@ transcripcionPopup("estado");
 function pintarRecorrido(r) {
   const el = document.getElementById("recEstado");
   if (!r) { el.textContent = "Sin recorridos todavía."; }
-  else if (r.activo) { el.className = "ok"; el.textContent = `● Recorriendo ${r.actual?.fase === "documentos" ? "documentos" : "sesiones"}: ${r.actual?.nombre || ""} (${r.hechas + 1} de ${r.total} comisiones)`; }
+  else if (r.activo) { el.className = "ok"; el.textContent = `● ${r.auto ? "Revisión diaria: " : ""}Recorriendo ${r.actual?.fase === "documentos" ? "documentos" : "sesiones"}: ${r.actual?.nombre || ""} (${r.hechas + 1} de ${r.total} comisiones)`; }
   else { el.className = "gris"; el.textContent = `${r.motivo || "Detenido"}${r.fin ? " · " + new Date(r.fin).toLocaleString("es-CL") : ""}`; }
   document.getElementById("recIniciar").style.display = r?.activo ? "none" : "";
   document.getElementById("recDetener").style.display = r?.activo ? "" : "none";
@@ -60,6 +60,14 @@ async function recorrido(accion) {
 document.getElementById("recIniciar").onclick = () => recorrido("iniciar");
 document.getElementById("recDetener").onclick = () => recorrido("detener");
 recorrido("estado");
+async function camaraAuto(activo) {
+  const r = await chrome.runtime.sendMessage({ tipo: "camara-auto", ...(typeof activo === "boolean" ? { activo } : {}) });
+  if (!r?.ok) return;
+  document.getElementById("recAuto").checked = r.activo;
+  document.getElementById("recAutoInfo").textContent = r.activo ? (r.ultima ? `Última revisión automática: ${r.ultima}` : "La primera revisión automática parte en unos minutos.") : "Apagada: solo se rescata al pulsar el botón.";
+}
+document.getElementById("recAuto").onchange = (e) => camaraAuto(e.target.checked);
+camaraAuto();
 
 // Rescate de sesiones del Senado
 function pintarSenado(e) {
