@@ -196569,6 +196569,58 @@ async function fetchTextoNormaLeyChileCompleto(url) {
     return null;
   }
 }
+var decodificarXml = (s) => s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").replace(/&#(\d+);/g, (_, c) => String.fromCharCode(Number(c))).replace(/&#x([0-9a-f]+);/gi, (_, c) => String.fromCharCode(parseInt(c, 16))).replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&nbsp;/gi, " ").replace(/&amp;/g, "&");
+var numeroArticulo = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[°º.\-]/g, " ").replace(/\s+/g, " ").trim().replace(/^(\d+)\s*(bis|ter|quater|quinquies|sexies)?.*$/, (_m, n, b) => b ? `${n} ${b}` : n);
+function parsearArticulosLeyChile(xml) {
+  const out = [];
+  const re = /<EstructuraFuncional\b[^>]*tipoParte="Art[^"]*culo"[^>]*>\s*<Texto[^>]*>([\s\S]*?)<\/Texto>/gi;
+  for (const m of xml.matchAll(re)) {
+    const texto = decodificarXml(m[1]).replace(/<[^>]+>/g, " ").replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n").trim();
+    const n = texto.match(/^\s*Art(?:[íi]culo|\.)\s*(\d+\s*[°º]?\s*(?:bis|ter|qu[aá]ter|quinquies|sexies)?)/i);
+    if (n) out.push({ numero: numeroArticulo(n[1]), texto: texto.slice(0, 12e3) });
+  }
+  return out;
+}
+async function leyVigenteLeyChile(referencia) {
+  if (!LEYCHILE_API_KEY) return { disponible: false, motivo: "LeyChile no disponible: falta configurar LEYCHILE_API_KEY en el servidor.", articulos: [] };
+  const ref = String(referencia || "").trim();
+  const num = (ref.match(/\bley\s*(?:n[°º.]?\s*)?(\d{1,2}\.?\d{3})\b/i) || [])[1]?.replace(/\./g, "");
+  const cadena = num ? `Ley ${num}` : ref;
+  if (!cadena) return { disponible: false, motivo: "No se identific\xF3 la ley que modifica el proyecto.", articulos: [] };
+  const claveCache = `ley_vigente_${cadena.toLowerCase()}`;
+  const previo = cache.get(claveCache);
+  if (previo) return previo;
+  const key = `&key=${encodeURIComponent(LEYCHILE_API_KEY)}`;
+  try {
+    const rb = await fetchConTimeout(`https://www.leychile.cl/Consulta/obtxml?opt=61&cadena=${encodeURIComponent(cadena)}&cantidad=5${key}`, 1e4);
+    if (!rb.ok) return { disponible: false, motivo: `LeyChile no disponible (HTTP ${rb.status}).`, articulos: [] };
+    const xb = await rb.text();
+    const normas = (xb.match(/<Norma\b[\s\S]*?<\/Norma>/g) || []).map((b) => ({
+      id: (b.match(/<IdNorma>(\d+)<\/IdNorma>/) || [])[1] || "",
+      titulo: decodificarXml((b.match(/<TituloNorma>([\s\S]*?)<\/TituloNorma>/) || [])[1] || ""),
+      compuesto: (b.match(/<Compuesto>([\s\S]*?)<\/Compuesto>/) || [])[1] || "",
+      url: decodificarXml((b.match(/<Url>([\s\S]*?)<\/Url>/) || [])[1] || "")
+    })).filter((n) => n.id);
+    const norma = num ? normas.find((n) => n.compuesto.replace(/\D/g, "") === num || new RegExp(`\\b${num.replace(/(\d+)(\d{3})$/, "$1\\.?$2")}\\b`).test(n.titulo)) : normas[0];
+    if (!norma) return { disponible: false, motivo: `No se encontr\xF3 ${num ? `la Ley N\xB0 ${num}` : `"${cadena}"`} en LeyChile.`, articulos: [] };
+    const rn = await fetchConTimeout(`https://www.leychile.cl/Consulta/obtxml?opt=7&idNorma=${norma.id}${key}`, 15e3);
+    if (!rn.ok) return { disponible: false, motivo: `LeyChile no entreg\xF3 el texto de la norma (HTTP ${rn.status}).`, articulos: [] };
+    const articulos = parsearArticulosLeyChile(await rn.text());
+    const r = {
+      disponible: articulos.length > 0,
+      motivo: articulos.length ? void 0 : "LeyChile no entreg\xF3 art\xEDculos legibles de esta norma.",
+      numero: num,
+      titulo: norma.titulo || cadena,
+      idNorma: norma.id,
+      url: norma.url || `https://www.bcn.cl/leychile/navegar?idNorma=${norma.id}`,
+      articulos
+    };
+    if (r.disponible) cache.set(claveCache, r, 24 * 60 * 60 * 1e3);
+    return r;
+  } catch (e) {
+    return { disponible: false, motivo: `LeyChile no disponible (${e?.name === "TimeoutError" ? "sin respuesta a tiempo" : e?.message || e}).`, articulos: [] };
+  }
+}
 
 // server/services/publicDataService.ts
 var OWID_TOPICS = {
@@ -199504,6 +199556,10 @@ apiRouter.get("/proyecto/:id", async (req, res) => {
     proyecto = resolveProyecto(idParam);
   }
   res.json(proyecto);
+});
+apiRouter.get("/ley-vigente", async (req, res) => {
+  const ref = String(req.query.ref || "").slice(0, 300);
+  res.json(await leyVigenteLeyChile(ref));
 });
 apiRouter.get("/proyecto/:id/comparado", async (req, res) => {
   const idParam = req.params.id;

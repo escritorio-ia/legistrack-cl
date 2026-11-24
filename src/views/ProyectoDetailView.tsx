@@ -503,6 +503,9 @@ export default function ProyectoDetailView({
     grupos: GrupoIndicaciones[];
   } | null>(null);
   const [indicacionesLoading, setIndicacionesLoading] = useState(false);
+  // Ley vigente que modifica el proyecto (texto oficial de LeyChile), para la columna "Ley vigente" del Comparado.
+  const [leyVigente, setLeyVigente] = useState<{ disponible: boolean; motivo?: string; numero?: string; titulo?: string; url?: string; articulos: { numero: string; texto: string }[] } | null>(null);
+  const [leyVigenteCargando, setLeyVigenteCargando] = useState(false);
 
   // Todas las comisiones por las que pasó el proyecto (incluidas las del historial de tramitación).
   const projectCommissionsForComparador = unirComisiones([
@@ -535,6 +538,20 @@ export default function ProyectoDetailView({
     });
     return () => { cancelado = true; };
   }, [activeTab, proyecto.id, selectedComisionSafe]);
+
+  const refLeyModificada = (comparadoReal as any)?.leyModificada
+    || ((proyecto.titulo || "").match(/\bley\s*(?:n[°º.]?\s*)?\d{1,2}\.?\d{3}\b[^,.;]*/i) || [])[0] || "";
+  useEffect(() => {
+    if (activeTab !== "comparado" || !refLeyModificada) return;
+    let cancelado = false;
+    setLeyVigenteCargando(true);
+    fetch(`/api/ley-vigente?ref=${encodeURIComponent(refLeyModificada)}`)
+      .then(r => r.json())
+      .then(d => { if (!cancelado) setLeyVigente(d); })
+      .catch(() => { if (!cancelado) setLeyVigente({ disponible: false, motivo: "LeyChile no disponible en este momento.", articulos: [] }); })
+      .finally(() => { if (!cancelado) setLeyVigenteCargando(false); });
+    return () => { cancelado = true; };
+  }, [activeTab, refLeyModificada]);
 
   useEffect(() => {
     if (activeTab !== "indicaciones" || !selectedComisionSafe) return;
@@ -2043,10 +2060,16 @@ export default function ProyectoDetailView({
 
                 {/* Ley que este proyecto modifica, si corresponde (extraído del
                     título oficial, no inventado por la IA). */}
-                {comparadoReal?.leyModificada && (
-                  <div className="bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-2.5 mb-4 text-xs text-indigo-900 flex items-center gap-2">
+                {refLeyModificada && (
+                  <div className="bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-2.5 mb-4 text-xs text-indigo-900 flex flex-wrap items-center gap-x-2 gap-y-1">
                     <Gavel className="w-4 h-4 text-indigo-600 shrink-0" />
-                    <span><strong className="font-extrabold">Este proyecto modifica:</strong> {comparadoReal.leyModificada}</span>
+                    <span><strong className="font-extrabold">Este proyecto modifica:</strong> {leyVigente?.disponible && leyVigente.titulo ? leyVigente.titulo : refLeyModificada}</span>
+                    {leyVigente?.url && <a href={leyVigente.url} target="_blank" rel="noopener noreferrer" className="font-bold text-indigo-700 hover:underline flex items-center gap-1">Ver en LeyChile <ExternalLink className="w-3 h-3" /></a>}
+                    <span className="basis-full text-[10.5px] text-indigo-700/80">
+                      {leyVigenteCargando ? "Consultando el texto vigente en LeyChile…"
+                        : leyVigente?.disponible ? "La primera columna muestra el texto vigente de cada artículo que el proyecto modifica (LeyChile, BCN)."
+                        : leyVigente ? `Texto vigente no disponible: ${leyVigente.motivo || "LeyChile no respondió."}` : ""}
+                    </span>
                   </div>
                 )}
 
@@ -2110,10 +2133,27 @@ export default function ProyectoDetailView({
                             ? comparadoReal.filas
                             : (comparadoReal.comparaciones || []).map(c => ({ articulo: c.articulo, mensaje: c.textoOriginal, comision: c.textoModificado, indicaciones: "", observacion: c.explicacion || "" }));
                           const conIndic = !!comparadoReal.tieneIndicaciones && filas.some(f => f.indicaciones);
-                          const cols = conIndic ? "md:grid-cols-3" : "md:grid-cols-2";
+                          // Artículos de la ley vigente que menciona cada fila (en el texto del proyecto, no en su propio encabezado).
+                          const numArt = (x: string) => x.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[°º.]/g, "").replace(/\s+/g, " ").trim();
+                          const articulosDeFila = (f: any): string[] => {
+                            const t = `${f.mensaje || ""} ${f.comision || ""}`.replace(/^\s*art[íi]culo\s+\S+\s*[.\-–:]+/i, "");
+                            const out = new Set<string>();
+                            for (const m of t.matchAll(/art[íi]culos?\s+((?:\d+\s*[°º]?\s*(?:bis|ter|qu[aá]ter)?\s*(?:,|y|e|\s)\s*)+)/gi))
+                              for (const n of m[1].matchAll(/(\d+)\s*[°º]?\s*(bis|ter|qu[aá]ter)?/gi)) out.add(numArt(`${n[1]}${n[2] ? " " + n[2] : ""}`));
+                            return Array.from(out);
+                          };
+                          const conLey = !!leyVigente?.disponible && filas.some(f => articulosDeFila(f).length > 0);
+                          const nCols = 2 + (conIndic ? 1 : 0) + (conLey ? 1 : 0);
+                          const cols = nCols === 4 ? "md:grid-cols-4" : nCols === 3 ? "md:grid-cols-3" : "md:grid-cols-2";
                           return (
                             <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
                               <div className={`grid grid-cols-1 ${cols} bg-slate-50 border-b border-slate-200 text-center uppercase tracking-wider text-[10px] font-black text-slate-500 md:divide-x divide-slate-200 p-3`}>
+                                {conLey && (
+                                  <span className="py-1">
+                                    Ley vigente (texto actual)
+                                    {leyVigente?.url && <a href={leyVigente.url} target="_blank" rel="noopener noreferrer" className="block normal-case tracking-normal font-semibold text-blue-600 hover:underline">LeyChile</a>}
+                                  </span>
+                                )}
                                 <span className="py-1">
                                   Mensaje / Moción (texto original)
                                   {comparadoReal.mensajeUrl && <a href={comparadoReal.mensajeUrl} target="_blank" rel="noopener noreferrer" className="block normal-case tracking-normal font-semibold text-blue-600 hover:underline">ver documento</a>}
@@ -2135,6 +2175,18 @@ export default function ProyectoDetailView({
                                 <div key={idx} className="border-b border-slate-150 last:border-b-0">
                                   <div className="bg-slate-100/60 px-4 py-2 text-xs font-extrabold text-slate-700">{f.articulo || `Disposición ${idx + 1}`}</div>
                                   <div className={`grid grid-cols-1 ${cols} md:divide-x divide-slate-200 text-[11px] leading-relaxed whitespace-pre-wrap`}>
+                                    {conLey && (() => {
+                                      const nums = articulosDeFila(f);
+                                      const arts = nums.map(n => ({ n, a: leyVigente!.articulos.find(x => numArt(x.numero) === n) }));
+                                      return (
+                                        <div className="p-3 text-slate-800 bg-indigo-50/30 space-y-2">
+                                          {arts.length === 0 ? <span className="text-slate-400 italic">No menciona artículos de la ley</span>
+                                            : arts.map(({ n, a }) => a
+                                              ? <div key={n}>{a.texto}</div>
+                                              : <div key={n} className="text-slate-400 italic">Artículo {n}: no se encontró en el texto vigente de LeyChile</div>)}
+                                        </div>
+                                      );
+                                    })()}
                                     <div className="p-3 text-slate-700">{f.mensaje || <span className="text-slate-400 italic">No aparece en el mensaje/moción</span>}</div>
                                     <div className="p-3 text-emerald-900 bg-emerald-50/30">{f.comision || <span className="text-slate-400 italic">{comparadoReal.informeUrl ? "No aparece en el informe" : "Aún sin informe de esta comisión"}</span>}</div>
                                     {conIndic && <div className="p-3 text-amber-900 bg-amber-50/30">{f.indicaciones || <span className="text-slate-400 italic">Sin indicaciones</span>}</div>}

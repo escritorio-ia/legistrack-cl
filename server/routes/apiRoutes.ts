@@ -70,7 +70,8 @@ import {
   buscarChile,
   buscarLeyChilePorNumero,
   LEYCHILE_API_KEY,
-  fetchConTimeout
+  fetchConTimeout,
+  leyVigenteLeyChile
 } from "../services/comparadoService";
 import { 
   getOWIDTopics, 
@@ -421,6 +422,12 @@ apiRouter.get("/proyecto/:id", async (req: Request, res: Response) => {
 // fabricado que se usaba antes. Requiere que exista un informe .docx real
 // para la comisión pedida; si no existe, se informa explícitamente en vez de
 // simular contenido.
+// Texto vigente (LeyChile) de la ley que modifica un proyecto: ?ref=<"ley N° 18.455 sobre..." o nombre de la norma>.
+apiRouter.get("/ley-vigente", async (req: Request, res: Response) => {
+  const ref = String(req.query.ref || "").slice(0, 300);
+  res.json(await leyVigenteLeyChile(ref));
+});
+
 apiRouter.get("/proyecto/:id/comparado", async (req: Request, res: Response) => {
   const idParam = req.params.id;
   const comisionNombre = String(req.query.comision || "").trim();
