@@ -193557,6 +193557,42 @@ async function trabajoParaReintentar() {
   const t = filas.map((f) => ({ id: f.id, ...camposAObjeto(f.datos) })).find((x) => x.reintentarDesde && x.reintentarDesde <= hoy2 && x.fecha >= sumarDias2(hoy2, -10));
   return t || null;
 }
+var INICIO_PERIODO = "2026-03-11";
+var PRIORIDAD_INICIAL = ["cd-agricultura"];
+function prioridadesDe(ctrl) {
+  return Array.isArray(ctrl?.prioridad) ? ctrl.prioridad.map(String).filter(Boolean) : PRIORIDAD_INICIAL;
+}
+async function trabajoEnEstadoDe(estado, comisionId) {
+  const filas = await consultar({ from: [{ collectionId: COLA }], where: { compositeFilter: { op: "AND", filters: [
+    { fieldFilter: { field: { fieldPath: "estado" }, op: "EQUAL", value: { stringValue: estado } } },
+    { fieldFilter: { field: { fieldPath: "comisionId" }, op: "EQUAL", value: { stringValue: comisionId } } }
+  ] } }, limit: 1 }).catch(() => []);
+  return filas[0] ? { id: filas[0].id, ...camposAObjeto(filas[0].datos) } : null;
+}
+async function idsEnCola(ids) {
+  const { base, proy, key } = conexionFirestore();
+  const existentes = /* @__PURE__ */ new Set();
+  for (let i = 0; i < ids.length; i += 100) {
+    const r = await fetch(`${base}:batchGet?key=${key}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ documents: ids.slice(i, i + 100).map((id) => `projects/${proy}/databases/(default)/documents/${COLA}/${id}`) }),
+      signal: AbortSignal.timeout(15e3)
+    });
+    if (r.ok) {
+      for (const x of await r.json()) if (x.found) existentes.add(String(x.found.name).split("/").pop());
+    }
+  }
+  return existentes;
+}
+async function siguienteSesionDeComision(comisionId) {
+  const ayer = sumarDias2(hoyChileISO(), -1);
+  const filas = await consultar({ from: [{ collectionId: "registro_sesiones" }], where: { fieldFilter: { field: { fieldPath: "comisionId" }, op: "EQUAL", value: { stringValue: comisionId } } }, limit: 500 }).catch(() => []);
+  const sesiones = unirSesionesLeidas(filas.map((f) => combinarSesion(f.id, f.datos))).filter((x) => x.camara && x.comisionNombre && x.fecha >= INICIO_PERIODO && x.fecha <= ayer).sort((a, b) => b.fecha.localeCompare(a.fecha) || String(b.hora || "").localeCompare(String(a.hora || "")));
+  if (!sesiones.length) return null;
+  const enCola = await idsEnCola(sesiones.map((x) => x.id));
+  return sesiones.find((x) => !enCola.has(x.id)) || null;
+}
 async function trabajoEnEstado(estado) {
   const filas = await consultar({ from: [{ collectionId: COLA }], where: { fieldFilter: { field: { fieldPath: "estado" }, op: "EQUAL", value: { stringValue: estado } } }, limit: 1 });
   return filas[0] ? { id: filas[0].id, ...camposAObjeto(filas[0].datos) } : null;
@@ -193712,7 +193748,7 @@ async function precargarFichas(maximo = 1) {
 }
 async function leerControl() {
   const d = await leerDoc(`${COLA}/_control`).catch(() => null);
-  return { activa: !!d?.activa, base: d?.base, iniciadaEn: d?.iniciadaEn, ultimoPaso: d?.ultimoPaso, cadena: d?.cadena };
+  return { activa: !!d?.activa, base: d?.base, iniciadaEn: d?.iniciadaEn, ultimoPaso: d?.ultimoPaso, cadena: d?.cadena, prioridad: prioridadesDe(d) };
 }
 async function fijarControl(cambios) {
   await escribirDoc(`${COLA}/_control`, cambios);
@@ -193792,17 +193828,29 @@ async function pasoTranscripcionConCredito(ctrl) {
     await recuperarErroresPorCredito().catch(() => 0);
     await escribirDoc(`${COLA}/_control`, { sinCreditoHasta: "", erroresCreditoRecuperados: true }).catch(() => void 0);
   }
-  let t = await trabajoEnEstado("transcribiendo");
+  const prioridad = prioridadesDe(ctrl);
+  let nueva = null;
+  for (const cid of prioridad) {
+    const enCurso2 = await trabajoEnEstadoDe("transcribiendo", cid);
+    if (enCurso2?.videoId) return { ok: true, accion: "transcribir", sesion: `${enCurso2.comision} ${enCurso2.fecha} (prioridad)`, detalle: await avanzarTranscripcion(enCurso2, limite) };
+    if (conf.informe) {
+      const inf = await trabajoEnEstadoDe("informe_pendiente", cid);
+      if (inf?.videoId) return { ok: true, accion: "informe", sesion: `${inf.comision} ${inf.fecha} (prioridad)`, detalle: await redactarInforme(inf) };
+    }
+    nueva = await siguienteSesionDeComision(cid);
+    if (nueva) break;
+  }
+  let t = nueva ? null : await trabajoEnEstado("transcribiendo");
   if (t?.videoId) return { ok: true, accion: "transcribir", sesion: `${t.comision} ${t.fecha}`, detalle: await avanzarTranscripcion(t, limite) };
-  if (conf.informe) {
+  if (conf.informe && !nueva) {
     t = await trabajoEnEstado("informe_pendiente");
     if (t?.videoId) return { ok: true, accion: "informe", sesion: `${t.comision} ${t.fecha}`, detalle: await redactarInforme(t) };
   }
   const cont = await contadorDia();
   if (cont.tramos >= conf.maxTramosDia) return { ok: true, accion: "tope", detalle: `Tope diario alcanzado (${cont.tramos} de ${conf.maxTramosDia} tramos). Sigue ma\xF1ana.` };
-  t = await trabajoParaReintentar();
+  t = nueva ? null : await trabajoParaReintentar();
   if (!t) {
-    const s = await siguienteSesion();
+    const s = nueva || await siguienteSesion();
     if (!s) return { ok: true, accion: "nada", detalle: `No quedan sesiones por transcribir desde ${conf.desde}.` };
     t = {
       id: s.id,
@@ -193830,6 +193878,31 @@ async function pasoTranscripcionConCredito(ctrl) {
   }
   return { ok: true, accion: "transcribir", sesion: `${t.comision} ${t.fecha}`, detalle: await avanzarTranscripcion(t, limite) };
 }
+var cacheAvance = /* @__PURE__ */ new Map();
+async function avanceComision(comisionId) {
+  const c = cacheAvance.get(comisionId);
+  if (c && c.hasta > Date.now()) return c.datos;
+  const ayer = sumarDias2(hoyChileISO(), -1);
+  const filas = await consultar({ from: [{ collectionId: "registro_sesiones" }], where: { fieldFilter: { field: { fieldPath: "comisionId" }, op: "EQUAL", value: { stringValue: comisionId } } }, limit: 500 }).catch(() => []);
+  const sesiones = unirSesionesLeidas(filas.map((f) => combinarSesion(f.id, f.datos))).filter((x) => x.fecha >= INICIO_PERIODO && x.fecha <= ayer);
+  const { base, proy, key } = conexionFirestore();
+  const estados = {};
+  for (let i = 0; i < sesiones.length; i += 100) {
+    const r = await fetch(`${base}:batchGet?key=${key}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ documents: sesiones.slice(i, i + 100).map((x) => `projects/${proy}/databases/(default)/documents/${COLA}/${x.id}`), mask: { fieldPaths: ["estado"] } }),
+      signal: AbortSignal.timeout(15e3)
+    }).catch(() => null);
+    if (r?.ok) for (const x of await r.json()) {
+      const e = x.found ? x.found.fields?.estado?.stringValue || "en_cola" : "sin_empezar";
+      estados[e] = (estados[e] || 0) + 1;
+    }
+  }
+  const datos = { comisionId, comision: sesiones[0]?.comisionNombre || comisionId, desde: INICIO_PERIODO, total: sesiones.length, estados };
+  cacheAvance.set(comisionId, { hasta: Date.now() + 10 * 60 * 1e3, datos });
+  return datos;
+}
 async function estadoTranscripcionAutomatica() {
   const conf = configuracionAuto();
   const { base, key } = conexionFirestore();
@@ -193851,11 +193924,13 @@ async function estadoTranscripcionAutomatica() {
   const recientes = filas.filter((f) => !f.id.startsWith("_")).map((f) => ({ id: f.id, ...camposAObjeto(f.datos) }));
   const cont = await contadorDia();
   const control = await leerControl();
+  const prioridad = await Promise.all((control.prioridad || []).slice(0, 3).map((cid) => avanceComision(cid).catch(() => null)));
   return {
     configuracion: conf,
     tramosHoy: cont.tramos,
     porEstado,
     control,
+    prioridad: prioridad.filter(Boolean),
     recientes: recientes.map((t) => ({ comision: t.comision, fecha: t.fecha, estado: t.estado, videoId: t.videoId || null, error: t.error || null, actualizado: t.actualizado }))
   };
 }
@@ -196572,13 +196647,20 @@ async function fetchTextoNormaLeyChileCompleto(url) {
 var decodificarXml = (s) => s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").replace(/&#(\d+);/g, (_, c) => String.fromCharCode(Number(c))).replace(/&#x([0-9a-f]+);/gi, (_, c) => String.fromCharCode(parseInt(c, 16))).replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&nbsp;/gi, " ").replace(/&amp;/g, "&");
 var numeroArticulo = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[°º.\-]/g, " ").replace(/\s+/g, " ").trim().replace(/^(\d+)\s*(bis|ter|quater|quinquies|sexies)?.*$/, (_m, n, b) => b ? `${n} ${b}` : n);
 function parsearArticulosLeyChile(xml) {
+  const textos = Array.from(xml.matchAll(/<Texto[^>]*>([\s\S]*?)<\/Texto>/gi)).map((m) => decodificarXml(m[1]).replace(/<[^>]+>/g, " ").replace(/[ \t]+/g, " ").replace(/\r/g, "").trim()).filter(Boolean);
+  const todo = "\n" + textos.join("\n");
+  const enc = /\n\s*(Art(?:[íiÍI]culo|\.)\s*(\d+)\s*[°º]?\s*(bis|ter|qu[aá]ter|quinquies|sexies)?\s*[°º.]*\s*(transitori[oa])?\s*[°º.]*\s*[-–:])/gi;
+  const marcas = Array.from(todo.matchAll(enc)).map((m) => ({ pos: (m.index || 0) + 1, numero: numeroArticulo(`${m[2]}${m[3] ? " " + m[3] : ""}`), resto: m[4] ? "transitorio" : "" }));
   const out = [];
-  const re = /<EstructuraFuncional\b[^>]*tipoParte="Art[^"]*culo"[^>]*>\s*<Texto[^>]*>([\s\S]*?)<\/Texto>/gi;
-  for (const m of xml.matchAll(re)) {
-    const texto = decodificarXml(m[1]).replace(/<[^>]+>/g, " ").replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n").trim();
-    const n = texto.match(/^\s*Art(?:[íi]culo|\.)\s*(\d+\s*[°º]?\s*(?:bis|ter|qu[aá]ter|quinquies|sexies)?)/i);
-    if (n) out.push({ numero: numeroArticulo(n[1]), texto: texto.slice(0, 12e3) });
-  }
+  const vistos = /* @__PURE__ */ new Set();
+  marcas.forEach((m, i) => {
+    if (/^\s*transitori/i.test(m.resto)) return;
+    const fin = i + 1 < marcas.length ? marcas[i + 1].pos : todo.length;
+    const texto = todo.slice(m.pos, fin).replace(/\n\s*\n+/g, "\n").trim();
+    if (vistos.has(m.numero)) return;
+    vistos.add(m.numero);
+    out.push({ numero: m.numero, texto: texto.slice(0, 12e3) });
+  });
   return out;
 }
 async function leyVigenteLeyChile(referencia) {
@@ -196587,7 +196669,7 @@ async function leyVigenteLeyChile(referencia) {
   const num = (ref.match(/\bley\s*(?:n[°º.]?\s*)?(\d{1,2}\.?\d{3})\b/i) || [])[1]?.replace(/\./g, "");
   const cadena = num ? `Ley ${num}` : ref;
   if (!cadena) return { disponible: false, motivo: "No se identific\xF3 la ley que modifica el proyecto.", articulos: [] };
-  const claveCache = `ley_vigente_${cadena.toLowerCase()}`;
+  const claveCache = `ley_vigente_v2_${cadena.toLowerCase()}`;
   const previo = cache.get(claveCache);
   if (previo) return previo;
   const key = `&key=${encodeURIComponent(LEYCHILE_API_KEY)}`;
@@ -196613,7 +196695,8 @@ async function leyVigenteLeyChile(referencia) {
       titulo: norma.titulo || cadena,
       idNorma: norma.id,
       url: norma.url || `https://www.bcn.cl/leychile/navegar?idNorma=${norma.id}`,
-      articulos
+      articulos,
+      numerosEncontrados: articulos.map((a) => a.numero).slice(0, 400)
     };
     if (r.disponible) cache.set(claveCache, r, 24 * 60 * 60 * 1e3);
     return r;
@@ -200745,6 +200828,15 @@ apiRouter.post("/transcripcion/automatica/extension", expressText({ type: "text/
 });
 apiRouter.get("/transcripcion/automatica/paso", pasoAuto);
 apiRouter.post("/transcripcion/automatica/paso", pasoAuto);
+apiRouter.post("/transcripcion/automatica/prioridad", async (req, res) => {
+  const lista3 = (Array.isArray(req.body?.comisiones) ? req.body.comisiones : []).map((x) => String(x).trim()).filter((x) => /^(cd|sr)-[a-z0-9-]+$/.test(x)).slice(0, 10);
+  try {
+    await fijarControl({ prioridad: lista3 });
+    res.json({ ok: true, prioridad: lista3 });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err?.message || String(err) });
+  }
+});
 apiRouter.get("/transcripcion/automatica/estado", async (_req, res) => {
   try {
     res.json(await estadoTranscripcionAutomatica());

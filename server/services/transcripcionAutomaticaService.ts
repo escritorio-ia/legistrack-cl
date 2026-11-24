@@ -114,6 +114,48 @@ async function trabajoParaReintentar(): Promise<Trabajo | null> {
   return t || null;
 }
 
+// ---------------------------------------------------------------------------
+// Comisiones prioritarias: se completan una a una (todas sus sesiones del período legislativo) antes que el resto.
+// Se fijan desde la app (Transcripción automática → Prioridad). Si nunca se fijó, parte por Agricultura de la Cámara.
+// ---------------------------------------------------------------------------
+const INICIO_PERIODO = "2026-03-11";
+export const PRIORIDAD_INICIAL = ["cd-agricultura"];
+export function prioridadesDe(ctrl: any): string[] {
+  return Array.isArray(ctrl?.prioridad) ? ctrl.prioridad.map(String).filter(Boolean) : PRIORIDAD_INICIAL;
+}
+async function trabajoEnEstadoDe(estado: string, comisionId: string): Promise<Trabajo | null> {
+  const filas = await consultar({ from: [{ collectionId: COLA }], where: { compositeFilter: { op: "AND", filters: [
+    { fieldFilter: { field: { fieldPath: "estado" }, op: "EQUAL", value: { stringValue: estado } } },
+    { fieldFilter: { field: { fieldPath: "comisionId" }, op: "EQUAL", value: { stringValue: comisionId } } },
+  ] } }, limit: 1 }).catch(() => []);
+  return filas[0] ? ({ id: filas[0].id, ...camposAObjeto(filas[0].datos) } as Trabajo) : null;
+}
+/** ¿Cuáles de estas sesiones ya están en la cola? */
+async function idsEnCola(ids: string[]): Promise<Set<string>> {
+  const { base, proy, key } = conexionFirestore();
+  const existentes = new Set<string>();
+  for (let i = 0; i < ids.length; i += 100) {
+    const r = await fetch(`${base}:batchGet?key=${key}`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ documents: ids.slice(i, i + 100).map((id) => `projects/${proy}/databases/(default)/documents/${COLA}/${id}`) }),
+      signal: AbortSignal.timeout(15000),
+    });
+    if (r.ok) for (const x of (await r.json()) as any[]) if (x.found) existentes.add(String(x.found.name).split("/").pop());
+  }
+  return existentes;
+}
+/** Siguiente sesión de una comisión prioritaria que aún no está en la cola (la más reciente primero). */
+async function siguienteSesionDeComision(comisionId: string): Promise<SesionRegistrada | null> {
+  const ayer = sumarDias(hoyChileISO(), -1);
+  const filas = await consultar({ from: [{ collectionId: "registro_sesiones" }], where: { fieldFilter: { field: { fieldPath: "comisionId" }, op: "EQUAL", value: { stringValue: comisionId } } }, limit: 500 }).catch(() => []);
+  const sesiones = unirSesionesLeidas(filas.map((f) => combinarSesion(f.id, f.datos)))
+    .filter((x) => x.camara && x.comisionNombre && x.fecha >= INICIO_PERIODO && x.fecha <= ayer)
+    .sort((a, b) => b.fecha.localeCompare(a.fecha) || String(b.hora || "").localeCompare(String(a.hora || "")));
+  if (!sesiones.length) return null;
+  const enCola = await idsEnCola(sesiones.map((x) => x.id));
+  return sesiones.find((x) => !enCola.has(x.id)) || null;
+}
+
 async function trabajoEnEstado(estado: string): Promise<Trabajo | null> {
   const filas = await consultar({ from: [{ collectionId: COLA }], where: { fieldFilter: { field: { fieldPath: "estado" }, op: "EQUAL", value: { stringValue: estado } } }, limit: 1 });
   return filas[0] ? ({ id: filas[0].id, ...camposAObjeto(filas[0].datos) } as Trabajo) : null;
@@ -261,10 +303,10 @@ export async function precargarFichas(maximo = 1): Promise<string[]> {
 // cada paso dispara el siguiente (la app se llama a sí misma) hasta el tope diario o hasta que no quede trabajo;
 // la tarea diaria de Vercel la retoma cada mañana.
 // ---------------------------------------------------------------------------
-export interface ControlAuto { activa: boolean; base?: string; iniciadaEn?: string; ultimoPaso?: { accion: string; sesion?: string; detalle: string; fecha: string }; cadena?: string }
+export interface ControlAuto { activa: boolean; base?: string; iniciadaEn?: string; ultimoPaso?: { accion: string; sesion?: string; detalle: string; fecha: string }; cadena?: string; prioridad?: string[] }
 export async function leerControl(): Promise<ControlAuto> {
   const d = await leerDoc(`${COLA}/_control`).catch(() => null);
-  return { activa: !!d?.activa, base: d?.base, iniciadaEn: d?.iniciadaEn, ultimoPaso: d?.ultimoPaso, cadena: d?.cadena };
+  return { activa: !!d?.activa, base: d?.base, iniciadaEn: d?.iniciadaEn, ultimoPaso: d?.ultimoPaso, cadena: d?.cadena, prioridad: prioridadesDe(d) };
 }
 export async function fijarControl(cambios: Partial<ControlAuto>) {
   await escribirDoc(`${COLA}/_control`, cambios as any);
@@ -357,12 +399,26 @@ async function pasoTranscripcionConCredito(ctrl: any): Promise<{ ok: boolean; ac
     await escribirDoc(`${COLA}/_control`, { sinCreditoHasta: "", erroresCreditoRecuperados: true }).catch(() => undefined);
   }
 
-  // 1) Sesión en curso.
-  let t = await trabajoEnEstado("transcribiendo");
+  // P) Comisiones prioritarias: su sesión en curso, su informe pendiente o su siguiente sesión, antes que el resto.
+  const prioridad = prioridadesDe(ctrl);
+  let nueva: SesionRegistrada | null = null;
+  for (const cid of prioridad) {
+    const enCurso = await trabajoEnEstadoDe("transcribiendo", cid);
+    if (enCurso?.videoId) return { ok: true, accion: "transcribir", sesion: `${enCurso.comision} ${enCurso.fecha} (prioridad)`, detalle: await avanzarTranscripcion(enCurso, limite) };
+    if (conf.informe) {
+      const inf = await trabajoEnEstadoDe("informe_pendiente", cid);
+      if (inf?.videoId) return { ok: true, accion: "informe", sesion: `${inf.comision} ${inf.fecha} (prioridad)`, detalle: await redactarInforme(inf) };
+    }
+    nueva = await siguienteSesionDeComision(cid);
+    if (nueva) break;
+  }
+
+  // 1) Sesión en curso (solo si la prioridad no tiene sesiones nuevas por empezar).
+  let t = nueva ? null : await trabajoEnEstado("transcribiendo");
   if (t?.videoId) return { ok: true, accion: "transcribir", sesion: `${t.comision} ${t.fecha}`, detalle: await avanzarTranscripcion(t, limite) };
 
   // 2) Informe pendiente.
-  if (conf.informe) {
+  if (conf.informe && !nueva) {
     t = await trabajoEnEstado("informe_pendiente");
     if (t?.videoId) return { ok: true, accion: "informe", sesion: `${t.comision} ${t.fecha}`, detalle: await redactarInforme(t) };
   }
@@ -371,9 +427,9 @@ async function pasoTranscripcionConCredito(ctrl: any): Promise<{ ok: boolean; ac
   if (cont.tramos >= conf.maxTramosDia) return { ok: true, accion: "tope", detalle: `Tope diario alcanzado (${cont.tramos} de ${conf.maxTramosDia} tramos). Sigue mañana.` };
 
   // 3) Reintento de una sesión reciente cuyo video no estaba publicado; si no, una sesión nueva.
-  t = await trabajoParaReintentar();
+  t = nueva ? null : await trabajoParaReintentar();
   if (!t) {
-    const s = await siguienteSesion();
+    const s = nueva || await siguienteSesion();
     if (!s) return { ok: true, accion: "nada", detalle: `No quedan sesiones por transcribir desde ${conf.desde}.` };
     t = {
       id: s.id, estado: "buscando_video", camara: s.camara, comision: s.comisionNombre, comisionId: s.comisionId, fecha: s.fecha, hora: s.hora,
@@ -397,6 +453,29 @@ async function pasoTranscripcionConCredito(ctrl: any): Promise<{ ok: boolean; ac
 }
 
 /** Resumen del avance para mostrar en la app. */
+/** Avance de una comisión prioritaria: sesiones del período y en qué estado está cada una (se guarda 10 min en memoria). */
+const cacheAvance = new Map<string, { hasta: number; datos: any }>();
+export async function avanceComision(comisionId: string) {
+  const c = cacheAvance.get(comisionId);
+  if (c && c.hasta > Date.now()) return c.datos;
+  const ayer = sumarDias(hoyChileISO(), -1);
+  const filas = await consultar({ from: [{ collectionId: "registro_sesiones" }], where: { fieldFilter: { field: { fieldPath: "comisionId" }, op: "EQUAL", value: { stringValue: comisionId } } }, limit: 500 }).catch(() => []);
+  const sesiones = unirSesionesLeidas(filas.map((f) => combinarSesion(f.id, f.datos))).filter((x) => x.fecha >= INICIO_PERIODO && x.fecha <= ayer);
+  const { base, proy, key } = conexionFirestore();
+  const estados: Record<string, number> = {};
+  for (let i = 0; i < sesiones.length; i += 100) {
+    const r = await fetch(`${base}:batchGet?key=${key}`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ documents: sesiones.slice(i, i + 100).map((x) => `projects/${proy}/databases/(default)/documents/${COLA}/${x.id}`), mask: { fieldPaths: ["estado"] } }),
+      signal: AbortSignal.timeout(15000),
+    }).catch(() => null);
+    if (r?.ok) for (const x of (await r.json()) as any[]) { const e = x.found ? (x.found.fields?.estado?.stringValue || "en_cola") : "sin_empezar"; estados[e] = (estados[e] || 0) + 1; }
+  }
+  const datos = { comisionId, comision: sesiones[0]?.comisionNombre || comisionId, desde: INICIO_PERIODO, total: sesiones.length, estados };
+  cacheAvance.set(comisionId, { hasta: Date.now() + 10 * 60 * 1000, datos });
+  return datos;
+}
+
 export async function estadoTranscripcionAutomatica() {
   const conf = configuracionAuto();
   const { base, key } = conexionFirestore();
@@ -418,8 +497,9 @@ export async function estadoTranscripcionAutomatica() {
   const recientes = filas.filter((f) => !f.id.startsWith("_")).map((f) => ({ id: f.id, ...camposAObjeto(f.datos) } as any));
   const cont = await contadorDia();
   const control = await leerControl();
+  const prioridad = await Promise.all((control.prioridad || []).slice(0, 3).map((cid) => avanceComision(cid).catch(() => null)));
   return {
-    configuracion: conf, tramosHoy: cont.tramos, porEstado, control,
+    configuracion: conf, tramosHoy: cont.tramos, porEstado, control, prioridad: prioridad.filter(Boolean),
     recientes: recientes.map((t) => ({ comision: t.comision, fecha: t.fecha, estado: t.estado, videoId: t.videoId || null, error: t.error || null, actualizado: t.actualizado })),
   };
 }

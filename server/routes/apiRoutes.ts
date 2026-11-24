@@ -1718,6 +1718,12 @@ apiRouter.post("/transcripcion/automatica/extension", expressText({ type: "text/
 });
 apiRouter.get("/transcripcion/automatica/paso", pasoAuto);
 apiRouter.post("/transcripcion/automatica/paso", pasoAuto);
+// Comisiones prioritarias de la transcripción automática (se completan una a una, en este orden).
+apiRouter.post("/transcripcion/automatica/prioridad", async (req: Request, res: Response) => {
+  const lista = (Array.isArray(req.body?.comisiones) ? req.body.comisiones : []).map((x: any) => String(x).trim()).filter((x: string) => /^(cd|sr)-[a-z0-9-]+$/.test(x)).slice(0, 10);
+  try { await fijarControl({ prioridad: lista } as any); res.json({ ok: true, prioridad: lista }); }
+  catch (err: any) { res.status(500).json({ ok: false, error: err?.message || String(err) }); }
+});
 apiRouter.get("/transcripcion/automatica/estado", async (_req: Request, res: Response) => {
   try { res.json(await estadoTranscripcionAutomatica()); }
   catch (err: any) { res.json({ error: err?.message || String(err) }); }

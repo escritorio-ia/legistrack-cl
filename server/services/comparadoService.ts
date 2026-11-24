@@ -824,7 +824,7 @@ export async function fetchTextoNormaLeyChileCompleto(url: string): Promise<stri
 // Solo texto oficial: si LeyChile no responde o no se encuentra la norma, se informa "no disponible".
 // ---------------------------------------------------------------------------
 export interface ArticuloLey { numero: string; texto: string }
-export interface LeyVigente { disponible: boolean; motivo?: string; numero?: string; titulo?: string; url?: string; idNorma?: string; articulos: ArticuloLey[] }
+export interface LeyVigente { disponible: boolean; motivo?: string; numero?: string; titulo?: string; url?: string; idNorma?: string; articulos: ArticuloLey[]; numerosEncontrados?: string[] }
 
 const decodificarXml = (s: string) => s
   .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
@@ -837,13 +837,23 @@ export const numeroArticulo = (s: string) => String(s || "").toLowerCase().norma
   .replace(/[°º.\-]/g, " ").replace(/\s+/g, " ").trim().replace(/^(\d+)\s*(bis|ter|quater|quinquies|sexies)?.*$/, (_m, n, b) => b ? `${n} ${b}` : n);
 
 export function parsearArticulosLeyChile(xml: string): ArticuloLey[] {
+  // Se juntan, en orden, los textos de todas las partes de la norma y se separa por encabezado de artículo
+  // ("Artículo 16.-", "ARTICULO 16°.-", "Art. 16 bis.-"): así funciona aunque varios artículos vengan en un mismo bloque.
+  const textos = Array.from(xml.matchAll(/<Texto[^>]*>([\s\S]*?)<\/Texto>/gi))
+    .map((m) => decodificarXml(m[1]).replace(/<[^>]+>/g, " ").replace(/[ \t]+/g, " ").replace(/\r/g, "").trim()).filter(Boolean);
+  const todo = "\n" + textos.join("\n");
+  const enc = /\n\s*(Art(?:[íiÍI]culo|\.)\s*(\d+)\s*[°º]?\s*(bis|ter|qu[aá]ter|quinquies|sexies)?\s*[°º.]*\s*(transitori[oa])?\s*[°º.]*\s*[-–:])/gi;
+  const marcas = Array.from(todo.matchAll(enc)).map((m) => ({ pos: (m.index || 0) + 1, numero: numeroArticulo(`${m[2]}${m[3] ? " " + m[3] : ""}`), resto: m[4] ? "transitorio" : "" }));
   const out: ArticuloLey[] = [];
-  const re = /<EstructuraFuncional\b[^>]*tipoParte="Art[^"]*culo"[^>]*>\s*<Texto[^>]*>([\s\S]*?)<\/Texto>/gi;
-  for (const m of xml.matchAll(re)) {
-    const texto = decodificarXml(m[1]).replace(/<[^>]+>/g, " ").replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n").trim();
-    const n = texto.match(/^\s*Art(?:[íi]culo|\.)\s*(\d+\s*[°º]?\s*(?:bis|ter|qu[aá]ter|quinquies|sexies)?)/i);
-    if (n) out.push({ numero: numeroArticulo(n[1]), texto: texto.slice(0, 12000) });
-  }
+  const vistos = new Set<string>();
+  marcas.forEach((m, i) => {
+    if (/^\s*transitori/i.test(m.resto)) return; // artículos transitorios: otra numeración
+    const fin = i + 1 < marcas.length ? marcas[i + 1].pos : todo.length;
+    const texto = todo.slice(m.pos, fin).replace(/\n\s*\n+/g, "\n").trim();
+    if (vistos.has(m.numero)) return; // el primero es el del cuerpo permanente de la ley
+    vistos.add(m.numero);
+    out.push({ numero: m.numero, texto: texto.slice(0, 12000) });
+  });
   return out;
 }
 
@@ -854,7 +864,7 @@ export async function leyVigenteLeyChile(referencia: string): Promise<LeyVigente
   const num = (ref.match(/\bley\s*(?:n[°º.]?\s*)?(\d{1,2}\.?\d{3})\b/i) || [])[1]?.replace(/\./g, "");
   const cadena = num ? `Ley ${num}` : ref;
   if (!cadena) return { disponible: false, motivo: "No se identificó la ley que modifica el proyecto.", articulos: [] };
-  const claveCache = `ley_vigente_${cadena.toLowerCase()}`;
+  const claveCache = `ley_vigente_v2_${cadena.toLowerCase()}`;
   const previo = cache.get<LeyVigente>(claveCache);
   if (previo) return previo;
   const key = `&key=${encodeURIComponent(LEYCHILE_API_KEY)}`;
@@ -877,6 +887,7 @@ export async function leyVigenteLeyChile(referencia: string): Promise<LeyVigente
     const r: LeyVigente = {
       disponible: articulos.length > 0, motivo: articulos.length ? undefined : "LeyChile no entregó artículos legibles de esta norma.",
       numero: num, titulo: norma.titulo || cadena, idNorma: norma.id, url: norma.url || `https://www.bcn.cl/leychile/navegar?idNorma=${norma.id}`, articulos,
+      numerosEncontrados: articulos.map((a) => a.numero).slice(0, 400),
     };
     if (r.disponible) cache.set(claveCache, r, 24 * 60 * 60 * 1000);
     return r;
