@@ -4,6 +4,7 @@
  */
 
 import ResumenComisionPanel from "../components/ResumenComisionPanel";
+import { aplicarModificacion } from "../utils/aplicarModificacion";
 import { unirComisiones } from "../utils/comisionesNombre";
 import YouTubeTranscriptModal from "../components/YouTubeTranscriptModal";
 import { useState, useEffect } from "react";
@@ -2145,6 +2146,26 @@ export default function ProyectoDetailView({
                             return Array.from(out);
                           };
                           const conLey = !!leyVigente?.disponible && filas.some(f => articulosDeFila(f).length > 0);
+                          // Texto del proyecto (mensaje o comisión): si es una instrucción sobre UN artículo de la ley vigente,
+                          // se muestra el artículo ya modificado con el cambio destacado (verde lo que entra, rojo tachado lo que sale).
+                          const celdaConCambio = (f: any, instruccion: string, vacio: React.ReactNode) => {
+                            if (!instruccion) return vacio;
+                            const nums = conLey ? articulosDeFila({ mensaje: instruccion }) : [];
+                            const art = nums.length === 1 ? leyVigente!.articulos.find(x => numArt(x.numero) === nums[0]) : undefined;
+                            if (!art || !/["“”«»]/.test(instruccion)) return instruccion;
+                            const r = aplicarModificacion(art.texto, instruccion);
+                            return (
+                              <div className="space-y-1.5">
+                                {r.ok ? (
+                                  <div>{r.partes.map((p, k) => p.tipo === "ins"
+                                    ? <ins key={k} className="bg-emerald-100 text-emerald-900 underline decoration-emerald-600 font-semibold">{p.t}</ins>
+                                    : p.tipo === "del" ? <del key={k} className="bg-red-50 text-red-700 line-through">{p.t}</del>
+                                    : <span key={k}>{p.t}</span>)}</div>
+                                ) : <p className="text-amber-700 text-[10.5px] italic">No se pudo aplicar con exactitud al texto vigente: {(r as any).motivo}</p>}
+                                <p className="text-[10px] text-slate-500 border-t border-slate-200 pt-1"><b>Instrucción:</b> {instruccion}</p>
+                              </div>
+                            );
+                          };
                           const nCols = 2 + (conIndic ? 1 : 0) + (conLey ? 1 : 0);
                           const cols = nCols === 4 ? "md:grid-cols-4" : nCols === 3 ? "md:grid-cols-3" : "md:grid-cols-2";
                           return (
@@ -2189,8 +2210,8 @@ export default function ProyectoDetailView({
                                         </div>
                                       );
                                     })()}
-                                    <div className="p-3 text-slate-700">{f.mensaje || <span className="text-slate-400 italic">No aparece en el mensaje/moción</span>}</div>
-                                    <div className="p-3 text-emerald-900 bg-emerald-50/30">{f.comision || <span className="text-slate-400 italic">{comparadoReal.informeUrl ? "No aparece en el informe" : "Aún sin informe de esta comisión"}</span>}</div>
+                                    <div className="p-3 text-slate-700">{celdaConCambio(f, f.mensaje, <span className="text-slate-400 italic">No aparece en el mensaje/moción</span>)}</div>
+                                    <div className="p-3 text-emerald-900 bg-emerald-50/30">{celdaConCambio(f, f.comision, <span className="text-slate-400 italic">{comparadoReal.informeUrl ? "No aparece en el informe" : "Aún sin informe de esta comisión"}</span>)}</div>
                                     {conIndic && <div className="p-3 text-amber-900 bg-amber-50/30">{f.indicaciones || <span className="text-slate-400 italic">Sin indicaciones</span>}</div>}
                                   </div>
                                   {f.observacion && (
