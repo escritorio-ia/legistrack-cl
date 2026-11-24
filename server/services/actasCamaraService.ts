@@ -147,18 +147,18 @@ export async function sincronizarSesionesCamaraOpendata(opciones: { dias?: numbe
   const fin = Date.now() + (opciones.presupuestoMs ?? 200_000);
   const estado: any = await leerDoc("registro_indice/opendata_camara").catch(() => null);
   const hoy = new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10); // hora de Chile, aprox.
-  const desde = estado?.historicoHecho ? new Date(Date.now() - (opciones.dias ?? 21) * 86400000).toISOString().slice(0, 10) : `${hoy.slice(0, 4)}-01-01`;
+  const desde = estado?.historicoHecho && Number(estado?.sesiones || 0) > 0 ? new Date(Date.now() - (opciones.dias ?? 21) * 86400000).toISOString().slice(0, 10) : `${hoy.slice(0, 4)}-01-01`;
   const anios = Array.from(new Set([desde.slice(0, 4), hoy.slice(0, 4)]));
   const cola = (DIPUTADOS_COMISIONES_DETALLE as any[]).filter((c) => /^\d+$/.test(String(c.prmID || "")));
-  let sesiones = 0, errores = 0, comisiones = 0, incompleto = false;
+  let sesiones = 0, errores = 0, comisiones = 0, incompleto = false, ultimoError = "";
   const trabajador = async () => {
     while (cola.length) {
       if (Date.now() > fin) { incompleto = true; return; }
       const c = cola.shift();
       for (const anio of anios) {
         try {
-          const r = await fetch(`${OPENDATA_SESIONES}?prmComisionId=${c.prmID}&prmAnno=${anio}`, { signal: AbortSignal.timeout(30000) });
-          if (!r.ok) { errores++; continue; }
+          const r = await fetch(`${OPENDATA_SESIONES}?prmComisionId=${c.prmID}&prmAnno=${anio}`, { headers: { "User-Agent": "LegisTrackCL/1.0 (datos abiertos)" }, signal: AbortSignal.timeout(30000) });
+          if (!r.ok) { errores++; ultimoError = `HTTP ${r.status}`; continue; }
           for (const x of parsearSesionesOpendata(await r.text())) {
             if (x.fecha < desde || x.fecha > hoy) continue;
             await escribirDoc(`actas_camara/${x.sesionId}`, {
@@ -168,14 +168,15 @@ export async function sincronizarSesionesCamaraOpendata(opciones: { dias?: numbe
             });
             sesiones++;
           }
-        } catch { errores++; }
+        } catch (e: any) { errores++; ultimoError = e?.message || String(e); }
       }
       comisiones++;
     }
   };
   await Promise.all([trabajador(), trabajador(), trabajador(), trabajador()]);
-  if (!incompleto) await escribirDoc("registro_indice/opendata_camara", { historicoHecho: true, ultima: new Date().toISOString(), sesiones, errores }).catch(() => undefined);
-  return { ok: true, desde, comisiones, sesiones, errores, incompleto };
+  // El año completo cuenta como traído solo si la pasada terminó y trajo sesiones.
+  await escribirDoc("registro_indice/opendata_camara", { historicoHecho: !incompleto && sesiones > 0, ultima: new Date().toISOString(), sesiones, errores, ultimoError, desde }).catch(() => undefined);
+  return { ok: true, desde, comisiones, sesiones, errores, incompleto, ultimoError };
 }
 
 /** Sesiones de la Cámara guardadas de una comisión (por su identificador de la app, "cd-<slug>"). */

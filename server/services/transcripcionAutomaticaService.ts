@@ -313,10 +313,23 @@ async function pasoConBloqueo(): Promise<{ ok: boolean; accion: string; sesion?:
       await Promise.race([construirHistorial(historial).catch(() => undefined), new Promise((res) => setTimeout(res, 170_000))]);
     }
   }
+  // Con tiempo libre: sesiones y asistencia de la Cámara (datos abiertos), si no se han traído en las últimas 20 horas.
+  let camaraOpendata: any;
+  const LIBRES = ["sin_video", "nada", "tope", "ya_transcrita", "inactiva", "sin_youtube", "sin_credito"];
+  if (!historial && LIBRES.includes(r.accion)) {
+    const od: any = await leerDoc("registro_indice/opendata_camara").catch(() => null);
+    const vieja = !od?.ultima || Date.now() - Date.parse(od.ultima) > 20 * 3600 * 1000 || !(Number(od?.sesiones || 0) > 0);
+    const intentoReciente = od?.intentoEn && Date.now() - Date.parse(od.intentoEn) < 30 * 60 * 1000;
+    if (vieja && !intentoReciente) {
+      await escribirDoc("registro_indice/opendata_camara", { intentoEn: new Date().toISOString() }).catch(() => undefined);
+      const { sincronizarSesionesCamaraOpendata } = await import("./actasCamaraService");
+      camaraOpendata = await sincronizarSesionesCamaraOpendata({ presupuestoMs: 170_000 }).catch((e: any) => ({ ok: false, error: e?.message }));
+    }
+  }
   // También con tiempo libre: texto de presentaciones del Senado pendientes.
   let presentaciones = 0;
-  if (!historial && ["sin_video", "nada", "tope", "ya_transcrita", "inactiva", "sin_youtube", "sin_credito"].includes(r.accion)) presentaciones = await procesarPresentacionesPendientes(5, 90000).catch(() => 0);
-  return { ...r, fichas, ...(historial ? { historial } : {}), ...(presentaciones ? { presentaciones } : {}) };
+  if (!historial && !camaraOpendata && ["sin_video", "nada", "tope", "ya_transcrita", "inactiva", "sin_youtube", "sin_credito"].includes(r.accion)) presentaciones = await procesarPresentacionesPendientes(5, 90000).catch(() => 0);
+  return { ...r, fichas, ...(historial ? { historial } : {}), ...(presentaciones ? { presentaciones } : {}), ...(camaraOpendata ? { camaraOpendata } : {}) };
 }
 
 async function pasoTranscripcion(): Promise<{ ok: boolean; accion: string; sesion?: string; detalle: string }> {

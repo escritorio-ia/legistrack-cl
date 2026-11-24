@@ -191848,10 +191848,10 @@ async function sincronizarSesionesCamaraOpendata(opciones = {}) {
   const fin = Date.now() + (opciones.presupuestoMs ?? 2e5);
   const estado = await leerDoc("registro_indice/opendata_camara").catch(() => null);
   const hoy2 = new Date(Date.now() - 3 * 3600 * 1e3).toISOString().slice(0, 10);
-  const desde = estado?.historicoHecho ? new Date(Date.now() - (opciones.dias ?? 21) * 864e5).toISOString().slice(0, 10) : `${hoy2.slice(0, 4)}-01-01`;
+  const desde = estado?.historicoHecho && Number(estado?.sesiones || 0) > 0 ? new Date(Date.now() - (opciones.dias ?? 21) * 864e5).toISOString().slice(0, 10) : `${hoy2.slice(0, 4)}-01-01`;
   const anios = Array.from(/* @__PURE__ */ new Set([desde.slice(0, 4), hoy2.slice(0, 4)]));
   const cola = DIPUTADOS_COMISIONES_DETALLE.filter((c) => /^\d+$/.test(String(c.prmID || "")));
-  let sesiones = 0, errores = 0, comisiones = 0, incompleto = false;
+  let sesiones = 0, errores = 0, comisiones = 0, incompleto = false, ultimoError = "";
   const trabajador = async () => {
     while (cola.length) {
       if (Date.now() > fin) {
@@ -191861,9 +191861,10 @@ async function sincronizarSesionesCamaraOpendata(opciones = {}) {
       const c = cola.shift();
       for (const anio of anios) {
         try {
-          const r = await fetch(`${OPENDATA_SESIONES}?prmComisionId=${c.prmID}&prmAnno=${anio}`, { signal: AbortSignal.timeout(3e4) });
+          const r = await fetch(`${OPENDATA_SESIONES}?prmComisionId=${c.prmID}&prmAnno=${anio}`, { headers: { "User-Agent": "LegisTrackCL/1.0 (datos abiertos)" }, signal: AbortSignal.timeout(3e4) });
           if (!r.ok) {
             errores++;
+            ultimoError = `HTTP ${r.status}`;
             continue;
           }
           for (const x of parsearSesionesOpendata(await r.text())) {
@@ -191884,16 +191885,17 @@ async function sincronizarSesionesCamaraOpendata(opciones = {}) {
             });
             sesiones++;
           }
-        } catch {
+        } catch (e) {
           errores++;
+          ultimoError = e?.message || String(e);
         }
       }
       comisiones++;
     }
   };
   await Promise.all([trabajador(), trabajador(), trabajador(), trabajador()]);
-  if (!incompleto) await escribirDoc("registro_indice/opendata_camara", { historicoHecho: true, ultima: (/* @__PURE__ */ new Date()).toISOString(), sesiones, errores }).catch(() => void 0);
-  return { ok: true, desde, comisiones, sesiones, errores, incompleto };
+  await escribirDoc("registro_indice/opendata_camara", { historicoHecho: !incompleto && sesiones > 0, ultima: (/* @__PURE__ */ new Date()).toISOString(), sesiones, errores, ultimoError, desde }).catch(() => void 0);
+  return { ok: true, desde, comisiones, sesiones, errores, incompleto, ultimoError };
 }
 async function sesionesActasCamaraDeComision(comisionId) {
   const filas = await consultar({ from: [{ collectionId: "actas_camara" }], where: { fieldFilter: { field: { fieldPath: "comisionId" }, op: "EQUAL", value: { stringValue: comisionId } } } });
@@ -193753,9 +193755,21 @@ async function pasoConBloqueo() {
       await Promise.race([construirHistorial(historial).catch(() => void 0), new Promise((res) => setTimeout(res, 17e4))]);
     }
   }
+  let camaraOpendata;
+  const LIBRES = ["sin_video", "nada", "tope", "ya_transcrita", "inactiva", "sin_youtube", "sin_credito"];
+  if (!historial && LIBRES.includes(r.accion)) {
+    const od = await leerDoc("registro_indice/opendata_camara").catch(() => null);
+    const vieja = !od?.ultima || Date.now() - Date.parse(od.ultima) > 20 * 3600 * 1e3 || !(Number(od?.sesiones || 0) > 0);
+    const intentoReciente = od?.intentoEn && Date.now() - Date.parse(od.intentoEn) < 30 * 60 * 1e3;
+    if (vieja && !intentoReciente) {
+      await escribirDoc("registro_indice/opendata_camara", { intentoEn: (/* @__PURE__ */ new Date()).toISOString() }).catch(() => void 0);
+      const { sincronizarSesionesCamaraOpendata: sincronizarSesionesCamaraOpendata2 } = await Promise.resolve().then(() => (init_actasCamaraService(), actasCamaraService_exports));
+      camaraOpendata = await sincronizarSesionesCamaraOpendata2({ presupuestoMs: 17e4 }).catch((e) => ({ ok: false, error: e?.message }));
+    }
+  }
   let presentaciones = 0;
-  if (!historial && ["sin_video", "nada", "tope", "ya_transcrita", "inactiva", "sin_youtube", "sin_credito"].includes(r.accion)) presentaciones = await procesarPresentacionesPendientes(5, 9e4).catch(() => 0);
-  return { ...r, fichas, ...historial ? { historial } : {}, ...presentaciones ? { presentaciones } : {} };
+  if (!historial && !camaraOpendata && ["sin_video", "nada", "tope", "ya_transcrita", "inactiva", "sin_youtube", "sin_credito"].includes(r.accion)) presentaciones = await procesarPresentacionesPendientes(5, 9e4).catch(() => 0);
+  return { ...r, fichas, ...historial ? { historial } : {}, ...presentaciones ? { presentaciones } : {}, ...camaraOpendata ? { camaraOpendata } : {} };
 }
 async function pasoTranscripcion() {
   const ctrl = await leerDoc(`${COLA}/_control`).catch(() => null);
