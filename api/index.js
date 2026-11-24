@@ -196663,12 +196663,22 @@ function parsearArticulosLeyChile(xml) {
   });
   return out;
 }
+function numeroLeyEn(t) {
+  return (String(t || "").match(/\bley\s*(?:n[°º.]?|n[uú]mero)?\s*(\d{1,2}\.?\d{3})\b/i) || [])[1]?.replace(/\./g, "");
+}
+function leyModificadaEnMensaje(texto) {
+  const t = String(texto || "").replace(/\s+/g, " ");
+  const verbo = /(?:modif[ií]ca(?:se|nse)?|introd[uú]cen?se|incorp[oó]rase|interc[aá]lase|reempl[aá]zase|sustit[uú]yese|agr[eé]gase|der[oó]gase)\b[^.;]{0,160}?\bley\s*(?:n[°º.]?|n[uú]mero)?\s*(\d{1,2}\.?\d{3})\b/gi;
+  const ini = Math.max(0, t.toLowerCase().lastIndexOf("proyecto de ley"));
+  const enProyecto = Array.from(t.slice(ini).matchAll(verbo))[0] || Array.from(t.matchAll(verbo))[0];
+  return enProyecto?.[1]?.replace(/\./g, "");
+}
 async function leyVigenteLeyChile(referencia) {
   if (!LEYCHILE_API_KEY) return { disponible: false, motivo: "LeyChile no disponible: falta configurar LEYCHILE_API_KEY en el servidor.", articulos: [] };
   const ref = String(referencia || "").trim();
-  const num = (ref.match(/\bley\s*(?:n[°º.]?\s*)?(\d{1,2}\.?\d{3})\b/i) || [])[1]?.replace(/\./g, "");
-  const cadena = num ? `Ley ${num}` : ref;
-  if (!cadena) return { disponible: false, motivo: "No se identific\xF3 la ley que modifica el proyecto.", articulos: [] };
+  const num = numeroLeyEn(ref);
+  if (!num) return { disponible: false, motivo: "No se identific\xF3 con certeza el n\xFAmero de la ley que modifica (ni en el t\xEDtulo ni en el texto del mensaje).", articulos: [] };
+  const cadena = `Ley ${num}`;
   const claveCache = `ley_vigente_v2_${cadena.toLowerCase()}`;
   const previo = cache.get(claveCache);
   if (previo) return previo;
@@ -196683,7 +196693,7 @@ async function leyVigenteLeyChile(referencia) {
       compuesto: (b.match(/<Compuesto>([\s\S]*?)<\/Compuesto>/) || [])[1] || "",
       url: decodificarXml((b.match(/<Url>([\s\S]*?)<\/Url>/) || [])[1] || "")
     })).filter((n) => n.id);
-    const norma = num ? normas.find((n) => n.compuesto.replace(/\D/g, "") === num || new RegExp(`\\b${num.replace(/(\d+)(\d{3})$/, "$1\\.?$2")}\\b`).test(n.titulo)) : normas[0];
+    const norma = normas.find((n) => n.compuesto.replace(/\D/g, "") === num || new RegExp(`\\b${num.replace(/(\d+)(\d{3})$/, "$1\\.?$2")}\\b`).test(n.titulo));
     if (!norma) return { disponible: false, motivo: `No se encontr\xF3 ${num ? `la Ley N\xB0 ${num}` : `"${cadena}"`} en LeyChile.`, articulos: [] };
     const rn = await fetchConTimeout(`https://www.leychile.cl/Consulta/obtxml?opt=7&idNorma=${norma.id}${key}`, 15e3);
     if (!rn.ok) return { disponible: false, motivo: `LeyChile no entreg\xF3 el texto de la norma (HTTP ${rn.status}).`, articulos: [] };
@@ -199641,8 +199651,23 @@ apiRouter.get("/proyecto/:id", async (req, res) => {
   res.json(proyecto);
 });
 apiRouter.get("/ley-vigente", async (req, res) => {
-  const ref = String(req.query.ref || "").slice(0, 300);
-  res.json(await leyVigenteLeyChile(ref));
+  let ref = String(req.query.ref || "").slice(0, 300);
+  const boletin = String(req.query.boletin || "").split("-")[0].replace(/\D/g, "");
+  let fuente = "t\xEDtulo";
+  if (!numeroLeyEn(ref) && boletin.length >= 4) {
+    const pr = await fetchProyectoFromSenado(boletin).catch(() => null);
+    const enTitulo = numeroLeyEn(pr?.titulo || "");
+    if (enTitulo) ref = `Ley ${enTitulo}`;
+    else if (pr?.linkCongreso) {
+      const enMensaje = leyModificadaEnMensaje(await textoMensajeMocion(pr.linkCongreso).catch(() => "") || "");
+      if (enMensaje) {
+        ref = `Ley ${enMensaje}`;
+        fuente = "texto del mensaje o moci\xF3n";
+      }
+    }
+  }
+  const r = await leyVigenteLeyChile(ref);
+  res.json({ ...r, fuenteNumero: numeroLeyEn(ref) ? fuente : void 0 });
 });
 apiRouter.get("/proyecto/:id/comparado", async (req, res) => {
   const idParam = req.params.id;

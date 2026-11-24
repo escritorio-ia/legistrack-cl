@@ -71,7 +71,9 @@ import {
   buscarLeyChilePorNumero,
   LEYCHILE_API_KEY,
   fetchConTimeout,
-  leyVigenteLeyChile
+  leyVigenteLeyChile,
+  numeroLeyEn,
+  leyModificadaEnMensaje
 } from "../services/comparadoService";
 import { 
   getOWIDTopics, 
@@ -424,8 +426,21 @@ apiRouter.get("/proyecto/:id", async (req: Request, res: Response) => {
 // simular contenido.
 // Texto vigente (LeyChile) de la ley que modifica un proyecto: ?ref=<"ley N° 18.455 sobre..." o nombre de la norma>.
 apiRouter.get("/ley-vigente", async (req: Request, res: Response) => {
-  const ref = String(req.query.ref || "").slice(0, 300);
-  res.json(await leyVigenteLeyChile(ref));
+  let ref = String(req.query.ref || "").slice(0, 300);
+  const boletin = String(req.query.boletin || "").split("-")[0].replace(/\D/g, "");
+  let fuente = "título";
+  // Sin número de ley en la referencia: se busca en el título oficial y, si no, en el texto del mensaje o moción.
+  if (!numeroLeyEn(ref) && boletin.length >= 4) {
+    const pr = await fetchProyectoFromSenado(boletin).catch(() => null);
+    const enTitulo = numeroLeyEn(pr?.titulo || "");
+    if (enTitulo) ref = `Ley ${enTitulo}`;
+    else if (pr?.linkCongreso) {
+      const enMensaje = leyModificadaEnMensaje((await textoMensajeMocion(pr.linkCongreso).catch(() => "")) || "");
+      if (enMensaje) { ref = `Ley ${enMensaje}`; fuente = "texto del mensaje o moción"; }
+    }
+  }
+  const r = await leyVigenteLeyChile(ref);
+  res.json({ ...r, fuenteNumero: numeroLeyEn(ref) ? fuente : undefined });
 });
 
 apiRouter.get("/proyecto/:id/comparado", async (req: Request, res: Response) => {

@@ -539,13 +539,15 @@ export default function ProyectoDetailView({
     return () => { cancelado = true; };
   }, [activeTab, proyecto.id, selectedComisionSafe]);
 
+  // Referencia a la ley que modifica (del título); el servidor completa el número desde el mensaje si falta.
   const refLeyModificada = (comparadoReal as any)?.leyModificada
-    || ((proyecto.titulo || "").match(/\bley\s*(?:n[°º.]?\s*)?\d{1,2}\.?\d{3}\b[^,.;]*/i) || [])[0] || "";
+    || ((proyecto.titulo || "").match(/\bley\s*(?:n[°º.]?|n[uú]mero)?\s*\d{1,2}\.?\d{3}\b[^,.;]*/i) || [])[0]
+    || (/\bmodifica|introduce modificaciones|deroga|sustituye/i.test(proyecto.titulo || "") ? (proyecto.titulo || "") : "");
   useEffect(() => {
     if (activeTab !== "comparado" || !refLeyModificada) return;
     let cancelado = false;
     setLeyVigenteCargando(true);
-    fetch(`/api/ley-vigente?ref=${encodeURIComponent(refLeyModificada)}`)
+    fetch(`/api/ley-vigente?boletin=${encodeURIComponent(proyecto.id)}&ref=${encodeURIComponent(refLeyModificada)}`)
       .then(r => r.json())
       .then(d => { if (!cancelado) setLeyVigente(d); })
       .catch(() => { if (!cancelado) setLeyVigente({ disponible: false, motivo: "LeyChile no disponible en este momento.", articulos: [] }); })

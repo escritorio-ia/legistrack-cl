@@ -857,13 +857,27 @@ export function parsearArticulosLeyChile(xml: string): ArticuloLey[] {
   return out;
 }
 
-/** Busca la norma en LeyChile (por número de ley o por su nombre) y entrega sus artículos vigentes. */
+/** Número de ley ("18455") mencionado en un texto: "ley N° 18.455", "ley Nº 18455", "ley número 18.455". */
+export function numeroLeyEn(t: string): string | undefined {
+  return (String(t || "").match(/\bley\s*(?:n[°º.]?|n[uú]mero)?\s*(\d{1,2}\.?\d{3})\b/i) || [])[1]?.replace(/\./g, "");
+}
+/** Número de la ley que modifica un proyecto, según el texto del mensaje o moción (la parte "PROYECTO DE LEY"). */
+export function leyModificadaEnMensaje(texto: string): string | undefined {
+  const t = String(texto || "").replace(/\s+/g, " ");
+  const verbo = /(?:modif[ií]ca(?:se|nse)?|introd[uú]cen?se|incorp[oó]rase|interc[aá]lase|reempl[aá]zase|sustit[uú]yese|agr[eé]gase|der[oó]gase)\b[^.;]{0,160}?\bley\s*(?:n[°º.]?|n[uú]mero)?\s*(\d{1,2}\.?\d{3})\b/gi;
+  const ini = Math.max(0, t.toLowerCase().lastIndexOf("proyecto de ley"));
+  const enProyecto = Array.from(t.slice(ini).matchAll(verbo))[0] || Array.from(t.matchAll(verbo))[0];
+  return enProyecto?.[1]?.replace(/\./g, "");
+}
+
+/** Busca la norma en LeyChile por su número de ley y entrega sus artículos vigentes. */
 export async function leyVigenteLeyChile(referencia: string): Promise<LeyVigente> {
   if (!LEYCHILE_API_KEY) return { disponible: false, motivo: "LeyChile no disponible: falta configurar LEYCHILE_API_KEY en el servidor.", articulos: [] };
   const ref = String(referencia || "").trim();
-  const num = (ref.match(/\bley\s*(?:n[°º.]?\s*)?(\d{1,2}\.?\d{3})\b/i) || [])[1]?.replace(/\./g, "");
-  const cadena = num ? `Ley ${num}` : ref;
-  if (!cadena) return { disponible: false, motivo: "No se identificó la ley que modifica el proyecto.", articulos: [] };
+  const num = numeroLeyEn(ref);
+  // Sin número de ley no se busca por nombre: el primer resultado de LeyChile puede ser otra norma.
+  if (!num) return { disponible: false, motivo: "No se identificó con certeza el número de la ley que modifica (ni en el título ni en el texto del mensaje).", articulos: [] };
+  const cadena = `Ley ${num}`;
   const claveCache = `ley_vigente_v2_${cadena.toLowerCase()}`;
   const previo = cache.get<LeyVigente>(claveCache);
   if (previo) return previo;
@@ -879,7 +893,7 @@ export async function leyVigenteLeyChile(referencia: string): Promise<LeyVigente
       url: decodificarXml((b.match(/<Url>([\s\S]*?)<\/Url>/) || [])[1] || ""),
     })).filter((n) => n.id);
     // Con número de ley, solo se acepta la norma cuyo identificador corresponde exactamente a esa ley.
-    const norma = num ? normas.find((n) => n.compuesto.replace(/\D/g, "") === num || new RegExp(`\\b${num.replace(/(\d+)(\d{3})$/, "$1\\.?$2")}\\b`).test(n.titulo)) : normas[0];
+    const norma = normas.find((n) => n.compuesto.replace(/\D/g, "") === num || new RegExp(`\\b${num.replace(/(\d+)(\d{3})$/, "$1\\.?$2")}\\b`).test(n.titulo));
     if (!norma) return { disponible: false, motivo: `No se encontró ${num ? `la Ley N° ${num}` : `"${cadena}"`} en LeyChile.`, articulos: [] };
     const rn = await fetchConTimeout(`https://www.leychile.cl/Consulta/obtxml?opt=7&idNorma=${norma.id}${key}`, 15000);
     if (!rn.ok) return { disponible: false, motivo: `LeyChile no entregó el texto de la norma (HTTP ${rn.status}).`, articulos: [] };
