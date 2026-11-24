@@ -2,6 +2,7 @@
  * Informe de sesión generado con Gemini SOLO a partir de la transcripción guardada de la sesión.
  * El resultado se valida contra la transcripción (minutos, oradores, boletines) antes de entregarlo.
  */
+import { clavesDisponibles, apartarClave, esAgotamiento } from "./geminiClaves";
 import { InformeSesion, SegmentoInforme, ResultadoOficialSesion, transcripcionParaPrompt, validarInforme } from "../../src/utils/informeSesion";
 import { sesionRegistradaPorFecha, fechaISO as fechaRegistroISO } from "./registroSesionesService";
 import { actasDeFecha } from "./actasCamaraService";
@@ -163,11 +164,19 @@ async function modelosGemini(apiKey: string): Promise<string[]> {
 }
 const esperar = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export async function generarInformeSesion(p: {
-  segmentos: SegmentoInforme[]; tabla: string[]; boletines: string[]; comision: string; fecha: string; parcial: boolean;
-}): Promise<{ disponible: true; informe: InformeSesion } | { disponible: false; motivo: string }> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return { disponible: false, motivo: "GEMINI_API_KEY no está configurada en el servidor." };
+type ParamsInforme = { segmentos: SegmentoInforme[]; tabla: string[]; boletines: string[]; comision: string; fecha: string; parcial: boolean };
+export async function generarInformeSesion(p: ParamsInforme): Promise<{ disponible: true; informe: InformeSesion } | { disponible: false; motivo: string }> {
+  const claves = clavesDisponibles(false);
+  if (!claves.length) return { disponible: false, motivo: "GEMINI_API_KEY no está configurada en el servidor." };
+  const motivos: string[] = [];
+  for (const k of claves) {
+    const r = await generarInformeSesionConClave(p, k);
+    if (r.disponible !== false || !esAgotamiento((r as any).motivo)) return r;
+    apartarClave(k); motivos.push((r as any).motivo);
+  }
+  return { disponible: false, motivo: motivos.join(" | ") };
+}
+async function generarInformeSesionConClave(p: ParamsInforme, apiKey: string): Promise<{ disponible: true; informe: InformeSesion } | { disponible: false; motivo: string }> {
   const segmentos = (p.segmentos || []).filter((g) => g && Number.isFinite(Number(g.segundos)) && String(g.texto || "").trim())
     .map((g) => ({ segundos: Number(g.segundos), orador: String(g.orador || ""), texto: String(g.texto) }));
   if (segmentos.length < 5) return { disponible: false, motivo: "La transcripción tiene muy poco texto para redactar un informe." };
@@ -196,7 +205,9 @@ export async function generarInformeSesion(p: {
           signal: AbortSignal.timeout(Math.min(230_000, limite - Date.now())),
         });
         if (!r.ok) {
-          errores.push(`${model}: HTTP ${r.status}${intento ? ` (intento ${intento + 1})` : ""}`);
+          const det = r.status === 402 || r.status === 429 ? (await r.text().catch(() => "")).replace(/\s+/g, " ").slice(0, 160) : "";
+          errores.push(`${model}: HTTP ${r.status}${det ? ` (${det})` : ""}${intento ? ` (intento ${intento + 1})` : ""}`);
+          if (r.status === 402) return { disponible: false, motivo: `Gemini sin saldo. Detalle: ${errores.join(" | ")}` };
           if ([503, 429, 500, 502, 504].includes(r.status)) continue; // reintenta el mismo modelo
           break; // 404 u otro: siguiente modelo
         }
@@ -226,8 +237,18 @@ export async function generarInformeSesion(p: {
 /** Consulta genérica a Gemini con salida JSON estructurada (con reintentos y modelos de respaldo). */
 export async function geminiJSON(texto: string, esquema: any, opciones: { maxTokens?: number; presupuestoMs?: number } = {}):
   Promise<{ ok: true; datos: any; modelo: string } | { ok: false; motivo: string }> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return { ok: false, motivo: "GEMINI_API_KEY no está configurada en el servidor." };
+  const claves = clavesDisponibles(false);
+  if (!claves.length) return { ok: false, motivo: "GEMINI_API_KEY no está configurada en el servidor." };
+  const motivos: string[] = [];
+  for (const k of claves) {
+    const r = await geminiJSONConClave(texto, esquema, opciones, k);
+    if (r.ok !== false || !esAgotamiento((r as any).motivo)) return r;
+    apartarClave(k); motivos.push((r as any).motivo);
+  }
+  return { ok: false, motivo: motivos.join(" | ") };
+}
+async function geminiJSONConClave(texto: string, esquema: any, opciones: { maxTokens?: number; presupuestoMs?: number }, apiKey: string):
+  Promise<{ ok: true; datos: any; modelo: string } | { ok: false; motivo: string }> {
   const candidatos = await modelosGemini(apiKey);
   const limite = Date.now() + (opciones.presupuestoMs ?? 120_000);
   const errores: string[] = [];
@@ -245,7 +266,12 @@ export async function geminiJSON(texto: string, esquema: any, opciones: { maxTok
           method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey }, body: cuerpo,
           signal: AbortSignal.timeout(restante),
         });
-        if (!r.ok) { errores.push(`${model}: HTTP ${r.status}`); if ([503, 429, 500, 502, 504].includes(r.status)) continue; break; }
+        if (!r.ok) {
+          const det = r.status === 402 || r.status === 429 ? (await r.text().catch(() => "")).replace(/\s+/g, " ").slice(0, 160) : "";
+          errores.push(`${model}: HTTP ${r.status}${det ? ` (${det})` : ""}`);
+          if (r.status === 402) return { ok: false, motivo: errores.join(" | ") };
+          if ([503, 429, 500, 502, 504].includes(r.status)) continue; break;
+        }
         const data: any = await r.json();
         const t = (data?.candidates?.[0]?.content?.parts || []).map((x: any) => x.text || "").join("");
         if (!t) { errores.push(`${model}: respuesta vacía`); break; }

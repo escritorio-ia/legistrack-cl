@@ -5,6 +5,7 @@
 //  - API de Gemini (GEMINI_API_KEY), que acepta enlaces de videos públicos de
 //    YouTube, para describir lo que se dijo: expositores, minutos, acuerdos y citas.
 // Nada se inventa: si falta una clave o el servicio falla, se informa el motivo.
+import { clavesDisponibles, apartarClave, esAgotamiento, clavesGemini } from "./geminiClaves";
 import { cache } from "./cacheService";
 import { safeJsonParse, rescatarObjetosJson } from "./aiService";
 
@@ -199,6 +200,18 @@ function aSegundos(v: any): number {
  * Consulta a Gemini con el enlace del video y un tramo (startOffset/endOffset). Prueba varios modelos: si uno no tiene
  * cuota (429) o no existe (404), pasa al siguiente. Devuelve el texto de la respuesta o el motivo del fallo.
  */
+/** Prueba las claves de Gemini en orden; pasa a la siguiente solo si la actual quedó sin saldo o sin cuota. */
+async function videoConRespaldo(llamar: (apiKey: string) => Promise<{ ok: true; texto: string; model: string; fin?: string } | { ok: false; motivo: string }>) {
+  const claves = clavesDisponibles(true);
+  const motivos: string[] = [];
+  for (const [i, k] of claves.entries()) {
+    const g = await llamar(k);
+    if (g.ok !== false || !esAgotamiento(g.motivo)) return g.ok === false && motivos.length ? { ok: false as const, motivo: `${g.motivo} (claves anteriores: ${motivos.join(" | ")})` } : g;
+    apartarClave(k);
+    motivos.push(`clave ${i + 1}: ${g.motivo}`);
+  }
+  return { ok: false as const, motivo: motivos.join(" | ") || "Sin claves de Gemini." };
+}
 async function consultarGeminiVideo(p: {
   apiKey: string;
   videoId: string;
@@ -285,7 +298,7 @@ export async function analizarParteVideo(params: {
 }): Promise<AnalisisParteVideo> {
   const { videoId, parte } = params;
   // Clave dedicada a videos (otro proyecto de Google = cuota gratuita propia); si no existe, la general.
-  const apiKey = process.env.GEMINI_VIDEO_API_KEY || process.env.GEMINI_API_KEY;
+  const apiKey = clavesGemini(true)[0];
   const desde = parte * SEGUNDOS_POR_PARTE;
   const hasta = params.duracion ? Math.min(params.duracion, desde + SEGUNDOS_POR_PARTE) : (params.duracion === null ? null : desde + SEGUNDOS_POR_PARTE);
   if (!/^[\w-]{11}$/.test(videoId)) return { disponible: false, motivo: "Identificador de video no válido.", parte, desde, hasta };
@@ -321,7 +334,7 @@ Responde ÚNICAMENTE con JSON válido:
 }
 Ordena las intervenciones cronológicamente y registra cada cambio relevante de orador.`;
 
-    const g = await consultarGeminiVideo({ apiKey, videoId, desde, hasta, prompt, maxOutputTokens: 16000 });
+    const g = await videoConRespaldo((k) => consultarGeminiVideo({ apiKey: k, videoId, desde, hasta, prompt, maxOutputTokens: 16000 }));
     if (g.ok === false) return { disponible: false, motivo: g.motivo, parte, desde, hasta };
     const { texto, model } = g;
     const json: any = texto ? (() => { try { return safeJsonParse<any>(texto); } catch { return null; } })() : null;
@@ -410,7 +423,7 @@ export async function transcribirParteVideo(params: {
   materia?: string;
 }): Promise<TranscripcionParteVideo> {
   const { videoId, parte } = params;
-  const apiKey = process.env.GEMINI_VIDEO_API_KEY || process.env.GEMINI_API_KEY;
+  const apiKey = clavesGemini(true)[0];
   const desde = parte * SEGUNDOS_POR_PARTE_TRANSCRIPCION;
   const hasta = params.duracion ? Math.min(params.duracion, desde + SEGUNDOS_POR_PARTE_TRANSCRIPCION) : (params.duracion === null ? null : desde + SEGUNDOS_POR_PARTE_TRANSCRIPCION);
   if (!/^[\w-]{11}$/.test(videoId)) return { disponible: false, motivo: "Identificador de video no válido.", parte, desde, hasta };
@@ -437,7 +450,7 @@ Responde ÚNICAMENTE con JSON válido:
 Usa exactamente esas claves ("segmentos", "minuto", "orador", "texto"). Solo si en todo el tramo no habla nadie (pantalla de espera, receso, sin audio), responde {"segmentos":[],"sinVoz":true}.
 Un segmento por cambio de orador, o cada 60 segundos como máximo si habla la misma persona. Ordénalos cronológicamente.`;
 
-  const g = await consultarGeminiVideo({ apiKey, videoId, desde, hasta, prompt, maxOutputTokens: 32000 });
+  const g = await videoConRespaldo((k) => consultarGeminiVideo({ apiKey: k, videoId, desde, hasta, prompt, maxOutputTokens: 32000 }));
   if (g.ok === false) return { disponible: false, motivo: g.motivo, parte, desde, hasta };
   const { crudos, sinVoz } = segmentosDeRespuesta(g.texto);
   let segmentos: SegmentoTranscripcion[] = crudos

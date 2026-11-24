@@ -169613,6 +169613,31 @@ var init_cacheService = __esm({
   }
 });
 
+// server/services/geminiClaves.ts
+function clavesGemini(video = false) {
+  const l = [video ? process.env.GEMINI_VIDEO_API_KEY : void 0, process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEY_RESPALDO].map((x) => String(x || "").trim()).filter(valida);
+  return Array.from(new Set(l));
+}
+function clavesDisponibles(video = false) {
+  const l = clavesGemini(video);
+  const libres = l.filter((k) => !((apartadas.get(k) || 0) > Date.now()));
+  return libres.length ? [...libres, ...l.filter((k) => !libres.includes(k))] : l;
+}
+function apartarClave(k) {
+  apartadas.set(k, Date.now() + 60 * 60 * 1e3);
+}
+function esAgotamiento(motivo) {
+  const m = String(motivo || "");
+  return /HTTP 402|credits are depleted|prepayment|billing/i.test(m) || /HTTP 429[^|]*(quota|exceeded|RESOURCE_EXHAUSTED|per day)/i.test(m);
+}
+var valida, apartadas;
+var init_geminiClaves = __esm({
+  "server/services/geminiClaves.ts"() {
+    valida = (k) => !!k && k !== "MY_GEMINI_API_KEY";
+    apartadas = /* @__PURE__ */ new Map();
+  }
+});
+
 // server/services/aiService.ts
 import Anthropic from "@anthropic-ai/sdk";
 function handleClaudeError(context, err) {
@@ -170244,6 +170269,17 @@ function aSegundos(v) {
   if (p.some((n) => isNaN(n))) return 0;
   return p.reduce((acc, n) => acc * 60 + n, 0);
 }
+async function videoConRespaldo(llamar) {
+  const claves = clavesDisponibles(true);
+  const motivos = [];
+  for (const [i, k] of claves.entries()) {
+    const g = await llamar(k);
+    if (g.ok !== false || !esAgotamiento(g.motivo)) return g.ok === false && motivos.length ? { ok: false, motivo: `${g.motivo} (claves anteriores: ${motivos.join(" | ")})` } : g;
+    apartarClave(k);
+    motivos.push(`clave ${i + 1}: ${g.motivo}`);
+  }
+  return { ok: false, motivo: motivos.join(" | ") || "Sin claves de Gemini." };
+}
 async function consultarGeminiVideo(p) {
   const { apiKey, videoId, desde, hasta, prompt: prompt3, maxOutputTokens } = p;
   const videoMetadata = { startOffset: `${desde}s` };
@@ -170319,7 +170355,7 @@ async function consultarGeminiVideo(p) {
 }
 async function analizarParteVideo(params) {
   const { videoId, parte } = params;
-  const apiKey = process.env.GEMINI_VIDEO_API_KEY || process.env.GEMINI_API_KEY;
+  const apiKey = clavesGemini(true)[0];
   const desde = parte * SEGUNDOS_POR_PARTE;
   const hasta = params.duracion ? Math.min(params.duracion, desde + SEGUNDOS_POR_PARTE) : params.duracion === null ? null : desde + SEGUNDOS_POR_PARTE;
   if (!/^[\w-]{11}$/.test(videoId)) return { disponible: false, motivo: "Identificador de video no v\xE1lido.", parte, desde, hasta };
@@ -170351,7 +170387,7 @@ Responde \xDANICAMENTE con JSON v\xE1lido:
   "votaciones": ["votaciones realizadas y su resultado, si las hay"]
 }
 Ordena las intervenciones cronol\xF3gicamente y registra cada cambio relevante de orador.`;
-    const g = await consultarGeminiVideo({ apiKey, videoId, desde, hasta, prompt: prompt3, maxOutputTokens: 16e3 });
+    const g = await videoConRespaldo((k) => consultarGeminiVideo({ apiKey: k, videoId, desde, hasta, prompt: prompt3, maxOutputTokens: 16e3 }));
     if (g.ok === false) return { disponible: false, motivo: g.motivo, parte, desde, hasta };
     const { texto, model } = g;
     const json = texto ? (() => {
@@ -170409,7 +170445,7 @@ function segmentosDeRespuesta(texto) {
 }
 async function transcribirParteVideo(params) {
   const { videoId, parte } = params;
-  const apiKey = process.env.GEMINI_VIDEO_API_KEY || process.env.GEMINI_API_KEY;
+  const apiKey = clavesGemini(true)[0];
   const desde = parte * SEGUNDOS_POR_PARTE_TRANSCRIPCION;
   const hasta = params.duracion ? Math.min(params.duracion, desde + SEGUNDOS_POR_PARTE_TRANSCRIPCION) : params.duracion === null ? null : desde + SEGUNDOS_POR_PARTE_TRANSCRIPCION;
   if (!/^[\w-]{11}$/.test(videoId)) return { disponible: false, motivo: "Identificador de video no v\xE1lido.", parte, desde, hasta };
@@ -170432,7 +170468,7 @@ Responde \xDANICAMENTE con JSON v\xE1lido:
 {"segmentos":[{"minuto":"H:MM:SS desde el inicio del video","orador":"nombre tal como se presenta o 'No identificado'","texto":"lo que dice, tal como lo dice"}]}
 Usa exactamente esas claves ("segmentos", "minuto", "orador", "texto"). Solo si en todo el tramo no habla nadie (pantalla de espera, receso, sin audio), responde {"segmentos":[],"sinVoz":true}.
 Un segmento por cambio de orador, o cada 60 segundos como m\xE1ximo si habla la misma persona. Ord\xE9nalos cronol\xF3gicamente.`;
-  const g = await consultarGeminiVideo({ apiKey, videoId, desde, hasta, prompt: prompt3, maxOutputTokens: 32e3 });
+  const g = await videoConRespaldo((k) => consultarGeminiVideo({ apiKey: k, videoId, desde, hasta, prompt: prompt3, maxOutputTokens: 32e3 }));
   if (g.ok === false) return { disponible: false, motivo: g.motivo, parte, desde, hasta };
   const { crudos, sinVoz } = segmentosDeRespuesta(g.texto);
   let segmentos = crudos.map((x) => ({
@@ -170465,6 +170501,7 @@ Un segmento por cambio de orador, o cada 60 segundos como m\xE1ximo si habla la 
 var CANALES_YOUTUBE, YouTubeNoConfigurado, ytKey, youtubeApiConfigurada, MESES2, norm, SEGUNDOS_POR_PARTE, SEGUNDOS_POR_PARTE_TRANSCRIPCION, AVISO_TRANSCRIPCION;
 var init_youtubeService = __esm({
   "server/services/youtubeService.ts"() {
+    init_geminiClaves();
     init_cacheService();
     init_aiService();
     CANALES_YOUTUBE = {
@@ -192035,6 +192072,9 @@ function limpiarFallos(ip) {
   intentos.delete(ip);
 }
 
+// server/services/informeSesionService.ts
+init_geminiClaves();
+
 // src/utils/informeSesion.ts
 init_boletines();
 var CATEGORIAS = {
@@ -192358,8 +192398,18 @@ async function modelosGemini(apiKey) {
 }
 var esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 async function generarInformeSesion(p) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return { disponible: false, motivo: "GEMINI_API_KEY no est\xE1 configurada en el servidor." };
+  const claves = clavesDisponibles(false);
+  if (!claves.length) return { disponible: false, motivo: "GEMINI_API_KEY no est\xE1 configurada en el servidor." };
+  const motivos = [];
+  for (const k of claves) {
+    const r = await generarInformeSesionConClave(p, k);
+    if (r.disponible !== false || !esAgotamiento(r.motivo)) return r;
+    apartarClave(k);
+    motivos.push(r.motivo);
+  }
+  return { disponible: false, motivo: motivos.join(" | ") };
+}
+async function generarInformeSesionConClave(p, apiKey) {
   const segmentos = (p.segmentos || []).filter((g) => g && Number.isFinite(Number(g.segundos)) && String(g.texto || "").trim()).map((g) => ({ segundos: Number(g.segundos), orador: String(g.orador || ""), texto: String(g.texto) }));
   if (segmentos.length < 5) return { disponible: false, motivo: "La transcripci\xF3n tiene muy poco texto para redactar un informe." };
   let transcripcion = transcripcionParaPrompt(segmentos);
@@ -192385,7 +192435,9 @@ async function generarInformeSesion(p) {
           signal: AbortSignal.timeout(Math.min(23e4, limite - Date.now()))
         });
         if (!r.ok) {
-          errores.push(`${model}: HTTP ${r.status}${intento ? ` (intento ${intento + 1})` : ""}`);
+          const det = r.status === 402 || r.status === 429 ? (await r.text().catch(() => "")).replace(/\s+/g, " ").slice(0, 160) : "";
+          errores.push(`${model}: HTTP ${r.status}${det ? ` (${det})` : ""}${intento ? ` (intento ${intento + 1})` : ""}`);
+          if (r.status === 402) return { disponible: false, motivo: `Gemini sin saldo. Detalle: ${errores.join(" | ")}` };
           if ([503, 429, 500, 502, 504].includes(r.status)) continue;
           break;
         }
@@ -192419,8 +192471,18 @@ async function generarInformeSesion(p) {
   return { disponible: false, motivo: `${saturado ? "Gemini est\xE1 saturado en este momento; intente de nuevo en unos minutos (la transcripci\xF3n ya est\xE1 guardada). " : "No se pudo generar el informe. "}Detalle: ${errores.join(" | ")}` };
 }
 async function geminiJSON(texto, esquema, opciones = {}) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return { ok: false, motivo: "GEMINI_API_KEY no est\xE1 configurada en el servidor." };
+  const claves = clavesDisponibles(false);
+  if (!claves.length) return { ok: false, motivo: "GEMINI_API_KEY no est\xE1 configurada en el servidor." };
+  const motivos = [];
+  for (const k of claves) {
+    const r = await geminiJSONConClave(texto, esquema, opciones, k);
+    if (r.ok !== false || !esAgotamiento(r.motivo)) return r;
+    apartarClave(k);
+    motivos.push(r.motivo);
+  }
+  return { ok: false, motivo: motivos.join(" | ") };
+}
+async function geminiJSONConClave(texto, esquema, opciones, apiKey) {
   const candidatos = await modelosGemini(apiKey);
   const limite = Date.now() + (opciones.presupuestoMs ?? 12e4);
   const errores = [];
@@ -192441,7 +192503,9 @@ async function geminiJSON(texto, esquema, opciones = {}) {
           signal: AbortSignal.timeout(restante)
         });
         if (!r.ok) {
-          errores.push(`${model}: HTTP ${r.status}`);
+          const det = r.status === 402 || r.status === 429 ? (await r.text().catch(() => "")).replace(/\s+/g, " ").slice(0, 160) : "";
+          errores.push(`${model}: HTTP ${r.status}${det ? ` (${det})` : ""}`);
+          if (r.status === 402) return { ok: false, motivo: errores.join(" | ") };
           if ([503, 429, 500, 502, 504].includes(r.status)) continue;
           break;
         }
