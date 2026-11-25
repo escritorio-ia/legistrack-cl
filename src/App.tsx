@@ -390,6 +390,7 @@ export default function App() {
 
         {view === "proyecto-detail" && (
           <ProyectoDetailView
+            key={selectedProyectoId}
             proyectoId={selectedProyectoId}
             setView={navigateView}
             setSelectedComisionId={(id) => navigateView("comision-detail", id)}

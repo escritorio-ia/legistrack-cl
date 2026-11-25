@@ -5,6 +5,7 @@
 
 import ResumenComisionPanel from "../components/ResumenComisionPanel";
 import { aplicarModificacion } from "../utils/aplicarModificacion";
+import ProyectosRelacionados from "../components/ProyectosRelacionados";
 import { unirComisiones } from "../utils/comisionesNombre";
 import YouTubeTranscriptModal from "../components/YouTubeTranscriptModal";
 import { useState, useEffect } from "react";
@@ -66,7 +67,7 @@ import { getSesionesVinculadasDeProyecto, saveSesionVinculadaAProyecto, SesionVi
 
 interface ProyectoDetailViewProps {
   proyectoId: string;
-  setView: (view: string) => void;
+  setView: (view: string, param?: string) => void;
   setSelectedComisionId?: (id: string) => void;
   followedProys?: string[];
   toggleFollowProy?: (id: string) => void;
@@ -113,6 +114,7 @@ const TAB_DESCRIPCIONES: Record<string, string> = {
   "votaciones": "Resultados de las votaciones del proyecto: a favor, en contra y abstenciones.",
   "comparado": "Compara el texto del proyecto entre etapas (qué cambió en cada informe o trámite).",
   "indicaciones": "Modificaciones propuestas al texto durante la tramitación, y su estado.",
+  "relacionados": "Otros proyectos que modifican la misma ley o código, o que tratan una materia parecida (listado oficial de la Cámara).",
   "informes-bcn": "Informes financieros de la DIPRES: cuánto costaría el proyecto y cómo se financia. Los informes de comisión están en Documentos.",
 };
 
@@ -265,7 +267,7 @@ export default function ProyectoDetailView({
 }: ProyectoDetailViewProps) {
   const [proyecto, setProyecto] = useState<Proyecto>(() => resolveProyecto(proyectoId));
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<"resumen" | "tramitacion" | "comisiones" | "territorial" | "documentos" | "votaciones" | "comparado" | "indicaciones" | "informes-bcn" | "simulador-quorum">("resumen");
+  const [activeTab, setActiveTab] = useState<"resumen" | "tramitacion" | "comisiones" | "territorial" | "documentos" | "votaciones" | "comparado" | "indicaciones" | "relacionados" | "informes-bcn" | "simulador-quorum">("resumen");
   const [isDiffModalOpen, setIsDiffModalOpen] = useState(false);
   const [isFichaModalOpen, setIsFichaModalOpen] = useState(false);
   const [isNotesDrawerOpen, setIsNotesDrawerOpen] = useState(false);
@@ -1200,6 +1202,14 @@ export default function ProyectoDetailView({
             >
               Indicaciones
             </button>
+            <button
+              onClick={() => setActiveTab("relacionados")}
+              className={`pb-2.5 px-3 border-b-2 transition-colors cursor-pointer ${
+                activeTab === "relacionados" ? "border-blue-600 text-blue-600 font-bold" : "border-transparent text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              Relacionados
+            </button>
 
             <button
               onClick={() => setActiveTab("informes-bcn")}
@@ -1231,6 +1241,9 @@ export default function ProyectoDetailView({
 
           {/* Tab Content Panels */}
           <div className="bg-white min-h-[220px]" id="project-tab-content-panel">
+            {activeTab === "relacionados" && (
+              <ProyectosRelacionados boletin={proyecto.id} titulo={proyecto.titulo} onAbrir={(b) => setView("proyecto-detail", b)} />
+            )}
             {/* 1. Resumen Tab */}
             {activeTab === "resumen" && (
               <div className="flex flex-col gap-5" id="tabpanel-resumen">

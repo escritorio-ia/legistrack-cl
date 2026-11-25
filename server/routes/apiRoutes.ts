@@ -424,6 +424,14 @@ apiRouter.get("/proyecto/:id", async (req: Request, res: Response) => {
 // fabricado que se usaba antes. Requiere que exista un informe .docx real
 // para la comisión pedida; si no existe, se informa explícitamente en vez de
 // simular contenido.
+// Proyectos relacionados con un boletín (listado oficial de mociones y mensajes de la Cámara, sin IA).
+apiRouter.get("/proyecto/:id/relacionados", async (req: Request, res: Response) => {
+  try {
+    const { proyectosRelacionados } = await import("../services/relacionadosService");
+    res.json(await proyectosRelacionados(String(req.params.id).slice(0, 20), String(req.query.titulo || "").slice(0, 600) || undefined));
+  } catch (err: any) { res.json({ disponible: false, motivo: `Listado oficial de la Cámara no disponible (${err?.message || err}).`, mismaNorma: [], materiaSimilar: [] }); }
+});
+
 // Texto vigente (LeyChile) de la ley que modifica un proyecto: ?ref=<"ley N° 18.455 sobre..." o nombre de la norma>.
 apiRouter.get("/ley-vigente", async (req: Request, res: Response) => {
   let ref = String(req.query.ref || "").slice(0, 300);

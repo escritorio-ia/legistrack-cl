@@ -190419,14 +190419,14 @@ function ventanas(texto, marcadores, ancho, max) {
 async function resumenPasoComision(boletinId, comision) {
   const digits = String(boletinId || "").replace(/\./g, "").match(/\d{3,6}/)?.[0] || "";
   if (!digits || !comision) return { disponible: false, motivo: "Faltan el bolet\xEDn o la comisi\xF3n." };
-  const norm6 = (x) => x.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
-  const clave = `resumen_comision_v3_${digits}_${norm6(comision)}`;
+  const norm7 = (x) => x.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const clave = `resumen_comision_v3_${digits}_${norm7(comision)}`;
   const previo = cache.get(clave);
   if (previo) return previo;
   const p = await fetchProyectoFromSenado(digits);
   if (!p) return { disponible: false, motivo: "No se encontr\xF3 el proyecto en la ficha oficial del Senado." };
-  const nucleo = norm6(comision).replace(/^comision\s+(especial\s+)?(de\s+)?/, "").split(/[^a-z0-9]+/).filter((w) => w.length > 3).slice(0, 2);
-  const informes = (p.documentos || []).filter((d) => d.tipo === "Informe" && d.url && nucleo.every((w) => norm6(d.titulo).includes(w))).sort((a, b) => (a.fecha || "").localeCompare(b.fecha || "")).slice(0, 2);
+  const nucleo = norm7(comision).replace(/^comision\s+(especial\s+)?(de\s+)?/, "").split(/[^a-z0-9]+/).filter((w) => w.length > 3).slice(0, 2);
+  const informes = (p.documentos || []).filter((d) => d.tipo === "Informe" && d.url && nucleo.every((w) => norm7(d.titulo).includes(w))).sort((a, b) => (a.fecha || "").localeCompare(b.fecha || "")).slice(0, 2);
   if (informes.length === 0) {
     return { disponible: false, comision, motivo: "Esta comisi\xF3n a\xFAn no ha emitido un informe en el expediente; el resumen estar\xE1 disponible cuando lo publique." };
   }
@@ -191984,6 +191984,128 @@ var init_actasCamaraService = __esm({
     OPENDATA_SESIONES = "https://opendata.camara.cl/camaradiputados/WServices/WSComision.asmx/retornarSesionesXComisionYAnno";
     etiqueta = (x, t) => (x.match(new RegExp(`<${t}(?:\\s[^>]*)?>([^<]*)</${t}>`)) || [])[1]?.trim() || "";
     nombrePropio = (s) => s.toLowerCase().replace(/(^|[\s-])(\p{L})/gu, (_m, a, b) => a + b.toUpperCase());
+  }
+});
+
+// server/services/relacionadosService.ts
+var relacionadosService_exports = {};
+__export(relacionadosService_exports, {
+  indiceProyectos: () => indiceProyectos,
+  normasEnTitulo: () => normasEnTitulo,
+  parsearListado: () => parsearListado,
+  proyectosRelacionados: () => proyectosRelacionados,
+  terminos: () => terminos2
+});
+function parsearListado(xml) {
+  return Array.from(xml.matchAll(/<ProyectoLey>([\s\S]*?)<\/ProyectoLey>/g)).map((m) => {
+    const b = m[1];
+    const t = (tag) => decod((b.match(new RegExp(`<${tag}(?:\\s[^>]*)?>([^<]*)</${tag}>`)) || [])[1] || "").trim();
+    return [t("NumeroBoletin"), t("Nombre"), t("FechaIngreso").slice(0, 10), t("TipoIniciativa")];
+  }).filter((x) => /^\d{3,6}-\d{1,2}$/.test(x[0]) && x[1]);
+}
+async function listadoAnio(anio) {
+  const out = [];
+  for (const op of ["retornarMocionesXAnno", "retornarMensajesXAnno"]) {
+    const r = await fetch(`${WS}/${op}?prmAnno=${anio}`, { headers: { "User-Agent": "LegisTrackCL/1.0 (datos abiertos)" }, signal: AbortSignal.timeout(4e4) });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    out.push(...parsearListado(await r.text()));
+  }
+  return out;
+}
+async function indiceProyectos() {
+  if (memoria2 && memoria2.hasta > Date.now()) return { items: memoria2.items, faltan: [] };
+  const actual = (/* @__PURE__ */ new Date()).getFullYear();
+  const anios = Array.from({ length: actual - DESDE_ANIO + 1 }, (_, i) => DESDE_ANIO + i);
+  const items = [];
+  const faltan = [];
+  const cola = [...anios];
+  const trabajador = async () => {
+    while (cola.length) {
+      const a = cola.shift();
+      const doc = await leerDoc(`indice_proyectos/a${a}`).catch(() => null);
+      const vigente = doc?.items && (a < actual - 1 || doc.actualizado && Date.now() - Date.parse(doc.actualizado) < 24 * 3600 * 1e3);
+      if (vigente) {
+        items.push(...JSON.parse(doc.items));
+        continue;
+      }
+      try {
+        const lista3 = await listadoAnio(a);
+        items.push(...lista3);
+        await escribirDoc(`indice_proyectos/a${a}`, { items: JSON.stringify(lista3), actualizado: (/* @__PURE__ */ new Date()).toISOString(), total: lista3.length }).catch(() => void 0);
+      } catch {
+        if (doc?.items) items.push(...JSON.parse(doc.items));
+        else faltan.push(a);
+      }
+    }
+  };
+  await Promise.all([trabajador(), trabajador(), trabajador(), trabajador()]);
+  const unicos3 = Array.from(new Map(items.map((x) => [x[0], x])).values());
+  if (!faltan.length) memoria2 = { hasta: Date.now() + 6 * 3600 * 1e3, items: unicos3 };
+  return { items: unicos3, faltan };
+}
+function terminos2(titulo) {
+  return Array.from(new Set(norm6(titulo).replace(/[^a-z0-9ñ ]/g, " ").split(/\s+/).filter((w) => w.length > 2 && !VACIAS2.has(w) && !/^\d+$/.test(w)).map(raiz2)));
+}
+function normasEnTitulo(titulo) {
+  const t = norm6(titulo);
+  const out = /* @__PURE__ */ new Set();
+  for (const m of t.matchAll(/\bley\s*(?:n[°º.]?|numero)?\s*(\d{1,2}\.?\d{3})\b/g)) out.add(`ley ${m[1].replace(/\./g, "")}`);
+  for (const m of t.matchAll(/\bcodigo\s+((?:de\s+|del\s+|de\s+la\s+)?[a-zñ]+(?:\s+(?:de\s+|del\s+|y\s+)?[a-zñ]+)?)/g)) {
+    const nombre = m[1].replace(/\s+(para|con|en|a|que|y|al|sobre|respecto|el|la|los|las)$/, "").replace(/\s+(para|con|en|a|que|al|sobre)\s.*$/, "").trim();
+    if (nombre && !/^(de|del)$/.test(nombre)) out.add(`codigo ${nombre}`);
+  }
+  return Array.from(out);
+}
+async function proyectosRelacionados(boletin, tituloPropio) {
+  const { items, faltan } = await indiceProyectos();
+  const clave = String(boletin).split("-")[0];
+  const propio = items.find((x) => x[0].split("-")[0] === clave);
+  const titulo = propio?.[1] || tituloPropio || "";
+  if (!titulo) return { disponible: false, motivo: "No se encontr\xF3 el t\xEDtulo oficial del proyecto en el listado de la C\xE1mara.", mismaNorma: [], materiaSimilar: [], total: items.length, faltan };
+  const otros = items.filter((x) => x[0].split("-")[0] !== clave);
+  const docs = otros.map((x) => terminos2(x[1]));
+  const df = /* @__PURE__ */ new Map();
+  for (const d of docs) for (const w of d) df.set(w, (df.get(w) || 0) + 1);
+  const N = docs.length || 1;
+  const idf = (w) => Math.log((N + 1) / ((df.get(w) || 0) + 1)) + 1;
+  const mios = terminos2(titulo);
+  const normaMia = Math.sqrt(mios.reduce((s, w) => s + idf(w) ** 2, 0)) || 1;
+  const similitud = (i) => {
+    const d = docs[i];
+    const comunes = mios.filter((w) => d.includes(w));
+    const punto = comunes.reduce((s, w) => s + idf(w) ** 2, 0);
+    const normaOtro = Math.sqrt(d.reduce((s, w) => s + idf(w) ** 2, 0)) || 1;
+    return { sim: punto / (normaMia * normaOtro), comunes: comunes.sort((a, b) => idf(b) - idf(a)) };
+  };
+  const normas = normasEnTitulo(titulo);
+  const mismaNorma = normas.length ? otros.map((x, i) => {
+    const comunes = normasEnTitulo(x[1]).filter((n) => normas.includes(n));
+    if (!comunes.length) return null;
+    const { sim, comunes: palabras } = similitud(i);
+    return { boletin: x[0], titulo: x[1], fecha: x[2], tipo: x[3], motivo: `Tambi\xE9n modifica: ${comunes.map(etiquetaNorma).join(", ")}${palabras.length ? ` \xB7 t\xE9rminos en com\xFAn: ${palabras.slice(0, 3).join(", ")}` : ""}`, puntaje: comunes.length * 100 + Math.round(sim * 100) };
+  }).filter(Boolean).sort((a, b) => b.puntaje - a.puntaje || b.fecha.localeCompare(a.fecha)).slice(0, 25) : [];
+  const totalMismaNorma = normas.length ? otros.filter((x) => normasEnTitulo(x[1]).some((n) => normas.includes(n))).length : 0;
+  const yaListados = new Set(mismaNorma.map((r) => r.boletin));
+  const materiaSimilar = otros.map((x, i) => {
+    if (yaListados.has(x[0])) return null;
+    const { sim, comunes } = similitud(i);
+    if (comunes.length < 2 || sim < 0.3) return null;
+    return { boletin: x[0], titulo: x[1], fecha: x[2], tipo: x[3], motivo: `T\xE9rminos en com\xFAn: ${comunes.slice(0, 5).join(", ")}`, puntaje: Math.round(sim * 100) };
+  }).filter(Boolean).sort((a, b) => b.puntaje - a.puntaje || b.fecha.localeCompare(a.fecha)).slice(0, 15);
+  return { disponible: true, titulo, normas: normas.map(etiquetaNorma), mismaNorma, totalMismaNorma, materiaSimilar, total: items.length, desde: DESDE_ANIO, faltan };
+}
+var WS, DESDE_ANIO, decod, memoria2, norm6, VACIAS2, raiz2, etiquetaNorma;
+var init_relacionadosService = __esm({
+  "server/services/relacionadosService.ts"() {
+    init_firestoreRest();
+    WS = "https://opendata.camara.cl/camaradiputados/WServices/WSLegislativo.asmx";
+    DESDE_ANIO = 2014;
+    decod = (s) => s.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&").replace(/&quot;/g, '"');
+    memoria2 = null;
+    norm6 = (s) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+    VACIAS2 = new Set("de la el los las del y a en que para por con sin su sus se al o u un una unos unas sobre como entre ante bajo desde hasta hacia lo le les mas este esta estos estas ese esa dicho dicha cual cuales cuyo cuya no ni e otros otras otro otra todo toda todos todas modifica modificar modificacion modificaciones introduce establece establecer crea crear dispone fija fijar regula regular declara ley leyes n numero articulo articulos codigo decreto fuerza dfl proyecto materia materias objeto fin efecto efectos normas norma diversos diversas cuerpos legales legal respecto relativo relativa indica senala ambito cuanto caso casos forma fecha nacional deroga incorpora sustituye agrega perfecciona mejora fortalece facilita permite promueve aplicacion manera medidas medida debe deben cada ano anos dia dias tal tales mismo misma demas parte".split(" "));
+    raiz2 = (w) => w.length > 5 ? w.replace(/(ciones|cion|mente|idades|idad|es|s)$/, "") : w;
+    etiquetaNorma = (n) => n.startsWith("ley ") ? `Ley N\xB0 ${n.slice(4).replace(/(\d+)(\d{3})$/, "$1.$2")}` : n.replace(/^codigo/, "C\xF3digo").replace(/\b(trabajo|penal|civil|sanitario|tributario|aguas|mineria|comercio|procedimiento|organico|tribunales|transito|aeronautico)\b/g, (w) => w[0].toUpperCase() + w.slice(1));
   }
 });
 
@@ -196569,13 +196691,13 @@ function htmlATextoLegible(html) {
 var PALABRAS_JURIDICAS = /sanci|multa|infracci|autoridad|agencia|organismo|derecho|obligaci|deber|plazo|fiscaliz|vigencia|definici|responsable|titular|consentimiento|penalt|fine|authority|right|obligation|controller|processor|penalty|supervis|prazo|san[cç]|autoridade|direito|dever/i;
 function seleccionarFragmentosRelevantes(texto, query, max) {
   if (texto.length <= max) return texto;
-  const terminos2 = (query || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").split(/[^a-z0-9]+/).filter((w) => w.length >= 4);
+  const terminos3 = (query || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").split(/[^a-z0-9]+/).filter((w) => w.length >= 4);
   const TAM = 1400;
   const trozos = [];
   for (let i = 0, k = 0; i < texto.length; i += TAM, k++) {
     const txt = texto.slice(i, i + TAM);
     const plano = txt.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
-    const hits = terminos2.reduce((n, w) => n + (plano.includes(w) ? 1 : 0), 0);
+    const hits = terminos3.reduce((n, w) => n + (plano.includes(w) ? 1 : 0), 0);
     const juridico = (txt.match(new RegExp(PALABRAS_JURIDICAS.source, "gi")) || []).length;
     trozos.push({ i: k, txt, score: hits * 3 + Math.min(juridico, 6) });
   }
@@ -199649,6 +199771,14 @@ apiRouter.get("/proyecto/:id", async (req, res) => {
     proyecto = resolveProyecto(idParam);
   }
   res.json(proyecto);
+});
+apiRouter.get("/proyecto/:id/relacionados", async (req, res) => {
+  try {
+    const { proyectosRelacionados: proyectosRelacionados2 } = await Promise.resolve().then(() => (init_relacionadosService(), relacionadosService_exports));
+    res.json(await proyectosRelacionados2(String(req.params.id).slice(0, 20), String(req.query.titulo || "").slice(0, 600) || void 0));
+  } catch (err) {
+    res.json({ disponible: false, motivo: `Listado oficial de la C\xE1mara no disponible (${err?.message || err}).`, mismaNorma: [], materiaSimilar: [] });
+  }
 });
 apiRouter.get("/ley-vigente", async (req, res) => {
   let ref = String(req.query.ref || "").slice(0, 300);
